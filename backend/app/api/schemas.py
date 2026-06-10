@@ -86,6 +86,26 @@ class MarcarPrazoCumpridoRequest(BaseModel):
     usuario_id: int = 1
 
 
+class CaptureOabRequest(BaseModel):
+    oab: str
+    uf: str
+    escritorio_id: int | None = None
+    dias_default: int = 15
+    data_inicio: date | None = None
+    data_fim: date | None = None
+
+
+class CaptureDemoRequest(BaseModel):
+    escritorio_id: int | None = None
+    dias_default: int = 15
+
+
+class CaptureResultOut(BaseModel):
+    intimacoes_novas: int
+    processos_enriquecidos: int
+    prazos_registrados: int
+
+
 class ReviewQueueItem(BaseModel):
     intimacao: IntimacaoOut
     processo: ProcessoOut | None

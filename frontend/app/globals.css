@@ -332,6 +332,12 @@ h2 {
   font-size: 13px;
 }
 
+.notice.success {
+  color: var(--ok);
+  border-color: #b9dfc8;
+  background: var(--ok-bg);
+}
+
 .metricStrip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

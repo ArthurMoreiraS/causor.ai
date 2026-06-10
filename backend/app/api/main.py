@@ -7,7 +7,7 @@ REST write here.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +17,9 @@ from sqlalchemy.orm import Session
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
 from app.api.schemas import (
     ApprovePeticaoRequest,
+    CaptureDemoRequest,
+    CaptureOabRequest,
+    CaptureResultOut,
     DraftRequest,
     DraftResponse,
     IntimacaoOut,
@@ -28,7 +31,11 @@ from app.api.schemas import (
     RevisarPrazoRequest,
     ReviewQueueItem,
 )
+from app.capture.datajud import DatajudClient, ProcessoDTO
+from app.capture.djen import ComunicacaoDTO, DjenClient
+from app.capture.poll import poll_oab
 from app.prazo_engine.factory import build_calendar
+from app.settings import settings
 from app.sor import models
 from app.sor.db import get_session
 
@@ -58,6 +65,70 @@ def _audit(
             detalhe=detalhe or {},
         )
     )
+
+
+def _resolve_escritorio(session: Session, escritorio_id: int | None) -> models.Escritorio:
+    if escritorio_id is not None:
+        escritorio = session.get(models.Escritorio, escritorio_id)
+        if escritorio is None:
+            raise HTTPException(status_code=404, detail="escritório não encontrado")
+        return escritorio
+
+    escritorio = session.scalar(select(models.Escritorio).order_by(models.Escritorio.id.asc()))
+    if escritorio is not None:
+        return escritorio
+
+    escritorio = models.Escritorio(nome="Causor Demo Advocacia", cnpj="00000000000100")
+    session.add(escritorio)
+    session.flush()
+    return escritorio
+
+
+class _NoopDatajudClient:
+    def consultar_processo(self, numero_processo: str, *, tribunal: str) -> ProcessoDTO | None:
+        return None
+
+
+class _DemoDjenClient:
+    def consultar(self, oab: str, uf: str, **_: object) -> list[ComunicacaoDTO]:
+        today = date.today()
+        return [
+            ComunicacaoDTO.from_item(
+                {
+                    "id": f"demo-capture-{today.isoformat()}",
+                    "numero_processo": "1009988-77.2026.8.26.0100",
+                    "siglaTribunal": "TJSP",
+                    "tipoComunicacao": "Intimação para réplica",
+                    "nomeOrgao": "3a Vara Civel",
+                    "texto": (
+                        "Fica a parte autora intimada para apresentar réplica no prazo legal, "
+                        f"vinculada à OAB {oab}/{uf}."
+                    ),
+                    "data_disponibilizacao": today.isoformat(),
+                }
+            )
+        ]
+
+
+class _DemoDatajudClient:
+    def consultar_processo(self, numero_processo: str, *, tribunal: str) -> ProcessoDTO | None:
+        return ProcessoDTO.from_source(
+            {
+                "numeroProcesso": numero_processo,
+                "classe": {"nome": "Procedimento Comum Civel"},
+                "tribunal": tribunal,
+                "orgaoJulgador": {"nome": "3a Vara Civel"},
+                "sistema": {"nome": "e-SAJ"},
+                "dataAjuizamento": "2026-02-10T00:00:00.000Z",
+                "movimentos": [
+                    {
+                        "codigo": 51,
+                        "nome": "Conclusos para despacho",
+                        "dataHora": "2026-05-20T12:00:00.000Z",
+                    }
+                ],
+            }
+        )
 
 
 def _dias_para_vencer(prazo: models.Prazo | None) -> int | None:
@@ -213,6 +284,70 @@ def create_app() -> FastAPI:
                 },
             ],
         )
+
+    @app.post("/capture/demo", response_model=CaptureResultOut)
+    def capturar_demo(
+        payload: CaptureDemoRequest,
+        session: Session = Depends(get_session),
+    ) -> CaptureResultOut:
+        escritorio = _resolve_escritorio(session, payload.escritorio_id)
+        result = poll_oab(
+            session,
+            oab="123456",
+            uf="SP",
+            escritorio_id=escritorio.id,
+            djen=_DemoDjenClient(),
+            datajud=_DemoDatajudClient(),
+            calendar=build_calendar(_default_calendar_years()),
+            dias_default=payload.dias_default,
+        )
+        _audit(
+            session,
+            acao="captura_demo_executada",
+            entidade="escritorio",
+            entidade_id=escritorio.id,
+            detalhe=result.__dict__,
+        )
+        session.commit()
+        return CaptureResultOut(**result.__dict__)
+
+    @app.post("/capture/oab", response_model=CaptureResultOut)
+    def capturar_oab(
+        payload: CaptureOabRequest,
+        session: Session = Depends(get_session),
+    ) -> CaptureResultOut:
+        escritorio = _resolve_escritorio(session, payload.escritorio_id)
+        datajud = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
+        try:
+            result = poll_oab(
+                session,
+                oab=payload.oab,
+                uf=payload.uf,
+                escritorio_id=escritorio.id,
+                djen=DjenClient(),
+                datajud=datajud,
+                calendar=build_calendar(_default_calendar_years()),
+                dias_default=payload.dias_default,
+                data_inicio=payload.data_inicio,
+                data_fim=payload.data_fim,
+            )
+        except Exception as exc:
+            session.rollback()
+            raise HTTPException(status_code=502, detail=f"captura não concluída: {exc}") from exc
+
+        _audit(
+            session,
+            acao="captura_oab_executada",
+            entidade="escritorio",
+            entidade_id=escritorio.id,
+            detalhe={
+                "oab": payload.oab,
+                "uf": payload.uf,
+                "resultado": result.__dict__,
+            },
+        )
+        session.commit()
+        return CaptureResultOut(**result.__dict__)
 
     @app.get("/intimacoes", response_model=list[IntimacaoOut])
     def listar_intimacoes(

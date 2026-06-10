@@ -78,6 +78,21 @@ def test_dashboard_operacional(client, seeded):
     assert {connector["key"] for connector in body["connectors"]} >= {"djen", "datajud", "pje"}
 
 
+def test_capture_demo_is_idempotent(client, db_session):
+    first = client.post("/capture/demo", json={})
+    second = client.post("/capture/demo", json={})
+
+    assert first.status_code == 200
+    assert first.json()["intimacoes_novas"] == 1
+    assert first.json()["processos_enriquecidos"] == 1
+    assert first.json()["prazos_registrados"] == 1
+    assert second.status_code == 200
+    assert second.json()["intimacoes_novas"] == 0
+    assert second.json()["prazos_registrados"] == 0
+    assert db_session.query(models.Intimacao).count() == 1
+    assert db_session.query(models.Prazo).count() == 1
+
+
 def test_listar_intimacoes(client, seeded):
     resp = client.get("/intimacoes")
     assert resp.status_code == 200

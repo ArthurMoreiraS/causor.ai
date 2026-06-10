@@ -20,6 +20,9 @@ API:
 
 - `http://localhost:8000/health`
 - `http://localhost:8000/dashboard/operational`
+- `http://localhost:8000/review/queue`
+- `POST http://localhost:8000/capture/demo`
+- `POST http://localhost:8000/capture/oab`
 
 ## Frontend
 
@@ -34,6 +37,8 @@ pnpm dev
 App:
 
 - `http://localhost:3000`
+
+O botao `Rodar captura` executa `POST /capture/demo` no ambiente local. A rota e idempotente: a primeira execucao cria a intimacao demo do dia, e as proximas nao duplicam a comunicacao.
 
 ## Se a tela abrir sem CSS
 

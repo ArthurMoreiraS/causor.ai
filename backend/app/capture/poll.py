@@ -12,6 +12,7 @@ layer's job. The deterministic engine computes the date once the length is set.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 
 from sqlalchemy.orm import Session
 
@@ -39,10 +40,12 @@ def poll_oab(
     datajud: DatajudClient,
     calendar: ForensicCalendar,
     dias_default: int = 15,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
 ) -> PollResult:
     result = PollResult()
 
-    for comunicacao in djen.consultar(oab=oab, uf=uf):
+    for comunicacao in djen.consultar(oab=oab, uf=uf, data_inicio=data_inicio, data_fim=data_fim):
         intimacao = normalize_intimacao(session, comunicacao, escritorio_id=escritorio_id)
         is_new = intimacao in session.new
         session.flush()

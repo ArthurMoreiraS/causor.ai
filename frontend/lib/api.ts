@@ -75,6 +75,12 @@ export type OperationalDashboard = {
   audit_signals: AuditSignal[];
 };
 
+export type CaptureResult = {
+  intimacoes_novas: number;
+  processos_enriquecidos: number;
+  prazos_registrados: number;
+};
+
 export type ReviewQueueItem = {
   intimacao: Intimacao;
   processo: Processo | null;
@@ -357,6 +363,13 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 export async function protocolarPeticao(peticaoId: number): Promise<void> {
   if (demoDashboard.peticoes.some((item) => item.id === peticaoId)) return;
   await request(`/peticoes/${peticaoId}/protocolar`, { method: "POST" });
+}
+
+export async function rodarCapturaDemo(): Promise<CaptureResult> {
+  return request<CaptureResult>("/capture/demo", {
+    method: "POST",
+    body: JSON.stringify({})
+  });
 }
 
 export async function cumprirPrazo(prazoId: number): Promise<void> {

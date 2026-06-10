@@ -32,6 +32,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   aprovarPeticao,
+  CaptureResult,
   cumprirPrazo,
   DashboardData,
   gerarMinuta,
@@ -39,7 +40,8 @@ import {
   Peticao,
   Prazo,
   protocolarPeticao,
-  ReviewQueueItem
+  ReviewQueueItem,
+  rodarCapturaDemo
 } from "@/lib/api";
 
 const emptyData: DashboardData = {
@@ -109,6 +111,7 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -131,6 +134,21 @@ export default function Home() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ação não concluída");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runCapture() {
+    setBusy("capture");
+    setError(null);
+    setCaptureResult(null);
+    try {
+      const result = await rodarCapturaDemo();
+      setCaptureResult(result);
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Captura não concluída");
     } finally {
       setBusy(null);
     }
@@ -289,8 +307,12 @@ export default function Home() {
               <Clock3 size={15} />
               Atividade
             </button>
-            <button className="toolbarButton primary" onClick={refresh} disabled={loading}>
+            <button className="toolbarButton" onClick={refresh} disabled={loading}>
               {loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
+              Atualizar
+            </button>
+            <button className="toolbarButton primary" onClick={runCapture} disabled={busy === "capture"}>
+              {busy === "capture" ? <Loader2 className="spin" size={15} /> : <Bot size={15} />}
               Rodar captura
             </button>
           </div>
@@ -312,6 +334,17 @@ export default function Home() {
           <div className="notice">
             <AlertTriangle size={18} />
             <span>{error}</span>
+          </div>
+        ) : null}
+
+        {captureResult ? (
+          <div className="notice success">
+            <CheckCircle2 size={18} />
+            <span>
+              Captura concluída: {captureResult.intimacoes_novas} intimações novas,{" "}
+              {captureResult.processos_enriquecidos} processos enriquecidos e{" "}
+              {captureResult.prazos_registrados} prazos registrados.
+            </span>
           </div>
         ) : null}
 
