@@ -1,0 +1,60 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Repository status
+
+**Greenfield.** As of this writing the repo contains a single artifact: `PLANO_Agente_Operacional_Juridico.md` — the product + architecture + build roadmap. There is no code, build system, test suite, or git history yet. When you scaffold the project, follow the structure and stack defined in the plan, and update this file with the real build/lint/test commands once they exist.
+
+**The plan document is the source of truth.** Read `PLANO_Agente_Operacional_Juridico.md` in full before making product or architecture decisions. Decisions already settled with the user (do not re-litigate without being asked):
+- Market: Brazil; initial customer: small/medium law firms (solo to ~50 lawyers).
+- First workflow: end-to-end case operations — **capture intimation → compute deadline → draft petition → file (protocol)**.
+- The moat is **autonomous action** (acting like the lawyer inside court systems), not publication monitoring (a commodity already served by Astrea, Projuris, Legal One, Digesto, Escavador). Do not build toward monitoring-only.
+
+## What this product is
+
+A SaaS modeled on Handle.ai but for the Brazilian legal market: AI agents + "computer use" that operate fragmented court portals (PJe, e-SAJ, Projudi, EPROC) and automate the repetitive back-office work (monitoring intimations, tracking deadlines, filing petitions). Missing a deadline is professional malpractice, which makes the pain critical and the ROI measurable.
+
+## Architecture (intended)
+
+Pattern: **System of Record (SOR) + deterministic connectors + agent layer (Claude)**. Do **not** use pure computer-use for every action (slow, expensive, fragile). Use deterministic flows for the known path and Claude for reasoning, normalization, drafting, and exceptions.
+
+Planned backend layout (`/backend`):
+- `sor/` — Postgres models + migrations. Core entities: `escritorio`, `usuario`, `cliente`, `processo`, `intimacao/comunicacao`, `prazo`, `peticao`, `andamento`, `documento`, `credencial_assinatura`, `audit_log`.
+- `capture/` — consumes **DJEN/Comunica** (intimations) and **DataJud** (process metadata/movements), normalizes, writes to SOR. Polls on schedule by OAB/court. **Capture uses official APIs, never scraping.**
+- `prazo_engine/` — **deterministic** deadline calculation (business-day counting per CPC/CLT, national/local holidays, recess/suspensions). This is plain testable code, not an LLM call. Claude only *interprets/classifies* the intimation's content; the date math itself is deterministic.
+- `agent/` — Claude orchestration via tool use: extract/classify intimation, decide the applicable petition and draft it, trigger the filing connector, fall back to vision/computer-use for new layouts.
+- `connectors/pje/` — Playwright, one connector per court system. Start with **one** system only (PJe recommended; e-SAJ/TJSP is the alternative — confirm against available pilots). Isolated browser session per lawyer.
+- `vault/` — credential/signature storage (cloud certificate reference or encrypted A1). Signing via the cloud-certificate provider's API.
+- `queue/` — Celery/RQ workers for async long-running captures and actions.
+- `api/` — FastAPI endpoints for the frontend.
+
+Frontend (`/frontend`): Next.js (TypeScript) + React — inbox of intimations, deadline panel (with risk), petition approval queue, per-process timeline/audit, certificate onboarding. Infra (`/infra`): docker-compose, isolated browser workers per tenant.
+
+## Tech stack (intended)
+
+- Backend/agent: Python (FastAPI) + `anthropic` SDK + Playwright (Python).
+- Data: PostgreSQL. Queue/cache: Redis + Celery/RQ.
+- Frontend: Next.js (TypeScript) + React.
+- Deadline engine base: `workalendar` / `python-holidays` for Brazilian holidays.
+- Claude model: `claude-opus-4-8` with adaptive thinking, `effort: "high"`. Consult the `claude-api` skill for SDK details (tool use, `client.messages.create`) before writing agent code.
+
+## Non-negotiable constraints
+
+These define the architecture; violating them breaks the product's viability or legality:
+
+1. **Secrets never enter prompts or logs.** Certificates, `.pfx` passwords, and signing credentials live only in the vault. The signature path is the viability bottleneck — prefer cloud certificates (BirdID, VIDaaS, Certisign Cloud, SafeID) with API/push signing; encrypted A1 as fallback. A3 (physical token) is not automatable.
+2. **Human approval gate before any irreversible action (filing/protocol).** The lawyer remains professionally responsible (OAB). Filing must pass a configurable human-approval gate; the gate is disengaged only as confidence grows, never removed from the codebase.
+3. **Immutable audit trail from day one.** Every step the agent takes is logged immutably.
+4. **Official APIs before scraping.** DJEN/Comunica and DataJud for capture; computer-use/Playwright is for *action* only, with human-in-the-loop fallback when captcha/layout changes block it.
+
+## Working agreements
+
+- **TDD, especially for `prazo_engine`.** Deadline math must have unit tests for edge cases (recess, local holidays, business-day counting) before implementation. Target ≥99% correct deadline calculation on tested cases.
+- Each component has a single responsibility and is testable in isolation (see the layout above).
+- Build order: MVP vertical slice first (1 court + the single end-to-end flow with the gate), then connector expansion, then additional agents, then multi-tenant/billing/scale. Don't broaden scope ahead of this order without being asked.
+
+## External API references (verified)
+
+- **DataJud (process metadata/movements):** `POST https://api-publica.datajud.cnj.jus.br/api_publica_<tribunal>/_search`, header `Authorization: APIKey <chave pública do CNJ>`, Elasticsearch-style JSON query body. The public key is published on the DataJud Wiki and may be rotated by CNJ — fetch it at runtime/config, never hardcode permanently. Response `_source` fields include `numeroProcesso`, `classe`, `tribunal`, `dataAjuizamento`, `orgaoJulgador`, `sistema`, `movimentos[]`, `assuntos[]`, `nivelSigilo`.
+- **DJEN / Comunica (intimations):** `GET https://comunicaapi.pje.jus.br/api/v1/comunicacao` (Swagger at `https://comunicaapi.pje.jus.br/`). Poll by OAB/court. Confirm exact query parameters against the live Swagger before coding the client.
