@@ -70,3 +70,36 @@ class DraftResponse(BaseModel):
 
 class ApprovePeticaoRequest(BaseModel):
     usuario_id: int
+
+
+class DashboardMetric(BaseModel):
+    key: str
+    label: str
+    value: int
+
+
+class WorkflowStep(BaseModel):
+    key: str
+    label: str
+    detail: str
+    status: str
+
+
+class ConnectorStatus(BaseModel):
+    key: str
+    name: str
+    detail: str
+    status: str
+
+
+class AuditSignal(BaseModel):
+    key: str
+    title: str
+    detail: str
+
+
+class OperationalDashboard(BaseModel):
+    metrics: list[DashboardMetric]
+    workflow: list[WorkflowStep]
+    connectors: list[ConnectorStatus]
+    audit_signals: list[AuditSignal]

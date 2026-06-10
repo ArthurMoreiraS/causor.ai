@@ -60,6 +60,24 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_dashboard_operacional(client, seeded):
+    resp = client.get("/dashboard/operational")
+    assert resp.status_code == 200
+    body = resp.json()
+    metric_by_key = {item["key"]: item for item in body["metrics"]}
+    assert metric_by_key["processos"]["value"] == 1
+    assert metric_by_key["intimacoes"]["value"] == 1
+    assert metric_by_key["prazos"]["value"] == 1
+    assert [step["key"] for step in body["workflow"]] == [
+        "capture",
+        "deadline",
+        "draft",
+        "approval",
+        "filing",
+    ]
+    assert {connector["key"] for connector in body["connectors"]} >= {"djen", "datajud", "pje"}
+
+
 def test_listar_intimacoes(client, seeded):
     resp = client.get("/intimacoes")
     assert resp.status_code == 200

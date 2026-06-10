@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Causor",
-  description: "Agente operacional juridico"
+  description: "Agente operacional jurídico"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

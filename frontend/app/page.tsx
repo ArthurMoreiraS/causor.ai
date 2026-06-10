@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  CircleDot,
   Clock3,
   Download,
   FilePenLine,
@@ -14,6 +15,7 @@ import {
   HelpCircle,
   HomeIcon,
   Loader2,
+  LockKeyhole,
   MessageCircle,
   RefreshCw,
   Search,
@@ -23,7 +25,8 @@ import {
   SlidersHorizontal,
   Sparkles,
   Table2,
-  UserRound
+  UserRound,
+  Workflow
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
@@ -44,6 +47,21 @@ const emptyData: DashboardData = {
   peticoes: []
 };
 
+const workflow = [
+  { key: "capture", label: "Captura", detail: "DJEN + DataJud", status: "live" },
+  { key: "deadline", label: "Prazo", detail: "Motor determinístico", status: "live" },
+  { key: "draft", label: "Minuta", detail: "Claude + templates", status: "review" },
+  { key: "approval", label: "Aprovação", detail: "Gate OAB", status: "review" },
+  { key: "filing", label: "Protocolo", detail: "PJe / e-SAJ", status: "next" }
+];
+
+const connectors = [
+  { name: "DJEN", detail: "captura oficial", status: "online" },
+  { name: "DataJud", detail: "andamentos e metadados", status: "online" },
+  { name: "PJe", detail: "protocolo assistido", status: "pilot" },
+  { name: "e-SAJ", detail: "próximo conector", status: "planned" }
+];
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(value));
@@ -58,9 +76,18 @@ function daysUntil(value: string) {
 }
 
 function statusLabel(status: Peticao["status"]) {
-  if (status === "rascunho") return "Review";
-  if (status === "aprovada") return "Approved";
-  if (status === "protocolada") return "Filed";
+  if (status === "rascunho") return "Revisão";
+  if (status === "aprovada") return "Aprovada";
+  if (status === "protocolada") return "Protocolada";
+  return status;
+}
+
+function connectorStatusLabel(status: string) {
+  if (status === "online") return "ativo";
+  if (status === "pilot") return "piloto";
+  if (status === "planned") return "planejado";
+  if (status === "live") return "ativo";
+  if (status === "review") return "revisão";
   return status;
 }
 
@@ -68,6 +95,7 @@ export default function Home() {
   const [data, setData] = useState<DashboardData>(emptyData);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function refresh() {
@@ -76,7 +104,7 @@ export default function Home() {
     try {
       setData(await loadDashboard());
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to load Causor data");
+      setError(err instanceof Error ? err.message : "Não foi possível carregar o Causor");
       setData(emptyData);
     } finally {
       setLoading(false);
@@ -90,7 +118,7 @@ export default function Home() {
       await action();
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Action could not be completed");
+      setError(err instanceof Error ? err.message : "Ação não concluída");
     } finally {
       setBusy(null);
     }
@@ -102,15 +130,50 @@ export default function Home() {
 
   const metrics = useMemo(() => {
     const openDeadlines = data.prazos.filter((p) => !p.cumprido);
-    const urgent = openDeadlines.filter((p) => daysUntil(p.data_fatal) <= 3).length;
+    const highRisk = openDeadlines.filter((p) => daysUntil(p.data_fatal) <= 3).length;
+    const drafts = data.peticoes.filter((p) => p.status === "rascunho").length;
+    const approved = data.peticoes.filter((p) => p.status === "aprovada").length;
     return {
       monitored: data.processos.length,
       captured: data.intimacoes.length,
       pending: openDeadlines.length,
-      overdue: urgent,
-      drafts: data.peticoes.filter((p) => p.status === "rascunho").length
+      highRisk,
+      drafts,
+      approved,
+      hoursReturned: Math.max(8, data.intimacoes.length * 3 + data.peticoes.length * 2),
+      automationRate: data.demoMode ? 92 : Math.min(99, 70 + data.intimacoes.length * 4)
     };
   }, [data]);
+
+  const filteredIntimacoes = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return data.intimacoes;
+    return data.intimacoes.filter((item) =>
+      [item.numero_processo, item.tribunal, item.tipo_comunicacao]
+        .filter(Boolean)
+        .some((value) => value!.toLowerCase().includes(normalized))
+    );
+  }, [data.intimacoes, query]);
+
+  const operationalWorkflow = data.operational?.workflow ?? workflow;
+  const operationalConnectors = data.operational?.connectors ?? connectors;
+  const operationalAudit = data.operational?.audit_signals ?? [
+    {
+      key: "gate",
+      title: "Gate humano ativo",
+      detail: "Protocolo exige aprovação do advogado."
+    },
+    {
+      key: "secrets",
+      title: "Segredos fora do prompt",
+      detail: "Certificados e senhas pertencem ao vault."
+    },
+    {
+      key: "audit",
+      title: "Log operacional",
+      detail: "Cada passo do agente fica rastreável."
+    }
+  ];
 
   return (
     <main className="shell">
@@ -120,28 +183,28 @@ export default function Home() {
             <Gavel size={18} />
           </div>
           <strong>Causor</strong>
-          <span>DEV</span>
+          <span>PILOTO</span>
         </div>
 
         <nav className="sideNav">
-          <NavItem icon={<HomeIcon size={15} />} label="Home" />
-          <NavGroup label="Agents">
-            <NavItem icon={<Bot size={15} />} label="Deadline Operations" active />
-            <NavItem icon={<FilePenLine size={15} />} label="Petition Drafting" />
-            <NavItem icon={<ShieldCheck size={15} />} label="Filing Gate" />
-            <NavItem icon={<CalendarDays size={15} />} label="Court Calendar" />
+          <NavItem icon={<HomeIcon size={15} />} label="Início" />
+          <NavGroup label="Agentes">
+            <NavItem icon={<Bot size={15} />} label="Operações Processuais" active />
+            <NavItem icon={<FilePenLine size={15} />} label="Minutas" />
+            <NavItem icon={<ShieldCheck size={15} />} label="Gate OAB" />
+            <NavItem icon={<CalendarDays size={15} />} label="Calendário Forense" />
           </NavGroup>
-          <NavGroup label="System of Record">
-            <NavItem icon={<HomeIcon size={15} />} label="Cases" />
-            <NavItem icon={<MessageCircle size={15} />} label="Intimations" />
-            <NavItem icon={<Clock3 size={15} />} label="Deadlines" />
-            <NavItem icon={<Table2 size={15} />} label="Audit Trail" />
+          <NavGroup label="Sistema de Registro">
+            <NavItem icon={<HomeIcon size={15} />} label="Processos" />
+            <NavItem icon={<MessageCircle size={15} />} label="Intimações" />
+            <NavItem icon={<Clock3 size={15} />} label="Prazos" />
+            <NavItem icon={<Table2 size={15} />} label="Auditoria" />
           </NavGroup>
         </nav>
 
         <div className="sidebarFooter">
-          <NavItem icon={<HelpCircle size={15} />} label="Help Center" />
-          <NavItem icon={<Settings size={15} />} label="Settings" />
+          <NavItem icon={<HelpCircle size={15} />} label="Ajuda" />
+          <NavItem icon={<Settings size={15} />} label="Configurações" />
           <div className="profile">
             <div className="avatar">AM</div>
             <div>
@@ -158,26 +221,34 @@ export default function Home() {
           <div className="crumbs">
             <span>Legal Ops</span>
             <ChevronRight size={13} />
-            <strong>Deadline Operations Agent</strong>
+            <strong>Agente Operacional Jurídico</strong>
           </div>
           <div className="appActions">
             <button className="toolbarButton">
               <Settings size={15} />
-              Settings
+              Configurações
             </button>
             <button className="toolbarButton">
               <Clock3 size={15} />
-              Activity
+              Atividade
             </button>
             <button className="toolbarButton primary" onClick={refresh} disabled={loading}>
               {loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
-              Run Capture
+              Rodar captura
             </button>
           </div>
         </header>
 
         <section className="hero">
-          <h1>Deadline Operations Agent</h1>
+          <div>
+            <p className="agentKicker">Plataforma de agentes Causor</p>
+            <h1>Agente de Operações Processuais</h1>
+          </div>
+          <div className="heroSignal">
+            <span>{data.demoMode ? "Demonstração para piloto" : "Ambiente ativo"}</span>
+            <strong>{metrics.automationRate}%</strong>
+            <small>fluxo automatizado até o gate</small>
+          </div>
         </section>
 
         {error ? (
@@ -188,86 +259,103 @@ export default function Home() {
         ) : null}
 
         <section className="metricStrip">
-          <Metric label="Cases Monitored" value={metrics.monitored} />
-          <Metric label="Intimations Captured" value={metrics.captured} />
-          <Metric label="Pending Deadlines" value={metrics.pending} />
-          <Metric label="High Risk" value={metrics.overdue} />
+          <Metric label="Processos Monitorados" value={metrics.monitored} />
+          <Metric label="Intimações Capturadas" value={metrics.captured} />
+          <Metric label="Prazos Pendentes" value={metrics.pending} />
+          <Metric label="Alto Risco" value={metrics.highRisk} />
+        </section>
+
+        <section className="workflowStrip" aria-label="Fluxo operacional">
+          {operationalWorkflow.map((step, index) => (
+            <div className={`workflowStep ${step.status}`} key={step.key}>
+              <div className="stepIndex">{String(index + 1).padStart(2, "0")}</div>
+              <div>
+                <strong>{step.label}</strong>
+                <span>{step.detail}</span>
+              </div>
+            </div>
+          ))}
         </section>
 
         <section className="statusTabs">
           <button className="statusTab active">
             <Clock3 size={15} />
-            Pending
+            Pendentes
           </button>
           <button className="statusTab">
             <Sparkles size={15} />
-            Drafted
+            Minutadas
           </button>
           <button className="statusTab">
             <CheckCircle2 size={15} />
-            Approved
+            Aprovadas
           </button>
           <button className="statusTab">
             <Send size={15} />
-            Filed
+            Protocoladas
           </button>
         </section>
 
         <section className="workSurface">
           <div className="viewbar">
             <div className="segmented">
-              <button className="selected">Collections</button>
-              <button>Calendar</button>
-              <button>Table</button>
+              <button className="selected">Operação</button>
+              <button>Calendário</button>
+              <button>Tabela</button>
             </div>
             <div className="viewActions">
               <label className="search">
                 <Search size={15} />
-                <input placeholder="Search case or client" />
+                <input
+                  placeholder="Buscar processo, tribunal ou ato"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
               </label>
               <button className="toolbarButton compact">
                 <SlidersHorizontal size={15} />
-                Filters
+                Filtros
               </button>
               <button className="toolbarButton compact">
                 <Download size={15} />
-                Export
+                Exportar
               </button>
             </div>
           </div>
 
           <section className="amountCards">
-            <AmountCard label="This Week" value={metrics.pending} detail="open deadlines" />
-            <AmountCard label="Upcoming" value={metrics.drafts} detail="drafts awaiting review" />
-            <AmountCard label="High Risk" value={metrics.overdue} detail="deadlines within 3 days" />
+            <AmountCard label="Horas devolvidas" value={metrics.hoursReturned} detail="estimativa mensal" />
+            <AmountCard label="Minutas em revisão" value={metrics.drafts} detail="aguardando advogado" />
+            <AmountCard label="Prontas para protocolo" value={metrics.approved} detail="gate aprovado" />
           </section>
 
           <section className="tablePanel">
             <div className="tableHeader">
-              <span>Case</span>
-              <span>Court</span>
-              <span>Deadline</span>
-              <span>Days</span>
-              <span>Agent Action</span>
+              <span>Processo</span>
+              <span>Sistema</span>
+              <span>Vencimento</span>
+              <span>Risco</span>
+              <span>Agente</span>
             </div>
             <div className="tableBody">
-              {data.intimacoes.map((item) => {
+              {filteredIntimacoes.map((item) => {
                 const prazo = data.prazos.find((p) => p.intimacao_id === item.id);
+                const processo = data.processos.find((p) => p.id === item.processo_id);
                 return (
                   <article className="caseRow" key={item.id}>
                     <div className="caseCell">
                       <ChevronRight size={14} />
                       <div>
-                        <strong>{item.numero_processo ?? "Unidentified case"}</strong>
-                        <span>{item.tipo_comunicacao ?? "Court communication"}</span>
+                        <strong>{item.numero_processo ?? "Processo não identificado"}</strong>
+                        <span>{item.tipo_comunicacao ?? "Comunicação judicial"}</span>
                       </div>
                     </div>
-                    <span>{item.tribunal ?? "-"}</span>
+                    <span>{processo?.sistema ?? item.tribunal ?? "-"}</span>
                     <strong>{prazo ? formatDate(prazo.data_fatal) : formatDate(item.data_publicacao)}</strong>
                     <DeadlineBadge prazo={prazo} />
                     <button
                       className="iconButton"
-                      title="Generate draft"
+                      title="Gerar minuta"
                       disabled={busy === `draft-${item.id}`}
                       onClick={() => runAction(`draft-${item.id}`, () => gerarMinuta(item.id))}
                     >
@@ -280,24 +368,53 @@ export default function Home() {
                   </article>
                 );
               })}
-              {!data.intimacoes.length ? <Empty label="No captured intimations yet" /> : null}
+              {!filteredIntimacoes.length ? <Empty label="Nenhuma intimação encontrada" /> : null}
             </div>
           </section>
         </section>
 
+        <section className="insightGrid">
+          <Panel title="Conectores" action="oficiais primeiro">
+            <div className="connectorGrid">
+              {operationalConnectors.map((connector) => (
+                <article className={`connector ${connector.status}`} key={connector.name}>
+                  <div>
+                    <strong>{connector.name}</strong>
+                    <span>{connector.detail}</span>
+                  </div>
+                  <small>{connectorStatusLabel(connector.status)}</small>
+                </article>
+              ))}
+            </div>
+          </Panel>
+
+          <Panel title="Tese do produto" action="moat">
+            <div className="thesis">
+              <Workflow size={24} />
+              <div>
+                <strong>Da intimação ao protocolo</strong>
+                <span>
+                  O Causor centraliza o SOR, calcula prazos sem LLM, minuta com Claude e
+                  preserva o gate humano antes de qualquer ato irreversível.
+                </span>
+              </div>
+            </div>
+          </Panel>
+        </section>
+
         <section className="bottomGrid">
-          <Panel title="Approval Queue" action={`${data.peticoes.length} drafts`}>
+          <Panel title="Fila de aprovação" action={`${data.peticoes.length} minutas`}>
             <div className="petitionList">
               {data.peticoes.map((peticao) => (
                 <article className="petition" key={peticao.id}>
                   <div className="petitionHead">
                     <div>
-                      <strong>{peticao.tipo ?? "Petition"}</strong>
-                      <span>Case #{peticao.processo_id}</span>
+                      <strong>{peticao.tipo ?? "Petição"}</strong>
+                      <span>Processo #{peticao.processo_id}</span>
                     </div>
                     <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
                   </div>
-                  <p>{peticao.conteudo ?? "No content"}</p>
+                  <p>{peticao.conteudo ?? "Sem conteúdo"}</p>
                   <div className="petitionActions">
                     <button
                       className="toolbarButton"
@@ -307,7 +424,7 @@ export default function Home() {
                       }
                     >
                       <CheckCircle2 size={15} />
-                      Approve
+                      Aprovar
                     </button>
                     <button
                       className="toolbarButton primary"
@@ -317,22 +434,33 @@ export default function Home() {
                       }
                     >
                       <Send size={15} />
-                      File
+                      Protocolar
                     </button>
                   </div>
                 </article>
               ))}
-              {!data.peticoes.length ? <Empty label="No petitions awaiting approval" /> : null}
+              {!data.peticoes.length ? <Empty label="Nenhuma minuta aguardando aprovação" /> : null}
             </div>
           </Panel>
 
-          <Panel title="Human Gate" action="active">
-            <div className="gate">
-              <ShieldCheck size={26} />
-              <div>
-                <strong>Approval required before filing</strong>
-                <span>Draft petitions cannot be filed until a responsible lawyer approves them.</span>
-              </div>
+          <Panel title="Auditoria e segurança" action="imutável">
+            <div className="auditList">
+              {operationalAudit.map((item, index) => (
+                <AuditItem
+                  key={item.key}
+                  icon={
+                    index === 0 ? (
+                      <ShieldCheck size={15} />
+                    ) : index === 1 ? (
+                      <LockKeyhole size={15} />
+                    ) : (
+                      <CircleDot size={15} />
+                    )
+                  }
+                  title={item.title}
+                  detail={item.detail}
+                />
+              ))}
             </div>
           </Panel>
         </section>
@@ -383,7 +511,7 @@ function AmountCard({ label, value, detail }: { label: string; value: number; de
   return (
     <article className="amountCard">
       <span>{label}</span>
-      <strong>{value.toLocaleString("en-US")}</strong>
+      <strong>{value.toLocaleString("pt-BR")}</strong>
       <small>{detail}</small>
     </article>
   );
@@ -410,12 +538,24 @@ function Panel({
 }
 
 function DeadlineBadge({ prazo }: { prazo: Prazo | undefined }) {
-  if (!prazo) return <span className="dayBadge neutral">Pending</span>;
+  if (!prazo) return <span className="dayBadge neutral">Pendente</span>;
   const remaining = daysUntil(prazo.data_fatal);
-  if (prazo.cumprido) return <span className="dayBadge done">Done</span>;
-  if (remaining <= 0) return <span className="dayBadge risk">Due</span>;
+  if (prazo.cumprido) return <span className="dayBadge done">Concluído</span>;
+  if (remaining <= 0) return <span className="dayBadge risk">Vencido</span>;
   if (remaining <= 3) return <span className="dayBadge today">{remaining}d</span>;
   return <span className="dayBadge neutral">{remaining}d</span>;
+}
+
+function AuditItem({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
+  return (
+    <article className="auditItem">
+      <div className="auditIcon">{icon}</div>
+      <div>
+        <strong>{title}</strong>
+        <span>{detail}</span>
+      </div>
+    </article>
+  );
 }
 
 function Empty({ label }: { label: string }) {

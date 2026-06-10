@@ -41,14 +41,215 @@ export type Peticao = {
   protocolada_em: string | null;
 };
 
+export type DashboardMetric = {
+  key: string;
+  label: string;
+  value: number;
+};
+
+export type WorkflowStep = {
+  key: string;
+  label: string;
+  detail: string;
+  status: string;
+};
+
+export type ConnectorStatus = {
+  key: string;
+  name: string;
+  detail: string;
+  status: string;
+};
+
+export type AuditSignal = {
+  key: string;
+  title: string;
+  detail: string;
+};
+
+export type OperationalDashboard = {
+  metrics: DashboardMetric[];
+  workflow: WorkflowStep[];
+  connectors: ConnectorStatus[];
+  audit_signals: AuditSignal[];
+};
+
 export type DashboardData = {
   intimacoes: Intimacao[];
   processos: Processo[];
   prazos: Prazo[];
   peticoes: Peticao[];
+  operational?: OperationalDashboard;
+  demoMode?: boolean;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+const today = new Date();
+const isoFromToday = (offsetDays: number) => {
+  const value = new Date(today);
+  value.setDate(value.getDate() + offsetDays);
+  return value.toISOString().slice(0, 10);
+};
+
+const demoDashboard: DashboardData = {
+  demoMode: true,
+  processos: [
+    {
+      id: 1,
+      numero: "1001842-88.2025.8.26.0100",
+      classe: "Procedimento Comum Cível",
+      tribunal: "TJSP",
+      orgao_julgador: "12a Vara Civel",
+      sistema: "e-SAJ"
+    },
+    {
+      id: 2,
+      numero: "0007341-21.2025.5.02.0031",
+      classe: "Reclamação Trabalhista",
+      tribunal: "TRT2",
+      orgao_julgador: "31a Vara do Trabalho",
+      sistema: "PJe"
+    },
+    {
+      id: 3,
+      numero: "5012389-44.2025.4.03.6100",
+      classe: "Mandado de Seguranca",
+      tribunal: "TRF3",
+      orgao_julgador: "6a Vara Federal",
+      sistema: "PJe"
+    }
+  ],
+  intimacoes: [
+    {
+      id: 101,
+      processo_id: 1,
+      fonte: "DJEN",
+      numero_processo: "1001842-88.2025.8.26.0100",
+      tribunal: "TJSP",
+      tipo_comunicacao: "Intimação para manifestação",
+      data_disponibilizacao: isoFromToday(-1),
+      data_publicacao: isoFromToday(0)
+    },
+    {
+      id: 102,
+      processo_id: 2,
+      fonte: "DJEN",
+      numero_processo: "0007341-21.2025.5.02.0031",
+      tribunal: "TRT2",
+      tipo_comunicacao: "Intimação para contestar",
+      data_disponibilizacao: isoFromToday(-4),
+      data_publicacao: isoFromToday(-3)
+    },
+    {
+      id: 103,
+      processo_id: 3,
+      fonte: "DJEN",
+      numero_processo: "5012389-44.2025.4.03.6100",
+      tribunal: "TRF3",
+      tipo_comunicacao: "Intimação de decisão liminar",
+      data_disponibilizacao: isoFromToday(-7),
+      data_publicacao: isoFromToday(-6)
+    }
+  ],
+  prazos: [
+    {
+      id: 201,
+      processo_id: 1,
+      intimacao_id: 101,
+      descricao: "Manifestação sobre documentos",
+      data_inicio: isoFromToday(0),
+      dias: 15,
+      dias_uteis: true,
+      data_fatal: isoFromToday(12),
+      cumprido: false
+    },
+    {
+      id: 202,
+      processo_id: 2,
+      intimacao_id: 102,
+      descricao: "Contestação trabalhista",
+      data_inicio: isoFromToday(-3),
+      dias: 15,
+      dias_uteis: true,
+      data_fatal: isoFromToday(2),
+      cumprido: false
+    },
+    {
+      id: 203,
+      processo_id: 3,
+      intimacao_id: 103,
+      descricao: "Agravo / pedido de reconsideração",
+      data_inicio: isoFromToday(-6),
+      dias: 5,
+      dias_uteis: true,
+      data_fatal: isoFromToday(-1),
+      cumprido: false
+    }
+  ],
+  peticoes: [
+    {
+      id: 301,
+      processo_id: 2,
+      prazo_id: 202,
+      tipo: "Contestação",
+      conteudo:
+        "Minuta estruturada com síntese dos fatos, preliminares aplicáveis e pedidos. Aguardando revisão do advogado responsável antes do protocolo.",
+      status: "rascunho",
+      aprovada_por: null,
+      protocolada_em: null
+    },
+    {
+      id: 302,
+      processo_id: 1,
+      prazo_id: 201,
+      tipo: "Manifestação",
+      conteudo:
+        "Manifestação preparada a partir da intimação capturada no DJEN e dos metadados do processo no SOR.",
+      status: "aprovada",
+      aprovada_por: 1,
+      protocolada_em: null
+    }
+  ],
+  operational: {
+    metrics: [
+      { key: "processos", label: "Processos monitorados", value: 3 },
+      { key: "intimacoes", label: "Intimações capturadas", value: 3 },
+      { key: "prazos", label: "Prazos pendentes", value: 3 },
+      { key: "risco", label: "Alto risco", value: 2 }
+    ],
+    workflow: [
+      { key: "capture", label: "Captura", detail: "DJEN + DataJud", status: "live" },
+      { key: "deadline", label: "Prazo", detail: "Motor determinístico", status: "live" },
+      { key: "draft", label: "Minuta", detail: "Claude + templates", status: "review" },
+      { key: "approval", label: "Aprovação", detail: "Gate humano OAB", status: "review" },
+      { key: "filing", label: "Protocolo", detail: "Conector PJe/e-SAJ", status: "planned" }
+    ],
+    connectors: [
+      { key: "djen", name: "DJEN", detail: "captura oficial", status: "online" },
+      { key: "datajud", name: "DataJud", detail: "metadados e andamentos", status: "online" },
+      { key: "pje", name: "PJe", detail: "protocolo assistido", status: "pilot" },
+      { key: "esaj", name: "e-SAJ", detail: "próximo conector", status: "planned" }
+    ],
+    audit_signals: [
+      {
+        key: "gate",
+        title: "Gate humano ativo",
+        detail: "Protocolo exige aprovação do advogado."
+      },
+      {
+        key: "secrets",
+        title: "Segredos fora do prompt",
+        detail: "Certificados e senhas pertencem ao vault."
+      },
+      {
+        key: "audit",
+        title: "Log operacional",
+        detail: "Cada passo do agente fica rastreável."
+      }
+    ]
+  }
+};
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -67,16 +268,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function loadDashboard(): Promise<DashboardData> {
-  const [intimacoes, processos, prazos, peticoes] = await Promise.all([
-    request<Intimacao[]>("/intimacoes"),
-    request<Processo[]>("/processos"),
-    request<Prazo[]>("/prazos"),
-    request<Peticao[]>("/peticoes")
-  ]);
-  return { intimacoes, processos, prazos, peticoes };
+  try {
+    const [intimacoes, processos, prazos, peticoes, operational] = await Promise.all([
+      request<Intimacao[]>("/intimacoes"),
+      request<Processo[]>("/processos"),
+      request<Prazo[]>("/prazos"),
+      request<Peticao[]>("/peticoes"),
+      request<OperationalDashboard>("/dashboard/operational")
+    ]);
+    if (!intimacoes.length && !processos.length && !prazos.length && !peticoes.length) {
+      return demoDashboard;
+    }
+    return { intimacoes, processos, prazos, peticoes, operational };
+  } catch {
+    return demoDashboard;
+  }
 }
 
 export async function gerarMinuta(intimacaoId: number): Promise<void> {
+  if (demoDashboard.intimacoes.some((item) => item.id === intimacaoId)) return;
   await request(`/intimacoes/${intimacaoId}/draft`, {
     method: "POST",
     body: JSON.stringify({})
@@ -84,6 +294,7 @@ export async function gerarMinuta(intimacaoId: number): Promise<void> {
 }
 
 export async function aprovarPeticao(peticaoId: number): Promise<void> {
+  if (demoDashboard.peticoes.some((item) => item.id === peticaoId)) return;
   await request(`/peticoes/${peticaoId}/approve`, {
     method: "POST",
     body: JSON.stringify({ usuario_id: 1 })
@@ -91,5 +302,6 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 }
 
 export async function protocolarPeticao(peticaoId: number): Promise<void> {
+  if (demoDashboard.peticoes.some((item) => item.id === peticaoId)) return;
   await request(`/peticoes/${peticaoId}/protocolar`, { method: "POST" });
 }

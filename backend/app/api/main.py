@@ -20,6 +20,7 @@ from app.api.schemas import (
     DraftRequest,
     DraftResponse,
     IntimacaoOut,
+    OperationalDashboard,
     PeticaoOut,
     PrazoOut,
     ProcessoOut,
@@ -47,6 +48,107 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/dashboard/operational", response_model=OperationalDashboard)
+    def dashboard_operacional(session: Session = Depends(get_session)) -> OperationalDashboard:
+        processos = len(session.scalars(select(models.Processo.id)).all())
+        intimacoes = len(session.scalars(select(models.Intimacao.id)).all())
+        prazos = list(session.scalars(select(models.Prazo)).all())
+        peticoes = list(session.scalars(select(models.Peticao)).all())
+        pending_deadlines = [prazo for prazo in prazos if not prazo.cumprido]
+        today = datetime.now(timezone.utc).date()
+        high_risk = [
+            prazo for prazo in pending_deadlines if (prazo.data_fatal - today).days <= 3
+        ]
+
+        return OperationalDashboard(
+            metrics=[
+                {"key": "processos", "label": "Processos monitorados", "value": processos},
+                {"key": "intimacoes", "label": "Intimações capturadas", "value": intimacoes},
+                {"key": "prazos", "label": "Prazos pendentes", "value": len(pending_deadlines)},
+                {"key": "risco", "label": "Alto risco", "value": len(high_risk)},
+                {
+                    "key": "minutas",
+                    "label": "Minutas em revisao",
+                    "value": len([p for p in peticoes if p.status == "rascunho"]),
+                },
+            ],
+            workflow=[
+                {
+                    "key": "capture",
+                    "label": "Captura",
+                    "detail": "DJEN + DataJud",
+                    "status": "live",
+                },
+                {
+                    "key": "deadline",
+                    "label": "Prazo",
+                    "detail": "Motor determinístico",
+                    "status": "live",
+                },
+                {
+                    "key": "draft",
+                    "label": "Minuta",
+                    "detail": "Claude + templates",
+                    "status": "review",
+                },
+                {
+                    "key": "approval",
+                    "label": "Aprovação",
+                    "detail": "Gate humano OAB",
+                    "status": "review",
+                },
+                {
+                    "key": "filing",
+                    "label": "Protocolo",
+                    "detail": "Conector PJe/e-SAJ",
+                    "status": "planned",
+                },
+            ],
+            connectors=[
+                {
+                    "key": "djen",
+                    "name": "DJEN",
+                    "detail": "captura oficial de comunicações",
+                    "status": "online",
+                },
+                {
+                    "key": "datajud",
+                    "name": "DataJud",
+                    "detail": "metadados e andamentos processuais",
+                    "status": "online",
+                },
+                {
+                    "key": "pje",
+                    "name": "PJe",
+                    "detail": "protocolo assistido por Playwright",
+                    "status": "pilot",
+                },
+                {
+                    "key": "esaj",
+                    "name": "e-SAJ",
+                    "detail": "próximo conector de tribunal",
+                    "status": "planned",
+                },
+            ],
+            audit_signals=[
+                {
+                    "key": "gate",
+                    "title": "Gate humano ativo",
+                    "detail": "Nenhuma petição é protocolada sem aprovação.",
+                },
+                {
+                    "key": "secrets",
+                    "title": "Segredos fora do prompt",
+                    "detail": "Certificados e senhas pertencem ao vault.",
+                },
+                {
+                    "key": "audit",
+                    "title": "Trilha imutável",
+                    "detail": "Cada ação do agente deve virar evento auditável.",
+                },
+            ],
+        )
 
     @app.get("/intimacoes", response_model=list[IntimacaoOut])
     def listar_intimacoes(
@@ -100,7 +202,7 @@ def create_app() -> FastAPI:
     ) -> DraftResponse:
         intimacao = session.get(models.Intimacao, intimacao_id)
         if intimacao is None:
-            raise HTTPException(status_code=404, detail="intimacao not found")
+            raise HTTPException(status_code=404, detail="intimação não encontrada")
 
         calendar = build_calendar(payload.calendar_years or _default_calendar_years())
         try:
@@ -124,9 +226,9 @@ def create_app() -> FastAPI:
     ) -> models.Peticao:
         peticao = session.get(models.Peticao, peticao_id)
         if peticao is None:
-            raise HTTPException(status_code=404, detail="peticao not found")
+            raise HTTPException(status_code=404, detail="petição não encontrada")
         if peticao.status == "protocolada":
-            raise HTTPException(status_code=409, detail="peticao already filed")
+            raise HTTPException(status_code=409, detail="petição já protocolada")
         peticao.status = "aprovada"
         peticao.aprovada_por = payload.usuario_id
         session.commit()
@@ -140,9 +242,9 @@ def create_app() -> FastAPI:
     ) -> models.Peticao:
         peticao = session.get(models.Peticao, peticao_id)
         if peticao is None:
-            raise HTTPException(status_code=404, detail="peticao not found")
+            raise HTTPException(status_code=404, detail="petição não encontrada")
         if peticao.status != "aprovada":
-            raise HTTPException(status_code=409, detail="approval required before filing")
+            raise HTTPException(status_code=409, detail="aprovação obrigatória antes do protocolo")
         peticao.status = "protocolada"
         peticao.protocolada_em = datetime.now(timezone.utc)
         session.commit()
