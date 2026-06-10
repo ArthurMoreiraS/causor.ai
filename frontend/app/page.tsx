@@ -32,12 +32,14 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import {
   aprovarPeticao,
+  cumprirPrazo,
   DashboardData,
   gerarMinuta,
   loadDashboard,
   Peticao,
   Prazo,
-  protocolarPeticao
+  protocolarPeticao,
+  ReviewQueueItem
 } from "@/lib/api";
 
 const emptyData: DashboardData = {
@@ -88,6 +90,16 @@ function connectorStatusLabel(status: string) {
   if (status === "planned") return "planejado";
   if (status === "live") return "ativo";
   if (status === "review") return "revisão";
+  return status;
+}
+
+function reviewStatusLabel(status: string) {
+  if (status === "capturada") return "Capturada";
+  if (status === "prazo_calculado") return "Prazo calculado";
+  if (status === "minuta_em_revisao") return "Minuta em revisão";
+  if (status === "pronta_para_protocolo") return "Pronta para protocolo";
+  if (status === "protocolada") return "Protocolada";
+  if (status === "cumprido") return "Cumprido";
   return status;
 }
 
@@ -145,15 +157,60 @@ export default function Home() {
     };
   }, [data]);
 
-  const filteredIntimacoes = useMemo(() => {
+  const reviewQueue = useMemo<ReviewQueueItem[]>(() => {
+    if (data.reviewQueue?.length) return data.reviewQueue;
+    return data.intimacoes.map((intimacao) => {
+      const prazo = data.prazos.find((p) => p.intimacao_id === intimacao.id) ?? null;
+      const processo = data.processos.find((p) => p.id === intimacao.processo_id) ?? null;
+      const peticao =
+        data.peticoes.find((p) => p.prazo_id === prazo?.id) ??
+        data.peticoes.find((p) => p.processo_id === processo?.id) ??
+        null;
+      const dias = prazo ? daysUntil(prazo.data_fatal) : null;
+      return {
+        intimacao,
+        processo,
+        prazo,
+        peticao,
+        status: prazo?.cumprido
+          ? "cumprido"
+          : peticao?.status === "aprovada"
+            ? "pronta_para_protocolo"
+            : peticao?.status === "rascunho"
+              ? "minuta_em_revisao"
+              : prazo
+                ? "prazo_calculado"
+                : "capturada",
+        risco: prazo?.cumprido
+          ? "cumprido"
+          : dias === null
+            ? "sem_prazo"
+            : dias < 0
+              ? "vencido"
+              : dias <= 3
+                ? "alto"
+                : "baixo",
+        dias_para_vencer: dias
+      };
+    });
+  }, [data]);
+
+  const filteredQueue = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return data.intimacoes;
-    return data.intimacoes.filter((item) =>
-      [item.numero_processo, item.tribunal, item.tipo_comunicacao]
+    if (!normalized) return reviewQueue;
+    return reviewQueue.filter((item) =>
+      [
+        item.intimacao.numero_processo,
+        item.intimacao.tribunal,
+        item.intimacao.tipo_comunicacao,
+        item.intimacao.teor,
+        item.processo?.sistema,
+        item.status
+      ]
         .filter(Boolean)
         .some((value) => value!.toLowerCase().includes(normalized))
     );
-  }, [data.intimacoes, query]);
+  }, [query, reviewQueue]);
 
   const operationalWorkflow = data.operational?.workflow ?? workflow;
   const operationalConnectors = data.operational?.connectors ?? connectors;
@@ -335,40 +392,66 @@ export default function Home() {
               <span>Sistema</span>
               <span>Vencimento</span>
               <span>Risco</span>
-              <span>Agente</span>
+              <span>Status</span>
+              <span>Ações</span>
             </div>
             <div className="tableBody">
-              {filteredIntimacoes.map((item) => {
-                const prazo = data.prazos.find((p) => p.intimacao_id === item.id);
-                const processo = data.processos.find((p) => p.id === item.processo_id);
+              {filteredQueue.map((item) => {
+                const { intimacao, prazo, processo } = item;
                 return (
-                  <article className="caseRow" key={item.id}>
+                  <article className="caseRow" key={intimacao.id}>
                     <div className="caseCell">
                       <ChevronRight size={14} />
                       <div>
-                        <strong>{item.numero_processo ?? "Processo não identificado"}</strong>
-                        <span>{item.tipo_comunicacao ?? "Comunicação judicial"}</span>
+                        <strong>{intimacao.numero_processo ?? "Processo não identificado"}</strong>
+                        <span>{intimacao.tipo_comunicacao ?? "Comunicação judicial"}</span>
+                        <small>{intimacao.teor ?? "Teor não informado"}</small>
                       </div>
                     </div>
-                    <span>{processo?.sistema ?? item.tribunal ?? "-"}</span>
-                    <strong>{prazo ? formatDate(prazo.data_fatal) : formatDate(item.data_publicacao)}</strong>
+                    <span>{processo?.sistema ?? intimacao.tribunal ?? "-"}</span>
+                    <strong>
+                      {prazo ? formatDate(prazo.data_fatal) : formatDate(intimacao.data_publicacao)}
+                    </strong>
                     <DeadlineBadge prazo={prazo} />
-                    <button
-                      className="iconButton"
-                      title="Gerar minuta"
-                      disabled={busy === `draft-${item.id}`}
-                      onClick={() => runAction(`draft-${item.id}`, () => gerarMinuta(item.id))}
-                    >
-                      {busy === `draft-${item.id}` ? (
-                        <Loader2 className="spin" size={15} />
-                      ) : (
-                        <Sparkles size={15} />
-                      )}
-                    </button>
+                    <span className={`queueStatus ${item.status}`}>
+                      {reviewStatusLabel(item.status)}
+                    </span>
+                    <div className="rowActions">
+                      <button
+                        className="iconButton"
+                        title="Gerar minuta"
+                        disabled={busy === `draft-${intimacao.id}`}
+                        onClick={() =>
+                          runAction(`draft-${intimacao.id}`, () => gerarMinuta(intimacao.id))
+                        }
+                      >
+                        {busy === `draft-${intimacao.id}` ? (
+                          <Loader2 className="spin" size={15} />
+                        ) : (
+                          <Sparkles size={15} />
+                        )}
+                      </button>
+                      <button
+                        className="iconButton"
+                        title="Marcar prazo cumprido"
+                        disabled={!prazo || prazo.cumprido || busy === `done-${prazo?.id}`}
+                        onClick={() =>
+                          prazo
+                            ? runAction(`done-${prazo.id}`, () => cumprirPrazo(prazo.id))
+                            : undefined
+                        }
+                      >
+                        {busy === `done-${prazo?.id}` ? (
+                          <Loader2 className="spin" size={15} />
+                        ) : (
+                          <CheckCircle2 size={15} />
+                        )}
+                      </button>
+                    </div>
                   </article>
                 );
               })}
-              {!filteredIntimacoes.length ? <Empty label="Nenhuma intimação encontrada" /> : null}
+              {!filteredQueue.length ? <Empty label="Nenhuma intimação encontrada" /> : null}
             </div>
           </section>
         </section>
@@ -537,7 +620,7 @@ function Panel({
   );
 }
 
-function DeadlineBadge({ prazo }: { prazo: Prazo | undefined }) {
+function DeadlineBadge({ prazo }: { prazo: Prazo | null | undefined }) {
   if (!prazo) return <span className="dayBadge neutral">Pendente</span>;
   const remaining = daysUntil(prazo.data_fatal);
   if (prazo.cumprido) return <span className="dayBadge done">Concluído</span>;

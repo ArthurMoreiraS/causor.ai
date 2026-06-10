@@ -560,7 +560,7 @@ h2 {
 .tableHeader,
 .caseRow {
   display: grid;
-  grid-template-columns: minmax(260px, 1.6fr) minmax(90px, 0.6fr) minmax(120px, 0.7fr) 76px 96px;
+  grid-template-columns: minmax(300px, 1.7fr) minmax(90px, 0.5fr) minmax(120px, 0.6fr) 76px minmax(130px, 0.7fr) 76px;
   align-items: center;
   gap: 12px;
 }
@@ -602,7 +602,8 @@ h2 {
 }
 
 .caseCell strong,
-.caseCell span {
+.caseCell span,
+.caseCell small {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -618,6 +619,42 @@ h2 {
   margin-top: 3px;
   color: var(--muted);
   font-size: 11px;
+}
+
+.caseCell small {
+  margin-top: 3px;
+  color: #666b70;
+  font-size: 11px;
+}
+
+.queueStatus {
+  justify-self: start;
+  min-height: 22px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #525960;
+  background: var(--chip);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.queueStatus.minuta_em_revisao,
+.queueStatus.pronta_para_protocolo {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.queueStatus.protocolada,
+.queueStatus.cumprido {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.rowActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .dayBadge {
@@ -963,7 +1000,7 @@ h2 {
 
   .tableHeader,
   .caseRow {
-    min-width: 820px;
+    min-width: 960px;
   }
 }
 

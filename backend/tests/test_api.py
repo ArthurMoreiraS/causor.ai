@@ -85,6 +85,7 @@ def test_listar_intimacoes(client, seeded):
     assert len(data) == 1
     assert data[0]["tipo_comunicacao"] == "Intimação"
     assert data[0]["numero_processo"] == "00000010020248260100"
+    assert data[0]["teor"] == "Apresente contestacao em 15 dias uteis."
 
 
 def test_listar_intimacoes_filter_by_processo(client, seeded):
@@ -101,6 +102,49 @@ def test_listar_prazos_filter_cumprido(client, seeded):
     pendentes = client.get("/prazos", params={"cumprido": "false"}).json()
     assert len(pendentes) == 1
     assert pendentes[0]["descricao"] == "A"
+
+
+def test_fila_revisao_agrega_intimacao_prazo_e_status(client, seeded):
+    data = client.get("/review/queue").json()
+    assert len(data) == 1
+    assert data[0]["intimacao"]["numero_processo"] == "00000010020248260100"
+    assert data[0]["processo"]["id"] == seeded.id
+    assert data[0]["prazo"]["descricao"] == "B"
+    assert data[0]["status"] == "cumprido"
+    assert data[0]["risco"] == "cumprido"
+
+
+def test_revisar_prazo_atualiza_e_audita(client, db_session, seeded):
+    prazo = db_session.query(models.Prazo).filter_by(descricao="A").one()
+    resp = client.patch(
+        f"/prazos/{prazo.id}",
+        json={
+            "usuario_id": 77,
+            "descricao": "Manifestacao revisada",
+            "dias": 10,
+            "data_fatal": "2024-09-23",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["descricao"] == "Manifestacao revisada"
+    assert body["dias"] == 10
+    assert body["data_fatal"] == "2024-09-23"
+    audit = db_session.query(models.AuditLog).one()
+    assert audit.ator == "usuario:77"
+    assert audit.acao == "prazo_revisado"
+
+
+def test_marcar_prazo_cumprido(client, db_session, seeded):
+    prazo = db_session.query(models.Prazo).filter_by(descricao="A").one()
+    resp = client.post(f"/prazos/{prazo.id}/cumprir", json={"usuario_id": 88})
+
+    assert resp.status_code == 200
+    assert resp.json()["cumprido"] is True
+    audit = db_session.query(models.AuditLog).one()
+    assert audit.ator == "usuario:88"
+    assert audit.acao == "prazo_cumprido"
 
 
 def test_listar_processos(client, seeded):

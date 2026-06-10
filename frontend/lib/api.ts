@@ -5,6 +5,7 @@ export type Intimacao = {
   numero_processo: string | null;
   tribunal: string | null;
   tipo_comunicacao: string | null;
+  teor: string | null;
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
 };
@@ -74,11 +75,22 @@ export type OperationalDashboard = {
   audit_signals: AuditSignal[];
 };
 
+export type ReviewQueueItem = {
+  intimacao: Intimacao;
+  processo: Processo | null;
+  prazo: Prazo | null;
+  peticao: Peticao | null;
+  status: string;
+  risco: string;
+  dias_para_vencer: number | null;
+};
+
 export type DashboardData = {
   intimacoes: Intimacao[];
   processos: Processo[];
   prazos: Prazo[];
   peticoes: Peticao[];
+  reviewQueue?: ReviewQueueItem[];
   operational?: OperationalDashboard;
   demoMode?: boolean;
 };
@@ -128,6 +140,7 @@ const demoDashboard: DashboardData = {
       numero_processo: "1001842-88.2025.8.26.0100",
       tribunal: "TJSP",
       tipo_comunicacao: "Intimação para manifestação",
+      teor: "A parte autora fica intimada para se manifestar sobre os documentos juntados.",
       data_disponibilizacao: isoFromToday(-1),
       data_publicacao: isoFromToday(0)
     },
@@ -138,6 +151,7 @@ const demoDashboard: DashboardData = {
       numero_processo: "0007341-21.2025.5.02.0031",
       tribunal: "TRT2",
       tipo_comunicacao: "Intimação para contestar",
+      teor: "Fica a parte reclamada intimada para apresentar contestacao.",
       data_disponibilizacao: isoFromToday(-4),
       data_publicacao: isoFromToday(-3)
     },
@@ -148,6 +162,7 @@ const demoDashboard: DashboardData = {
       numero_processo: "5012389-44.2025.4.03.6100",
       tribunal: "TRF3",
       tipo_comunicacao: "Intimação de decisão liminar",
+      teor: "Fica a autoridade coatora intimada da decisao liminar.",
       data_disponibilizacao: isoFromToday(-7),
       data_publicacao: isoFromToday(-6)
     }
@@ -251,6 +266,43 @@ const demoDashboard: DashboardData = {
   }
 };
 
+demoDashboard.reviewQueue = demoDashboard.intimacoes.map((intimacao) => {
+  const prazo = demoDashboard.prazos.find((item) => item.intimacao_id === intimacao.id) ?? null;
+  const processo = demoDashboard.processos.find((item) => item.id === intimacao.processo_id) ?? null;
+  const peticao =
+    demoDashboard.peticoes.find((item) => item.prazo_id === prazo?.id) ??
+    demoDashboard.peticoes.find((item) => item.processo_id === processo?.id) ??
+    null;
+  const dias = prazo
+    ? Math.ceil((new Date(prazo.data_fatal).getTime() - today.getTime()) / 86_400_000)
+    : null;
+  return {
+    intimacao,
+    processo,
+    prazo,
+    peticao,
+    status: prazo?.cumprido
+      ? "cumprido"
+      : peticao?.status === "aprovada"
+        ? "pronta_para_protocolo"
+        : peticao?.status === "rascunho"
+          ? "minuta_em_revisao"
+          : prazo
+            ? "prazo_calculado"
+            : "capturada",
+    risco: prazo?.cumprido
+      ? "cumprido"
+      : dias === null
+        ? "sem_prazo"
+        : dias < 0
+          ? "vencido"
+          : dias <= 3
+            ? "alto"
+            : "baixo",
+    dias_para_vencer: dias
+  };
+});
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -269,17 +321,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export async function loadDashboard(): Promise<DashboardData> {
   try {
-    const [intimacoes, processos, prazos, peticoes, operational] = await Promise.all([
+    const [intimacoes, processos, prazos, peticoes, operational, reviewQueue] = await Promise.all([
       request<Intimacao[]>("/intimacoes"),
       request<Processo[]>("/processos"),
       request<Prazo[]>("/prazos"),
       request<Peticao[]>("/peticoes"),
-      request<OperationalDashboard>("/dashboard/operational")
+      request<OperationalDashboard>("/dashboard/operational"),
+      request<ReviewQueueItem[]>("/review/queue")
     ]);
     if (!intimacoes.length && !processos.length && !prazos.length && !peticoes.length) {
       return demoDashboard;
     }
-    return { intimacoes, processos, prazos, peticoes, operational };
+    return { intimacoes, processos, prazos, peticoes, operational, reviewQueue };
   } catch {
     return demoDashboard;
   }
@@ -304,4 +357,12 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 export async function protocolarPeticao(peticaoId: number): Promise<void> {
   if (demoDashboard.peticoes.some((item) => item.id === peticaoId)) return;
   await request(`/peticoes/${peticaoId}/protocolar`, { method: "POST" });
+}
+
+export async function cumprirPrazo(prazoId: number): Promise<void> {
+  if (demoDashboard.prazos.some((item) => item.id === prazoId)) return;
+  await request(`/prazos/${prazoId}/cumprir`, {
+    method: "POST",
+    body: JSON.stringify({ usuario_id: 1 })
+  });
 }

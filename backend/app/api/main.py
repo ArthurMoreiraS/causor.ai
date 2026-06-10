@@ -20,10 +20,13 @@ from app.api.schemas import (
     DraftRequest,
     DraftResponse,
     IntimacaoOut,
+    MarcarPrazoCumpridoRequest,
     OperationalDashboard,
     PeticaoOut,
     PrazoOut,
     ProcessoOut,
+    RevisarPrazoRequest,
+    ReviewQueueItem,
 )
 from app.prazo_engine.factory import build_calendar
 from app.sor import models
@@ -33,6 +36,67 @@ from app.sor.db import get_session
 def _default_calendar_years() -> list[int]:
     year = datetime.now(timezone.utc).year
     return [year - 1, year, year + 1]
+
+
+def _audit(
+    session: Session,
+    *,
+    acao: str,
+    entidade: str,
+    entidade_id: int,
+    ator_id: int | None = None,
+    escritorio_id: int | None = None,
+    detalhe: dict | None = None,
+) -> None:
+    session.add(
+        models.AuditLog(
+            escritorio_id=escritorio_id,
+            ator=f"usuario:{ator_id}" if ator_id is not None else "system",
+            acao=acao,
+            entidade=entidade,
+            entidade_id=entidade_id,
+            detalhe=detalhe or {},
+        )
+    )
+
+
+def _dias_para_vencer(prazo: models.Prazo | None) -> int | None:
+    if prazo is None:
+        return None
+    today = datetime.now(timezone.utc).date()
+    return (prazo.data_fatal - today).days
+
+
+def _risco_prazo(prazo: models.Prazo | None) -> str:
+    dias = _dias_para_vencer(prazo)
+    if prazo is None or dias is None:
+        return "sem_prazo"
+    if prazo.cumprido:
+        return "cumprido"
+    if dias < 0:
+        return "vencido"
+    if dias <= 3:
+        return "alto"
+    if dias <= 7:
+        return "medio"
+    return "baixo"
+
+
+def _status_revisao(
+    prazo: models.Prazo | None,
+    peticao: models.Peticao | None,
+) -> str:
+    if prazo is not None and prazo.cumprido:
+        return "cumprido"
+    if peticao is not None and peticao.status == "protocolada":
+        return "protocolada"
+    if peticao is not None and peticao.status == "aprovada":
+        return "pronta_para_protocolo"
+    if peticao is not None and peticao.status == "rascunho":
+        return "minuta_em_revisao"
+    if prazo is not None:
+        return "prazo_calculado"
+    return "capturada"
 
 
 def create_app() -> FastAPI:
@@ -162,6 +226,55 @@ def create_app() -> FastAPI:
         stmt = stmt.order_by(models.Intimacao.data_disponibilizacao.desc()).limit(limit)
         return list(session.scalars(stmt))
 
+    @app.get("/review/queue", response_model=list[ReviewQueueItem])
+    def fila_revisao(
+        session: Session = Depends(get_session),
+        limit: int = Query(default=100, le=500),
+    ) -> list[ReviewQueueItem]:
+        intimacoes = list(
+            session.scalars(
+                select(models.Intimacao)
+                .order_by(models.Intimacao.data_disponibilizacao.desc())
+                .limit(limit)
+            )
+        )
+        processos = {item.id: item for item in session.scalars(select(models.Processo)).all()}
+        prazos_por_intimacao: dict[int, models.Prazo] = {}
+        for prazo in session.scalars(select(models.Prazo).order_by(models.Prazo.data_fatal.asc())):
+            if prazo.intimacao_id is not None and prazo.intimacao_id not in prazos_por_intimacao:
+                prazos_por_intimacao[prazo.intimacao_id] = prazo
+
+        peticoes_por_prazo: dict[int, models.Peticao] = {}
+        peticoes_por_processo: dict[int, models.Peticao] = {}
+        for peticao in session.scalars(select(models.Peticao).order_by(models.Peticao.id.desc())):
+            if peticao.prazo_id is not None and peticao.prazo_id not in peticoes_por_prazo:
+                peticoes_por_prazo[peticao.prazo_id] = peticao
+            if peticao.processo_id not in peticoes_por_processo:
+                peticoes_por_processo[peticao.processo_id] = peticao
+
+        items: list[ReviewQueueItem] = []
+        for intimacao in intimacoes:
+            prazo = prazos_por_intimacao.get(intimacao.id)
+            processo = processos.get(intimacao.processo_id) if intimacao.processo_id else None
+            peticao = None
+            if prazo is not None:
+                peticao = peticoes_por_prazo.get(prazo.id)
+            if peticao is None and processo is not None:
+                peticao = peticoes_por_processo.get(processo.id)
+
+            items.append(
+                ReviewQueueItem(
+                    intimacao=IntimacaoOut.model_validate(intimacao),
+                    processo=ProcessoOut.model_validate(processo) if processo is not None else None,
+                    prazo=PrazoOut.model_validate(prazo) if prazo is not None else None,
+                    peticao=PeticaoOut.model_validate(peticao) if peticao is not None else None,
+                    status=_status_revisao(prazo, peticao),
+                    risco=_risco_prazo(prazo),
+                    dias_para_vencer=_dias_para_vencer(prazo),
+                )
+            )
+        return items
+
     @app.get("/processos", response_model=list[ProcessoOut])
     def listar_processos(
         session: Session = Depends(get_session),
@@ -181,6 +294,59 @@ def create_app() -> FastAPI:
             stmt = stmt.where(models.Prazo.cumprido == cumprido)
         stmt = stmt.order_by(models.Prazo.data_fatal.asc()).limit(limit)
         return list(session.scalars(stmt))
+
+    @app.patch("/prazos/{prazo_id}", response_model=PrazoOut)
+    def revisar_prazo(
+        prazo_id: int,
+        payload: RevisarPrazoRequest,
+        session: Session = Depends(get_session),
+    ) -> models.Prazo:
+        prazo = session.get(models.Prazo, prazo_id)
+        if prazo is None:
+            raise HTTPException(status_code=404, detail="prazo não encontrado")
+
+        fields = payload.model_dump(exclude_unset=True, exclude={"usuario_id"})
+        audit_detail = payload.model_dump(
+            mode="json",
+            exclude_unset=True,
+            exclude={"usuario_id"},
+        )
+        for field, value in fields.items():
+            if value is not None:
+                setattr(prazo, field, value)
+
+        _audit(
+            session,
+            acao="prazo_revisado",
+            entidade="prazo",
+            entidade_id=prazo.id,
+            ator_id=payload.usuario_id,
+            detalhe=audit_detail,
+        )
+        session.commit()
+        session.refresh(prazo)
+        return prazo
+
+    @app.post("/prazos/{prazo_id}/cumprir", response_model=PrazoOut)
+    def marcar_prazo_cumprido(
+        prazo_id: int,
+        payload: MarcarPrazoCumpridoRequest,
+        session: Session = Depends(get_session),
+    ) -> models.Prazo:
+        prazo = session.get(models.Prazo, prazo_id)
+        if prazo is None:
+            raise HTTPException(status_code=404, detail="prazo não encontrado")
+        prazo.cumprido = True
+        _audit(
+            session,
+            acao="prazo_cumprido",
+            entidade="prazo",
+            entidade_id=prazo.id,
+            ator_id=payload.usuario_id,
+        )
+        session.commit()
+        session.refresh(prazo)
+        return prazo
 
     @app.get("/peticoes", response_model=list[PeticaoOut])
     def listar_peticoes(

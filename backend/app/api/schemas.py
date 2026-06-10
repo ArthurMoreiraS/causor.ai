@@ -16,6 +16,7 @@ class IntimacaoOut(BaseModel):
     numero_processo: str | None
     tribunal: str | None
     tipo_comunicacao: str | None
+    teor: str | None
     data_disponibilizacao: date | None
     data_publicacao: date | None
 
@@ -70,6 +71,29 @@ class DraftResponse(BaseModel):
 
 class ApprovePeticaoRequest(BaseModel):
     usuario_id: int
+
+
+class RevisarPrazoRequest(BaseModel):
+    usuario_id: int = 1
+    descricao: str | None = None
+    data_inicio: date | None = None
+    dias: int | None = None
+    dias_uteis: bool | None = None
+    data_fatal: date | None = None
+
+
+class MarcarPrazoCumpridoRequest(BaseModel):
+    usuario_id: int = 1
+
+
+class ReviewQueueItem(BaseModel):
+    intimacao: IntimacaoOut
+    processo: ProcessoOut | None
+    prazo: PrazoOut | None
+    peticao: PeticaoOut | None
+    status: str
+    risco: str
+    dias_para_vencer: int | None
 
 
 class DashboardMetric(BaseModel):
