@@ -4,7 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**Greenfield.** As of this writing the repo contains a single artifact: `PLANO_Agente_Operacional_Juridico.md` — the product + architecture + build roadmap. There is no code, build system, test suite, or git history yet. When you scaffold the project, follow the structure and stack defined in the plan, and update this file with the real build/lint/test commands once they exist.
+**MVP vertical slice in progress.** The `/backend` capture + prazo-engine slice is implemented and tested: SOR models (`app/sor`), deterministic deadline engine (`app/prazo_engine`), DJEN/DataJud clients + normalization + `poll_oab` orchestration (`app/capture`), read-only FastAPI (`app/api`), Alembic migrations (`backend/alembic`), and a CLI (`app/cli.py`). `PLANO_Agente_Operacional_Juridico.md` remains the product + architecture roadmap. Still to build: agent layer (drafting/classification), PJe connector, vault, queue, frontend.
+
+### Build / lint / test (run from `/backend`)
+
+```bash
+python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # setup (Windows venv path)
+./.venv/Scripts/python.exe -m pytest -q          # full test suite (TDD)
+./.venv/Scripts/python.exe -m ruff check .       # lint
+docker compose -f ../infra/docker-compose.yml up -d postgres   # local Postgres + Redis
+CAUSOR_DATABASE_URL=postgresql+psycopg://causor:causor@localhost:5432/causor ./.venv/Scripts/alembic.exe upgrade head   # migrate
+RUN_LIVE=1 ./.venv/Scripts/python.exe -m pytest tests/test_live_integration.py   # opt-in live CNJ API tests
+python -m app.cli poll --oab 12345 --uf SP --escritorio 1       # run one capture cycle
+```
+
+On Linux/macOS use `.venv/bin/python` / `.venv/bin/alembic` instead of the `Scripts/` paths.
 
 **The plan document is the source of truth.** Read `PLANO_Agente_Operacional_Juridico.md` in full before making product or architecture decisions. Decisions already settled with the user (do not re-litigate without being asked):
 - Market: Brazil; initial customer: small/medium law firms (solo to ~50 lawyers).

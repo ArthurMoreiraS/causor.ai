@@ -6,8 +6,3 @@ __pycache__/
 .ruff_cache/
 *.db
 *.egg-info/
-node_modules/
-.next/
-out/
-dist/
-coverage/
