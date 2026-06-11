@@ -13,7 +13,11 @@ an object.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import anthropic
+
+from app.agent import chat_tools
 
 _MODEL = "claude-opus-4-8"
 
@@ -54,19 +58,24 @@ def _contexto_linhas(contexto_processo: dict | None) -> str:
     return f"\n\nProcesso em foco nesta conversa:\n{linhas}"
 
 
+_MAX_ITERS = 6
+
+
 def chat_with_assistant(
     messages: list[dict],
     *,
+    session,
+    read_tool_runner: Callable[[object, str, dict], str] = chat_tools.execute_read_tool,
     contexto_processo: dict | None = None,
     resumo_contexto: str | None = None,
     client: anthropic.Anthropic | None = None,
     model: str = _MODEL,
-) -> str:
-    """Run one assistant turn.
+) -> dict:
+    """Run the agentic chat loop.
 
-    ``messages`` is the running conversation (``[{"role": "user"|"assistant",
-    "content": str}, ...]``). ``contexto_processo`` and ``resumo_contexto`` add
-    grounding about the case the user is asking about.
+    Read tools execute against ``session`` via ``read_tool_runner``; action tools
+    are intercepted as proposals and never executed here (human-approval gate).
+    Returns ``{"reply", "proposed_actions", "tool_trace"}``.
     """
     client = client or anthropic.Anthropic()
 
@@ -74,12 +83,44 @@ def chat_with_assistant(
     if resumo_contexto:
         system += f"\n\nResumo operacional disponível:\n{resumo_contexto}"
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=4000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
-        system=system,
-        messages=messages,
-    )
-    return "".join(block.text for block in response.content if block.type == "text")
+    convo: list[dict] = list(messages)
+    proposed_actions: list[dict] = []
+    tool_trace: list[dict] = []
+    reply = ""
+
+    for _ in range(_MAX_ITERS):
+        response = client.messages.create(
+            model=model,
+            max_tokens=4000,
+            thinking={"type": "adaptive"},
+            output_config={"effort": "high"},
+            system=system,
+            tools=chat_tools.TOOL_DEFINITIONS,
+            messages=convo,
+        )
+
+        reply = "".join(b.text for b in response.content if b.type == "text") or reply
+        tool_uses = [b for b in response.content if b.type == "tool_use"]
+        if response.stop_reason != "tool_use" or not tool_uses:
+            break
+
+        convo.append({"role": "assistant", "content": response.content})
+        results = []
+        for block in tool_uses:
+            tool_trace.append({"ferramenta": block.name, "input": dict(block.input)})
+            if chat_tools.is_action_tool(block.name):
+                proposed_actions.append(
+                    chat_tools.build_proposed_action(block.name, dict(block.input))
+                )
+                content = (
+                    "Proposta registrada e enviada ao advogado para confirmação. "
+                    "Não execute; aguarde a aprovação humana."
+                )
+            else:
+                content = read_tool_runner(session, block.name, dict(block.input))
+            results.append(
+                {"type": "tool_result", "tool_use_id": block.id, "content": content}
+            )
+        convo.append({"role": "user", "content": results})
+
+    return {"reply": reply, "proposed_actions": proposed_actions, "tool_trace": tool_trace}
