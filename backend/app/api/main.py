@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
 from app.api.schemas import (
     AuditLogOut,
@@ -21,6 +22,8 @@ from app.api.schemas import (
     CaptureDemoRequest,
     CaptureOabRequest,
     CaptureResultOut,
+    ChatRequest,
+    ChatResponse,
     DraftRequest,
     DraftResponse,
     IntimacaoOut,
@@ -602,6 +605,35 @@ def create_app() -> FastAPI:
         session.commit()
         session.refresh(peticao)
         return peticao
+
+    @app.post("/chat", response_model=ChatResponse)
+    def chat(
+        payload: ChatRequest,
+        session: Session = Depends(get_session),
+    ) -> ChatResponse:
+        contexto = None
+        if payload.processo_id is not None:
+            proc = session.get(models.Processo, payload.processo_id)
+            if proc is not None:
+                contexto = {
+                    "numero": proc.numero,
+                    "classe": proc.classe,
+                    "tribunal": proc.tribunal,
+                    "orgao_julgador": proc.orgao_julgador,
+                    "sistema": proc.sistema,
+                }
+        try:
+            result = chat_with_assistant(
+                [m.model_dump() for m in payload.messages],
+                session=session,
+                contexto_processo=contexto,
+            )
+        except Exception as exc:  # noqa: BLE001 - chamada de IA pode falhar
+            raise HTTPException(
+                status_code=503,
+                detail=f"assistente indisponível: {exc}",
+            ) from exc
+        return ChatResponse(**result)
 
     return app
 

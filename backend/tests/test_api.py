@@ -302,6 +302,42 @@ def test_protocolar_requires_approval(client, db_session, seeded):
     assert filed.json()["protocolada_em"] is not None
 
 
+def test_chat_retorna_reply_e_propostas(client, db_session, seeded, monkeypatch):
+    def fake_chat(messages, *, session, **kwargs):
+        return {
+            "reply": "Você tem 1 prazo pendente; quer gerar a minuta?",
+            "proposed_actions": [
+                {
+                    "tipo": "gerar_minuta",
+                    "label": "Gerar minuta",
+                    "endpoint": "/intimacoes/1/draft",
+                    "metodo": "POST",
+                    "payload": {"intimacao_id": 1},
+                }
+            ],
+            "tool_trace": [{"ferramenta": "listar_prazos", "input": {}}],
+        }
+
+    monkeypatch.setattr("app.api.main.chat_with_assistant", fake_chat)
+    resp = client.post("/chat", json={"messages": [{"role": "user", "content": "meus prazos?"}]})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "prazo" in body["reply"].lower()
+    assert body["proposed_actions"][0]["tipo"] == "gerar_minuta"
+    assert body["tool_trace"][0]["ferramenta"] == "listar_prazos"
+
+
+def test_chat_falha_de_ia_retorna_503(client, db_session, seeded, monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("anthropic indisponivel")
+
+    monkeypatch.setattr("app.api.main.chat_with_assistant", boom)
+    resp = client.post("/chat", json={"messages": [{"role": "user", "content": "oi"}]})
+    assert resp.status_code == 503
+    assert "assistente" in resp.json()["detail"].lower()
+
+
 def test_listar_auditoria_filtra_por_entidade(client, db_session, seeded):
     db_session.add_all(
         [
