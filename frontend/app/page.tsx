@@ -46,6 +46,7 @@ import {
   rodarCapturaOab
 } from "@/lib/api";
 import AssistantPanel from "./AssistantPanel";
+import AuditPanel from "./AuditPanel";
 
 const emptyData: DashboardData = {
   intimacoes: [],
@@ -669,6 +670,7 @@ export default function Home() {
               ))}
             </div>
           </Panel>
+          <AuditPanel offline={offline} />
         </section>
 
         {oabForm.open ? (
