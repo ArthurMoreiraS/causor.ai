@@ -39,10 +39,12 @@ import {
   loadDashboard,
   Peticao,
   Prazo,
+  ProposedAction,
   protocolarPeticao,
   ReviewQueueItem,
   rodarCapturaDemo
 } from "@/lib/api";
+import AssistantPanel from "./AssistantPanel";
 
 const emptyData: DashboardData = {
   intimacoes: [],
@@ -119,6 +121,7 @@ export default function Home() {
     tipo: string;
     confianca: number;
   } | null>(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   async function refresh() {
     setLoading(true);
@@ -159,6 +162,16 @@ export default function Home() {
     } finally {
       setBusy(null);
     }
+  }
+
+  async function confirmAssistantAction(action: ProposedAction) {
+    const id = Number(
+      action.payload.intimacao_id ?? action.payload.prazo_id ?? action.payload.peticao_id
+    );
+    if (action.tipo === "gerar_minuta") await gerarMinuta(id);
+    else if (action.tipo === "marcar_prazo_cumprido") await cumprirPrazo(id);
+    else if (action.tipo === "aprovar_peticao") await aprovarPeticao(id);
+    await refresh();
   }
 
   useEffect(() => {
@@ -318,6 +331,13 @@ export default function Home() {
             <button className="toolbarButton" onClick={refresh} disabled={loading}>
               {loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
               Atualizar
+            </button>
+            <button
+              className="toolbarButton"
+              onClick={() => setAssistantOpen((v) => !v)}
+            >
+              <MessageCircle size={15} />
+              Assistente
             </button>
             <button
               className="toolbarButton primary"
@@ -621,6 +641,13 @@ export default function Home() {
           </Panel>
         </section>
       </section>
+      {assistantOpen ? (
+        <AssistantPanel
+          offline={offline}
+          onConfirmAction={confirmAssistantAction}
+          onClose={() => setAssistantOpen(false)}
+        />
+      ) : null}
     </main>
   );
 }
