@@ -12,6 +12,9 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 Copy-Item .env.example .env
 $env:CAUSOR_DATABASE_URL="sqlite:///./causor_dev.db"
+# Opcional: habilita a geração de minuta com o Claude. Sem isso, o botao
+# "Gerar minuta" responde 503 com mensagem clara (o resto do fluxo funciona).
+$env:ANTHROPIC_API_KEY="sk-ant-..."
 .\.venv\Scripts\python.exe -m app.dev_seed
 .\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
 ```

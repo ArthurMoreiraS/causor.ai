@@ -51,6 +51,8 @@ const emptyData: DashboardData = {
   peticoes: []
 };
 
+const API_BASE_LABEL = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
 const workflow = [
   { key: "capture", label: "Captura", detail: "DJEN + DataJud", status: "live" },
   { key: "deadline", label: "Prazo", detail: "Motor determinístico", status: "live" },
@@ -230,6 +232,7 @@ export default function Home() {
     );
   }, [query, reviewQueue]);
 
+  const offline = Boolean(data.backendOffline);
   const operationalWorkflow = data.operational?.workflow ?? workflow;
   const operationalConnectors = data.operational?.connectors ?? connectors;
   const operationalAudit = data.operational?.audit_signals ?? [
@@ -311,7 +314,11 @@ export default function Home() {
               {loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
               Atualizar
             </button>
-            <button className="toolbarButton primary" onClick={runCapture} disabled={busy === "capture"}>
+            <button
+              className="toolbarButton primary"
+              onClick={runCapture}
+              disabled={busy === "capture" || offline}
+            >
               {busy === "capture" ? <Loader2 className="spin" size={15} /> : <Bot size={15} />}
               Rodar captura
             </button>
@@ -329,6 +336,16 @@ export default function Home() {
             <small>fluxo automatizado até o gate</small>
           </div>
         </section>
+
+        {offline ? (
+          <div className="notice">
+            <AlertTriangle size={18} />
+            <span>
+              Backend offline — exibindo dados de demonstração. As ações ficam
+              desativadas até o servidor da API responder em {API_BASE_LABEL}.
+            </span>
+          </div>
+        ) : null}
 
         {error ? (
           <div className="notice">
@@ -453,7 +470,7 @@ export default function Home() {
                       <button
                         className="iconButton"
                         title="Gerar minuta"
-                        disabled={busy === `draft-${intimacao.id}`}
+                        disabled={busy === `draft-${intimacao.id}` || offline}
                         onClick={() =>
                           runAction(`draft-${intimacao.id}`, () => gerarMinuta(intimacao.id))
                         }
@@ -467,7 +484,7 @@ export default function Home() {
                       <button
                         className="iconButton"
                         title="Marcar prazo cumprido"
-                        disabled={!prazo || prazo.cumprido || busy === `done-${prazo?.id}`}
+                        disabled={!prazo || prazo.cumprido || busy === `done-${prazo?.id}` || offline}
                         onClick={() =>
                           prazo
                             ? runAction(`done-${prazo.id}`, () => cumprirPrazo(prazo.id))
@@ -534,7 +551,7 @@ export default function Home() {
                   <div className="petitionActions">
                     <button
                       className="toolbarButton"
-                      disabled={peticao.status !== "rascunho" || busy === `approve-${peticao.id}`}
+                      disabled={peticao.status !== "rascunho" || busy === `approve-${peticao.id}` || offline}
                       onClick={() =>
                         runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))
                       }
@@ -544,7 +561,7 @@ export default function Home() {
                     </button>
                     <button
                       className="toolbarButton primary"
-                      disabled={peticao.status !== "aprovada" || busy === `file-${peticao.id}`}
+                      disabled={peticao.status !== "aprovada" || busy === `file-${peticao.id}` || offline}
                       onClick={() =>
                         runAction(`file-${peticao.id}`, () => protocolarPeticao(peticao.id))
                       }

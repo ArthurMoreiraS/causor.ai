@@ -211,6 +211,73 @@ def test_gerar_minuta_creates_prazo_and_draft(client, db_session, seeded):
     assert body["classificacao"]["peticao_sugerida"] == "Contestacao"
 
 
+def test_gerar_minuta_audita(client, db_session, seeded):
+    intimacao = db_session.query(models.Intimacao).one()
+    classificacao = ClassificacaoIntimacao(
+        tipo="Intimacao para contestar",
+        peticao_sugerida="Contestacao",
+        prazo_dias=15,
+        dias_uteis=True,
+        confianca=0.9,
+        resumo="Reu intimado.",
+    )
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=classificacao),
+        patch("app.agent.service.draft_peticao", return_value="MINUTA"),
+    ):
+        resp = client.post(f"/intimacoes/{intimacao.id}/draft", json={})
+
+    assert resp.status_code == 200
+    audit = db_session.query(models.AuditLog).filter_by(acao="minuta_gerada").one()
+    assert audit.entidade == "peticao"
+    assert audit.entidade_id == resp.json()["peticao"]["id"]
+
+
+def test_gerar_minuta_falha_de_ia_retorna_503(client, db_session, seeded):
+    intimacao = db_session.query(models.Intimacao).one()
+    with patch(
+        "app.api.main.draft_from_intimacao",
+        side_effect=RuntimeError("anthropic indisponivel"),
+    ):
+        resp = client.post(f"/intimacoes/{intimacao.id}/draft", json={})
+
+    assert resp.status_code == 503
+    assert "minuta" in resp.json()["detail"].lower()
+
+
+def test_aprovar_peticao_audita(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id, tipo="Contestacao", conteudo="m", status="rascunho"
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(f"/peticoes/{peticao.id}/approve", json={"usuario_id": 55})
+
+    assert resp.status_code == 200
+    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_aprovada").one()
+    assert audit.ator == "usuario:55"
+    assert audit.entidade_id == peticao.id
+
+
+def test_protocolar_peticao_audita(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="m",
+        status="aprovada",
+        aprovada_por=1,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(f"/peticoes/{peticao.id}/protocolar")
+
+    assert resp.status_code == 200
+    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
+    assert audit.entidade_id == peticao.id
+
+
 def test_protocolar_requires_approval(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,

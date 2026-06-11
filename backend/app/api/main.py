@@ -512,6 +512,25 @@ def create_app() -> FastAPI:
             )
         except MissingIntimationTextError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except Exception as exc:  # noqa: BLE001 - classificação/redação via IA pode falhar
+            session.rollback()
+            raise HTTPException(
+                status_code=503,
+                detail=f"não foi possível gerar a minuta: {exc}",
+            ) from exc
+
+        _audit(
+            session,
+            acao="minuta_gerada",
+            entidade="peticao",
+            entidade_id=peticao.id,
+            detalhe={
+                "intimacao_id": intimacao.id,
+                "tipo": classificacao.tipo,
+                "peticao_sugerida": classificacao.peticao_sugerida,
+                "confianca": classificacao.confianca,
+            },
+        )
         session.commit()
         return DraftResponse(
             prazo=PrazoOut.model_validate(prazo),
@@ -532,6 +551,14 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=409, detail="petição já protocolada")
         peticao.status = "aprovada"
         peticao.aprovada_por = payload.usuario_id
+        _audit(
+            session,
+            acao="peticao_aprovada",
+            entidade="peticao",
+            entidade_id=peticao.id,
+            ator_id=payload.usuario_id,
+            detalhe={"tipo": peticao.tipo},
+        )
         session.commit()
         session.refresh(peticao)
         return peticao
@@ -548,6 +575,14 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=409, detail="aprovação obrigatória antes do protocolo")
         peticao.status = "protocolada"
         peticao.protocolada_em = datetime.now(timezone.utc)
+        _audit(
+            session,
+            acao="peticao_protocolada",
+            entidade="peticao",
+            entidade_id=peticao.id,
+            ator_id=peticao.aprovada_por,
+            detalhe={"tipo": peticao.tipo},
+        )
         session.commit()
         session.refresh(peticao)
         return peticao

@@ -99,6 +99,7 @@ export type DashboardData = {
   reviewQueue?: ReviewQueueItem[];
   operational?: OperationalDashboard;
   demoMode?: boolean;
+  backendOffline?: boolean;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
@@ -335,12 +336,21 @@ export async function loadDashboard(): Promise<DashboardData> {
       request<OperationalDashboard>("/dashboard/operational"),
       request<ReviewQueueItem[]>("/review/queue")
     ]);
-    if (!intimacoes.length && !processos.length && !prazos.length && !peticoes.length) {
-      return demoDashboard;
-    }
-    return { intimacoes, processos, prazos, peticoes, operational, reviewQueue };
+    // Backend reachable: reflect its real state (even when empty). Never inject
+    // demo rows over a live backend — empty is a real, actionable state.
+    return {
+      intimacoes,
+      processos,
+      prazos,
+      peticoes,
+      operational,
+      reviewQueue,
+      demoMode: false
+    };
   } catch {
-    return demoDashboard;
+    // Backend unreachable: show demo data but flag it so the UI can warn the
+    // user and disable actions instead of silently no-oping every button.
+    return { ...demoDashboard, backendOffline: true };
   }
 }
 

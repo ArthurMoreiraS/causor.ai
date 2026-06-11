@@ -147,3 +147,29 @@ class OperationalDashboard(BaseModel):
     workflow: list[WorkflowStep]
     connectors: list[ConnectorStatus]
     audit_signals: list[AuditSignal]
+
+
+class AuditLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    ator: str
+    acao: str
+    entidade: str | None
+    entidade_id: int | None
+    detalhe: dict | None
+    created_at: datetime
+
+
+class ChatMessage(BaseModel):
+    role: str  # "user" | "assistant"
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: list[ChatMessage]
+    processo_id: int | None = None
+
+
+class ChatResponse(BaseModel):
+    reply: str
