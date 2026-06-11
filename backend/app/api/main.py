@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
 from app.api.schemas import (
+    AuditLogOut,
     ApprovePeticaoRequest,
     CaptureDemoRequest,
     CaptureOabRequest,
@@ -284,6 +285,21 @@ def create_app() -> FastAPI:
                 },
             ],
         )
+
+    @app.get("/audit", response_model=list[AuditLogOut])
+    def listar_auditoria(
+        session: Session = Depends(get_session),
+        entidade: str | None = Query(default=None),
+        entidade_id: int | None = Query(default=None),
+        limit: int = Query(default=100, le=500),
+    ) -> list[models.AuditLog]:
+        stmt = select(models.AuditLog)
+        if entidade is not None:
+            stmt = stmt.where(models.AuditLog.entidade == entidade)
+        if entidade_id is not None:
+            stmt = stmt.where(models.AuditLog.entidade_id == entidade_id)
+        stmt = stmt.order_by(models.AuditLog.id.desc()).limit(limit)
+        return list(session.scalars(stmt))
 
     @app.post("/capture/demo", response_model=CaptureResultOut)
     def capturar_demo(

@@ -300,3 +300,23 @@ def test_protocolar_requires_approval(client, db_session, seeded):
     assert filed.status_code == 200
     assert filed.json()["status"] == "protocolada"
     assert filed.json()["protocolada_em"] is not None
+
+
+def test_listar_auditoria_filtra_por_entidade(client, db_session, seeded):
+    db_session.add_all(
+        [
+            models.AuditLog(ator="usuario:1", acao="prazo_revisado", entidade="prazo", entidade_id=1),
+            models.AuditLog(ator="system", acao="captura_oab_executada", entidade="escritorio", entidade_id=1),
+        ]
+    )
+    db_session.flush()
+
+    todos = client.get("/audit").json()
+    assert len(todos) == 2
+    # mais recente primeiro
+    assert todos[0]["acao"] in {"prazo_revisado", "captura_oab_executada"}
+
+    so_prazo = client.get("/audit", params={"entidade": "prazo"}).json()
+    assert len(so_prazo) == 1
+    assert so_prazo[0]["entidade"] == "prazo"
+    assert so_prazo[0]["ator"] == "usuario:1"
