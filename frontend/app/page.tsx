@@ -42,7 +42,8 @@ import {
   ProposedAction,
   protocolarPeticao,
   ReviewQueueItem,
-  rodarCapturaDemo
+  rodarCapturaDemo,
+  rodarCapturaOab
 } from "@/lib/api";
 import AssistantPanel from "./AssistantPanel";
 
@@ -122,6 +123,11 @@ export default function Home() {
     confianca: number;
   } | null>(null);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  const [oabForm, setOabForm] = useState<{ open: boolean; oab: string; uf: string }>({
+    open: false,
+    oab: "",
+    uf: "SP"
+  });
 
   async function refresh() {
     setLoading(true);
@@ -159,6 +165,22 @@ export default function Home() {
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Captura não concluída");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function runCaptureOab() {
+    setBusy("capture");
+    setError(null);
+    setCaptureResult(null);
+    try {
+      const result = await rodarCapturaOab(oabForm.oab.trim(), oabForm.uf.trim());
+      setCaptureResult(result);
+      setOabForm((f) => ({ ...f, open: false }));
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Captura por OAB não concluída");
     } finally {
       setBusy(null);
     }
@@ -346,6 +368,14 @@ export default function Home() {
             >
               {busy === "capture" ? <Loader2 className="spin" size={15} /> : <Bot size={15} />}
               Rodar captura
+            </button>
+            <button
+              className="toolbarButton"
+              onClick={() => setOabForm((f) => ({ ...f, open: true }))}
+              disabled={offline}
+            >
+              <Search size={15} />
+              Captura por OAB
             </button>
           </div>
         </header>
@@ -640,6 +670,43 @@ export default function Home() {
             </div>
           </Panel>
         </section>
+
+        {oabForm.open ? (
+          <div className="modalOverlay" onClick={() => setOabForm((f) => ({ ...f, open: false }))}>
+            <div className="modalCard" onClick={(e) => e.stopPropagation()}>
+              <h3>Captura por OAB</h3>
+              <label>
+                OAB
+                <input
+                  value={oabForm.oab}
+                  onChange={(e) => setOabForm((f) => ({ ...f, oab: e.target.value }))}
+                  placeholder="123456"
+                />
+              </label>
+              <label>
+                UF
+                <input
+                  value={oabForm.uf}
+                  maxLength={2}
+                  onChange={(e) => setOabForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))}
+                />
+              </label>
+              <div className="modalActions">
+                <button className="toolbarButton" onClick={() => setOabForm((f) => ({ ...f, open: false }))}>
+                  Cancelar
+                </button>
+                <button
+                  className="toolbarButton primary"
+                  disabled={!oabForm.oab.trim() || busy === "capture"}
+                  onClick={() => void runCaptureOab()}
+                >
+                  {busy === "capture" ? <Loader2 className="spin" size={15} /> : null}
+                  Capturar
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
       {assistantOpen ? (
         <AssistantPanel
