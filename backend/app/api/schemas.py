@@ -95,11 +95,6 @@ class CaptureOabRequest(BaseModel):
     data_fim: date | None = None
 
 
-class CaptureDemoRequest(BaseModel):
-    escritorio_id: int | None = None
-    dias_default: int = 15
-
-
 class CaptureResultOut(BaseModel):
     intimacoes_novas: int
     processos_enriquecidos: int

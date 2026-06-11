@@ -7,7 +7,7 @@ REST write here.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -19,7 +19,6 @@ from app.agent.service import MissingIntimationTextError, draft_from_intimacao
 from app.api.schemas import (
     AuditLogOut,
     ApprovePeticaoRequest,
-    CaptureDemoRequest,
     CaptureOabRequest,
     CaptureResultOut,
     ChatRequest,
@@ -36,7 +35,7 @@ from app.api.schemas import (
     ReviewQueueItem,
 )
 from app.capture.datajud import DatajudClient, ProcessoDTO
-from app.capture.djen import ComunicacaoDTO, DjenClient
+from app.capture.djen import DjenClient
 from app.capture.poll import poll_oab
 from app.prazo_engine.factory import build_calendar
 from app.settings import settings
@@ -82,57 +81,15 @@ def _resolve_escritorio(session: Session, escritorio_id: int | None) -> models.E
     if escritorio is not None:
         return escritorio
 
-    escritorio = models.Escritorio(nome="Causor Demo Advocacia", cnpj="00000000000100")
-    session.add(escritorio)
-    session.flush()
-    return escritorio
+    raise HTTPException(
+        status_code=400,
+        detail="Nenhum escritório cadastrado. Informe escritorio_id ou cadastre um escritório real.",
+    )
 
 
 class _NoopDatajudClient:
     def consultar_processo(self, numero_processo: str, *, tribunal: str) -> ProcessoDTO | None:
         return None
-
-
-class _DemoDjenClient:
-    def consultar(self, oab: str, uf: str, **_: object) -> list[ComunicacaoDTO]:
-        today = date.today()
-        return [
-            ComunicacaoDTO.from_item(
-                {
-                    "id": f"demo-capture-{today.isoformat()}",
-                    "numero_processo": "1009988-77.2026.8.26.0100",
-                    "siglaTribunal": "TJSP",
-                    "tipoComunicacao": "Intimação para réplica",
-                    "nomeOrgao": "3a Vara Civel",
-                    "texto": (
-                        "Fica a parte autora intimada para apresentar réplica no prazo legal, "
-                        f"vinculada à OAB {oab}/{uf}."
-                    ),
-                    "data_disponibilizacao": today.isoformat(),
-                }
-            )
-        ]
-
-
-class _DemoDatajudClient:
-    def consultar_processo(self, numero_processo: str, *, tribunal: str) -> ProcessoDTO | None:
-        return ProcessoDTO.from_source(
-            {
-                "numeroProcesso": numero_processo,
-                "classe": {"nome": "Procedimento Comum Civel"},
-                "tribunal": tribunal,
-                "orgaoJulgador": {"nome": "3a Vara Civel"},
-                "sistema": {"nome": "e-SAJ"},
-                "dataAjuizamento": "2026-02-10T00:00:00.000Z",
-                "movimentos": [
-                    {
-                        "codigo": 51,
-                        "nome": "Conclusos para despacho",
-                        "dataHora": "2026-05-20T12:00:00.000Z",
-                    }
-                ],
-            }
-        )
 
 
 def _dias_para_vencer(prazo: models.Prazo | None) -> int | None:
@@ -303,32 +260,6 @@ def create_app() -> FastAPI:
             stmt = stmt.where(models.AuditLog.entidade_id == entidade_id)
         stmt = stmt.order_by(models.AuditLog.id.desc()).limit(limit)
         return list(session.scalars(stmt))
-
-    @app.post("/capture/demo", response_model=CaptureResultOut)
-    def capturar_demo(
-        payload: CaptureDemoRequest,
-        session: Session = Depends(get_session),
-    ) -> CaptureResultOut:
-        escritorio = _resolve_escritorio(session, payload.escritorio_id)
-        result = poll_oab(
-            session,
-            oab="123456",
-            uf="SP",
-            escritorio_id=escritorio.id,
-            djen=_DemoDjenClient(),
-            datajud=_DemoDatajudClient(),
-            calendar=build_calendar(_default_calendar_years()),
-            dias_default=payload.dias_default,
-        )
-        _audit(
-            session,
-            acao="captura_demo_executada",
-            entidade="escritorio",
-            entidade_id=escritorio.id,
-            detalhe=result.__dict__,
-        )
-        session.commit()
-        return CaptureResultOut(**result.__dict__)
 
     @app.post("/capture/oab", response_model=CaptureResultOut)
     def capturar_oab(

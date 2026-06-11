@@ -133,217 +133,10 @@ export type DashboardData = {
   peticoes: Peticao[];
   reviewQueue?: ReviewQueueItem[];
   operational?: OperationalDashboard;
-  demoMode?: boolean;
   backendOffline?: boolean;
 };
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
-
-const today = new Date();
-const isoFromToday = (offsetDays: number) => {
-  const value = new Date(today);
-  value.setDate(value.getDate() + offsetDays);
-  return value.toISOString().slice(0, 10);
-};
-
-const demoDashboard: DashboardData = {
-  demoMode: true,
-  processos: [
-    {
-      id: 1,
-      numero: "1001842-88.2025.8.26.0100",
-      classe: "Procedimento Comum Cível",
-      tribunal: "TJSP",
-      orgao_julgador: "12a Vara Civel",
-      sistema: "e-SAJ"
-    },
-    {
-      id: 2,
-      numero: "0007341-21.2025.5.02.0031",
-      classe: "Reclamação Trabalhista",
-      tribunal: "TRT2",
-      orgao_julgador: "31a Vara do Trabalho",
-      sistema: "PJe"
-    },
-    {
-      id: 3,
-      numero: "5012389-44.2025.4.03.6100",
-      classe: "Mandado de Seguranca",
-      tribunal: "TRF3",
-      orgao_julgador: "6a Vara Federal",
-      sistema: "PJe"
-    }
-  ],
-  intimacoes: [
-    {
-      id: 101,
-      processo_id: 1,
-      fonte: "DJEN",
-      numero_processo: "1001842-88.2025.8.26.0100",
-      tribunal: "TJSP",
-      tipo_comunicacao: "Intimação para manifestação",
-      teor: "A parte autora fica intimada para se manifestar sobre os documentos juntados.",
-      data_disponibilizacao: isoFromToday(-1),
-      data_publicacao: isoFromToday(0)
-    },
-    {
-      id: 102,
-      processo_id: 2,
-      fonte: "DJEN",
-      numero_processo: "0007341-21.2025.5.02.0031",
-      tribunal: "TRT2",
-      tipo_comunicacao: "Intimação para contestar",
-      teor: "Fica a parte reclamada intimada para apresentar contestacao.",
-      data_disponibilizacao: isoFromToday(-4),
-      data_publicacao: isoFromToday(-3)
-    },
-    {
-      id: 103,
-      processo_id: 3,
-      fonte: "DJEN",
-      numero_processo: "5012389-44.2025.4.03.6100",
-      tribunal: "TRF3",
-      tipo_comunicacao: "Intimação de decisão liminar",
-      teor: "Fica a autoridade coatora intimada da decisao liminar.",
-      data_disponibilizacao: isoFromToday(-7),
-      data_publicacao: isoFromToday(-6)
-    }
-  ],
-  prazos: [
-    {
-      id: 201,
-      processo_id: 1,
-      intimacao_id: 101,
-      descricao: "Manifestação sobre documentos",
-      data_inicio: isoFromToday(0),
-      dias: 15,
-      dias_uteis: true,
-      data_fatal: isoFromToday(12),
-      cumprido: false
-    },
-    {
-      id: 202,
-      processo_id: 2,
-      intimacao_id: 102,
-      descricao: "Contestação trabalhista",
-      data_inicio: isoFromToday(-3),
-      dias: 15,
-      dias_uteis: true,
-      data_fatal: isoFromToday(2),
-      cumprido: false
-    },
-    {
-      id: 203,
-      processo_id: 3,
-      intimacao_id: 103,
-      descricao: "Agravo / pedido de reconsideração",
-      data_inicio: isoFromToday(-6),
-      dias: 5,
-      dias_uteis: true,
-      data_fatal: isoFromToday(-1),
-      cumprido: false
-    }
-  ],
-  peticoes: [
-    {
-      id: 301,
-      processo_id: 2,
-      prazo_id: 202,
-      tipo: "Contestação",
-      conteudo:
-        "Minuta estruturada com síntese dos fatos, preliminares aplicáveis e pedidos. Aguardando revisão do advogado responsável antes do protocolo.",
-      status: "rascunho",
-      aprovada_por: null,
-      protocolada_em: null
-    },
-    {
-      id: 302,
-      processo_id: 1,
-      prazo_id: 201,
-      tipo: "Manifestação",
-      conteudo:
-        "Manifestação preparada a partir da intimação capturada no DJEN e dos metadados do processo no SOR.",
-      status: "aprovada",
-      aprovada_por: 1,
-      protocolada_em: null
-    }
-  ],
-  operational: {
-    metrics: [
-      { key: "processos", label: "Processos monitorados", value: 3 },
-      { key: "intimacoes", label: "Intimações capturadas", value: 3 },
-      { key: "prazos", label: "Prazos pendentes", value: 3 },
-      { key: "risco", label: "Alto risco", value: 2 }
-    ],
-    workflow: [
-      { key: "capture", label: "Captura", detail: "DJEN + DataJud", status: "live" },
-      { key: "deadline", label: "Prazo", detail: "Motor determinístico", status: "live" },
-      { key: "draft", label: "Minuta", detail: "Claude + templates", status: "review" },
-      { key: "approval", label: "Aprovação", detail: "Gate humano OAB", status: "review" },
-      { key: "filing", label: "Protocolo", detail: "Conector PJe/e-SAJ", status: "planned" }
-    ],
-    connectors: [
-      { key: "djen", name: "DJEN", detail: "captura oficial", status: "online" },
-      { key: "datajud", name: "DataJud", detail: "metadados e andamentos", status: "online" },
-      { key: "pje", name: "PJe", detail: "protocolo assistido", status: "pilot" },
-      { key: "esaj", name: "e-SAJ", detail: "próximo conector", status: "planned" }
-    ],
-    audit_signals: [
-      {
-        key: "gate",
-        title: "Gate humano ativo",
-        detail: "Protocolo exige aprovação do advogado."
-      },
-      {
-        key: "secrets",
-        title: "Segredos fora do prompt",
-        detail: "Certificados e senhas pertencem ao vault."
-      },
-      {
-        key: "audit",
-        title: "Log operacional",
-        detail: "Cada passo do agente fica rastreável."
-      }
-    ]
-  }
-};
-
-demoDashboard.reviewQueue = demoDashboard.intimacoes.map((intimacao) => {
-  const prazo = demoDashboard.prazos.find((item) => item.intimacao_id === intimacao.id) ?? null;
-  const processo = demoDashboard.processos.find((item) => item.id === intimacao.processo_id) ?? null;
-  const peticao =
-    demoDashboard.peticoes.find((item) => item.prazo_id === prazo?.id) ??
-    demoDashboard.peticoes.find((item) => item.processo_id === processo?.id) ??
-    null;
-  const dias = prazo
-    ? Math.ceil((new Date(prazo.data_fatal).getTime() - today.getTime()) / 86_400_000)
-    : null;
-  return {
-    intimacao,
-    processo,
-    prazo,
-    peticao,
-    status: prazo?.cumprido
-      ? "cumprido"
-      : peticao?.status === "aprovada"
-        ? "pronta_para_protocolo"
-        : peticao?.status === "rascunho"
-          ? "minuta_em_revisao"
-          : prazo
-            ? "prazo_calculado"
-            : "capturada",
-    risco: prazo?.cumprido
-      ? "cumprido"
-      : dias === null
-        ? "sem_prazo"
-        : dias < 0
-          ? "vencido"
-          : dias <= 3
-            ? "alto"
-            : "baixo",
-    dias_para_vencer: dias
-  };
-});
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`, {
@@ -361,45 +154,63 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+async function requestOptional<T>(path: string): Promise<T | undefined> {
+  try {
+    return await request<T>(path);
+  } catch (err) {
+    console.warn(`Endpoint opcional indisponível: ${path}`, err);
+    return undefined;
+  }
+}
+
 export async function loadDashboard(): Promise<DashboardData> {
   try {
-    const [intimacoes, processos, prazos, peticoes, operational, reviewQueue] = await Promise.all([
+    const [intimacoes, processos, prazos, peticoes] = await Promise.all([
       request<Intimacao[]>("/intimacoes"),
       request<Processo[]>("/processos"),
       request<Prazo[]>("/prazos"),
-      request<Peticao[]>("/peticoes"),
-      request<OperationalDashboard>("/dashboard/operational"),
-      request<ReviewQueueItem[]>("/review/queue")
+      request<Peticao[]>("/peticoes")
     ]);
-    // Backend reachable: reflect its real state (even when empty). Never inject
-    // demo rows over a live backend — empty is a real, actionable state.
+    const [operational, reviewQueue] = await Promise.all([
+      requestOptional<OperationalDashboard>("/dashboard/operational"),
+      requestOptional<ReviewQueueItem[]>("/review/queue")
+    ]);
+    // Backend reachable: reflect its real state (even when empty).
+    // Optional aggregate endpoints may be absent during local development; the
+    // UI can derive those surfaces from core data.
     return {
       intimacoes,
       processos,
       prazos,
       peticoes,
       operational,
-      reviewQueue,
-      demoMode: false
+      reviewQueue
     };
-  } catch {
-    // Backend unreachable: show demo data but flag it so the UI can warn the
-    // user and disable actions instead of silently no-oping every button.
-    return { ...demoDashboard, backendOffline: true };
+  } catch (err) {
+    console.warn(`Backend indisponível em ${API_BASE}`, err);
+    return {
+      intimacoes: [],
+      processos: [],
+      prazos: [],
+      peticoes: [],
+      backendOffline: true
+    };
   }
 }
 
-export async function gerarMinuta(intimacaoId: number): Promise<Classificacao | null> {
-  if (demoDashboard.intimacoes.some((item) => item.id === intimacaoId)) return null;
+export async function gerarMinuta(
+  intimacaoId: number,
+  calendarYears?: number[]
+): Promise<Classificacao | null> {
+  const body = calendarYears?.length ? { calendar_years: calendarYears } : {};
   const resp = await request<{ classificacao: Classificacao }>(
     `/intimacoes/${intimacaoId}/draft`,
-    { method: "POST", body: JSON.stringify({}) }
+    { method: "POST", body: JSON.stringify(body) }
   );
   return resp.classificacao;
 }
 
 export async function aprovarPeticao(peticaoId: number): Promise<void> {
-  if (demoDashboard.peticoes.some((item) => item.id === peticaoId)) return;
   await request(`/peticoes/${peticaoId}/approve`, {
     method: "POST",
     body: JSON.stringify({ usuario_id: 1 })
@@ -407,19 +218,10 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 }
 
 export async function protocolarPeticao(peticaoId: number): Promise<void> {
-  if (demoDashboard.peticoes.some((item) => item.id === peticaoId)) return;
   await request(`/peticoes/${peticaoId}/protocolar`, { method: "POST" });
 }
 
-export async function rodarCapturaDemo(): Promise<CaptureResult> {
-  return request<CaptureResult>("/capture/demo", {
-    method: "POST",
-    body: JSON.stringify({})
-  });
-}
-
 export async function cumprirPrazo(prazoId: number): Promise<void> {
-  if (demoDashboard.prazos.some((item) => item.id === prazoId)) return;
   await request(`/prazos/${prazoId}/cumprir`, {
     method: "POST",
     body: JSON.stringify({ usuario_id: 1 })

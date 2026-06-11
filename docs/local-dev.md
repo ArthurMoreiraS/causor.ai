@@ -15,7 +15,6 @@ $env:CAUSOR_DATABASE_URL="sqlite:///./causor_dev.db"
 # Opcional: habilita a geração de minuta com o Claude. Sem isso, o botao
 # "Gerar minuta" responde 503 com mensagem clara (o resto do fluxo funciona).
 $env:ANTHROPIC_API_KEY="sk-ant-..."
-.\.venv\Scripts\python.exe -m app.dev_seed
 .\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -24,7 +23,6 @@ API:
 - `http://localhost:8000/health`
 - `http://localhost:8000/dashboard/operational`
 - `http://localhost:8000/review/queue`
-- `POST http://localhost:8000/capture/demo`
 - `POST http://localhost:8000/capture/oab`
 
 ## Frontend
@@ -41,7 +39,7 @@ App:
 
 - `http://localhost:3000`
 
-O botao `Rodar captura` executa `POST /capture/demo` no ambiente local. A rota e idempotente: a primeira execucao cria a intimacao demo do dia, e as proximas nao duplicam a comunicacao.
+O botao `Captura por OAB` executa `POST /capture/oab` e grava somente retornos reais das APIs configuradas.
 
 ## Se a tela abrir sem CSS
 
