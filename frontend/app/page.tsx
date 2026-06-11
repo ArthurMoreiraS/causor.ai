@@ -41,6 +41,7 @@ import {
   Prazo,
   ProposedAction,
   protocolarPeticao,
+  revisarPrazo,
   ReviewQueueItem,
   rodarCapturaDemo,
   rodarCapturaOab
@@ -195,6 +196,18 @@ export default function Home() {
     else if (action.tipo === "marcar_prazo_cumprido") await cumprirPrazo(id);
     else if (action.tipo === "aprovar_peticao") await aprovarPeticao(id);
     await refresh();
+  }
+
+  async function editarPrazo(prazo: Prazo) {
+    const atual = prazo.data_fatal;
+    const nova = window.prompt(
+      `Nova data fatal para "${prazo.descricao ?? "prazo"}" (AAAA-MM-DD):`,
+      atual
+    );
+    if (!nova || nova === atual) return;
+    await runAction(`edit-${prazo.id}`, async () => {
+      await revisarPrazo(prazo.id, { data_fatal: nova });
+    });
   }
 
   useEffect(() => {
@@ -569,6 +582,18 @@ export default function Home() {
                           <Loader2 className="spin" size={15} />
                         ) : (
                           <CheckCircle2 size={15} />
+                        )}
+                      </button>
+                      <button
+                        className="iconButton"
+                        title="Editar data fatal"
+                        disabled={!prazo || busy === `edit-${prazo?.id}` || offline}
+                        onClick={() => (prazo ? void editarPrazo(prazo) : undefined)}
+                      >
+                        {busy === `edit-${prazo?.id}` ? (
+                          <Loader2 className="spin" size={15} />
+                        ) : (
+                          <CalendarDays size={15} />
                         )}
                       </button>
                     </div>
