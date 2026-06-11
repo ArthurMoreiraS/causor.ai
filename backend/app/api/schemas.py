@@ -171,5 +171,20 @@ class ChatRequest(BaseModel):
     processo_id: int | None = None
 
 
+class ProposedAction(BaseModel):
+    tipo: str  # "gerar_minuta" | "marcar_prazo_cumprido" | "aprovar_peticao"
+    label: str
+    endpoint: str
+    metodo: str = "POST"
+    payload: dict
+
+
+class ToolTraceItem(BaseModel):
+    ferramenta: str
+    input: dict
+
+
 class ChatResponse(BaseModel):
     reply: str
+    proposed_actions: list[ProposedAction] = []
+    tool_trace: list[ToolTraceItem] = []
