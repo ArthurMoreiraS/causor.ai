@@ -123,4 +123,11 @@ def chat_with_assistant(
             )
         convo.append({"role": "user", "content": results})
 
+    if not reply:
+        reply = (
+            "Preparei uma proposta para sua confirmação."
+            if proposed_actions
+            else "Não consegui elaborar uma resposta. Pode reformular a pergunta?"
+        )
+
     return {"reply": reply, "proposed_actions": proposed_actions, "tool_trace": tool_trace}

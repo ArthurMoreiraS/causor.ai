@@ -1028,6 +1028,20 @@ h2 {
   color: #b00020;
   font-size: 13px;
 }
+.auditLogRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #f0eee8;
+}
+.auditLogRow strong {
+  font-size: 13px;
+}
+.auditLogRow span {
+  font-size: 12px;
+  color: #888;
+}
 
 @media (max-width: 1080px) {
   .shell {

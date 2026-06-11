@@ -189,12 +189,11 @@ export default function Home() {
   }
 
   async function confirmAssistantAction(action: ProposedAction) {
-    const id = Number(
-      action.payload.intimacao_id ?? action.payload.prazo_id ?? action.payload.peticao_id
-    );
-    if (action.tipo === "gerar_minuta") await gerarMinuta(id);
-    else if (action.tipo === "marcar_prazo_cumprido") await cumprirPrazo(id);
-    else if (action.tipo === "aprovar_peticao") await aprovarPeticao(id);
+    const { payload } = action;
+    if (action.tipo === "gerar_minuta") await gerarMinuta(Number(payload.intimacao_id));
+    else if (action.tipo === "marcar_prazo_cumprido") await cumprirPrazo(Number(payload.prazo_id));
+    else if (action.tipo === "aprovar_peticao") await aprovarPeticao(Number(payload.peticao_id));
+    else throw new Error(`Ação desconhecida: ${action.tipo}`);
     await refresh();
   }
 

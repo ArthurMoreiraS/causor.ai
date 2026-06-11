@@ -26,14 +26,12 @@ export default function AuditPanel({ offline }: { offline: boolean }) {
       {error ? <div className="assistantError">{error}</div> : null}
       <div className="auditList">
         {logs.map((log) => (
-          <article className="auditItem" key={log.id}>
-            <div>
-              <strong>{log.acao}</strong>
-              <span>
-                {log.ator} · {log.entidade ?? "-"}
-                {log.entidade_id != null ? ` #${log.entidade_id}` : ""}
-              </span>
-            </div>
+          <article className="auditLogRow" key={log.id}>
+            <strong>{log.acao}</strong>
+            <span>
+              {log.ator} · {log.entidade ?? "-"}
+              {log.entidade_id != null ? ` #${log.entidade_id}` : ""}
+            </span>
           </article>
         ))}
         {!logs.length && !error ? <div className="empty">Sem eventos registrados</div> : null}
