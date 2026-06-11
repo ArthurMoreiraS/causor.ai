@@ -91,6 +91,41 @@ export type ReviewQueueItem = {
   dias_para_vencer: number | null;
 };
 
+export type ProposedAction = {
+  tipo: string;
+  label: string;
+  endpoint: string;
+  metodo: string;
+  payload: Record<string, unknown>;
+};
+
+export type ChatTurn = { role: "user" | "assistant"; content: string };
+
+export type ChatResponse = {
+  reply: string;
+  proposed_actions: ProposedAction[];
+  tool_trace: { ferramenta: string; input: Record<string, unknown> }[];
+};
+
+export type AuditLog = {
+  id: number;
+  ator: string;
+  acao: string;
+  entidade: string | null;
+  entidade_id: number | null;
+  detalhe: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type Classificacao = {
+  tipo: string;
+  peticao_sugerida: string;
+  prazo_dias: number;
+  dias_uteis: boolean;
+  confianca: number;
+  resumo: string;
+};
+
 export type DashboardData = {
   intimacoes: Intimacao[];
   processos: Processo[];
@@ -354,12 +389,13 @@ export async function loadDashboard(): Promise<DashboardData> {
   }
 }
 
-export async function gerarMinuta(intimacaoId: number): Promise<void> {
-  if (demoDashboard.intimacoes.some((item) => item.id === intimacaoId)) return;
-  await request(`/intimacoes/${intimacaoId}/draft`, {
-    method: "POST",
-    body: JSON.stringify({})
-  });
+export async function gerarMinuta(intimacaoId: number): Promise<Classificacao | null> {
+  if (demoDashboard.intimacoes.some((item) => item.id === intimacaoId)) return null;
+  const resp = await request<{ classificacao: Classificacao }>(
+    `/intimacoes/${intimacaoId}/draft`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+  return resp.classificacao;
 }
 
 export async function aprovarPeticao(peticaoId: number): Promise<void> {
@@ -388,4 +424,45 @@ export async function cumprirPrazo(prazoId: number): Promise<void> {
     method: "POST",
     body: JSON.stringify({ usuario_id: 1 })
   });
+}
+
+export async function enviarMensagemChat(
+  messages: ChatTurn[],
+  processoId?: number
+): Promise<ChatResponse> {
+  return request<ChatResponse>("/chat", {
+    method: "POST",
+    body: JSON.stringify({ messages, processo_id: processoId ?? null })
+  });
+}
+
+export async function rodarCapturaOab(
+  oab: string,
+  uf: string
+): Promise<CaptureResult> {
+  return request<CaptureResult>("/capture/oab", {
+    method: "POST",
+    body: JSON.stringify({ oab, uf })
+  });
+}
+
+export async function revisarPrazo(
+  prazoId: number,
+  patch: Partial<Pick<Prazo, "descricao" | "dias" | "dias_uteis" | "data_inicio" | "data_fatal">>
+): Promise<Prazo> {
+  return request<Prazo>(`/prazos/${prazoId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ usuario_id: 1, ...patch })
+  });
+}
+
+export async function carregarAuditoria(filtros?: {
+  entidade?: string;
+  entidade_id?: number;
+}): Promise<AuditLog[]> {
+  const params = new URLSearchParams();
+  if (filtros?.entidade) params.set("entidade", filtros.entidade);
+  if (filtros?.entidade_id != null) params.set("entidade_id", String(filtros.entidade_id));
+  const qs = params.toString();
+  return request<AuditLog[]>(`/audit${qs ? `?${qs}` : ""}`);
 }
