@@ -114,6 +114,11 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
+  const [lastClassificacao, setLastClassificacao] = useState<{
+    intimacaoId: number;
+    tipo: string;
+    confianca: number;
+  } | null>(null);
 
   async function refresh() {
     setLoading(true);
@@ -365,6 +370,16 @@ export default function Home() {
           </div>
         ) : null}
 
+        {lastClassificacao ? (
+          <div className="notice success">
+            <Sparkles size={18} />
+            <span>
+              Minuta classificada pela IA: <strong>{lastClassificacao.tipo}</strong> ·
+              confiança {Math.round(lastClassificacao.confianca * 100)}%
+            </span>
+          </div>
+        ) : null}
+
         <section className="metricStrip">
           <Metric label="Processos Monitorados" value={metrics.monitored} />
           <Metric label="Intimações Capturadas" value={metrics.captured} />
@@ -472,7 +487,15 @@ export default function Home() {
                         title="Gerar minuta"
                         disabled={busy === `draft-${intimacao.id}` || offline}
                         onClick={() =>
-                          runAction(`draft-${intimacao.id}`, () => gerarMinuta(intimacao.id))
+                          runAction(`draft-${intimacao.id}`, async () => {
+                            const cls = await gerarMinuta(intimacao.id);
+                            if (cls)
+                              setLastClassificacao({
+                                intimacaoId: intimacao.id,
+                                tipo: cls.tipo,
+                                confianca: cls.confianca
+                              });
+                          })
                         }
                       >
                         {busy === `draft-${intimacao.id}` ? (
