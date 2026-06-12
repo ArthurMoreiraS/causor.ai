@@ -7,7 +7,7 @@ REST write here.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
 from app.api.schemas import (
+    AlertaPrazo,
     AuditLogOut,
     ApprovePeticaoRequest,
     CaptureOabRequest,
@@ -563,6 +564,38 @@ def create_app() -> FastAPI:
             stmt = stmt.where(models.Prazo.cumprido == cumprido)
         stmt = stmt.order_by(models.Prazo.data_fatal.asc()).limit(limit)
         return list(session.scalars(stmt))
+
+    @app.get("/alertas", response_model=list[AlertaPrazo])
+    def listar_alertas(session: Session = Depends(get_session)) -> list[AlertaPrazo]:
+        """Radar de prazo: vencidos, D-0, D-1 e D-3, do mais crítico ao menos."""
+        today = date.today()
+        stmt = (
+            select(models.Prazo)
+            .where(models.Prazo.cumprido.is_(False))
+            .where(models.Prazo.data_fatal <= today + timedelta(days=3))
+            .order_by(models.Prazo.data_fatal.asc())
+        )
+        alertas: list[AlertaPrazo] = []
+        for prazo in session.scalars(stmt):
+            dias = (prazo.data_fatal - today).days
+            nivel = "vencido" if dias < 0 else "d0" if dias == 0 else "d1" if dias == 1 else "d3"
+            processo = (
+                session.get(models.Processo, prazo.processo_id)
+                if prazo.processo_id is not None
+                else None
+            )
+            alertas.append(
+                AlertaPrazo(
+                    prazo_id=prazo.id,
+                    processo_id=prazo.processo_id,
+                    processo_numero=processo.numero if processo is not None else None,
+                    descricao=prazo.descricao,
+                    data_fatal=prazo.data_fatal,
+                    dias_para_vencer=dias,
+                    nivel=nivel,
+                )
+            )
+        return alertas
 
     @app.patch("/prazos/{prazo_id}", response_model=PrazoOut)
     def revisar_prazo(

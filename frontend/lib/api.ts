@@ -126,6 +126,51 @@ export type Classificacao = {
   resumo: string;
 };
 
+export type AlertaPrazo = {
+  prazo_id: number;
+  processo_id: number | null;
+  processo_numero: string | null;
+  descricao: string | null;
+  data_fatal: string;
+  dias_para_vencer: number;
+  nivel: "vencido" | "d0" | "d1" | "d3";
+};
+
+export type JobExecucao = {
+  id: number;
+  tipo: string;
+  status: "queued" | "running" | "completed" | "failed" | string;
+  entidade: string | null;
+  entidade_id: number | null;
+  payload: Record<string, unknown> | null;
+  resultado: Record<string, unknown> | null;
+  erro: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type CredencialAssinatura = {
+  id: number;
+  usuario_id: number;
+  provedor: string;
+  referencia_vault: string;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TemplatePeticao = {
+  id: number;
+  escritorio_id: number;
+  tipo: string;
+  area: string | null;
+  nome: string;
+  conteudo: string;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
 export type DashboardData = {
   intimacoes: Intimacao[];
   processos: Processo[];
@@ -229,6 +274,60 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 
 export async function protocolarPeticao(peticaoId: number): Promise<void> {
   await request(`/peticoes/${peticaoId}/protocolar`, { method: "POST" });
+}
+
+/** Protocolo simulado via job assíncrono — retorna o job com comprovante. */
+export async function protocolarPeticaoAsync(peticaoId: number): Promise<JobExecucao> {
+  return request<JobExecucao>(`/peticoes/${peticaoId}/protocolar/async`, { method: "POST" });
+}
+
+export async function carregarAlertas(): Promise<AlertaPrazo[]> {
+  return request<AlertaPrazo[]>("/alertas");
+}
+
+export async function listarCredenciais(usuarioId = 1): Promise<CredencialAssinatura[]> {
+  return request<CredencialAssinatura[]>(`/usuarios/${usuarioId}/credenciais-assinatura`);
+}
+
+export async function cadastrarCredencial(
+  provedor: string,
+  referenciaExterna: string,
+  usuarioId = 1
+): Promise<CredencialAssinatura> {
+  return request<CredencialAssinatura>(`/usuarios/${usuarioId}/credenciais-assinatura`, {
+    method: "POST",
+    body: JSON.stringify({ provedor, referencia_externa: referenciaExterna })
+  });
+}
+
+export async function desativarCredencial(credencialId: number): Promise<CredencialAssinatura> {
+  return request<CredencialAssinatura>(`/credenciais-assinatura/${credencialId}/desativar`, {
+    method: "PATCH"
+  });
+}
+
+export async function listarTemplates(escritorioId = 1): Promise<TemplatePeticao[]> {
+  return request<TemplatePeticao[]>(`/escritorios/${escritorioId}/templates-peticao`);
+}
+
+export async function criarTemplate(
+  template: { tipo: string; area?: string | null; nome: string; conteudo: string; ativo?: boolean },
+  escritorioId = 1
+): Promise<TemplatePeticao> {
+  return request<TemplatePeticao>(`/escritorios/${escritorioId}/templates-peticao`, {
+    method: "POST",
+    body: JSON.stringify(template)
+  });
+}
+
+export async function atualizarTemplate(
+  templateId: number,
+  patch: Partial<{ tipo: string; area: string | null; nome: string; conteudo: string; ativo: boolean }>
+): Promise<TemplatePeticao> {
+  return request<TemplatePeticao>(`/templates-peticao/${templateId}`, {
+    method: "PATCH",
+    body: JSON.stringify(patch)
+  });
 }
 
 export async function cumprirPrazo(prazoId: number): Promise<void> {

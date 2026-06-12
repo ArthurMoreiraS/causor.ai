@@ -173,6 +173,18 @@ class TemplatePeticaoOut(BaseModel):
     updated_at: datetime
 
 
+class AlertaPrazo(BaseModel):
+    """Radar de prazo: alerta derivado dos prazos abertos (sem tabela própria)."""
+
+    prazo_id: int
+    processo_id: int | None
+    processo_numero: str | None
+    descricao: str | None
+    data_fatal: date
+    dias_para_vencer: int
+    nivel: Literal["vencido", "d0", "d1", "d3"]
+
+
 class ReviewQueueItem(BaseModel):
     intimacao: IntimacaoOut
     processo: ProcessoOut | None

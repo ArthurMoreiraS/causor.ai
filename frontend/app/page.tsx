@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  BookOpen,
   Bot,
   CheckCircle2,
   ChevronDown,
@@ -24,7 +25,8 @@ import {
   SlidersHorizontal,
   Sparkles,
   Table2,
-  Workflow
+  Workflow,
+  Zap
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -38,7 +40,7 @@ import {
   Peticao,
   Prazo,
   ProposedAction,
-  protocolarPeticao,
+  protocolarPeticaoAsync,
   revisarPrazo,
   ReviewQueueItem,
   rodarCapturaOab
@@ -52,6 +54,7 @@ import FiltersPanel from "./components/FiltersPanel";
 import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
 import QueueTable from "./components/QueueTable";
+import RadarBell from "./components/RadarBell";
 import {
   AmountCard,
   AuditItem,
@@ -62,8 +65,10 @@ import {
   Panel
 } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
+import FilaDoDiaView from "./views/FilaDoDiaView";
 import GateOabView from "./views/GateOabView";
 import HomeDashboard from "./views/HomeDashboard";
+import TemplatesView from "./views/TemplatesView";
 import IntimacoesView from "./views/IntimacoesView";
 import PeticoesView from "./views/PeticoesView";
 import PrazosView from "./views/PrazosView";
@@ -105,7 +110,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewKey>("inicio");
+  const [view, setView] = useState<ViewKey>("fila");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusKey>("pendentes");
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +120,11 @@ export default function Home() {
     tipo: string;
     confianca: number;
   } | null>(null);
+  const [lastProtocolo, setLastProtocolo] = useState<{
+    tipo: string | null;
+    protocolo: string;
+  } | null>(null);
+  const [refreshTick, setRefreshTick] = useState(0);
   const [oabForm, setOabForm] = useState<{ open: boolean; oab: string; uf: string }>({
     open: false,
     oab: "",
@@ -155,6 +165,7 @@ export default function Home() {
     setError(null);
     try {
       setData(await loadDashboard());
+      setRefreshTick((tick) => tick + 1);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível carregar o Causor");
       setData(emptyData);
@@ -204,6 +215,17 @@ export default function Home() {
 
   function editarPrazo(prazo: Prazo) {
     setPrazoEdit(prazo);
+  }
+
+  function protocolar(peticao: Peticao) {
+    void runAction(`file-${peticao.id}`, async () => {
+      const job = await protocolarPeticaoAsync(peticao.id);
+      const protocolo = job.resultado?.protocolo;
+      setLastProtocolo({
+        tipo: peticao.tipo,
+        protocolo: protocolo ? String(protocolo) : `job #${job.id}`
+      });
+    });
   }
 
   async function salvarRevisaoPrazo(patch: PrazoPatch) {
@@ -600,12 +622,18 @@ export default function Home() {
 
         <nav className="sideNav">
           <NavItem
-            icon={<HomeIcon size={15} />}
-            label="Início"
-            active={view === "inicio"}
-            onClick={() => setView("inicio")}
+            icon={<Zap size={15} />}
+            label="Fila do dia"
+            active={view === "fila"}
+            onClick={() => setView("fila")}
           />
-          <NavGroup label="Agentes">
+          <NavGroup label="Operação diária">
+            <NavItem
+              icon={<HomeIcon size={15} />}
+              label="Central de Comando"
+              active={view === "inicio"}
+              onClick={() => setView("inicio")}
+            />
             <NavItem
               icon={<MessageCircle size={15} />}
               label="Assistente"
@@ -618,11 +646,19 @@ export default function Home() {
               active={view === "operacao"}
               onClick={() => setView("operacao")}
             />
+          </NavGroup>
+          <NavGroup label="Automações">
             <NavItem
               icon={<FilePenLine size={15} />}
               label="Minutas"
               active={view === "peticoes"}
               onClick={() => setView("peticoes")}
+            />
+            <NavItem
+              icon={<BookOpen size={15} />}
+              label="Templates"
+              active={view === "templates"}
+              onClick={() => setView("templates")}
             />
             <NavItem
               icon={<ShieldCheck size={15} />}
@@ -631,7 +667,7 @@ export default function Home() {
               onClick={() => setView("gate")}
             />
           </NavGroup>
-          <NavGroup label="Sistema de Registro">
+          <NavGroup label="Registro">
             <NavItem
               icon={<HomeIcon size={15} />}
               label="Processos"
@@ -650,6 +686,8 @@ export default function Home() {
               active={view === "prazos"}
               onClick={() => setView("prazos")}
             />
+          </NavGroup>
+          <NavGroup label="Governança">
             <NavItem
               icon={<Table2 size={15} />}
               label="Auditoria"
@@ -689,6 +727,11 @@ export default function Home() {
             <strong>{VIEW_LABEL[view]}</strong>
           </div>
           <div className="appActions">
+            <RadarBell
+              offline={offline}
+              refreshKey={refreshTick}
+              onGoToPrazos={() => setView("prazos")}
+            />
             <button className="toolbarButton" onClick={openOab} disabled={offline}>
               <Search size={15} />
               Captura por OAB
@@ -739,6 +782,17 @@ export default function Home() {
           </div>
         ) : null}
 
+        {lastProtocolo ? (
+          <div className="notice success">
+            <CheckCircle2 size={18} />
+            <span>
+              Protocolo concluído: {lastProtocolo.tipo ?? "petição"} — comprovante{" "}
+              <strong className="mono">{lastProtocolo.protocolo}</strong>. Registrado na auditoria.{" "}
+              <em>Simulado — conector PJe em desenvolvimento.</em>
+            </span>
+          </div>
+        ) : null}
+
         {lastClassificacao ? (
           <div
             className={
@@ -769,6 +823,25 @@ export default function Home() {
             offline={offline}
             onConfirmAction={confirmAssistantAction}
           />
+        ) : view === "fila" ? (
+          <FilaDoDiaView
+            items={reviewQueue}
+            busy={busy}
+            offline={offline}
+            onGenerateDraft={(intimacaoId) =>
+              runAction(`draft-${intimacaoId}`, async () => {
+                const cls = await gerarMinuta(intimacaoId, calendarYears);
+                if (cls)
+                  setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
+              })
+            }
+            onOpenEditor={(peticao) => setEditorPeticao(peticao)}
+            onApprove={(peticao) => runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))}
+            onFile={protocolar}
+            onNavigate={setView}
+          />
+        ) : view === "templates" ? (
+          <TemplatesView offline={offline} />
         ) : view === "inicio" ? (
           <HomeDashboard
             metrics={metrics}
@@ -957,7 +1030,7 @@ export default function Home() {
               busy={busy}
               offline={offline}
               onApprove={(peticao) => runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))}
-              onFile={(peticao) => runAction(`file-${peticao.id}`, () => protocolarPeticao(peticao.id))}
+              onFile={protocolar}
             />
           ) : null}
         </section>
@@ -1022,12 +1095,10 @@ export default function Home() {
                     <button
                       className="toolbarButton primary"
                       disabled={peticao.status !== "aprovada" || busy === `file-${peticao.id}` || offline}
-                      onClick={() =>
-                        runAction(`file-${peticao.id}`, () => protocolarPeticao(peticao.id))
-                      }
+                      onClick={() => protocolar(peticao)}
                     >
                       <Send size={15} />
-                      Protocolar
+                      Protocolar (simulado)
                     </button>
                   </div>
                 </article>
@@ -1102,6 +1173,7 @@ export default function Home() {
         {overlay === "settings" ? (
           <SettingsModal
             settings={settings}
+            offline={offline}
             onUpdate={updateSettings}
             onReset={resetSettings}
             onClose={() => setOverlay(null)}

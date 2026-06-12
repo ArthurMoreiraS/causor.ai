@@ -147,6 +147,59 @@ def test_marcar_prazo_cumprido(client, db_session, seeded):
     assert audit.acao == "prazo_cumprido"
 
 
+def test_alertas_derivados_dos_prazos(client, db_session, seeded):
+    from datetime import date, timedelta
+
+    today = date.today()
+    proc = seeded
+    db_session.add_all(
+        [
+            models.Prazo(
+                processo_id=proc.id, descricao="Vencido", data_inicio=today - timedelta(days=20),
+                dias=15, dias_uteis=True, data_fatal=today - timedelta(days=2), cumprido=False,
+            ),
+            models.Prazo(
+                processo_id=proc.id, descricao="Hoje", data_inicio=today - timedelta(days=15),
+                dias=15, dias_uteis=True, data_fatal=today, cumprido=False,
+            ),
+            models.Prazo(
+                processo_id=proc.id, descricao="Amanha", data_inicio=today - timedelta(days=14),
+                dias=15, dias_uteis=True, data_fatal=today + timedelta(days=1), cumprido=False,
+            ),
+            models.Prazo(
+                processo_id=proc.id, descricao="D3", data_inicio=today - timedelta(days=12),
+                dias=15, dias_uteis=True, data_fatal=today + timedelta(days=3), cumprido=False,
+            ),
+            models.Prazo(
+                processo_id=proc.id, descricao="Longe", data_inicio=today,
+                dias=15, dias_uteis=True, data_fatal=today + timedelta(days=10), cumprido=False,
+            ),
+            models.Prazo(
+                processo_id=proc.id, descricao="CumpridoHoje", data_inicio=today - timedelta(days=15),
+                dias=15, dias_uteis=True, data_fatal=today, cumprido=True,
+            ),
+        ]
+    )
+    db_session.flush()
+
+    resp = client.get("/alertas")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    por_descricao = {a["descricao"]: a for a in body}
+    # Prazos confortáveis e cumpridos ficam fora; "A" (da fixture) está vencido e aberto.
+    assert set(por_descricao) == {"A", "Vencido", "Hoje", "Amanha", "D3"}
+    assert por_descricao["A"]["nivel"] == "vencido"
+    assert por_descricao["Vencido"]["nivel"] == "vencido"
+    assert por_descricao["Hoje"]["nivel"] == "d0"
+    assert por_descricao["Amanha"]["nivel"] == "d1"
+    assert por_descricao["D3"]["nivel"] == "d3"
+    assert por_descricao["Hoje"]["processo_numero"] == proc.numero
+    # Ordenação: mais crítico primeiro; vencidos do mais antigo ao mais recente.
+    assert [a["nivel"] for a in body] == ["vencido", "vencido", "d0", "d1", "d3"]
+    assert [a["descricao"] for a in body[:2]] == ["A", "Vencido"]
+
+
 def test_listar_processos(client, seeded):
     data = client.get("/processos").json()
     assert len(data) == 1

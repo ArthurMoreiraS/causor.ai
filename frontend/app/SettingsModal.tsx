@@ -2,14 +2,17 @@
 
 import { RotateCcw, X } from "lucide-react";
 import type { Settings } from "@/lib/settings";
+import VaultSection from "./components/VaultSection";
 
 export default function SettingsModal({
   settings,
+  offline,
   onUpdate,
   onReset,
   onClose
 }: {
   settings: Settings;
+  offline: boolean;
   onUpdate: (patch: Partial<Settings>) => void;
   onReset: () => void;
   onClose: () => void;
@@ -95,6 +98,8 @@ export default function SettingsModal({
             Classificações abaixo deste valor são sinalizadas para revisão humana.
           </small>
         </div>
+
+        <VaultSection offline={offline} />
 
         <footer className="settingsFooter">
           <button className="toolbarButton compact" onClick={onReset}>

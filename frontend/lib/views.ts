@@ -1,6 +1,7 @@
 import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
 
 export type ViewKey =
+  | "fila"
   | "inicio"
   | "assistente"
   | "operacao"
@@ -8,6 +9,7 @@ export type ViewKey =
   | "intimacoes"
   | "prazos"
   | "peticoes"
+  | "templates"
   | "gate"
   | "auditoria";
 
@@ -21,6 +23,8 @@ export const STATUS_MATCH: Record<StatusKey, (status: string) => boolean> = {
 };
 
 export const VIEW_LABEL: Record<ViewKey, string> = {
+  fila: "Fila do dia",
+  templates: "Minutas & Templates",
   inicio: "Central de Comando",
   assistente: "Assistente Causor",
   operacao: "Agente de Operações Processuais",
@@ -33,6 +37,8 @@ export const VIEW_LABEL: Record<ViewKey, string> = {
 };
 
 export const EMPTY_BY_VIEW: Record<ViewKey, string> = {
+  fila: "Fila vazia — nenhum ato pendente",
+  templates: "Nenhum template cadastrado",
   inicio: "Nenhuma prioridade encontrada",
   assistente: "Nenhuma conversa iniciada",
   operacao: "Nenhuma intimação encontrada",
@@ -45,6 +51,8 @@ export const EMPTY_BY_VIEW: Record<ViewKey, string> = {
 };
 
 export const VIEW_COPY: Record<ViewKey, string> = {
+  fila: "Tudo que precisa de ação hoje, do mais crítico ao mais tranquilo.",
+  templates: "Modelos do escritório que estruturam a redação das minutas.",
   inicio: "Visão executiva do piloto: prioridades, risco e próximos atos.",
   assistente: "Converse com o agente, consulte o SOR e confirme ações com gate humano.",
   operacao: "Fila integrada de captura, prazo, minuta e gate humano.",

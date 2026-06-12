@@ -47,7 +47,7 @@ export default function GateOabView({
           rows={cleared}
           busy={busy}
           offline={offline}
-          primaryLabel="Protocolar"
+          primaryLabel="Protocolar (simulado)"
           primaryIcon={<Send size={15} />}
           onPrimary={onFile}
           primary
