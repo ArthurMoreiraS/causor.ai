@@ -158,6 +158,20 @@ class Peticao(TimestampMixin, Base):
     processo: Mapped[Processo] = relationship(back_populates="peticoes")
 
 
+class TemplatePeticao(TimestampMixin, Base):
+    """Office-owned drafting template for repeatable petition types."""
+
+    __tablename__ = "template_peticao"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(100), nullable=False)
+    area: Mapped[str | None] = mapped_column(String(100))
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    conteudo: Mapped[str] = mapped_column(Text, nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
 class Andamento(TimestampMixin, Base):
     """A process movement (from DataJud movimentos[])."""
 
@@ -197,6 +211,25 @@ class CredencialAssinatura(TimestampMixin, Base):
     provedor: Mapped[str] = mapped_column(String(50), nullable=False)  # BirdID/VIDaaS/...
     referencia_vault: Mapped[str] = mapped_column(String(255), nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class JobExecucao(TimestampMixin, Base):
+    """Async workflow/job state tracked in the SOR.
+
+    Jobs make long-running actions observable before we add a real worker.
+    Payload/result must never contain secrets.
+    """
+
+    __tablename__ = "job_execucao"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    tipo: Mapped[str] = mapped_column(String(80), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
+    entidade: Mapped[str | None] = mapped_column(String(50))
+    entidade_id: Mapped[int | None] = mapped_column(Integer)
+    payload: Mapped[dict | None] = mapped_column(JSON)
+    resultado: Mapped[dict | None] = mapped_column(JSON)
+    erro: Mapped[str | None] = mapped_column(Text)
 
 
 class AuditLog(Base):

@@ -96,35 +96,40 @@ button:disabled {
 }
 
 .brand {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
+  display: flex;
   align-items: center;
-  gap: 8px;
-  height: 42px;
+  height: 70px;
   padding: 0 14px;
   border-bottom: 1px solid var(--line);
 }
 
-.brandMark {
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
+.brandWordmark {
+  position: relative;
+  display: block;
+  width: 168px;
+  height: 42px;
+  overflow: hidden;
 }
 
-.brand strong {
-  font-size: 14px;
-  font-weight: 600;
+.brandWordmark img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
 }
 
-.brand span {
-  justify-self: start;
-  padding: 2px 6px;
-  border-radius: 6px;
-  color: var(--muted);
-  background: var(--chip);
-  font-size: 10px;
-  font-weight: 700;
+.brandWordmarkLight {
+  display: none;
+}
+
+:root[data-theme="dark"] .brandWordmarkDark {
+  display: none;
+}
+
+:root[data-theme="dark"] .brandWordmarkLight {
+  display: block;
 }
 
 .sideNav {

@@ -1,8 +1,7 @@
 """Petition drafting via Claude.
 
-The draft is always a *proposal* — it never files anything. Filing passes the
-human-approval gate (see the API/peticao status flow). This keeps the lawyer
-professionally responsible (OAB).
+The draft is always a proposal. Filing passes the human-approval gate (see the
+API/peticao status flow). This keeps the lawyer professionally responsible.
 """
 
 from __future__ import annotations
@@ -15,16 +14,16 @@ _MODEL = "claude-opus-4-8"
 
 # Only non-sensitive process metadata may reach the prompt. Secrets
 # (certificate passwords, signing credentials) live in the vault and must never
-# enter a prompt or log — so we whitelist allowed keys rather than dump a dict.
+# enter a prompt or log, so we whitelist allowed keys rather than dump a dict.
 _ALLOWED_CONTEXT_KEYS = frozenset(
     {"numero", "classe", "tribunal", "orgao_julgador", "comarca", "vara", "cliente", "polo"}
 )
 
 _SYSTEM = (
-    "Você é um advogado brasileiro redigindo uma minuta de petição. Redija em português "
-    "jurídico formal, estruturada (endereçamento, qualificação, fatos, fundamentos, pedidos), "
-    "fiel ao teor da intimação e ao tipo de petição indicado. Produza apenas a minuta — ela "
-    "será revisada e protocolada por um advogado humano responsável."
+    "Voce e um advogado brasileiro redigindo uma minuta de peticao. Redija em portugues "
+    "juridico formal, estruturada (enderecamento, qualificacao, fatos, fundamentos, pedidos), "
+    "fiel ao teor da intimacao e ao tipo de peticao indicado. Produza apenas a minuta. Ela "
+    "sera revisada e protocolada por um advogado humano responsavel."
 )
 
 
@@ -33,6 +32,7 @@ def draft_peticao(
     intimacao_texto: str,
     classificacao: ClassificacaoIntimacao,
     contexto_processo: dict,
+    template_conteudo: str | None = None,
     client: anthropic.Anthropic | None = None,
     model: str = _MODEL,
 ) -> str:
@@ -40,13 +40,20 @@ def draft_peticao(
 
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = "\n".join(f"- {k}: {v}" for k, v in contexto.items())
+    template_bloco = (
+        "Template do escritorio a seguir, preserve sua estrutura quando aplicavel:\n"
+        f"{template_conteudo}\n\n"
+        if template_conteudo
+        else ""
+    )
 
     prompt = (
-        f"Tipo de petição: {classificacao.peticao_sugerida}\n"
+        f"Tipo de peticao: {classificacao.peticao_sugerida}\n"
         f"Prazo: {classificacao.prazo_dias} dias "
-        f"({'úteis' if classificacao.dias_uteis else 'corridos'})\n"
+        f"({'uteis' if classificacao.dias_uteis else 'corridos'})\n"
         f"Dados do processo:\n{contexto_linhas}\n\n"
-        f"Teor da intimação:\n{intimacao_texto}\n\n"
+        f"{template_bloco}"
+        f"Teor da intimacao:\n{intimacao_texto}\n\n"
         f"Redija a minuta da {classificacao.peticao_sugerida}."
     )
 

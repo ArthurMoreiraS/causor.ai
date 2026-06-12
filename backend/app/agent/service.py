@@ -8,6 +8,7 @@ gate/API, not by this service.
 
 from __future__ import annotations
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent.classifier import ClassificacaoIntimacao, classify_intimacao
@@ -32,6 +33,27 @@ def _contexto_processo(processo: models.Processo | None) -> dict:
     }
 
 
+def _template_for(
+    session: Session,
+    *,
+    processo: models.Processo | None,
+    tipo_peticao: str,
+) -> models.TemplatePeticao | None:
+    if processo is None:
+        return None
+    templates = session.scalars(
+        select(models.TemplatePeticao)
+        .where(models.TemplatePeticao.escritorio_id == processo.escritorio_id)
+        .where(models.TemplatePeticao.ativo.is_(True))
+        .order_by(models.TemplatePeticao.id.desc())
+    ).all()
+    normalized_tipo = tipo_peticao.strip().lower()
+    for template in templates:
+        if template.tipo.strip().lower() == normalized_tipo:
+            return template
+    return None
+
+
 def draft_from_intimacao(
     session: Session,
     intimacao: models.Intimacao,
@@ -52,10 +74,16 @@ def draft_from_intimacao(
     )
     session.flush()
 
+    template = _template_for(
+        session,
+        processo=intimacao.processo,
+        tipo_peticao=classificacao.peticao_sugerida,
+    )
     conteudo = draft_peticao(
         intimacao_texto=intimacao.teor,
         classificacao=classificacao,
         contexto_processo=_contexto_processo(intimacao.processo),
+        template_conteudo=template.conteudo if template is not None else None,
     )
     peticao = models.Peticao(
         processo_id=intimacao.processo_id,

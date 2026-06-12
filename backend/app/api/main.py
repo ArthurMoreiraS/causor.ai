@@ -23,9 +23,12 @@ from app.api.schemas import (
     CaptureResultOut,
     ChatRequest,
     ChatResponse,
+    CreateCredencialAssinaturaRequest,
+    CredencialAssinaturaOut,
     DraftRequest,
     DraftResponse,
     IntimacaoOut,
+    JobOut,
     MarcarPrazoCumpridoRequest,
     OperationalDashboard,
     PeticaoOut,
@@ -33,14 +36,33 @@ from app.api.schemas import (
     ProcessoOut,
     RevisarPrazoRequest,
     ReviewQueueItem,
+    TemplatePeticaoCreate,
+    TemplatePeticaoOut,
+    TemplatePeticaoUpdate,
 )
 from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
 from app.capture.poll import poll_oab
 from app.prazo_engine.factory import build_calendar
+from app.queue.jobs import (
+    AlreadyFiledError,
+    ApprovalRequiredError,
+    JobNotFoundError,
+    PeticaoNotFoundError,
+    create_job,
+    get_job,
+    run_fake_protocol_job,
+)
 from app.settings import settings
 from app.sor import models
 from app.sor.db import get_session
+from app.vault.service import (
+    CredencialNotFoundError,
+    UsuarioNotFoundError,
+    deactivate_signature_credential,
+    list_signature_credentials,
+    store_signature_reference,
+)
 
 
 def _default_calendar_years() -> list[int]:
@@ -260,6 +282,167 @@ def create_app() -> FastAPI:
             stmt = stmt.where(models.AuditLog.entidade_id == entidade_id)
         stmt = stmt.order_by(models.AuditLog.id.desc()).limit(limit)
         return list(session.scalars(stmt))
+
+    @app.post("/jobs/capture/oab", response_model=JobOut)
+    def criar_job_captura_oab(
+        payload: CaptureOabRequest,
+        session: Session = Depends(get_session),
+    ) -> models.JobExecucao:
+        escritorio = _resolve_escritorio(session, payload.escritorio_id)
+        job = create_job(
+            session,
+            tipo="captura_oab",
+            entidade="escritorio",
+            entidade_id=escritorio.id,
+            payload={
+                **payload.model_dump(mode="json"),
+                "escritorio_id": escritorio.id,
+            },
+        )
+        session.commit()
+        session.refresh(job)
+        return job
+
+    @app.get("/jobs/{job_id}", response_model=JobOut)
+    def consultar_job(
+        job_id: int,
+        session: Session = Depends(get_session),
+    ) -> models.JobExecucao:
+        try:
+            return get_job(session, job_id)
+        except JobNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.post(
+        "/usuarios/{usuario_id}/credenciais-assinatura",
+        response_model=CredencialAssinaturaOut,
+    )
+    def cadastrar_credencial_assinatura(
+        usuario_id: int,
+        payload: CreateCredencialAssinaturaRequest,
+        session: Session = Depends(get_session),
+    ) -> models.CredencialAssinatura:
+        try:
+            credencial = store_signature_reference(
+                session,
+                usuario_id=usuario_id,
+                provedor=payload.provedor,
+                external_ref=payload.referencia_externa,
+            )
+        except UsuarioNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        session.commit()
+        session.refresh(credencial)
+        return credencial
+
+    @app.get(
+        "/usuarios/{usuario_id}/credenciais-assinatura",
+        response_model=list[CredencialAssinaturaOut],
+    )
+    def listar_credenciais_assinatura(
+        usuario_id: int,
+        session: Session = Depends(get_session),
+    ) -> list[models.CredencialAssinatura]:
+        return list_signature_credentials(session, usuario_id=usuario_id)
+
+    @app.patch(
+        "/credenciais-assinatura/{credencial_id}/desativar",
+        response_model=CredencialAssinaturaOut,
+    )
+    def desativar_credencial_assinatura(
+        credencial_id: int,
+        session: Session = Depends(get_session),
+    ) -> models.CredencialAssinatura:
+        try:
+            credencial = deactivate_signature_credential(
+                session,
+                credencial_id=credencial_id,
+            )
+        except CredencialNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        session.commit()
+        session.refresh(credencial)
+        return credencial
+
+    @app.post(
+        "/escritorios/{escritorio_id}/templates-peticao",
+        response_model=TemplatePeticaoOut,
+    )
+    def criar_template_peticao(
+        escritorio_id: int,
+        payload: TemplatePeticaoCreate,
+        session: Session = Depends(get_session),
+    ) -> models.TemplatePeticao:
+        if session.get(models.Escritorio, escritorio_id) is None:
+            raise HTTPException(status_code=404, detail="escritorio nao encontrado")
+        template = models.TemplatePeticao(
+            escritorio_id=escritorio_id,
+            tipo=payload.tipo,
+            area=payload.area,
+            nome=payload.nome,
+            conteudo=payload.conteudo,
+            ativo=payload.ativo,
+        )
+        session.add(template)
+        session.flush()
+        _audit(
+            session,
+            acao="template_peticao_criado",
+            entidade="template_peticao",
+            entidade_id=template.id,
+            escritorio_id=escritorio_id,
+            detalhe={"tipo": template.tipo, "area": template.area, "nome": template.nome},
+        )
+        session.commit()
+        session.refresh(template)
+        return template
+
+    @app.get(
+        "/escritorios/{escritorio_id}/templates-peticao",
+        response_model=list[TemplatePeticaoOut],
+    )
+    def listar_templates_peticao(
+        escritorio_id: int,
+        ativo: bool | None = Query(default=None),
+        tipo: str | None = Query(default=None),
+        session: Session = Depends(get_session),
+    ) -> list[models.TemplatePeticao]:
+        stmt = select(models.TemplatePeticao).where(
+            models.TemplatePeticao.escritorio_id == escritorio_id
+        )
+        if ativo is not None:
+            stmt = stmt.where(models.TemplatePeticao.ativo == ativo)
+        if tipo is not None:
+            stmt = stmt.where(models.TemplatePeticao.tipo == tipo)
+        stmt = stmt.order_by(models.TemplatePeticao.id.desc())
+        return list(session.scalars(stmt))
+
+    @app.patch(
+        "/templates-peticao/{template_id}",
+        response_model=TemplatePeticaoOut,
+    )
+    def atualizar_template_peticao(
+        template_id: int,
+        payload: TemplatePeticaoUpdate,
+        session: Session = Depends(get_session),
+    ) -> models.TemplatePeticao:
+        template = session.get(models.TemplatePeticao, template_id)
+        if template is None:
+            raise HTTPException(status_code=404, detail="template nao encontrado")
+        fields = payload.model_dump(exclude_unset=True)
+        for field, value in fields.items():
+            setattr(template, field, value)
+        _audit(
+            session,
+            acao="template_peticao_atualizado",
+            entidade="template_peticao",
+            entidade_id=template.id,
+            escritorio_id=template.escritorio_id,
+            detalhe={k: v for k, v in fields.items() if k != "conteudo"},
+        )
+        session.commit()
+        session.refresh(template)
+        return template
 
     @app.post("/capture/oab", response_model=CaptureResultOut)
     def capturar_oab(
@@ -536,6 +719,24 @@ def create_app() -> FastAPI:
         session.commit()
         session.refresh(peticao)
         return peticao
+
+    @app.post("/peticoes/{peticao_id}/protocolar/async", response_model=JobOut)
+    def protocolar_peticao_async(
+        peticao_id: int,
+        session: Session = Depends(get_session),
+    ) -> models.JobExecucao:
+        try:
+            job = run_fake_protocol_job(session, peticao_id)
+        except PeticaoNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except AlreadyFiledError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except ApprovalRequiredError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        session.commit()
+        session.refresh(job)
+        return job
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(

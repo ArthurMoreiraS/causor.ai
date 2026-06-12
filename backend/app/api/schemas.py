@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class IntimacaoOut(BaseModel):
@@ -99,6 +99,70 @@ class CaptureResultOut(BaseModel):
     intimacoes_novas: int
     processos_enriquecidos: int
     prazos_registrados: int
+
+
+class JobOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    tipo: str
+    status: str
+    entidade: str | None
+    entidade_id: int | None
+    payload: dict | None
+    resultado: dict | None
+    erro: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class CreateCredencialAssinaturaRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    provedor: str = Field(min_length=2, max_length=50)
+    referencia_externa: str = Field(min_length=4, max_length=255)
+
+
+class CredencialAssinaturaOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    usuario_id: int
+    provedor: str
+    referencia_vault: str
+    ativo: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class TemplatePeticaoCreate(BaseModel):
+    tipo: str = Field(min_length=2, max_length=100)
+    area: str | None = Field(default=None, max_length=100)
+    nome: str = Field(min_length=2, max_length=255)
+    conteudo: str = Field(min_length=10)
+    ativo: bool = True
+
+
+class TemplatePeticaoUpdate(BaseModel):
+    tipo: str | None = Field(default=None, min_length=2, max_length=100)
+    area: str | None = Field(default=None, max_length=100)
+    nome: str | None = Field(default=None, min_length=2, max_length=255)
+    conteudo: str | None = Field(default=None, min_length=10)
+    ativo: bool | None = None
+
+
+class TemplatePeticaoOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    escritorio_id: int
+    tipo: str
+    area: str | None
+    nome: str
+    conteudo: str
+    ativo: bool
+    created_at: datetime
+    updated_at: datetime
 
 
 class ReviewQueueItem(BaseModel):

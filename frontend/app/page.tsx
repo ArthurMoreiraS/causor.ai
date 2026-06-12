@@ -13,7 +13,6 @@ import {
   Download,
   FilePenLine,
   Filter,
-  Gavel,
   HelpCircle,
   HomeIcon,
   Loader2,
@@ -707,10 +706,10 @@ export default function Home() {
     <main className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brandMark">
-            <Gavel size={18} />
-          </div>
-          <strong>Causor</strong>
+          <span className="brandWordmark" aria-label="Causor">
+            <img className="brandWordmarkDark" src="/brand/causor-wordmark-dark.png" alt="" />
+            <img className="brandWordmarkLight" src="/brand/causor-wordmark-light.png" alt="" />
+          </span>
         </div>
 
         <nav className="sideNav">

@@ -341,3 +341,199 @@ def test_listar_auditoria_filtra_por_entidade(client, db_session, seeded):
     assert len(so_prazo) == 1
     assert so_prazo[0]["entidade"] == "prazo"
     assert so_prazo[0]["ator"] == "usuario:1"
+
+
+def test_criar_e_consultar_job_captura_oab(client, db_session, seeded):
+    resp = client.post(
+        "/jobs/capture/oab",
+        json={
+            "oab": "123456",
+            "uf": "SP",
+            "escritorio_id": seeded.escritorio_id,
+            "dias_default": 15,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tipo"] == "captura_oab"
+    assert body["status"] == "queued"
+    assert body["entidade"] == "escritorio"
+    assert body["entidade_id"] == seeded.escritorio_id
+    assert body["payload"]["oab"] == "123456"
+
+    fetched = client.get(f"/jobs/{body['id']}")
+    assert fetched.status_code == 200
+    assert fetched.json()["id"] == body["id"]
+
+    audit = db_session.query(models.AuditLog).filter_by(acao="job_criado").one()
+    assert audit.entidade == "job_execucao"
+    assert audit.entidade_id == body["id"]
+
+
+def test_consultar_job_inexistente_retorna_404(client, seeded):
+    resp = client.get("/jobs/999999")
+    assert resp.status_code == 404
+
+
+def test_protocolar_async_exige_aprovacao(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="rascunho",
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
+
+    assert resp.status_code == 409
+    assert db_session.query(models.JobExecucao).count() == 0
+
+
+def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=7,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["tipo"] == "protocolo_peticao"
+    assert body["status"] == "completed"
+    assert body["entidade"] == "peticao"
+    assert body["entidade_id"] == peticao.id
+    assert body["resultado"]["peticao_id"] == peticao.id
+    assert body["resultado"]["protocolo"].startswith("FAKE-")
+
+    db_session.refresh(peticao)
+    assert peticao.status == "protocolada"
+    assert peticao.protocolada_em is not None
+
+    actions = {row.acao for row in db_session.query(models.AuditLog).all()}
+    assert {"job_criado", "job_iniciado", "job_concluido", "peticao_protocolada"} <= actions
+
+
+def test_cadastrar_listar_e_desativar_credencial_assinatura(client, db_session, seeded):
+    usuario = models.Usuario(
+        escritorio_id=seeded.escritorio_id,
+        nome="Advogada Teste",
+        email="advogada@example.com",
+        oab="123456",
+        oab_uf="SP",
+    )
+    db_session.add(usuario)
+    db_session.flush()
+
+    resp = client.post(
+        f"/usuarios/{usuario.id}/credenciais-assinatura",
+        json={"provedor": "BirdID", "referencia_externa": "birdid-account-123"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["usuario_id"] == usuario.id
+    assert body["provedor"] == "BirdID"
+    assert body["ativo"] is True
+    assert body["referencia_vault"].startswith("localdev://assinatura/")
+    assert "birdid-account-123" not in body["referencia_vault"]
+    assert "referencia_externa" not in body
+
+    listed = client.get(f"/usuarios/{usuario.id}/credenciais-assinatura")
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == body["id"]
+
+    disabled = client.patch(f"/credenciais-assinatura/{body['id']}/desativar")
+    assert disabled.status_code == 200
+    assert disabled.json()["ativo"] is False
+
+    audit_details = [row.detalhe for row in db_session.query(models.AuditLog).all()]
+    assert all("birdid-account-123" not in str(detail) for detail in audit_details)
+
+
+def test_credencial_assinatura_rejeita_campo_de_segredo(client, db_session, seeded):
+    usuario = models.Usuario(
+        escritorio_id=seeded.escritorio_id,
+        nome="Advogado Teste",
+        email="advogado@example.com",
+    )
+    db_session.add(usuario)
+    db_session.flush()
+
+    resp = client.post(
+        f"/usuarios/{usuario.id}/credenciais-assinatura",
+        json={
+            "provedor": "A1",
+            "referencia_externa": "provider-ref",
+            "senha_pfx": "nao-pode-vazar",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert db_session.query(models.CredencialAssinatura).count() == 0
+
+
+def test_cadastrar_credencial_usuario_inexistente_retorna_404(client, seeded):
+    resp = client.post(
+        "/usuarios/999999/credenciais-assinatura",
+        json={"provedor": "BirdID", "referencia_externa": "provider-ref"},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_criar_listar_e_atualizar_template_peticao(client, db_session, seeded):
+    resp = client.post(
+        f"/escritorios/{seeded.escritorio_id}/templates-peticao",
+        json={
+            "tipo": "Contestacao",
+            "area": "civel",
+            "nome": "Contestacao padrao",
+            "conteudo": "Modelo com fatos, fundamentos e pedidos.",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["escritorio_id"] == seeded.escritorio_id
+    assert body["tipo"] == "Contestacao"
+    assert body["ativo"] is True
+
+    listed = client.get(
+        f"/escritorios/{seeded.escritorio_id}/templates-peticao",
+        params={"ativo": "true", "tipo": "Contestacao"},
+    )
+    assert listed.status_code == 200
+    assert listed.json()[0]["id"] == body["id"]
+
+    patched = client.patch(
+        f"/templates-peticao/{body['id']}",
+        json={"nome": "Contestacao revisada", "ativo": False},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["nome"] == "Contestacao revisada"
+    assert patched.json()["ativo"] is False
+
+    actions = {row.acao for row in db_session.query(models.AuditLog).all()}
+    assert {"template_peticao_criado", "template_peticao_atualizado"} <= actions
+
+
+def test_criar_template_escritorio_inexistente_retorna_404(client, seeded):
+    resp = client.post(
+        "/escritorios/999999/templates-peticao",
+        json={
+            "tipo": "Contestacao",
+            "nome": "Contestacao padrao",
+            "conteudo": "Modelo com fatos, fundamentos e pedidos.",
+        },
+    )
+
+    assert resp.status_code == 404
