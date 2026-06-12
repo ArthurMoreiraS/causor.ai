@@ -11,6 +11,8 @@ export type ViewKey =
   | "peticoes"
   | "templates"
   | "gate"
+  | "protocolos"
+  | "conectores"
   | "auditoria";
 
 export type StatusKey = "pendentes" | "minutadas" | "aprovadas" | "protocoladas";
@@ -33,6 +35,8 @@ export const VIEW_LABEL: Record<ViewKey, string> = {
   prazos: "Prazos",
   peticoes: "Minutas",
   gate: "Gate OAB",
+  protocolos: "Protocolos",
+  conectores: "Conectores",
   auditoria: "Auditoria"
 };
 
@@ -47,6 +51,8 @@ export const EMPTY_BY_VIEW: Record<ViewKey, string> = {
   prazos: "Nenhum prazo encontrado",
   peticoes: "Nenhuma minuta encontrada",
   gate: "Nenhum item no gate OAB",
+  protocolos: "Nenhum protocolo executado ainda",
+  conectores: "Nenhum conector configurado",
   auditoria: "Sem eventos de auditoria"
 };
 
@@ -61,6 +67,8 @@ export const VIEW_COPY: Record<ViewKey, string> = {
   prazos: "Lista operacional de prazos com revisão e baixa.",
   peticoes: "Ambiente de minuta e revisão de conteúdo antes do gate.",
   gate: "Fila de aprovação humana e protocolo assistido com responsabilidade OAB.",
+  protocolos: "Jobs de protocolo com checkpoint, comprovante e falhas — simulado até o conector PJe.",
+  conectores: "Status dos conectores oficiais de captura e dos conectores de protocolo.",
   auditoria: "Trilha imutável dos atos executados pelo sistema."
 };
 

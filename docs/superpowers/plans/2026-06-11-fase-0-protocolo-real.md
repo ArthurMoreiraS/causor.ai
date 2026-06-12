@@ -221,6 +221,7 @@ Nao adicionar tudo de uma vez. A ordem recomendada:
 ### Sprint 4 - Conector PJe em modo assistido
 
 **Meta:** conector Playwright executando fluxo feliz ate o ponto de confirmacao.
+**Status:** adiado deliberadamente (decisao do usuario em `docs/superpowers/specs/2026-06-11-alinhamento-demo-design.md`): alinhar o software a landing antes de integrar APIs reais de tribunal. O protocolo segue simulado e rotulado como tal.
 
 - Criar `backend/app/connectors/pje`.
 - Definir interface comum:
@@ -247,6 +248,7 @@ Nao adicionar tudo de uma vez. A ordem recomendada:
 ### Sprint 5 - Protocolo no produto
 
 **Meta:** colocar o fluxo no frontend sem esconder risco.
+**Status:** entregue em modo simulado. Fluxo no produto: aprovar -> Protocolar abre modal com aviso de ato irreversivel, escolha de credencial do vault, job assincrono e comprovante; eventos na auditoria. `POST /peticoes/{id}/protocolar/async` aceita `credencial_id` validado (404/409).
 
 - Substituir o botao "Protocolar" atual por fluxo:
   - validar peticao aprovada;
@@ -269,6 +271,7 @@ Nao adicionar tudo de uma vez. A ordem recomendada:
 ### Sprint 6 - Sidebar operacional da Fase 0
 
 **Meta:** reorganizar o frontend para refletir a ambicao de escritorio 360 sem implementar todo o 360 ainda.
+**Status:** entregue. Sidebar agrupada (Operacao diaria / Automacoes / Registro / Governanca) com Fila do dia ("Hoje"), Minutas, Templates, Gate OAB, Protocolos (jobs/checkpoints/comprovantes via `GET /jobs`), Conectores (status DJEN/DataJud/PJe/e-SAJ + seguranca/vault) e Auditoria. Vault em Configuracoes.
 
 - Adicionar as telas de sidebar que dependem diretamente da Fase 0:
   - **Hoje:** worklist priorizada por risco.
@@ -322,11 +325,11 @@ Nao adicionar tudo de uma vez. A ordem recomendada:
 
 ## 6. Checklist de validacao da fase
 
-- [ ] `pytest` backend verde.
-- [ ] `pnpm build` frontend verde.
-- [ ] Worker sobe localmente com Redis.
-- [ ] Nenhum segredo aparece em logs.
-- [ ] Peticao aprovada e obrigatoria antes do protocolo.
-- [ ] Job de protocolo cria eventos no `audit_log`.
-- [ ] Um protocolo real/homologacao retorna comprovante ou checkpoint claro.
-- [ ] Fluxo bloqueado por captcha/layout falha com instrucao humana, sem corromper estado.
+- [x] `pytest` backend verde (112 passed em 2026-06-12).
+- [x] `next build` frontend verde (tsc + build).
+- [ ] Worker sobe localmente com Redis — adiado: jobs rodam in-process com o mesmo contrato de estado; RQ entra junto com o conector real (RQ nao suporta Windows dev sem SimpleWorker).
+- [x] Nenhum segredo aparece em logs (testes cobrem job/auditoria sem referencia externa).
+- [x] Peticao aprovada e obrigatoria antes do protocolo (409 testado).
+- [x] Job de protocolo cria eventos no `audit_log` (job_criado/iniciado/concluido + peticao_protocolada).
+- [x] Protocolo simulado retorna comprovante e checkpoint claros (rotulado "simulado — conector PJe em desenvolvimento"); real/homologacao adiado junto com o Sprint 4.
+- [ ] Fluxo bloqueado por captcha/layout — depende do conector real (Sprint 4, adiado).

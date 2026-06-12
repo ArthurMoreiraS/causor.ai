@@ -124,6 +124,23 @@ class JobOut(BaseModel):
     updated_at: datetime
 
 
+class UsuarioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    escritorio_id: int
+    nome: str
+    email: str | None = None
+    oab: str | None = None
+    oab_uf: str | None = None
+
+
+class ProtocolarAsyncRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    credencial_id: int | None = None
+
+
 class CreateCredencialAssinaturaRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

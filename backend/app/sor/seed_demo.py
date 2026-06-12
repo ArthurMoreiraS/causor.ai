@@ -249,6 +249,8 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
             payload={"origem": "seed_demo"},
         )
         session.add(intimacao)
+        # Flush para o id existir quando o prazo referenciar a intimação.
+        session.flush()
         return intimacao
 
     def _prazo(

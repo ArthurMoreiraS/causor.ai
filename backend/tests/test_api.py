@@ -548,6 +548,156 @@ def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded
     assert {"job_criado", "job_iniciado", "job_concluido", "peticao_protocolada"} <= actions
 
 
+def test_listar_usuarios_por_escritorio(client, db_session, seeded):
+    db_session.add_all(
+        [
+            models.Usuario(
+                escritorio_id=seeded.escritorio_id,
+                nome="Dra. Helena",
+                email="helena@example.com",
+                oab="111111",
+                oab_uf="SP",
+            ),
+            models.Usuario(
+                escritorio_id=seeded.escritorio_id,
+                nome="Rafael",
+                email="rafael@example.com",
+                oab="222222",
+                oab_uf="SP",
+            ),
+        ]
+    )
+    db_session.flush()
+
+    resp = client.get("/usuarios")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert [u["nome"] for u in body] == ["Dra. Helena", "Rafael"]
+    assert body[0]["escritorio_id"] == seeded.escritorio_id
+
+    filtrado = client.get("/usuarios", params={"escritorio_id": 9999}).json()
+    assert filtrado == []
+
+
+def test_listar_jobs_mais_recentes_primeiro_com_filtros(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=7,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    capture = client.post(
+        "/jobs/capture/oab",
+        json={"oab": "123456", "uf": "SP", "escritorio_id": seeded.escritorio_id},
+    ).json()
+    protocolo = client.post(f"/peticoes/{peticao.id}/protocolar/async").json()
+
+    todos = client.get("/jobs").json()
+    assert [job["id"] for job in todos] == [protocolo["id"], capture["id"]]
+
+    so_protocolo = client.get("/jobs", params={"tipo": "protocolo_peticao"}).json()
+    assert [job["id"] for job in so_protocolo] == [protocolo["id"]]
+    assert so_protocolo[0]["status"] == "completed"
+    assert so_protocolo[0]["resultado"]["protocolo"].startswith("FAKE-")
+
+    so_queued = client.get("/jobs", params={"status": "queued"}).json()
+    assert [job["id"] for job in so_queued] == [capture["id"]]
+
+
+def _usuario_com_credencial(client, db_session, escritorio_id):
+    usuario = models.Usuario(
+        escritorio_id=escritorio_id,
+        nome="Advogada Teste",
+        email="advogada@example.com",
+        oab="123456",
+        oab_uf="SP",
+    )
+    db_session.add(usuario)
+    db_session.flush()
+    credencial = client.post(
+        f"/usuarios/{usuario.id}/credenciais-assinatura",
+        json={"provedor": "BirdID", "referencia_externa": "birdid-account-123"},
+    ).json()
+    return usuario, credencial
+
+
+def test_protocolar_async_com_credencial_registra_payload_e_audita(client, db_session, seeded):
+    usuario, credencial = _usuario_com_credencial(client, db_session, seeded.escritorio_id)
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=usuario.id,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(
+        f"/peticoes/{peticao.id}/protocolar/async",
+        json={"credencial_id": credencial["id"]},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "completed"
+    assert body["payload"]["credencial_id"] == credencial["id"]
+    # segredo/referência externa nunca aparece no job nem na auditoria
+    assert "birdid-account-123" not in str(body)
+
+    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
+    assert audit.detalhe["credencial_id"] == credencial["id"]
+    assert "birdid-account-123" not in str(audit.detalhe)
+
+
+def test_protocolar_async_com_credencial_inexistente_retorna_404(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=7,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(
+        f"/peticoes/{peticao.id}/protocolar/async",
+        json={"credencial_id": 999999},
+    )
+
+    assert resp.status_code == 404
+    db_session.refresh(peticao)
+    assert peticao.status == "aprovada"
+
+
+def test_protocolar_async_com_credencial_inativa_retorna_409(client, db_session, seeded):
+    usuario, credencial = _usuario_com_credencial(client, db_session, seeded.escritorio_id)
+    client.patch(f"/credenciais-assinatura/{credencial['id']}/desativar")
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=usuario.id,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(
+        f"/peticoes/{peticao.id}/protocolar/async",
+        json={"credencial_id": credencial["id"]},
+    )
+
+    assert resp.status_code == 409
+    db_session.refresh(peticao)
+    assert peticao.status == "aprovada"
+
+
 def test_cadastrar_listar_e_desativar_credencial_assinatura(client, db_session, seeded):
     usuario = models.Usuario(
         escritorio_id=seeded.escritorio_id,

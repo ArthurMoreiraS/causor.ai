@@ -36,11 +36,13 @@ from app.api.schemas import (
     PeticaoOut,
     PrazoOut,
     ProcessoOut,
+    ProtocolarAsyncRequest,
     RevisarPrazoRequest,
     ReviewQueueItem,
     TemplatePeticaoCreate,
     TemplatePeticaoOut,
     TemplatePeticaoUpdate,
+    UsuarioOut,
 )
 from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
@@ -49,6 +51,8 @@ from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import (
     AlreadyFiledError,
     ApprovalRequiredError,
+    CredencialInativaError,
+    CredencialNaoEncontradaError,
     JobNotFoundError,
     PeticaoNotFoundError,
     create_job,
@@ -305,6 +309,21 @@ def create_app() -> FastAPI:
         session.refresh(job)
         return job
 
+    @app.get("/jobs", response_model=list[JobOut])
+    def listar_jobs(
+        tipo: str | None = Query(default=None),
+        status: str | None = Query(default=None),
+        limit: int = Query(default=50, ge=1, le=200),
+        session: Session = Depends(get_session),
+    ) -> list[models.JobExecucao]:
+        stmt = select(models.JobExecucao)
+        if tipo is not None:
+            stmt = stmt.where(models.JobExecucao.tipo == tipo)
+        if status is not None:
+            stmt = stmt.where(models.JobExecucao.status == status)
+        stmt = stmt.order_by(models.JobExecucao.id.desc()).limit(limit)
+        return list(session.scalars(stmt))
+
     @app.get("/jobs/{job_id}", response_model=JobOut)
     def consultar_job(
         job_id: int,
@@ -314,6 +333,17 @@ def create_app() -> FastAPI:
             return get_job(session, job_id)
         except JobNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/usuarios", response_model=list[UsuarioOut])
+    def listar_usuarios(
+        escritorio_id: int | None = Query(default=None),
+        session: Session = Depends(get_session),
+    ) -> list[models.Usuario]:
+        stmt = select(models.Usuario)
+        if escritorio_id is not None:
+            stmt = stmt.where(models.Usuario.escritorio_id == escritorio_id)
+        stmt = stmt.order_by(models.Usuario.id)
+        return list(session.scalars(stmt))
 
     @app.post(
         "/usuarios/{usuario_id}/credenciais-assinatura",
@@ -792,15 +822,15 @@ def create_app() -> FastAPI:
     @app.post("/peticoes/{peticao_id}/protocolar/async", response_model=JobOut)
     def protocolar_peticao_async(
         peticao_id: int,
+        payload: ProtocolarAsyncRequest | None = None,
         session: Session = Depends(get_session),
     ) -> models.JobExecucao:
+        credencial_id = payload.credencial_id if payload is not None else None
         try:
-            job = run_fake_protocol_job(session, peticao_id)
-        except PeticaoNotFoundError as exc:
+            job = run_fake_protocol_job(session, peticao_id, credencial_id=credencial_id)
+        except (PeticaoNotFoundError, CredencialNaoEncontradaError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except AlreadyFiledError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-        except ApprovalRequiredError as exc:
+        except (AlreadyFiledError, ApprovalRequiredError, CredencialInativaError) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         session.commit()

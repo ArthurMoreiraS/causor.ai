@@ -57,6 +57,17 @@ def test_seed_covers_all_deadline_risk_states(db_session):
     assert any(d >= 5 for d in deltas), "precisa de prazo confortavel"
 
 
+def test_seed_links_prazos_to_their_intimacoes(db_session):
+    """A fila de revisão junta prazo↔intimação por intimacao_id; sem o vínculo
+    a UI mostra tudo como "sem prazo"."""
+    _seed(db_session)
+
+    prazos = db_session.scalars(select(models.Prazo)).all()
+    assert prazos
+    com_vinculo = [p for p in prazos if p.intimacao_id is not None]
+    assert len(com_vinculo) == len(prazos), "todo prazo da seed nasce de uma intimação"
+
+
 def test_seed_covers_all_petition_phases_and_receipt(db_session):
     _seed(db_session)
 

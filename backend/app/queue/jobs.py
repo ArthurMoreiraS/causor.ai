@@ -33,6 +33,14 @@ class AlreadyFiledError(JobError):
     """Raised when a petition is already filed."""
 
 
+class CredencialNaoEncontradaError(JobError):
+    """Raised when a filing job references an unknown signature credential."""
+
+
+class CredencialInativaError(JobError):
+    """Raised when a filing job references a deactivated signature credential."""
+
+
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
@@ -131,11 +139,16 @@ def mark_failed(session: Session, job: models.JobExecucao, erro: str) -> None:
     )
 
 
-def run_fake_protocol_job(session: Session, peticao_id: int) -> models.JobExecucao:
+def run_fake_protocol_job(
+    session: Session,
+    peticao_id: int,
+    credencial_id: int | None = None,
+) -> models.JobExecucao:
     """Run the first filing job locally, preserving the approval gate.
 
     The real PJe connector will replace this fake executor. For now it proves
     the async/job state machine and audit trail without touching a court portal.
+    Only the credential id travels in payload/audit — never the vault reference.
     """
 
     peticao = session.get(models.Peticao, peticao_id)
@@ -146,12 +159,23 @@ def run_fake_protocol_job(session: Session, peticao_id: int) -> models.JobExecuc
     if peticao.status != "aprovada":
         raise ApprovalRequiredError("aprovacao obrigatoria antes do protocolo")
 
+    if credencial_id is not None:
+        credencial = session.get(models.CredencialAssinatura, credencial_id)
+        if credencial is None:
+            raise CredencialNaoEncontradaError("credencial de assinatura nao encontrada")
+        if not credencial.ativo:
+            raise CredencialInativaError("credencial de assinatura desativada")
+
+    payload: dict = {"peticao_id": peticao.id, "modo": "fake_local"}
+    if credencial_id is not None:
+        payload["credencial_id"] = credencial_id
+
     job = create_job(
         session,
         tipo="protocolo_peticao",
         entidade="peticao",
         entidade_id=peticao.id,
-        payload={"peticao_id": peticao.id, "modo": "fake_local"},
+        payload=payload,
         ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
     )
     mark_running(session, job)
@@ -166,12 +190,15 @@ def run_fake_protocol_job(session: Session, peticao_id: int) -> models.JobExecuc
         "checkpoint": "Protocolo simulado localmente; substituir pelo conector PJe.",
     }
     mark_completed(session, job, resultado)
+    detalhe = {"tipo": peticao.tipo, "job_id": job.id, "protocolo": protocolo_ref}
+    if credencial_id is not None:
+        detalhe["credencial_id"] = credencial_id
     _audit(
         session,
         acao="peticao_protocolada",
         entidade="peticao",
         entidade_id=peticao.id,
         ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
-        detalhe={"tipo": peticao.tipo, "job_id": job.id, "protocolo": protocolo_ref},
+        detalhe=detalhe,
     )
     return job

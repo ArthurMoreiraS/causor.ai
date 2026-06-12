@@ -149,6 +149,15 @@ export type JobExecucao = {
   updated_at: string;
 };
 
+export type Usuario = {
+  id: number;
+  escritorio_id: number;
+  nome: string;
+  email: string | null;
+  oab: string | null;
+  oab_uf: string | null;
+};
+
 export type CredencialAssinatura = {
   id: number;
   usuario_id: number;
@@ -259,16 +268,18 @@ export async function editarPeticao(
   peticaoId: number,
   patch: { conteudo?: string; status?: "rascunho" | "em_revisao" }
 ): Promise<Peticao> {
+  const usuarioId = await resolverUsuarioAtual();
   return request<Peticao>(`/peticoes/${peticaoId}`, {
     method: "PATCH",
-    body: JSON.stringify({ usuario_id: 1, ...patch })
+    body: JSON.stringify({ usuario_id: usuarioId, ...patch })
   });
 }
 
 export async function aprovarPeticao(peticaoId: number): Promise<void> {
+  const usuarioId = await resolverUsuarioAtual();
   await request(`/peticoes/${peticaoId}/approve`, {
     method: "POST",
-    body: JSON.stringify({ usuario_id: 1 })
+    body: JSON.stringify({ usuario_id: usuarioId })
   });
 }
 
@@ -277,24 +288,63 @@ export async function protocolarPeticao(peticaoId: number): Promise<void> {
 }
 
 /** Protocolo simulado via job assíncrono — retorna o job com comprovante. */
-export async function protocolarPeticaoAsync(peticaoId: number): Promise<JobExecucao> {
-  return request<JobExecucao>(`/peticoes/${peticaoId}/protocolar/async`, { method: "POST" });
+export async function protocolarPeticaoAsync(
+  peticaoId: number,
+  credencialId?: number
+): Promise<JobExecucao> {
+  return request<JobExecucao>(`/peticoes/${peticaoId}/protocolar/async`, {
+    method: "POST",
+    body: JSON.stringify(credencialId != null ? { credencial_id: credencialId } : {})
+  });
+}
+
+export async function listarJobs(filtros?: {
+  tipo?: string;
+  status?: string;
+}): Promise<JobExecucao[]> {
+  const params = new URLSearchParams();
+  if (filtros?.tipo) params.set("tipo", filtros.tipo);
+  if (filtros?.status) params.set("status", filtros.status);
+  const qs = params.toString();
+  return request<JobExecucao[]>(`/jobs${qs ? `?${qs}` : ""}`);
 }
 
 export async function carregarAlertas(): Promise<AlertaPrazo[]> {
   return request<AlertaPrazo[]>("/alertas");
 }
 
-export async function listarCredenciais(usuarioId = 1): Promise<CredencialAssinatura[]> {
-  return request<CredencialAssinatura[]>(`/usuarios/${usuarioId}/credenciais-assinatura`);
+export async function listarUsuarios(escritorioId?: number): Promise<Usuario[]> {
+  const qs = escritorioId != null ? `?escritorio_id=${escritorioId}` : "";
+  return request<Usuario[]>(`/usuarios${qs}`);
+}
+
+// A demo roda single-tenant sem auth: o "usuário logado" é o primeiro usuário
+// do banco (a seed recria usuários com ids novos, então nada pode ser fixo).
+let usuarioAtualId: number | null = null;
+
+export async function resolverUsuarioAtual(): Promise<number> {
+  if (usuarioAtualId != null) return usuarioAtualId;
+  try {
+    const usuarios = await listarUsuarios();
+    usuarioAtualId = usuarios[0]?.id ?? 1;
+  } catch {
+    usuarioAtualId = 1;
+  }
+  return usuarioAtualId;
+}
+
+export async function listarCredenciais(usuarioId?: number): Promise<CredencialAssinatura[]> {
+  const id = usuarioId ?? (await resolverUsuarioAtual());
+  return request<CredencialAssinatura[]>(`/usuarios/${id}/credenciais-assinatura`);
 }
 
 export async function cadastrarCredencial(
   provedor: string,
   referenciaExterna: string,
-  usuarioId = 1
+  usuarioId?: number
 ): Promise<CredencialAssinatura> {
-  return request<CredencialAssinatura>(`/usuarios/${usuarioId}/credenciais-assinatura`, {
+  const id = usuarioId ?? (await resolverUsuarioAtual());
+  return request<CredencialAssinatura>(`/usuarios/${id}/credenciais-assinatura`, {
     method: "POST",
     body: JSON.stringify({ provedor, referencia_externa: referenciaExterna })
   });
@@ -331,9 +381,10 @@ export async function atualizarTemplate(
 }
 
 export async function cumprirPrazo(prazoId: number): Promise<void> {
+  const usuarioId = await resolverUsuarioAtual();
   await request(`/prazos/${prazoId}/cumprir`, {
     method: "POST",
-    body: JSON.stringify({ usuario_id: 1 })
+    body: JSON.stringify({ usuario_id: usuarioId })
   });
 }
 
@@ -361,9 +412,10 @@ export async function revisarPrazo(
   prazoId: number,
   patch: Partial<Pick<Prazo, "descricao" | "dias" | "dias_uteis" | "data_inicio" | "data_fatal">>
 ): Promise<Prazo> {
+  const usuarioId = await resolverUsuarioAtual();
   return request<Prazo>(`/prazos/${prazoId}`, {
     method: "PATCH",
-    body: JSON.stringify({ usuario_id: 1, ...patch })
+    body: JSON.stringify({ usuario_id: usuarioId, ...patch })
   });
 }
 

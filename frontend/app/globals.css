@@ -3011,3 +3011,269 @@ h2 {
   font-size: 10.5px;
   word-break: break-all;
 }
+
+/* ---- Etapa 5: Protocolos (jobs de protocolo) ---- */
+
+.protocolSurface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--panel);
+}
+
+.protocolHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.protocolHead strong {
+  font-family: var(--font-title);
+  font-size: 15px;
+}
+
+.protocolHint {
+  display: block;
+  margin-top: 4px;
+  max-width: 560px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.protocolList {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(330px, 1fr));
+  gap: 12px;
+}
+
+.protocolCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
+}
+
+.protocolCard.failed {
+  border-color: var(--risk);
+  background: var(--risk-bg);
+}
+
+.protocolCard header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.protocolCard header strong {
+  display: block;
+  font-size: 13.5px;
+}
+
+.protocolCard header .mono {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.jobStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.jobStatus.completed {
+  color: var(--ok);
+  background: var(--ok-bg);
+}
+
+.jobStatus.failed {
+  color: var(--risk);
+  background: var(--risk-bg);
+}
+
+.jobStatus.running,
+.jobStatus.queued {
+  color: var(--warn);
+  background: var(--warn-bg);
+}
+
+.protocolMeta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.protocolMeta dt {
+  color: var(--muted-2);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.protocolMeta dd {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+
+.protocolCheckpoint {
+  margin: 0;
+  padding: 9px 12px;
+  border-left: 3px solid var(--accent-border);
+  background: var(--accent-bg);
+  border-radius: 0 8px 8px 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.protocolError {
+  margin: 0;
+  padding: 9px 12px;
+  border-left: 3px solid var(--risk);
+  background: var(--risk-bg);
+  border-radius: 0 8px 8px 0;
+  color: var(--risk);
+  font-size: 12px;
+}
+
+/* ---- Etapa 5: Conectores ---- */
+
+.connectorsSurface {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.connectorGrid.large {
+  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.connectorGrid.large .connector {
+  align-items: flex-start;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+  min-height: 110px;
+}
+
+.connectorNote {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.connectorsSecurity {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+.securityCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--accent-border);
+  border-radius: 12px;
+  background: var(--accent-bg);
+}
+
+.securityCard svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.securityCard strong {
+  display: block;
+  font-size: 13px;
+}
+
+.securityCard span {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.securityCard.clickable {
+  cursor: pointer;
+}
+
+.securityCard.clickable:hover {
+  border-color: var(--accent);
+}
+
+/* ---- Etapa 5: modal de protocolo com credencial ---- */
+
+.protocolarResumo {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.protocolarAviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+  border: 1px solid var(--warn);
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.protocolarAviso svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+
+.protocolarCredencial {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.protocolarCredencial select {
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  font: inherit;
+  font-weight: 400;
+}
+
+.protocolarHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 400;
+}

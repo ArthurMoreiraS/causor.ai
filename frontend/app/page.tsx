@@ -53,6 +53,7 @@ import PrazoEditModal, { PrazoPatch } from "./PrazoEditModal";
 import FiltersPanel from "./components/FiltersPanel";
 import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
+import ProtocolarModal from "./components/ProtocolarModal";
 import QueueTable from "./components/QueueTable";
 import RadarBell from "./components/RadarBell";
 import {
@@ -65,9 +66,11 @@ import {
   Panel
 } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
+import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
 import GateOabView from "./views/GateOabView";
 import HomeDashboard from "./views/HomeDashboard";
+import ProtocolosView from "./views/ProtocolosView";
 import TemplatesView from "./views/TemplatesView";
 import IntimacoesView from "./views/IntimacoesView";
 import PeticoesView from "./views/PeticoesView";
@@ -134,6 +137,7 @@ export default function Home() {
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
   const [editorPeticao, setEditorPeticao] = useState<Peticao | null>(null);
+  const [protocolarTarget, setProtocolarTarget] = useState<Peticao | null>(null);
   const [prazoEdit, setPrazoEdit] = useState<Prazo | null>(null);
   const [filters, setFilters] = useState<{ tribunal: string; sistema: string; risco: string }>({
     tribunal: "",
@@ -218,14 +222,21 @@ export default function Home() {
   }
 
   function protocolar(peticao: Peticao) {
-    void runAction(`file-${peticao.id}`, async () => {
-      const job = await protocolarPeticaoAsync(peticao.id);
+    setProtocolarTarget(peticao);
+  }
+
+  async function confirmarProtocolo(credencialId: number | null) {
+    const peticao = protocolarTarget;
+    if (!peticao) return;
+    await runAction(`file-${peticao.id}`, async () => {
+      const job = await protocolarPeticaoAsync(peticao.id, credencialId ?? undefined);
       const protocolo = job.resultado?.protocolo;
       setLastProtocolo({
         tipo: peticao.tipo,
         protocolo: protocolo ? String(protocolo) : `job #${job.id}`
       });
     });
+    setProtocolarTarget(null);
   }
 
   async function salvarRevisaoPrazo(patch: PrazoPatch) {
@@ -666,6 +677,12 @@ export default function Home() {
               active={view === "gate"}
               onClick={() => setView("gate")}
             />
+            <NavItem
+              icon={<Send size={15} />}
+              label="Protocolos"
+              active={view === "protocolos"}
+              onClick={() => setView("protocolos")}
+            />
           </NavGroup>
           <NavGroup label="Registro">
             <NavItem
@@ -688,6 +705,12 @@ export default function Home() {
             />
           </NavGroup>
           <NavGroup label="Governança">
+            <NavItem
+              icon={<Workflow size={15} />}
+              label="Conectores"
+              active={view === "conectores"}
+              onClick={() => setView("conectores")}
+            />
             <NavItem
               icon={<Table2 size={15} />}
               label="Auditoria"
@@ -842,6 +865,18 @@ export default function Home() {
           />
         ) : view === "templates" ? (
           <TemplatesView offline={offline} />
+        ) : view === "protocolos" ? (
+          <ProtocolosView
+            peticoes={data.peticoes}
+            processos={data.processos}
+            offline={offline}
+            refreshKey={refreshTick}
+          />
+        ) : view === "conectores" ? (
+          <ConectoresView
+            connectors={operationalConnectors}
+            onOpenVault={() => setOverlay("settings")}
+          />
         ) : view === "inicio" ? (
           <HomeDashboard
             metrics={metrics}
@@ -1214,6 +1249,18 @@ export default function Home() {
               setDetail(null);
               editarPrazo(prazo);
             }}
+          />
+        ) : null}
+
+        {protocolarTarget ? (
+          <ProtocolarModal
+            peticao={protocolarTarget}
+            processo={
+              data.processos.find((p) => p.id === protocolarTarget.processo_id) ?? null
+            }
+            busy={busy === `file-${protocolarTarget.id}`}
+            onConfirm={(credencialId) => void confirmarProtocolo(credencialId)}
+            onClose={() => setProtocolarTarget(null)}
           />
         ) : null}
 
