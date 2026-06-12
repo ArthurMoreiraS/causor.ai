@@ -99,7 +99,7 @@ function GateLane({
           <article className="gateCard" key={peticao.id}>
             <div>
               <strong>{peticao.tipo ?? "Petição"}</strong>
-              <span>{processo?.numero ?? `Processo #${peticao.processo_id}`}</span>
+              <span className="mono">{processo?.numero ?? `Processo #${peticao.processo_id}`}</span>
             </div>
             <p>{peticao.conteudo ?? "Sem conteúdo"}</p>
             <small>{prazo ? `Vence em ${formatDate(prazo.data_fatal)}` : "Sem prazo vinculado"}</small>

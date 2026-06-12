@@ -89,7 +89,7 @@ export default function HomeDashboard({
                 onClick={() => onNavigate(item.prazo ? "prazos" : "intimacoes")}
               >
                 <div>
-                  <strong>{item.intimacao.numero_processo ?? "Processo não identificado"}</strong>
+                  <strong className="mono">{item.intimacao.numero_processo ?? "Processo não identificado"}</strong>
                   <span>{item.intimacao.tipo_comunicacao ?? "Comunicação judicial"}</span>
                 </div>
                 <div className="priorityMeta">
@@ -112,7 +112,7 @@ export default function HomeDashboard({
                 </div>
                 <div>
                   <strong>{prazo.descricao ?? "Prazo"}</strong>
-                  <span>{processo?.numero ?? `Processo #${prazo.processo_id ?? "-"}`}</span>
+                  <span className="mono">{processo?.numero ?? `Processo #${prazo.processo_id ?? "-"}`}</span>
                 </div>
                 <DeadlineBadge prazo={prazo} />
               </button>

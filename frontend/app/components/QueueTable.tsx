@@ -40,7 +40,7 @@ export default function QueueTable({
               <div className="caseCell">
                 <ChevronRight size={14} />
                 <div>
-                  <strong>{intimacao.numero_processo ?? "Processo não identificado"}</strong>
+                  <strong className="mono">{intimacao.numero_processo ?? "Processo não identificado"}</strong>
                   <span>{intimacao.tipo_comunicacao ?? "Comunicação judicial"}</span>
                   <small>{intimacao.teor ?? "Teor não informado"}</small>
                 </div>

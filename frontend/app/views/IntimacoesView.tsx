@@ -29,7 +29,7 @@ export default function IntimacoesView({
             <header>
               <div>
                 <strong>{intimacao.tipo_comunicacao ?? "Comunicação judicial"}</strong>
-                <span>{intimacao.numero_processo ?? processo?.numero ?? "Processo não identificado"}</span>
+                <span className="mono">{intimacao.numero_processo ?? processo?.numero ?? "Processo não identificado"}</span>
               </div>
               <small>{formatDate(intimacao.data_publicacao ?? intimacao.data_disponibilizacao)}</small>
             </header>

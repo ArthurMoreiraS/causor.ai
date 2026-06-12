@@ -21,7 +21,7 @@ export default function ProcessosView({
         >
           <header>
             <div>
-              <strong>{processo.numero}</strong>
+              <strong className="mono">{processo.numero}</strong>
               <span>{processo.classe ?? "Classe não informada"}</span>
             </div>
             <small>{processo.sistema ?? processo.tribunal ?? "-"}</small>

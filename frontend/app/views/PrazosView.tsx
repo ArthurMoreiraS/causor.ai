@@ -40,7 +40,7 @@ export default function PrazosView({
             <header>
               <div>
                 <strong>{prazo.descricao ?? "Prazo"}</strong>
-                <span>{processo?.numero ?? `Processo #${prazo.processo_id ?? "-"}`}</span>
+                <span className="mono">{processo?.numero ?? `Processo #${prazo.processo_id ?? "-"}`}</span>
               </div>
               <DeadlineBadge prazo={prazo} />
             </header>

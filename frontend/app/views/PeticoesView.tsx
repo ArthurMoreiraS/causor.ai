@@ -43,7 +43,7 @@ export default function PeticoesView({
               <header>
                 <div>
                   <strong>{peticao.tipo ?? "Petição"}</strong>
-                  <span>{processo?.numero ?? `Processo #${peticao.processo_id}`}</span>
+                  <span className="mono">{processo?.numero ?? `Processo #${peticao.processo_id}`}</span>
                 </div>
                 <div className="redactionTags">
                   <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
