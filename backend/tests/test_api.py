@@ -245,6 +245,79 @@ def test_aprovar_peticao_audita(client, db_session, seeded):
     assert audit.entidade_id == peticao.id
 
 
+def test_editar_peticao_atualiza_conteudo_e_audita(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id, tipo="Contestacao", conteudo="rascunho inicial", status="rascunho"
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.patch(
+        f"/peticoes/{peticao.id}",
+        json={"conteudo": "texto revisado", "usuario_id": 7},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["conteudo"] == "texto revisado"
+    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_editada").one()
+    assert audit.ator == "usuario:7"
+    assert audit.entidade_id == peticao.id
+
+
+def test_editar_peticao_permite_transicao_para_revisao(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id, tipo="Contestacao", conteudo="m", status="rascunho"
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.patch(
+        f"/peticoes/{peticao.id}",
+        json={"status": "em_revisao", "usuario_id": 7},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "em_revisao"
+
+
+def test_editar_peticao_rejeita_status_de_gate(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id, tipo="Contestacao", conteudo="m", status="rascunho"
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    # aprovada/protocolada têm endpoints próprios (gate humano); PATCH não atalha.
+    resp = client.patch(
+        f"/peticoes/{peticao.id}",
+        json={"status": "aprovada", "usuario_id": 7},
+    )
+    assert resp.status_code == 422
+
+
+def test_editar_peticao_protocolada_retorna_409(client, db_session, seeded):
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        tipo="Contestacao",
+        conteudo="m",
+        status="protocolada",
+        aprovada_por=1,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.patch(
+        f"/peticoes/{peticao.id}",
+        json={"conteudo": "alterando depois do protocolo", "usuario_id": 7},
+    )
+    assert resp.status_code == 409
+
+
+def test_editar_peticao_inexistente_retorna_404(client):
+    resp = client.patch("/peticoes/9999", json={"conteudo": "x", "usuario_id": 7})
+    assert resp.status_code == 404
+
+
 def test_protocolar_peticao_audita(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,

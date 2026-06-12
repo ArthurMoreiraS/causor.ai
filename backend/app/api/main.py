@@ -27,6 +27,7 @@ from app.api.schemas import (
     CredencialAssinaturaOut,
     DraftRequest,
     DraftResponse,
+    EditPeticaoRequest,
     IntimacaoOut,
     JobOut,
     MarcarPrazoCumpridoRequest,
@@ -670,6 +671,41 @@ def create_app() -> FastAPI:
             peticao=PeticaoOut.model_validate(peticao),
             classificacao=classificacao.model_dump(),
         )
+
+    @app.patch("/peticoes/{peticao_id}", response_model=PeticaoOut)
+    def editar_peticao(
+        peticao_id: int,
+        payload: EditPeticaoRequest,
+        session: Session = Depends(get_session),
+    ) -> models.Peticao:
+        peticao = session.get(models.Peticao, peticao_id)
+        if peticao is None:
+            raise HTTPException(status_code=404, detail="petição não encontrada")
+        if peticao.status == "protocolada":
+            raise HTTPException(
+                status_code=409, detail="petição protocolada não pode ser editada"
+            )
+
+        alteracoes: dict = {}
+        if payload.conteudo is not None:
+            peticao.conteudo = payload.conteudo
+            alteracoes["conteudo"] = True
+        if payload.status is not None and payload.status != peticao.status:
+            alteracoes["status"] = {"de": peticao.status, "para": payload.status}
+            peticao.status = payload.status
+
+        if alteracoes:
+            _audit(
+                session,
+                acao="peticao_editada",
+                entidade="peticao",
+                entidade_id=peticao.id,
+                ator_id=payload.usuario_id,
+                detalhe={"tipo": peticao.tipo, "alteracoes": alteracoes},
+            )
+        session.commit()
+        session.refresh(peticao)
+        return peticao
 
     @app.post("/peticoes/{peticao_id}/approve", response_model=PeticaoOut)
     def aprovar_peticao(

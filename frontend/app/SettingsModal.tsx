@@ -1,13 +1,7 @@
 "use client";
 
-import { Monitor, Moon, RotateCcw, Sun, X } from "lucide-react";
-import type { Settings, ThemeMode } from "@/lib/settings";
-
-const THEME_OPTIONS: Array<{ value: ThemeMode; label: string; icon: typeof Sun }> = [
-  { value: "light", label: "Claro", icon: Sun },
-  { value: "dark", label: "Escuro", icon: Moon },
-  { value: "system", label: "Sistema", icon: Monitor }
-];
+import { RotateCcw, X } from "lucide-react";
+import type { Settings } from "@/lib/settings";
 
 export default function SettingsModal({
   settings,
@@ -29,22 +23,6 @@ export default function SettingsModal({
             <X size={15} />
           </button>
         </header>
-
-        <div className="settingsGroup">
-          <span className="settingsLabel">Tema</span>
-          <div className="segmented">
-            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => (
-              <button
-                key={value}
-                className={settings.theme === value ? "active" : ""}
-                onClick={() => onUpdate({ theme: value })}
-              >
-                <Icon size={14} />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
 
         <div className="settingsGroup">
           <span className="settingsLabel">Densidade da interface</span>

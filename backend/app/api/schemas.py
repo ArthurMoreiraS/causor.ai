@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -71,6 +72,13 @@ class DraftResponse(BaseModel):
 
 class ApprovePeticaoRequest(BaseModel):
     usuario_id: int
+
+
+class EditPeticaoRequest(BaseModel):
+    usuario_id: int = 1
+    conteudo: str | None = None
+    # aprovada/protocolada exigem os endpoints de gate; PATCH não atalha o gate.
+    status: Literal["rascunho", "em_revisao"] | None = None
 
 
 class RevisarPrazoRequest(BaseModel):

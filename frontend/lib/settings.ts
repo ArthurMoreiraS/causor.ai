@@ -2,11 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-export type ThemeMode = "light" | "dark" | "system";
 export type Density = "confortavel" | "compacta";
 
 export interface Settings {
-  theme: ThemeMode;
   density: Density;
   defaultOab: string;
   defaultUf: string;
@@ -17,7 +15,6 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "light",
   density: "confortavel",
   defaultOab: "",
   defaultUf: "SP",
@@ -39,18 +36,9 @@ function readStored(): Settings {
   }
 }
 
-function resolveTheme(theme: ThemeMode): "light" | "dark" {
-  if (theme === "system") {
-    if (typeof window === "undefined") return "light";
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-  return theme;
-}
-
-/** Applies theme + density to the document root so CSS can react via attributes. */
+/** Applies density to the document root so CSS can react via attributes. */
 export function applySettings(settings: Settings) {
   if (typeof document === "undefined") return;
-  document.documentElement.dataset.theme = resolveTheme(settings.theme);
   document.documentElement.dataset.density = settings.density;
 }
 
@@ -63,15 +51,6 @@ export function useSettings() {
     setSettings(stored);
     applySettings(stored);
   }, []);
-
-  // React to OS theme changes while in "system" mode.
-  useEffect(() => {
-    if (settings.theme !== "system" || typeof window === "undefined") return;
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => applySettings(settings);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, [settings]);
 
   const update = useCallback((patch: Partial<Settings>) => {
     setSettings((prev) => {

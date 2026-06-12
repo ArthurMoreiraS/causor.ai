@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, Copy, RotateCcw, Save, X } from "lucide-react";
+import { Check, Copy, Loader2, RotateCcw, Save, X } from "lucide-react";
 import { useState } from "react";
 import type { Peticao, Prazo, Processo } from "@/lib/api";
 
@@ -13,25 +13,23 @@ export default function MinutaEditor({
   peticao,
   processo,
   prazo,
-  localDraft,
-  onSaveLocal,
-  onClearLocal,
+  busy,
+  onSave,
   onClose
 }: {
   peticao: Peticao;
   processo: Processo | null;
   prazo: Prazo | null;
-  localDraft: string | undefined;
-  onSaveLocal: (content: string) => void;
-  onClearLocal: () => void;
+  busy: boolean;
+  onSave: (content: string) => void;
   onClose: () => void;
 }) {
   const serverContent = peticao.conteudo ?? "";
-  const [text, setText] = useState(localDraft ?? serverContent);
+  const [text, setText] = useState(serverContent);
   const [copied, setCopied] = useState(false);
 
-  const dirty = text !== (localDraft ?? serverContent);
-  const hasLocal = localDraft !== undefined;
+  const dirty = text !== serverContent;
+  const locked = peticao.status === "protocolada";
 
   async function copy() {
     try {
@@ -60,19 +58,18 @@ export default function MinutaEditor({
             {prazo ? ` · prazo ${formatDate(prazo.data_fatal)}` : ""}
           </p>
 
-          <div className="editorNotice">
-            <AlertTriangle size={15} />
-            <span>
-              Edição salva apenas neste navegador. O protocolo continua usando o conteúdo do
-              servidor até existir o endpoint de atualização.
-            </span>
-          </div>
+          {locked ? (
+            <div className="editorNotice">
+              <span>Petição protocolada não pode ser editada.</span>
+            </div>
+          ) : null}
 
           <textarea
             className="minutaTextarea"
             value={text}
             onChange={(e) => setText(e.target.value)}
             spellCheck
+            disabled={locked}
           />
 
           <div className="editorFooter">
@@ -81,26 +78,23 @@ export default function MinutaEditor({
                 {copied ? <Check size={14} /> : <Copy size={14} />}
                 {copied ? "Copiado" : "Copiar"}
               </button>
-              {hasLocal ? (
+              {dirty ? (
                 <button
                   className="toolbarButton compact"
-                  onClick={() => {
-                    onClearLocal();
-                    setText(serverContent);
-                  }}
+                  onClick={() => setText(serverContent)}
                 >
                   <RotateCcw size={14} />
-                  Descartar edição local
+                  Descartar alterações
                 </button>
               ) : null}
             </div>
             <button
               className="toolbarButton primary"
-              disabled={!dirty}
-              onClick={() => onSaveLocal(text)}
+              disabled={!dirty || locked || busy}
+              onClick={() => onSave(text)}
             >
-              <Save size={14} />
-              Salvar localmente
+              {busy ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+              Salvar minuta
             </button>
           </div>
         </div>

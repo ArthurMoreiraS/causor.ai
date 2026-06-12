@@ -7,6 +7,8 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronRight,
   CircleDot,
   Clock3,
@@ -19,7 +21,6 @@ import {
   LockKeyhole,
   LogOut,
   MessageCircle,
-  RefreshCw,
   Search,
   Send,
   Settings,
@@ -39,6 +40,7 @@ import {
   ChatTurn,
   cumprirPrazo,
   DashboardData,
+  editarPeticao,
   enviarMensagemChat,
   gerarMinuta,
   Intimacao,
@@ -58,7 +60,6 @@ import DetailDrawer, { DetailSelection } from "./DetailDrawer";
 import MinutaEditor from "./MinutaEditor";
 import PrazoEditModal, { PrazoPatch } from "./PrazoEditModal";
 import { useSettings } from "@/lib/settings";
-import { useLocalDrafts } from "@/lib/drafts";
 import { downloadCsv } from "@/lib/export";
 
 const emptyData: DashboardData = {
@@ -77,7 +78,6 @@ type ViewKey =
   | "processos"
   | "intimacoes"
   | "prazos"
-  | "calendario"
   | "peticoes"
   | "gate"
   | "auditoria";
@@ -98,7 +98,6 @@ const VIEW_LABEL: Record<ViewKey, string> = {
   processos: "Processos",
   intimacoes: "Intimações",
   prazos: "Prazos",
-  calendario: "Calendário Forense",
   peticoes: "Minutas",
   gate: "Gate OAB",
   auditoria: "Auditoria"
@@ -111,7 +110,6 @@ const EMPTY_BY_VIEW: Record<ViewKey, string> = {
   processos: "Nenhum processo encontrado",
   intimacoes: "Nenhuma intimação encontrada",
   prazos: "Nenhum prazo encontrado",
-  calendario: "Nenhum vencimento no calendário",
   peticoes: "Nenhuma minuta encontrada",
   gate: "Nenhum item no gate OAB",
   auditoria: "Sem eventos de auditoria"
@@ -124,7 +122,6 @@ const VIEW_COPY: Record<ViewKey, string> = {
   processos: "Registro dos processos monitorados e seus próximos riscos.",
   intimacoes: "Inbox operacional das comunicações capturadas no DJEN.",
   prazos: "Lista operacional de prazos com revisão e baixa.",
-  calendario: "Mapa temporal dos vencimentos forenses e concentração de risco.",
   peticoes: "Ambiente de minuta e revisão de conteúdo antes do gate.",
   gate: "Fila de aprovação humana e protocolo assistido com responsabilidade OAB.",
   auditoria: "Trilha imutável dos atos executados pelo sistema."
@@ -159,7 +156,8 @@ function daysUntil(value: string) {
 }
 
 function statusLabel(status: Peticao["status"]) {
-  if (status === "rascunho") return "Revisão";
+  if (status === "rascunho") return "Rascunho";
+  if (status === "em_revisao") return "Em revisão";
   if (status === "aprovada") return "Aprovada";
   if (status === "protocolada") return "Protocolada";
   return status;
@@ -227,6 +225,7 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewKey>("inicio");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusKey>("pendentes");
   const [error, setError] = useState<string | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
@@ -241,7 +240,6 @@ export default function Home() {
     uf: "SP"
   });
   const { settings, update: updateSettings, reset: resetSettings } = useSettings();
-  const { drafts: localDrafts, save: saveLocalDraft, clear: clearLocalDraft } = useLocalDrafts();
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
   const [editorPeticao, setEditorPeticao] = useState<Peticao | null>(null);
@@ -415,7 +413,7 @@ export default function Home() {
     return reviewQueue.filter((item) => {
       if (view === "auditoria") return false;
       if (view === "inicio") return true;
-      if (view === "prazos" || view === "calendario") return Boolean(item.prazo);
+      if (view === "prazos") return Boolean(item.prazo);
       if (view === "peticoes" || view === "gate") return Boolean(item.peticao);
       return true;
     });
@@ -607,11 +605,9 @@ export default function Home() {
         ? intimacaoRows.length
       : view === "prazos"
         ? prazoRows.length
-        : view === "calendario"
-          ? prazoRows.length
-          : view === "peticoes" || view === "gate"
-            ? peticaoRows.length
-            : filteredQueue.length;
+        : view === "peticoes" || view === "gate"
+          ? peticaoRows.length
+          : filteredQueue.length;
 
   function exportCurrentView() {
     const stamp = new Date().toISOString().slice(0, 10);
@@ -652,7 +648,7 @@ export default function Home() {
           r.prazo?.data_fatal ?? ""
         ])
       );
-    } else if (view === "prazos" || view === "calendario") {
+    } else if (view === "prazos") {
       downloadCsv(
         `causor-prazos-${stamp}.csv`,
         ["Descrição", "Processo", "Data fatal", "Dias", "Dias úteis", "Cumprido", "Dias restantes"],
@@ -703,13 +699,22 @@ export default function Home() {
   ];
 
   return (
-    <main className="shell">
+    <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brandWordmark" aria-label="Causor">
-            <img className="brandWordmarkDark" src="/brand/causor-wordmark-dark.png" alt="" />
-            <img className="brandWordmarkLight" src="/brand/causor-wordmark-light.png" alt="" />
+          <span className="brandWordmark" aria-label="Causor" title="Causor">
+            <img className="brandWordmarkDark" src="/brand/causor-wordmark-dark-cropped.png" alt="" />
+            <img className="brandWordmarkLight" src="/brand/causor-wordmark-light-cropped.png" alt="" />
           </span>
+          <button
+            className="sidebarToggle"
+            type="button"
+            aria-label={sidebarCollapsed ? "Expandir menu lateral" : "Minimizar menu lateral"}
+            title={sidebarCollapsed ? "Expandir menu" : "Minimizar menu"}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+          >
+            {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
+          </button>
         </div>
 
         <nav className="sideNav">
@@ -743,12 +748,6 @@ export default function Home() {
               label="Gate OAB"
               active={view === "gate"}
               onClick={() => setView("gate")}
-            />
-            <NavItem
-              icon={<CalendarDays size={15} />}
-              label="Calendário Forense"
-              active={view === "calendario"}
-              onClick={() => setView("calendario")}
             />
           </NavGroup>
           <NavGroup label="Sistema de Registro">
@@ -809,10 +808,6 @@ export default function Home() {
             <strong>{VIEW_LABEL[view]}</strong>
           </div>
           <div className="appActions">
-            <button className="toolbarButton" onClick={refresh} disabled={loading}>
-              {loading ? <Loader2 className="spin" size={15} /> : <RefreshCw size={15} />}
-              Atualizar
-            </button>
             <button className="toolbarButton" onClick={openOab} disabled={offline}>
               <Search size={15} />
               Captura por OAB
@@ -1068,11 +1063,9 @@ export default function Home() {
               onEditPrazo={editarPrazo}
             />
           ) : null}
-          {view === "calendario" ? <CalendarioView rows={prazoRows} /> : null}
           {view === "peticoes" ? (
             <PeticoesView
               rows={peticaoRows}
-              localDrafts={localDrafts}
               onOpenEditor={(peticao) => setEditorPeticao(peticao)}
               onGoToGate={() => setView("gate")}
             />
@@ -1276,9 +1269,13 @@ export default function Home() {
             peticao={editorPeticao}
             processo={data.processos.find((p) => p.id === editorPeticao.processo_id) ?? null}
             prazo={data.prazos.find((p) => p.id === editorPeticao.prazo_id) ?? null}
-            localDraft={localDrafts[editorPeticao.id]}
-            onSaveLocal={(content) => saveLocalDraft(editorPeticao.id, content)}
-            onClearLocal={() => clearLocalDraft(editorPeticao.id)}
+            busy={busy === `save-pet-${editorPeticao.id}`}
+            onSave={(content) =>
+              runAction(`save-pet-${editorPeticao.id}`, async () => {
+                const updated = await editarPeticao(editorPeticao.id, { conteudo: content });
+                setEditorPeticao(updated);
+              })
+            }
             onClose={() => setEditorPeticao(null)}
           />
         ) : null}
@@ -1885,94 +1882,12 @@ function PrazosView({
   );
 }
 
-function CalendarioView({
-  rows
-}: {
-  rows: Array<{
-    prazo: Prazo;
-    processo: Processo | null;
-    intimacao: Intimacao | null;
-    peticao: Peticao | null;
-    dias: number;
-  }>;
-}) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const days = Array.from({ length: 14 }, (_, index) => {
-    const date = new Date(today);
-    date.setDate(today.getDate() + index);
-    const iso = date.toISOString().slice(0, 10);
-    const dayRows = rows.filter((row) => row.prazo.data_fatal === iso);
-    return { date, iso, rows: dayRows };
-  });
-  const overdue = rows.filter((row) => row.dias < 0 && !row.prazo.cumprido);
-  const week = rows.filter((row) => row.dias >= 0 && row.dias <= 7 && !row.prazo.cumprido);
-  const future = rows.filter((row) => row.dias > 7 && !row.prazo.cumprido);
-
-  return (
-    <section className="calendarView">
-      <div className="calendarRail">
-        {days.map((day) => (
-          <article className={day.rows.length ? "calendarDay hasItems" : "calendarDay"} key={day.iso}>
-            <span>{new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day.date)}</span>
-            <strong>{new Intl.DateTimeFormat("pt-BR", { day: "2-digit" }).format(day.date)}</strong>
-            <small>{day.rows.length}</small>
-          </article>
-        ))}
-      </div>
-
-      <section className="calendarLanes">
-        <CalendarLane title="Vencidos" rows={overdue} tone="risk" />
-        <CalendarLane title="Próximos 7 dias" rows={week} tone="warn" />
-        <CalendarLane title="Futuros" rows={future} tone="neutral" />
-      </section>
-    </section>
-  );
-}
-
-function CalendarLane({
-  title,
-  rows,
-  tone
-}: {
-  title: string;
-  rows: Array<{
-    prazo: Prazo;
-    processo: Processo | null;
-    intimacao: Intimacao | null;
-    peticao: Peticao | null;
-    dias: number;
-  }>;
-  tone: "risk" | "warn" | "neutral";
-}) {
-  return (
-    <section className={`calendarLane ${tone}`}>
-      <header>
-        <strong>{title}</strong>
-        <span>{rows.length}</span>
-      </header>
-      <div>
-        {rows.map(({ prazo, processo, dias }) => (
-          <article className="calendarEvent" key={prazo.id}>
-            <strong>{prazo.descricao ?? "Prazo"}</strong>
-            <span>{processo?.numero ?? `Processo #${prazo.processo_id ?? "-"}`}</span>
-            <small>{dias < 0 ? `${Math.abs(dias)}d vencido` : `${dias}d restantes`}</small>
-          </article>
-        ))}
-        {!rows.length ? <Empty label="Sem eventos" /> : null}
-      </div>
-    </section>
-  );
-}
-
 function PeticoesView({
   rows,
-  localDrafts,
   onOpenEditor,
   onGoToGate
 }: {
   rows: Array<{ peticao: Peticao; processo: Processo | null; prazo: Prazo | null }>;
-  localDrafts: Record<number, string>;
   onOpenEditor: (peticao: Peticao) => void;
   onGoToGate: () => void;
 }) {
@@ -1994,8 +1909,7 @@ function PeticoesView({
 
       <div className="redactionList">
         {rows.map(({ peticao, processo, prazo }) => {
-          const edited = localDrafts[peticao.id] !== undefined;
-          const content = localDrafts[peticao.id] ?? peticao.conteudo ?? "Sem conteúdo";
+          const content = peticao.conteudo ?? "Sem conteúdo";
           return (
             <article
               className="redactionCard clickable"
@@ -2008,7 +1922,6 @@ function PeticoesView({
                   <span>{processo?.numero ?? `Processo #${peticao.processo_id}`}</span>
                 </div>
                 <div className="redactionTags">
-                  {edited ? <span className="pill local">Edição local</span> : null}
                   <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
                 </div>
               </header>
@@ -2283,7 +2196,6 @@ function HomeDashboard({
             <FeatureTile icon={<HomeIcon size={16} />} label="Processos" value={metrics.monitored} onClick={() => onNavigate("processos")} />
             <FeatureTile icon={<MessageCircle size={16} />} label="Intimações" value={metrics.captured} onClick={() => onNavigate("intimacoes")} />
             <FeatureTile icon={<Clock3 size={16} />} label="Prazos" value={metrics.pending} onClick={() => onNavigate("prazos")} />
-            <FeatureTile icon={<CalendarDays size={16} />} label="Calendário" value={prazoRows.length} onClick={() => onNavigate("calendario")} />
             <FeatureTile icon={<FilePenLine size={16} />} label="Minutas" value={metrics.drafts + metrics.approved} onClick={() => onNavigate("peticoes")} />
             <FeatureTile icon={<ShieldCheck size={16} />} label="Gate OAB" value={metrics.approved} onClick={() => onNavigate("gate")} />
           </div>
@@ -2350,6 +2262,7 @@ function NavItem({
     <a
       className={active ? "active" : ""}
       href="#"
+      title={label}
       onClick={(e) => {
         e.preventDefault();
         onClick?.();

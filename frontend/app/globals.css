@@ -21,29 +21,6 @@
   --shadow: rgba(0, 0, 0, 0.06);
 }
 
-:root[data-theme="dark"] {
-  --bg: #0f1012;
-  --panel: #17191c;
-  --panel-soft: #1b1e22;
-  --sidebar: #121316;
-  --ink: #f1f2f3;
-  --ink-soft: #c6c9cd;
-  --muted: #9aa0a6;
-  --muted-2: #71777d;
-  --line: #2a2d31;
-  --line-strong: #383c41;
-  --chip: #23262b;
-  --accent: #5fd3c4;
-  --accent-bg: #12302c;
-  --solid: #e9eaec;
-  --warn: #e08a3c;
-  --warn-bg: #3a2a17;
-  --risk: #f0594c;
-  --ok: #4cc585;
-  --ok-bg: #16331f;
-  --shadow: rgba(0, 0, 0, 0.4);
-}
-
 /* Compact density tightens core paddings. */
 :root[data-density="compacta"] {
   --row-pad: 8px;
@@ -85,6 +62,11 @@ button:disabled {
   display: grid;
   grid-template-columns: 196px minmax(0, 1fr);
   min-height: 100vh;
+  transition: grid-template-columns 180ms ease;
+}
+
+.shell.sidebarCollapsed {
+  grid-template-columns: 68px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -93,12 +75,15 @@ button:disabled {
   min-height: 100vh;
   border-right: 1px solid var(--line);
   background: var(--panel-soft);
+  transition: width 180ms ease;
 }
 
 .brand {
   display: flex;
+  position: relative;
   align-items: center;
-  height: 70px;
+  justify-content: flex-start;
+  height: 64px;
   padding: 0 14px;
   border-bottom: 1px solid var(--line);
 }
@@ -106,9 +91,10 @@ button:disabled {
 .brandWordmark {
   position: relative;
   display: block;
-  width: 168px;
-  height: 42px;
+  width: 86px;
+  aspect-ratio: 786 / 139;
   overflow: hidden;
+  transition: opacity 160ms ease, transform 160ms ease;
 }
 
 .brandWordmark img {
@@ -116,20 +102,35 @@ button:disabled {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: cover;
-  object-position: center;
+  object-fit: contain;
+  object-position: left center;
+}
+
+.sidebarToggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  color: var(--muted);
+  box-shadow: 0 8px 22px rgb(15 23 42 / 7%);
+  transform: translateY(-50%);
+  transition: background 140ms ease, color 140ms ease, border-color 140ms ease;
+}
+
+.sidebarToggle:hover {
+  border-color: color-mix(in srgb, var(--ink) 16%, var(--line));
+  background: var(--panel);
+  color: var(--ink);
 }
 
 .brandWordmarkLight {
   display: none;
-}
-
-:root[data-theme="dark"] .brandWordmarkDark {
-  display: none;
-}
-
-:root[data-theme="dark"] .brandWordmarkLight {
-  display: block;
 }
 
 .sideNav {
@@ -167,6 +168,11 @@ button:disabled {
   font-size: 12px;
 }
 
+.sideNav a svg,
+.sidebarFooter a svg {
+  flex: 0 0 auto;
+}
+
 .sideNav a.active,
 .sideNav a:hover,
 .sidebarFooter a:hover {
@@ -177,6 +183,68 @@ button:disabled {
 .sidebarFooter {
   padding: 10px 8px;
   border-top: 1px solid var(--line);
+}
+
+.sidebarCollapsed .brand {
+  padding: 0;
+}
+
+.sidebarCollapsed .brandWordmark {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.92);
+}
+
+.sidebarCollapsed .sidebarToggle {
+  left: 50%;
+  right: auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  transform: translate(-50%, -50%);
+}
+
+.sidebarCollapsed .sideNav,
+.sidebarCollapsed .sidebarFooter {
+  padding-right: 10px;
+  padding-left: 10px;
+}
+
+.sidebarCollapsed .navGroup {
+  margin-top: 12px;
+}
+
+.sidebarCollapsed .navGroupLabel {
+  min-height: 1px;
+  margin: 10px 8px 8px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--line);
+}
+
+.sidebarCollapsed .navGroupLabel span,
+.sidebarCollapsed .navGroupLabel svg,
+.sidebarCollapsed .sideNav a span,
+.sidebarCollapsed .sidebarFooter a span,
+.sidebarCollapsed .profile > div:not(.avatar),
+.sidebarCollapsed .profile > svg {
+  display: none;
+}
+
+.sidebarCollapsed .sideNav a,
+.sidebarCollapsed .sidebarFooter a {
+  justify-content: center;
+  min-height: 34px;
+  padding: 0;
+}
+
+.sidebarCollapsed .profile {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  margin-top: 10px;
+  padding: 6px 0;
 }
 
 .profile {
@@ -1181,70 +1249,18 @@ h2 {
   padding-top: 2px;
 }
 
-.calendarView {
-  display: grid;
-  gap: 14px;
-}
-
-.calendarRail {
-  display: grid;
-  grid-template-columns: repeat(14, minmax(72px, 1fr));
-  gap: 6px;
-  overflow-x: auto;
-}
-
-.calendarDay {
-  display: grid;
-  gap: 4px;
-  min-height: 82px;
-  padding: 10px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.calendarDay.hasItems {
-  border-color: #9bc8be;
-  background: var(--accent-bg);
-}
-
-.calendarDay span,
-.calendarDay small {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.calendarDay strong {
-  font-size: 24px;
-  line-height: 1;
-}
-
-.calendarDay small {
-  justify-self: start;
-  min-width: 22px;
-  min-height: 22px;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border-radius: 999px;
-}
-
-.calendarLanes,
 .gateLanes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-.calendarLane,
 .gateLane {
   min-width: 0;
   border: 1px solid var(--line);
   background: var(--panel);
 }
 
-.calendarLane > header,
 .gateLane > header {
   display: flex;
   align-items: center;
@@ -1254,7 +1270,6 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
-.calendarLane > header span,
 .gateLane > header span {
   min-width: 24px;
   min-height: 24px;
@@ -1267,17 +1282,6 @@ h2 {
   font-weight: 700;
 }
 
-.calendarLane.risk > header span {
-  color: var(--risk);
-  background: #fff0f0;
-}
-
-.calendarLane.warn > header span {
-  color: var(--warn);
-  background: var(--warn-bg);
-}
-
-.calendarEvent,
 .gateCard {
   display: grid;
   gap: 8px;
@@ -1285,22 +1289,16 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
-.calendarEvent:last-child,
 .gateCard:last-child {
   border-bottom: 0;
 }
 
-.calendarEvent strong,
-.calendarEvent span,
-.calendarEvent small,
 .gateCard strong,
 .gateCard span,
 .gateCard small {
   display: block;
 }
 
-.calendarEvent span,
-.calendarEvent small,
 .gateCard span,
 .gateCard small,
 .gateCard p {
@@ -1819,7 +1817,8 @@ h2 {
 }
 
 @media (max-width: 1080px) {
-  .shell {
+  .shell,
+  .shell.sidebarCollapsed {
     grid-template-columns: 1fr;
   }
 
@@ -1859,7 +1858,6 @@ h2 {
   .homeGrid,
   .moduleGrid,
   .petitionBoard,
-  .calendarLanes,
   .gateLanes,
   .gateSummary {
     grid-template-columns: 1fr 1fr;
@@ -1907,7 +1905,6 @@ h2 {
   .commandStats,
   .moduleGrid,
   .petitionBoard,
-  .calendarLanes,
   .gateLanes,
   .gateSummary,
   .featureTiles,
@@ -2246,21 +2243,6 @@ h2 {
 }
 
 /* Dark-mode patches for status tints left as literals */
-:root[data-theme="dark"] .notice {
-  border-color: var(--risk);
-  background: var(--warn-bg);
-}
-
-:root[data-theme="dark"] .notice.success {
-  border-color: var(--ok);
-  background: var(--ok-bg);
-}
-
-:root[data-theme="dark"] .workflowStep.live,
-:root[data-theme="dark"] .workflowStep.review {
-  background: var(--panel-soft);
-}
-
 /* ===== Fase B — drill-down, editor de minuta, redação ===== */
 
 .clickable {
@@ -2601,7 +2583,3 @@ h2 {
   font-weight: 600;
 }
 
-.pill.local {
-  background: var(--accent-bg);
-  color: var(--accent);
-}

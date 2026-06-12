@@ -37,7 +37,7 @@ export type Peticao = {
   prazo_id: number | null;
   tipo: string | null;
   conteudo: string | null;
-  status: "rascunho" | "aprovada" | "protocolada" | string;
+  status: "rascunho" | "em_revisao" | "aprovada" | "protocolada" | string;
   aprovada_por: number | null;
   protocolada_em: string | null;
 };
@@ -208,6 +208,16 @@ export async function gerarMinuta(
     { method: "POST", body: JSON.stringify(body) }
   );
   return resp.classificacao;
+}
+
+export async function editarPeticao(
+  peticaoId: number,
+  patch: { conteudo?: string; status?: "rascunho" | "em_revisao" }
+): Promise<Peticao> {
+  return request<Peticao>(`/peticoes/${peticaoId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ usuario_id: 1, ...patch })
+  });
 }
 
 export async function aprovarPeticao(peticaoId: number): Promise<void> {
