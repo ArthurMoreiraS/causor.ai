@@ -35,6 +35,8 @@ def _build_parser() -> argparse.ArgumentParser:
     poll.add_argument("--uf", required=True)
     poll.add_argument("--escritorio", required=True, type=int)
     poll.add_argument("--dias", type=int, default=15, help="Provisional deadline length")
+
+    sub.add_parser("seed-demo", help="Create/refresh the idempotent demo dataset")
     return parser
 
 
@@ -65,6 +67,25 @@ def main(argv: list[str] | None = None) -> int:
             f"Poll concluído: {result.intimacoes_novas} novas intimações, "
             f"{result.processos_enriquecidos} processos enriquecidos, "
             f"{result.prazos_registrados} prazos registrados."
+        )
+
+    if args.command == "seed-demo":
+        from app.sor.seed_demo import seed_demo
+
+        session = SessionLocal()
+        try:
+            seed = seed_demo(session)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+
+        print(
+            f"Seed de demo aplicada (escritório {seed.escritorio_id}): "
+            f"{seed.processos} processos, {seed.intimacoes} intimações, "
+            f"{seed.prazos} prazos, {seed.peticoes} petições."
         )
     return 0
 
