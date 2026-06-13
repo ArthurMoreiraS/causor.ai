@@ -12,7 +12,9 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 Copy-Item .env.example .env
 $env:CAUSOR_DATABASE_URL="sqlite:///./causor_dev.db"
-# Opcional: habilita a geração de minuta com o Claude. Sem isso, o botao
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m app.cli seed-demo
+# Opcional: habilita a geracao de minuta com o Claude. Sem isso, o botao
 # "Gerar minuta" responde 503 com mensagem clara (o resto do fluxo funciona).
 $env:ANTHROPIC_API_KEY="sk-ant-..."
 .\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
@@ -24,6 +26,16 @@ API:
 - `http://localhost:8000/dashboard/operational`
 - `http://localhost:8000/review/queue`
 - `POST http://localhost:8000/capture/oab`
+
+Se `alembic upgrade head` falhar com `table escritorio already exists`, seu
+SQLite local foi criado antes de o Alembic versionar o schema. Preserve os dados
+carimbando a revisao inicial e depois aplique as migrations faltantes:
+
+```powershell
+.\.venv\Scripts\python.exe -m alembic stamp 40748db8885f
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m app.cli seed-demo
+```
 
 ## Frontend
 
