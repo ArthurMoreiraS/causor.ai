@@ -14,7 +14,10 @@ import app.sor.models  # noqa: F401  (register models on Base.metadata)
 config = context.config
 
 # Database URL comes from app settings (env-overridable), not the static ini.
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Escape '%' as '%%' so configparser does not treat URL-encoded characters in
+# credentials (e.g. '%40' for '@') as interpolation syntax; it is decoded back
+# on read.
+config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
