@@ -813,3 +813,36 @@ def test_criar_template_escritorio_inexistente_retorna_404(client, seeded):
     )
 
     assert resp.status_code == 404
+
+
+def test_registrar_e_listar_oab_monitorada(client, db_session):
+    esc = models.Escritorio(nome="Escritório Teste")
+    db_session.add(esc)
+    db_session.flush()
+
+    resp = client.post(
+        "/capturas/oab",
+        json={"escritorio_id": esc.id, "oab": "12345", "uf": "SP", "intervalo_horas": 6},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["oab"] == "12345"
+    assert body["ativo"] is True
+    assert body["intervalo_horas"] == 6
+
+    listed = client.get("/capturas/oab")
+    assert listed.status_code == 200
+    assert any(o["oab"] == "12345" for o in listed.json())
+
+
+def test_registrar_oab_idempotente_reativa(client, db_session):
+    esc = models.Escritorio(nome="Escritório Teste")
+    db_session.add(esc)
+    db_session.flush()
+
+    first = client.post("/capturas/oab", json={"escritorio_id": esc.id, "oab": "999", "uf": "RJ"})
+    second = client.post("/capturas/oab", json={"escritorio_id": esc.id, "oab": "999", "uf": "RJ"})
+    assert first.status_code == 201
+    assert second.status_code == 201
+    assert first.json()["id"] == second.json()["id"]
+    assert db_session.query(models.OabMonitorada).count() == 1

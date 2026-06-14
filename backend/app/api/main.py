@@ -32,6 +32,8 @@ from app.api.schemas import (
     IntimacaoOut,
     JobOut,
     MarcarPrazoCumpridoRequest,
+    OabMonitoradaCreate,
+    OabMonitoradaOut,
     OperationalDashboard,
     PeticaoOut,
     PrazoOut,
@@ -333,6 +335,44 @@ def create_app() -> FastAPI:
             return get_job(session, job_id)
         except JobNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+    @app.get("/capturas/oab", response_model=list[OabMonitoradaOut])
+    def listar_oabs_monitoradas(
+        session: Session = Depends(get_session),
+    ) -> list[models.OabMonitorada]:
+        stmt = select(models.OabMonitorada).order_by(models.OabMonitorada.id.desc())
+        return list(session.scalars(stmt))
+
+    @app.post("/capturas/oab", response_model=OabMonitoradaOut, status_code=201)
+    def registrar_oab_monitorada(
+        payload: OabMonitoradaCreate,
+        session: Session = Depends(get_session),
+    ) -> models.OabMonitorada:
+        escritorio = _resolve_escritorio(session, payload.escritorio_id)
+        existing = session.scalar(
+            select(models.OabMonitorada).where(
+                models.OabMonitorada.escritorio_id == escritorio.id,
+                models.OabMonitorada.oab == payload.oab,
+                models.OabMonitorada.uf == payload.uf,
+            )
+        )
+        if existing is not None:
+            existing.ativo = True
+            existing.intervalo_horas = payload.intervalo_horas
+            session.commit()
+            session.refresh(existing)
+            return existing
+        oab = models.OabMonitorada(
+            escritorio_id=escritorio.id,
+            oab=payload.oab,
+            uf=payload.uf,
+            intervalo_horas=payload.intervalo_horas,
+            ativo=True,
+        )
+        session.add(oab)
+        session.commit()
+        session.refresh(oab)
+        return oab
 
     @app.get("/usuarios", response_model=list[UsuarioOut])
     def listar_usuarios(

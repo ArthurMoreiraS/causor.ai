@@ -284,3 +284,23 @@ class ChatResponse(BaseModel):
     reply: str
     proposed_actions: list[ProposedAction] = []
     tool_trace: list[ToolTraceItem] = []
+
+
+class OabMonitoradaOut(BaseModel):
+    id: int
+    escritorio_id: int
+    oab: str
+    uf: str
+    ativo: bool
+    intervalo_horas: int
+    ultima_captura_em: datetime | None = None
+    cursor_data: date | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class OabMonitoradaCreate(BaseModel):
+    escritorio_id: int | None = None
+    oab: str
+    uf: str
+    intervalo_horas: int = 12
