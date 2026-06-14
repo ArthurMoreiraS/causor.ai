@@ -67,6 +67,24 @@ class Usuario(TimestampMixin, Base):
     escritorio: Mapped[Escritorio] = relationship(back_populates="usuarios")
 
 
+class OabMonitorada(TimestampMixin, Base):
+    """An OAB registration polled on a schedule for new intimações (DJEN)."""
+
+    __tablename__ = "oab_monitorada"
+    __table_args__ = (
+        UniqueConstraint("escritorio_id", "oab", "uf", name="uq_oab_monitorada"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False)
+    oab: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    uf: Mapped[str] = mapped_column(String(2), nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+    intervalo_horas: Mapped[int] = mapped_column(Integer, default=12)
+    ultima_captura_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    cursor_data: Mapped[date | None] = mapped_column(Date)
+
+
 class Cliente(TimestampMixin, Base):
     __tablename__ = "cliente"
 
