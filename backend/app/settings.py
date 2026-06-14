@@ -20,8 +20,11 @@ class Settings(BaseSettings):
     # Public CNJ key — fetched at runtime/config, never hardcoded permanently.
     datajud_api_key: str = ""
 
-    # HTTP
+    # HTTP / CORS
     http_timeout_seconds: float = 30.0
+    # Comma-separated list of allowed frontend origins (set the deployed domain
+    # in production, e.g. "https://app.seudominio.com").
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
     # Capture scheduling
     capture_lookback_days: int = 3
