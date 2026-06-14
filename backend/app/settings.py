@@ -23,5 +23,9 @@ class Settings(BaseSettings):
     # HTTP
     http_timeout_seconds: float = 30.0
 
+    # Capture scheduling
+    capture_lookback_days: int = 3
+    capture_intervalo_horas_default: int = 12
+
 
 settings = Settings()
