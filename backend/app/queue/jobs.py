@@ -6,10 +6,11 @@ is intentionally the same shape a Redis/RQ worker will update later.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.capture.poll import poll_oab
 from app.sor import models
 
 
@@ -100,6 +101,59 @@ def get_job(session: Session, job_id: int) -> models.JobExecucao:
     job = session.get(models.JobExecucao, job_id)
     if job is None:
         raise JobNotFoundError(f"job {job_id} nao encontrado")
+    return job
+
+
+def run_capture_oab_job(
+    session: Session,
+    job_id: int,
+    *,
+    djen,
+    datajud,
+    calendar,
+    data_inicio: date | None = None,
+    data_fim: date | None = None,
+    dias_default: int = 15,
+) -> models.JobExecucao:
+    """Execute a queued captura_oab job: run poll_oab and record status + audit.
+
+    Não captura exceções de domínio: o chamador (scheduler) faz rollback do estado
+    parcial de captura e registra a falha numa transação limpa.
+    """
+    job = get_job(session, job_id)
+    if job.tipo != "captura_oab":
+        raise JobError(f"job {job_id} nao e de captura (tipo={job.tipo})")
+
+    payload = job.payload or {}
+    try:
+        oab = payload["oab"]
+        uf = payload["uf"]
+        escritorio_id = payload["escritorio_id"]
+    except KeyError as exc:
+        raise JobError(f"payload de captura incompleto: falta {exc}") from exc
+
+    mark_running(session, job)
+    result = poll_oab(
+        session,
+        oab=oab,
+        uf=uf,
+        escritorio_id=escritorio_id,
+        djen=djen,
+        datajud=datajud,
+        calendar=calendar,
+        dias_default=dias_default,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+    )
+    mark_completed(
+        session,
+        job,
+        {
+            "intimacoes_novas": result.intimacoes_novas,
+            "processos_enriquecidos": result.processos_enriquecidos,
+            "prazos_registrados": result.prazos_registrados,
+        },
+    )
     return job
 
 
