@@ -1,7 +1,5 @@
 """TDD for the captura_oab job executor."""
 
-from datetime import date
-
 import pytest
 
 from app.capture.djen import ComunicacaoDTO
