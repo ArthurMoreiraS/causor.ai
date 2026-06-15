@@ -63,6 +63,7 @@ class Usuario(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
     oab: Mapped[str | None] = mapped_column(String(20), index=True)
     oab_uf: Mapped[str | None] = mapped_column(String(2))
+    supabase_user_id: Mapped[str | None] = mapped_column(String(36), unique=True)
 
     escritorio: Mapped[Escritorio] = relationship(back_populates="usuarios")
 
@@ -129,6 +130,7 @@ class Intimacao(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id"))
+    escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     fonte: Mapped[str] = mapped_column(String(20), nullable=False, default="DJEN")
     fonte_id: Mapped[str] = mapped_column(String(64), nullable=False)  # external dedupe key
     numero_processo: Mapped[str | None] = mapped_column(String(30), index=True)
@@ -149,6 +151,7 @@ class Prazo(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id"))
     intimacao_id: Mapped[int | None] = mapped_column(ForeignKey("intimacao.id"))
+    escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     descricao: Mapped[str | None] = mapped_column(String(255))
     data_inicio: Mapped[date] = mapped_column(Date, nullable=False)  # publication base
     dias: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -166,6 +169,7 @@ class Peticao(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int] = mapped_column(ForeignKey("processo.id"), nullable=False)
     prazo_id: Mapped[int | None] = mapped_column(ForeignKey("prazo.id"))
+    escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     tipo: Mapped[str | None] = mapped_column(String(100))
     conteudo: Mapped[str | None] = mapped_column(Text)
     # human approval gate before any irreversible filing
