@@ -18,6 +18,25 @@ def test_usuario_tem_supabase_user_id(db_session):
     assert u.supabase_user_id == "11111111-1111-1111-1111-111111111111"
 
 
+def test_supabase_user_id_e_unico(db_session):
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    esc = models.Escritorio(nome="E")
+    db_session.add(esc)
+    db_session.flush()
+    sub = "22222222-2222-2222-2222-222222222222"
+    db_session.add(
+        models.Usuario(escritorio_id=esc.id, nome="A", email="a@b.com", supabase_user_id=sub)
+    )
+    db_session.flush()
+    db_session.add(
+        models.Usuario(escritorio_id=esc.id, nome="B", email="c@d.com", supabase_user_id=sub)
+    )
+    with pytest.raises(IntegrityError):
+        db_session.flush()
+
+
 def test_prazo_peticao_intimacao_tem_escritorio_id(db_session):
     esc = models.Escritorio(nome="E")
     db_session.add(esc)

@@ -130,6 +130,8 @@ class Intimacao(TimestampMixin, Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id"))
+    # Tenant desnormalizado. Nullable só durante a transição (backfill na migração
+    # e2... + capture carimbando); leituras já filtram por ele.
     escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     fonte: Mapped[str] = mapped_column(String(20), nullable=False, default="DJEN")
     fonte_id: Mapped[str] = mapped_column(String(64), nullable=False)  # external dedupe key
@@ -151,6 +153,7 @@ class Prazo(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id"))
     intimacao_id: Mapped[int | None] = mapped_column(ForeignKey("intimacao.id"))
+    # Tenant desnormalizado. Nullable só durante a transição (backfill na migração).
     escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     descricao: Mapped[str | None] = mapped_column(String(255))
     data_inicio: Mapped[date] = mapped_column(Date, nullable=False)  # publication base
@@ -169,6 +172,7 @@ class Peticao(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int] = mapped_column(ForeignKey("processo.id"), nullable=False)
     prazo_id: Mapped[int | None] = mapped_column(ForeignKey("prazo.id"))
+    # Tenant desnormalizado. Nullable só durante a transição (backfill na migração).
     escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     tipo: Mapped[str | None] = mapped_column(String(100))
     conteudo: Mapped[str | None] = mapped_column(Text)
