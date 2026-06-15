@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # in production, e.g. "https://app.seudominio.com").
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # Auth (Supabase). Segredo HS256 do projeto; nunca logar.
+    supabase_jwt_secret: str = ""
+
     # Capture scheduling
     capture_lookback_days: int = 3
     capture_intervalo_horas_default: int = 12
