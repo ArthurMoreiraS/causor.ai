@@ -59,7 +59,7 @@ def get_current_user(
         ).first()
         if usuario is not None:
             usuario.supabase_user_id = sub  # claim on first login
-            session.flush()
+            session.commit()  # persiste o vínculo mesmo em requests só-leitura
     if usuario is None:
         raise HTTPException(status_code=403, detail="usuário sem acesso")
 
