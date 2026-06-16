@@ -88,6 +88,7 @@ def draft_from_intimacao(
     peticao = models.Peticao(
         processo_id=intimacao.processo_id,
         prazo_id=prazo.id,
+        escritorio_id=intimacao.escritorio_id,
         tipo=classificacao.peticao_sugerida,
         conteudo=conteudo,
         status="rascunho",

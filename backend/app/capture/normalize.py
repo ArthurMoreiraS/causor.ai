@@ -53,6 +53,7 @@ def normalize_intimacao(
 
     intimacao = models.Intimacao(
         processo_id=processo.id if processo else None,
+        escritorio_id=escritorio_id,
         fonte="DJEN",
         fonte_id=dto.id,
         numero_processo=numero,

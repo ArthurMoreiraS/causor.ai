@@ -47,6 +47,7 @@ def registrar_prazo(
     prazo = models.Prazo(
         processo_id=intimacao.processo_id,
         intimacao_id=intimacao.id,
+        escritorio_id=intimacao.escritorio_id,
         descricao=descricao or intimacao.tipo_comunicacao,
         data_inicio=result.data_inicio,
         dias=result.dias,

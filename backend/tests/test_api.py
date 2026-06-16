@@ -8,14 +8,39 @@ from fastapi.testclient import TestClient
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.api.main import create_app
+from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.sor.db import get_session
 from app.sor import models
+from sqlalchemy import select
 
 
 @pytest.fixture
 def client(db_session):
     app = create_app()
     app.dependency_overrides[get_session] = lambda: db_session
+
+    def _current_user() -> CurrentUser:
+        # Resolve a identidade da fixture `seeded` (primeiro escritório/usuário do
+        # tenant semeado) em tempo de request, evitando JWT real nos testes de API.
+        esc = db_session.scalars(
+            select(models.Escritorio).order_by(models.Escritorio.id)
+        ).first()
+        usuario = (
+            db_session.scalars(
+                select(models.Usuario)
+                .where(models.Usuario.escritorio_id == esc.id)
+                .order_by(models.Usuario.id)
+            ).first()
+            if esc is not None
+            else None
+        )
+        return CurrentUser(
+            usuario_id=usuario.id if usuario is not None else 0,
+            escritorio_id=esc.id if esc is not None else 0,
+            email=usuario.email if usuario is not None else "test@x.com",
+        )
+
+    app.dependency_overrides[get_current_user] = _current_user
     return TestClient(app)
 
 
@@ -24,11 +49,18 @@ def seeded(db_session):
     esc = models.Escritorio(nome="Escritório Teste")
     db_session.add(esc)
     db_session.flush()
+    usuario = models.Usuario(
+        escritorio_id=esc.id, nome="Adv Seed", email="seed@example.com",
+        supabase_user_id="seed-sub",
+    )
+    db_session.add(usuario)
+    db_session.flush()
     proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100")
     db_session.add(proc)
     db_session.flush()
     intimacao = models.Intimacao(
         processo_id=proc.id,
+        escritorio_id=esc.id,
         fonte="DJEN",
         fonte_id="111",
         numero_processo="00000010020248260100",
@@ -41,12 +73,14 @@ def seeded(db_session):
     db_session.add_all(
         [
             models.Prazo(
-                processo_id=proc.id, intimacao_id=intimacao.id, descricao="A",
+                processo_id=proc.id, intimacao_id=intimacao.id, escritorio_id=esc.id,
+                descricao="A",
                 data_inicio=date(2024, 9, 9), dias=15, dias_uteis=True,
                 data_fatal=date(2024, 9, 30), cumprido=False,
             ),
             models.Prazo(
-                processo_id=proc.id, intimacao_id=intimacao.id, descricao="B",
+                processo_id=proc.id, intimacao_id=intimacao.id, escritorio_id=esc.id,
+                descricao="B",
                 data_inicio=date(2024, 9, 9), dias=5, dias_uteis=True,
                 data_fatal=date(2024, 9, 16), cumprido=True,
             ),
@@ -119,7 +153,6 @@ def test_revisar_prazo_atualiza_e_audita(client, db_session, seeded):
     resp = client.patch(
         f"/prazos/{prazo.id}",
         json={
-            "usuario_id": 77,
             "descricao": "Manifestacao revisada",
             "dias": 10,
             "data_fatal": "2024-09-23",
@@ -131,19 +164,21 @@ def test_revisar_prazo_atualiza_e_audita(client, db_session, seeded):
     assert body["descricao"] == "Manifestacao revisada"
     assert body["dias"] == 10
     assert body["data_fatal"] == "2024-09-23"
+    seed_user = db_session.query(models.Usuario).first()
     audit = db_session.query(models.AuditLog).one()
-    assert audit.ator == "usuario:77"
+    assert audit.ator == f"usuario:{seed_user.id}"
     assert audit.acao == "prazo_revisado"
 
 
 def test_marcar_prazo_cumprido(client, db_session, seeded):
     prazo = db_session.query(models.Prazo).filter_by(descricao="A").one()
-    resp = client.post(f"/prazos/{prazo.id}/cumprir", json={"usuario_id": 88})
+    resp = client.post(f"/prazos/{prazo.id}/cumprir")
 
     assert resp.status_code == 200
     assert resp.json()["cumprido"] is True
+    seed_user = db_session.query(models.Usuario).first()
     audit = db_session.query(models.AuditLog).one()
-    assert audit.ator == "usuario:88"
+    assert audit.ator == f"usuario:{seed_user.id}"
     assert audit.acao == "prazo_cumprido"
 
 
@@ -155,27 +190,27 @@ def test_alertas_derivados_dos_prazos(client, db_session, seeded):
     db_session.add_all(
         [
             models.Prazo(
-                processo_id=proc.id, descricao="Vencido", data_inicio=today - timedelta(days=20),
+                processo_id=proc.id, escritorio_id=proc.escritorio_id, descricao="Vencido", data_inicio=today - timedelta(days=20),
                 dias=15, dias_uteis=True, data_fatal=today - timedelta(days=2), cumprido=False,
             ),
             models.Prazo(
-                processo_id=proc.id, descricao="Hoje", data_inicio=today - timedelta(days=15),
+                processo_id=proc.id, escritorio_id=proc.escritorio_id, descricao="Hoje", data_inicio=today - timedelta(days=15),
                 dias=15, dias_uteis=True, data_fatal=today, cumprido=False,
             ),
             models.Prazo(
-                processo_id=proc.id, descricao="Amanha", data_inicio=today - timedelta(days=14),
+                processo_id=proc.id, escritorio_id=proc.escritorio_id, descricao="Amanha", data_inicio=today - timedelta(days=14),
                 dias=15, dias_uteis=True, data_fatal=today + timedelta(days=1), cumprido=False,
             ),
             models.Prazo(
-                processo_id=proc.id, descricao="D3", data_inicio=today - timedelta(days=12),
+                processo_id=proc.id, escritorio_id=proc.escritorio_id, descricao="D3", data_inicio=today - timedelta(days=12),
                 dias=15, dias_uteis=True, data_fatal=today + timedelta(days=3), cumprido=False,
             ),
             models.Prazo(
-                processo_id=proc.id, descricao="Longe", data_inicio=today,
+                processo_id=proc.id, escritorio_id=proc.escritorio_id, descricao="Longe", data_inicio=today,
                 dias=15, dias_uteis=True, data_fatal=today + timedelta(days=10), cumprido=False,
             ),
             models.Prazo(
-                processo_id=proc.id, descricao="CumpridoHoje", data_inicio=today - timedelta(days=15),
+                processo_id=proc.id, escritorio_id=proc.escritorio_id, descricao="CumpridoHoje", data_inicio=today - timedelta(days=15),
                 dias=15, dias_uteis=True, data_fatal=today, cumprido=True,
             ),
         ]
@@ -209,6 +244,7 @@ def test_listar_processos(client, seeded):
 def test_listar_peticoes_and_filter_status(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="rascunho",
@@ -285,41 +321,46 @@ def test_gerar_minuta_falha_de_ia_retorna_503(client, db_session, seeded):
 
 def test_aprovar_peticao_audita(client, db_session, seeded):
     peticao = models.Peticao(
-        processo_id=seeded.id, tipo="Contestacao", conteudo="m", status="rascunho"
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id, tipo="Contestacao", conteudo="m", status="rascunho"
     )
     db_session.add(peticao)
     db_session.flush()
 
-    resp = client.post(f"/peticoes/{peticao.id}/approve", json={"usuario_id": 55})
+    resp = client.post(f"/peticoes/{peticao.id}/approve")
 
     assert resp.status_code == 200
+    seed_user = db_session.query(models.Usuario).first()
     audit = db_session.query(models.AuditLog).filter_by(acao="peticao_aprovada").one()
-    assert audit.ator == "usuario:55"
+    assert audit.ator == f"usuario:{seed_user.id}"
     assert audit.entidade_id == peticao.id
 
 
 def test_editar_peticao_atualiza_conteudo_e_audita(client, db_session, seeded):
     peticao = models.Peticao(
-        processo_id=seeded.id, tipo="Contestacao", conteudo="rascunho inicial", status="rascunho"
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id, tipo="Contestacao", conteudo="rascunho inicial", status="rascunho"
     )
     db_session.add(peticao)
     db_session.flush()
 
     resp = client.patch(
         f"/peticoes/{peticao.id}",
-        json={"conteudo": "texto revisado", "usuario_id": 7},
+        json={"conteudo": "texto revisado"},
     )
 
     assert resp.status_code == 200
     assert resp.json()["conteudo"] == "texto revisado"
+    seed_user = db_session.query(models.Usuario).first()
     audit = db_session.query(models.AuditLog).filter_by(acao="peticao_editada").one()
-    assert audit.ator == "usuario:7"
+    assert audit.ator == f"usuario:{seed_user.id}"
     assert audit.entidade_id == peticao.id
 
 
 def test_editar_peticao_permite_transicao_para_revisao(client, db_session, seeded):
     peticao = models.Peticao(
-        processo_id=seeded.id, tipo="Contestacao", conteudo="m", status="rascunho"
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id, tipo="Contestacao", conteudo="m", status="rascunho"
     )
     db_session.add(peticao)
     db_session.flush()
@@ -335,7 +376,8 @@ def test_editar_peticao_permite_transicao_para_revisao(client, db_session, seede
 
 def test_editar_peticao_rejeita_status_de_gate(client, db_session, seeded):
     peticao = models.Peticao(
-        processo_id=seeded.id, tipo="Contestacao", conteudo="m", status="rascunho"
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id, tipo="Contestacao", conteudo="m", status="rascunho"
     )
     db_session.add(peticao)
     db_session.flush()
@@ -351,6 +393,7 @@ def test_editar_peticao_rejeita_status_de_gate(client, db_session, seeded):
 def test_editar_peticao_protocolada_retorna_409(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="m",
         status="protocolada",
@@ -374,6 +417,7 @@ def test_editar_peticao_inexistente_retorna_404(client):
 def test_protocolar_peticao_audita(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="m",
         status="aprovada",
@@ -392,6 +436,7 @@ def test_protocolar_peticao_audita(client, db_session, seeded):
 def test_protocolar_requires_approval(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="rascunho",
@@ -402,10 +447,11 @@ def test_protocolar_requires_approval(client, db_session, seeded):
     blocked = client.post(f"/peticoes/{peticao.id}/protocolar")
     assert blocked.status_code == 409
 
-    approved = client.post(f"/peticoes/{peticao.id}/approve", json={"usuario_id": 123})
+    seed_user = db_session.query(models.Usuario).first()
+    approved = client.post(f"/peticoes/{peticao.id}/approve")
     assert approved.status_code == 200
     assert approved.json()["status"] == "aprovada"
-    assert approved.json()["aprovada_por"] == 123
+    assert approved.json()["aprovada_por"] == seed_user.id
 
     filed = client.post(f"/peticoes/{peticao.id}/protocolar")
     assert filed.status_code == 200
@@ -452,8 +498,14 @@ def test_chat_falha_de_ia_retorna_503(client, db_session, seeded, monkeypatch):
 def test_listar_auditoria_filtra_por_entidade(client, db_session, seeded):
     db_session.add_all(
         [
-            models.AuditLog(ator="usuario:1", acao="prazo_revisado", entidade="prazo", entidade_id=1),
-            models.AuditLog(ator="system", acao="captura_oab_executada", entidade="escritorio", entidade_id=1),
+            models.AuditLog(
+                escritorio_id=seeded.escritorio_id, ator="usuario:1",
+                acao="prazo_revisado", entidade="prazo", entidade_id=1,
+            ),
+            models.AuditLog(
+                escritorio_id=seeded.escritorio_id, ator="system",
+                acao="captura_oab_executada", entidade="escritorio", entidade_id=1,
+            ),
         ]
     )
     db_session.flush()
@@ -505,6 +557,7 @@ def test_consultar_job_inexistente_retorna_404(client, seeded):
 def test_protocolar_async_exige_aprovacao(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="rascunho",
@@ -521,6 +574,7 @@ def test_protocolar_async_exige_aprovacao(client, db_session, seeded):
 def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="aprovada",
@@ -572,16 +626,15 @@ def test_listar_usuarios_por_escritorio(client, db_session, seeded):
     resp = client.get("/usuarios")
     assert resp.status_code == 200
     body = resp.json()
-    assert [u["nome"] for u in body] == ["Dra. Helena", "Rafael"]
-    assert body[0]["escritorio_id"] == seeded.escritorio_id
-
-    filtrado = client.get("/usuarios", params={"escritorio_id": 9999}).json()
-    assert filtrado == []
+    # "Adv Seed" vem do fixture seeded; depois os dois criados aqui.
+    assert [u["nome"] for u in body] == ["Adv Seed", "Dra. Helena", "Rafael"]
+    assert all(u["escritorio_id"] == seeded.escritorio_id for u in body)
 
 
 def test_listar_jobs_mais_recentes_primeiro_com_filtros(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="aprovada",
@@ -629,6 +682,7 @@ def test_protocolar_async_com_credencial_registra_payload_e_audita(client, db_se
     usuario, credencial = _usuario_com_credencial(client, db_session, seeded.escritorio_id)
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="aprovada",
@@ -657,6 +711,7 @@ def test_protocolar_async_com_credencial_registra_payload_e_audita(client, db_se
 def test_protocolar_async_com_credencial_inexistente_retorna_404(client, db_session, seeded):
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="aprovada",
@@ -680,6 +735,7 @@ def test_protocolar_async_com_credencial_inativa_retorna_409(client, db_session,
     client.patch(f"/credenciais-assinatura/{credencial['id']}/desativar")
     peticao = models.Peticao(
         processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
         tipo="Contestacao",
         conteudo="minuta",
         status="aprovada",

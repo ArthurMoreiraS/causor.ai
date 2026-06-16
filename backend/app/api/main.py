@@ -16,10 +16,11 @@ from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
+from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.auth.tenant import get_owned_or_404, tenant_select
 from app.api.schemas import (
     AlertaPrazo,
     AuditLogOut,
-    ApprovePeticaoRequest,
     CaptureOabRequest,
     CaptureResultOut,
     ChatRequest,
@@ -31,7 +32,6 @@ from app.api.schemas import (
     EditPeticaoRequest,
     IntimacaoOut,
     JobOut,
-    MarcarPrazoCumpridoRequest,
     OabMonitoradaCreate,
     OabMonitoradaOut,
     OperationalDashboard,
@@ -100,21 +100,13 @@ def _audit(
     )
 
 
-def _resolve_escritorio(session: Session, escritorio_id: int | None) -> models.Escritorio:
-    if escritorio_id is not None:
-        escritorio = session.get(models.Escritorio, escritorio_id)
-        if escritorio is None:
-            raise HTTPException(status_code=404, detail="escritório não encontrado")
-        return escritorio
-
-    escritorio = session.scalar(select(models.Escritorio).order_by(models.Escritorio.id.asc()))
-    if escritorio is not None:
-        return escritorio
-
-    raise HTTPException(
-        status_code=400,
-        detail="Nenhum escritório cadastrado. Informe escritorio_id ou cadastre um escritório real.",
-    )
+def _require_current_escritorio_path(
+    session: Session,
+    escritorio_id: int,
+    current: CurrentUser,
+) -> None:
+    if escritorio_id != current.escritorio_id or session.get(models.Escritorio, escritorio_id) is None:
+        raise HTTPException(status_code=404, detail="escritorio nao encontrado")
 
 
 class _NoopDatajudClient:
@@ -176,11 +168,14 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     @app.get("/dashboard/operational", response_model=OperationalDashboard)
-    def dashboard_operacional(session: Session = Depends(get_session)) -> OperationalDashboard:
-        processos = len(session.scalars(select(models.Processo.id)).all())
-        intimacoes = len(session.scalars(select(models.Intimacao.id)).all())
-        prazos = list(session.scalars(select(models.Prazo)).all())
-        peticoes = list(session.scalars(select(models.Peticao)).all())
+    def dashboard_operacional(
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> OperationalDashboard:
+        processos = len(session.scalars(tenant_select(models.Processo, current)).all())
+        intimacoes = len(session.scalars(tenant_select(models.Intimacao, current)).all())
+        prazos = list(session.scalars(tenant_select(models.Prazo, current)).all())
+        peticoes = list(session.scalars(tenant_select(models.Peticao, current)).all())
         pending_deadlines = [prazo for prazo in prazos if not prazo.cumprido]
         today = datetime.now(timezone.utc).date()
         high_risk = [
@@ -279,11 +274,12 @@ def create_app() -> FastAPI:
     @app.get("/audit", response_model=list[AuditLogOut])
     def listar_auditoria(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
         entidade: str | None = Query(default=None),
         entidade_id: int | None = Query(default=None),
         limit: int = Query(default=100, le=500),
     ) -> list[models.AuditLog]:
-        stmt = select(models.AuditLog)
+        stmt = tenant_select(models.AuditLog, current)
         if entidade is not None:
             stmt = stmt.where(models.AuditLog.entidade == entidade)
         if entidade_id is not None:
@@ -295,21 +291,33 @@ def create_app() -> FastAPI:
     def criar_job_captura_oab(
         payload: CaptureOabRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
-        escritorio = _resolve_escritorio(session, payload.escritorio_id)
         job = create_job(
             session,
             tipo="captura_oab",
             entidade="escritorio",
-            entidade_id=escritorio.id,
+            entidade_id=current.escritorio_id,
             payload={
                 **payload.model_dump(mode="json"),
-                "escritorio_id": escritorio.id,
+                "escritorio_id": current.escritorio_id,
             },
+            ator=f"usuario:{current.usuario_id}",
         )
         session.commit()
         session.refresh(job)
         return job
+
+    def _job_pertence_ao_tenant(session: Session, job: models.JobExecucao, current: CurrentUser) -> bool:
+        # JobExecucao não tem escritorio_id próprio; o vínculo de tenant é
+        # derivado da entidade que o job referencia.
+        if job.entidade == "escritorio":
+            return job.entidade_id == current.escritorio_id
+        if job.entidade == "peticao" and job.entidade_id is not None:
+            peticao = session.get(models.Peticao, job.entidade_id)
+            return peticao is not None and peticao.escritorio_id == current.escritorio_id
+        # Jobs sem vínculo de tenant identificável não vazam para ninguém.
+        return False
 
     @app.get("/jobs", response_model=list[JobOut])
     def listar_jobs(
@@ -317,41 +325,54 @@ def create_app() -> FastAPI:
         status: str | None = Query(default=None),
         limit: int = Query(default=50, ge=1, le=200),
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> list[models.JobExecucao]:
         stmt = select(models.JobExecucao)
         if tipo is not None:
             stmt = stmt.where(models.JobExecucao.tipo == tipo)
         if status is not None:
             stmt = stmt.where(models.JobExecucao.status == status)
-        stmt = stmt.order_by(models.JobExecucao.id.desc()).limit(limit)
-        return list(session.scalars(stmt))
+        stmt = stmt.order_by(models.JobExecucao.id.desc())
+        jobs = [
+            job
+            for job in session.scalars(stmt)
+            if _job_pertence_ao_tenant(session, job, current)
+        ]
+        return jobs[:limit]
 
     @app.get("/jobs/{job_id}", response_model=JobOut)
     def consultar_job(
         job_id: int,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
         try:
-            return get_job(session, job_id)
+            job = get_job(session, job_id)
         except JobNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        if not _job_pertence_ao_tenant(session, job, current):
+            raise HTTPException(status_code=404, detail="job nao encontrado")
+        return job
 
     @app.get("/capturas/oab", response_model=list[OabMonitoradaOut])
     def listar_oabs_monitoradas(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> list[models.OabMonitorada]:
-        stmt = select(models.OabMonitorada).order_by(models.OabMonitorada.id.desc())
+        stmt = tenant_select(models.OabMonitorada, current).order_by(
+            models.OabMonitorada.id.desc()
+        )
         return list(session.scalars(stmt))
 
     @app.post("/capturas/oab", response_model=OabMonitoradaOut, status_code=201)
     def registrar_oab_monitorada(
         payload: OabMonitoradaCreate,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.OabMonitorada:
-        escritorio = _resolve_escritorio(session, payload.escritorio_id)
         existing = session.scalar(
             select(models.OabMonitorada).where(
-                models.OabMonitorada.escritorio_id == escritorio.id,
+                models.OabMonitorada.escritorio_id == current.escritorio_id,
                 models.OabMonitorada.oab == payload.oab,
                 models.OabMonitorada.uf == payload.uf,
             )
@@ -363,7 +384,7 @@ def create_app() -> FastAPI:
             session.refresh(existing)
             return existing
         oab = models.OabMonitorada(
-            escritorio_id=escritorio.id,
+            escritorio_id=current.escritorio_id,
             oab=payload.oab,
             uf=payload.uf,
             intervalo_horas=payload.intervalo_horas,
@@ -376,13 +397,10 @@ def create_app() -> FastAPI:
 
     @app.get("/usuarios", response_model=list[UsuarioOut])
     def listar_usuarios(
-        escritorio_id: int | None = Query(default=None),
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> list[models.Usuario]:
-        stmt = select(models.Usuario)
-        if escritorio_id is not None:
-            stmt = stmt.where(models.Usuario.escritorio_id == escritorio_id)
-        stmt = stmt.order_by(models.Usuario.id)
+        stmt = tenant_select(models.Usuario, current).order_by(models.Usuario.id)
         return list(session.scalars(stmt))
 
     @app.post(
@@ -393,7 +411,9 @@ def create_app() -> FastAPI:
         usuario_id: int,
         payload: CreateCredencialAssinaturaRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.CredencialAssinatura:
+        get_owned_or_404(session, models.Usuario, usuario_id, current)
         try:
             credencial = store_signature_reference(
                 session,
@@ -414,7 +434,9 @@ def create_app() -> FastAPI:
     def listar_credenciais_assinatura(
         usuario_id: int,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> list[models.CredencialAssinatura]:
+        get_owned_or_404(session, models.Usuario, usuario_id, current)
         return list_signature_credentials(session, usuario_id=usuario_id)
 
     @app.patch(
@@ -424,7 +446,12 @@ def create_app() -> FastAPI:
     def desativar_credencial_assinatura(
         credencial_id: int,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.CredencialAssinatura:
+        # CredencialAssinatura não tem escritorio_id; valida o tenant pelo usuário dono.
+        existente = session.get(models.CredencialAssinatura, credencial_id)
+        if existente is not None:
+            get_owned_or_404(session, models.Usuario, existente.usuario_id, current)
         try:
             credencial = deactivate_signature_credential(
                 session,
@@ -444,11 +471,11 @@ def create_app() -> FastAPI:
         escritorio_id: int,
         payload: TemplatePeticaoCreate,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.TemplatePeticao:
-        if session.get(models.Escritorio, escritorio_id) is None:
-            raise HTTPException(status_code=404, detail="escritorio nao encontrado")
+        _require_current_escritorio_path(session, escritorio_id, current)
         template = models.TemplatePeticao(
-            escritorio_id=escritorio_id,
+            escritorio_id=current.escritorio_id,
             tipo=payload.tipo,
             area=payload.area,
             nome=payload.nome,
@@ -462,7 +489,8 @@ def create_app() -> FastAPI:
             acao="template_peticao_criado",
             entidade="template_peticao",
             entidade_id=template.id,
-            escritorio_id=escritorio_id,
+            ator_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
             detalhe={"tipo": template.tipo, "area": template.area, "nome": template.nome},
         )
         session.commit()
@@ -478,10 +506,10 @@ def create_app() -> FastAPI:
         ativo: bool | None = Query(default=None),
         tipo: str | None = Query(default=None),
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> list[models.TemplatePeticao]:
-        stmt = select(models.TemplatePeticao).where(
-            models.TemplatePeticao.escritorio_id == escritorio_id
-        )
+        _require_current_escritorio_path(session, escritorio_id, current)
+        stmt = tenant_select(models.TemplatePeticao, current)
         if ativo is not None:
             stmt = stmt.where(models.TemplatePeticao.ativo == ativo)
         if tipo is not None:
@@ -497,10 +525,9 @@ def create_app() -> FastAPI:
         template_id: int,
         payload: TemplatePeticaoUpdate,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.TemplatePeticao:
-        template = session.get(models.TemplatePeticao, template_id)
-        if template is None:
-            raise HTTPException(status_code=404, detail="template nao encontrado")
+        template = get_owned_or_404(session, models.TemplatePeticao, template_id, current)
         fields = payload.model_dump(exclude_unset=True)
         for field, value in fields.items():
             setattr(template, field, value)
@@ -509,6 +536,7 @@ def create_app() -> FastAPI:
             acao="template_peticao_atualizado",
             entidade="template_peticao",
             entidade_id=template.id,
+            ator_id=current.usuario_id,
             escritorio_id=template.escritorio_id,
             detalhe={k: v for k, v in fields.items() if k != "conteudo"},
         )
@@ -520,15 +548,15 @@ def create_app() -> FastAPI:
     def capturar_oab(
         payload: CaptureOabRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> CaptureResultOut:
-        escritorio = _resolve_escritorio(session, payload.escritorio_id)
         datajud = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
         try:
             result = poll_oab(
                 session,
                 oab=payload.oab,
                 uf=payload.uf,
-                escritorio_id=escritorio.id,
+                escritorio_id=current.escritorio_id,
                 djen=DjenClient(),
                 datajud=datajud,
                 calendar=build_calendar(_default_calendar_years()),
@@ -544,7 +572,9 @@ def create_app() -> FastAPI:
             session,
             acao="captura_oab_executada",
             entidade="escritorio",
-            entidade_id=escritorio.id,
+            entidade_id=current.escritorio_id,
+            ator_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
             detalhe={
                 "oab": payload.oab,
                 "uf": payload.uf,
@@ -557,10 +587,11 @@ def create_app() -> FastAPI:
     @app.get("/intimacoes", response_model=list[IntimacaoOut])
     def listar_intimacoes(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
         processo_id: int | None = Query(default=None),
         limit: int = Query(default=100, le=500),
     ) -> list[models.Intimacao]:
-        stmt = select(models.Intimacao)
+        stmt = tenant_select(models.Intimacao, current)
         if processo_id is not None:
             stmt = stmt.where(models.Intimacao.processo_id == processo_id)
         stmt = stmt.order_by(models.Intimacao.data_disponibilizacao.desc()).limit(limit)
@@ -569,24 +600,32 @@ def create_app() -> FastAPI:
     @app.get("/review/queue", response_model=list[ReviewQueueItem])
     def fila_revisao(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
         limit: int = Query(default=100, le=500),
     ) -> list[ReviewQueueItem]:
         intimacoes = list(
             session.scalars(
-                select(models.Intimacao)
+                tenant_select(models.Intimacao, current)
                 .order_by(models.Intimacao.data_disponibilizacao.desc())
                 .limit(limit)
             )
         )
-        processos = {item.id: item for item in session.scalars(select(models.Processo)).all()}
+        processos = {
+            item.id: item
+            for item in session.scalars(tenant_select(models.Processo, current)).all()
+        }
         prazos_por_intimacao: dict[int, models.Prazo] = {}
-        for prazo in session.scalars(select(models.Prazo).order_by(models.Prazo.data_fatal.asc())):
+        for prazo in session.scalars(
+            tenant_select(models.Prazo, current).order_by(models.Prazo.data_fatal.asc())
+        ):
             if prazo.intimacao_id is not None and prazo.intimacao_id not in prazos_por_intimacao:
                 prazos_por_intimacao[prazo.intimacao_id] = prazo
 
         peticoes_por_prazo: dict[int, models.Peticao] = {}
         peticoes_por_processo: dict[int, models.Peticao] = {}
-        for peticao in session.scalars(select(models.Peticao).order_by(models.Peticao.id.desc())):
+        for peticao in session.scalars(
+            tenant_select(models.Peticao, current).order_by(models.Peticao.id.desc())
+        ):
             if peticao.prazo_id is not None and peticao.prazo_id not in peticoes_por_prazo:
                 peticoes_por_prazo[peticao.prazo_id] = peticao
             if peticao.processo_id not in peticoes_por_processo:
@@ -618,29 +657,36 @@ def create_app() -> FastAPI:
     @app.get("/processos", response_model=list[ProcessoOut])
     def listar_processos(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
         limit: int = Query(default=100, le=500),
     ) -> list[models.Processo]:
-        stmt = select(models.Processo).order_by(models.Processo.id.desc()).limit(limit)
+        stmt = tenant_select(models.Processo, current).order_by(
+            models.Processo.id.desc()
+        ).limit(limit)
         return list(session.scalars(stmt))
 
     @app.get("/prazos", response_model=list[PrazoOut])
     def listar_prazos(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
         cumprido: bool | None = Query(default=None),
         limit: int = Query(default=100, le=500),
     ) -> list[models.Prazo]:
-        stmt = select(models.Prazo)
+        stmt = tenant_select(models.Prazo, current)
         if cumprido is not None:
             stmt = stmt.where(models.Prazo.cumprido == cumprido)
         stmt = stmt.order_by(models.Prazo.data_fatal.asc()).limit(limit)
         return list(session.scalars(stmt))
 
     @app.get("/alertas", response_model=list[AlertaPrazo])
-    def listar_alertas(session: Session = Depends(get_session)) -> list[AlertaPrazo]:
+    def listar_alertas(
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> list[AlertaPrazo]:
         """Radar de prazo: vencidos, D-0, D-1 e D-3, do mais crítico ao menos."""
         today = date.today()
         stmt = (
-            select(models.Prazo)
+            tenant_select(models.Prazo, current)
             .where(models.Prazo.cumprido.is_(False))
             .where(models.Prazo.data_fatal <= today + timedelta(days=3))
             .order_by(models.Prazo.data_fatal.asc())
@@ -672,17 +718,12 @@ def create_app() -> FastAPI:
         prazo_id: int,
         payload: RevisarPrazoRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.Prazo:
-        prazo = session.get(models.Prazo, prazo_id)
-        if prazo is None:
-            raise HTTPException(status_code=404, detail="prazo não encontrado")
+        prazo = get_owned_or_404(session, models.Prazo, prazo_id, current)
 
-        fields = payload.model_dump(exclude_unset=True, exclude={"usuario_id"})
-        audit_detail = payload.model_dump(
-            mode="json",
-            exclude_unset=True,
-            exclude={"usuario_id"},
-        )
+        fields = payload.model_dump(exclude_unset=True)
+        audit_detail = payload.model_dump(mode="json", exclude_unset=True)
         for field, value in fields.items():
             if value is not None:
                 setattr(prazo, field, value)
@@ -692,7 +733,8 @@ def create_app() -> FastAPI:
             acao="prazo_revisado",
             entidade="prazo",
             entidade_id=prazo.id,
-            ator_id=payload.usuario_id,
+            ator_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
             detalhe=audit_detail,
         )
         session.commit()
@@ -702,19 +744,18 @@ def create_app() -> FastAPI:
     @app.post("/prazos/{prazo_id}/cumprir", response_model=PrazoOut)
     def marcar_prazo_cumprido(
         prazo_id: int,
-        payload: MarcarPrazoCumpridoRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.Prazo:
-        prazo = session.get(models.Prazo, prazo_id)
-        if prazo is None:
-            raise HTTPException(status_code=404, detail="prazo não encontrado")
+        prazo = get_owned_or_404(session, models.Prazo, prazo_id, current)
         prazo.cumprido = True
         _audit(
             session,
             acao="prazo_cumprido",
             entidade="prazo",
             entidade_id=prazo.id,
-            ator_id=payload.usuario_id,
+            ator_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
         )
         session.commit()
         session.refresh(prazo)
@@ -723,10 +764,11 @@ def create_app() -> FastAPI:
     @app.get("/peticoes", response_model=list[PeticaoOut])
     def listar_peticoes(
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
         status: str | None = Query(default=None),
         limit: int = Query(default=100, le=500),
     ) -> list[models.Peticao]:
-        stmt = select(models.Peticao)
+        stmt = tenant_select(models.Peticao, current)
         if status is not None:
             stmt = stmt.where(models.Peticao.status == status)
         stmt = stmt.order_by(models.Peticao.id.desc()).limit(limit)
@@ -735,12 +777,12 @@ def create_app() -> FastAPI:
     @app.post("/intimacoes/{intimacao_id}/draft", response_model=DraftResponse)
     def gerar_minuta(
         intimacao_id: int,
-        payload: DraftRequest,
+        payload: DraftRequest | None = None,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> DraftResponse:
-        intimacao = session.get(models.Intimacao, intimacao_id)
-        if intimacao is None:
-            raise HTTPException(status_code=404, detail="intimação não encontrada")
+        intimacao = get_owned_or_404(session, models.Intimacao, intimacao_id, current)
+        payload = payload or DraftRequest()
 
         calendar = build_calendar(payload.calendar_years or _default_calendar_years())
         try:
@@ -761,6 +803,8 @@ def create_app() -> FastAPI:
             acao="minuta_gerada",
             entidade="peticao",
             entidade_id=peticao.id,
+            ator_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
             detalhe={
                 "intimacao_id": intimacao.id,
                 "tipo": classificacao.tipo,
@@ -780,10 +824,9 @@ def create_app() -> FastAPI:
         peticao_id: int,
         payload: EditPeticaoRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
-        peticao = session.get(models.Peticao, peticao_id)
-        if peticao is None:
-            raise HTTPException(status_code=404, detail="petição não encontrada")
+        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         if peticao.status == "protocolada":
             raise HTTPException(
                 status_code=409, detail="petição protocolada não pode ser editada"
@@ -803,7 +846,8 @@ def create_app() -> FastAPI:
                 acao="peticao_editada",
                 entidade="peticao",
                 entidade_id=peticao.id,
-                ator_id=payload.usuario_id,
+                ator_id=current.usuario_id,
+                escritorio_id=current.escritorio_id,
                 detalhe={"tipo": peticao.tipo, "alteracoes": alteracoes},
             )
         session.commit()
@@ -813,22 +857,21 @@ def create_app() -> FastAPI:
     @app.post("/peticoes/{peticao_id}/approve", response_model=PeticaoOut)
     def aprovar_peticao(
         peticao_id: int,
-        payload: ApprovePeticaoRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
-        peticao = session.get(models.Peticao, peticao_id)
-        if peticao is None:
-            raise HTTPException(status_code=404, detail="petição não encontrada")
+        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         if peticao.status == "protocolada":
             raise HTTPException(status_code=409, detail="petição já protocolada")
         peticao.status = "aprovada"
-        peticao.aprovada_por = payload.usuario_id
+        peticao.aprovada_por = current.usuario_id
         _audit(
             session,
             acao="peticao_aprovada",
             entidade="peticao",
             entidade_id=peticao.id,
-            ator_id=payload.usuario_id,
+            ator_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
             detalhe={"tipo": peticao.tipo},
         )
         session.commit()
@@ -839,10 +882,9 @@ def create_app() -> FastAPI:
     def marcar_protocolada(
         peticao_id: int,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
-        peticao = session.get(models.Peticao, peticao_id)
-        if peticao is None:
-            raise HTTPException(status_code=404, detail="petição não encontrada")
+        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         if peticao.status != "aprovada":
             raise HTTPException(status_code=409, detail="aprovação obrigatória antes do protocolo")
         peticao.status = "protocolada"
@@ -853,6 +895,7 @@ def create_app() -> FastAPI:
             entidade="peticao",
             entidade_id=peticao.id,
             ator_id=peticao.aprovada_por,
+            escritorio_id=current.escritorio_id,
             detalhe={"tipo": peticao.tipo},
         )
         session.commit()
@@ -864,7 +907,9 @@ def create_app() -> FastAPI:
         peticao_id: int,
         payload: ProtocolarAsyncRequest | None = None,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
+        get_owned_or_404(session, models.Peticao, peticao_id, current)
         credencial_id = payload.credencial_id if payload is not None else None
         try:
             job = run_fake_protocol_job(session, peticao_id, credencial_id=credencial_id)
@@ -881,10 +926,11 @@ def create_app() -> FastAPI:
     def chat(
         payload: ChatRequest,
         session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
     ) -> ChatResponse:
         contexto = None
         if payload.processo_id is not None:
-            proc = session.get(models.Processo, payload.processo_id)
+            proc = get_owned_or_404(session, models.Processo, payload.processo_id, current)
             if proc is not None:
                 contexto = {
                     "numero": proc.numero,

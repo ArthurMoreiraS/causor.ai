@@ -70,19 +70,13 @@ class DraftResponse(BaseModel):
     classificacao: dict
 
 
-class ApprovePeticaoRequest(BaseModel):
-    usuario_id: int
-
-
 class EditPeticaoRequest(BaseModel):
-    usuario_id: int = 1
     conteudo: str | None = None
     # aprovada/protocolada exigem os endpoints de gate; PATCH não atalha o gate.
     status: Literal["rascunho", "em_revisao"] | None = None
 
 
 class RevisarPrazoRequest(BaseModel):
-    usuario_id: int = 1
     descricao: str | None = None
     data_inicio: date | None = None
     dias: int | None = None
@@ -90,14 +84,9 @@ class RevisarPrazoRequest(BaseModel):
     data_fatal: date | None = None
 
 
-class MarcarPrazoCumpridoRequest(BaseModel):
-    usuario_id: int = 1
-
-
 class CaptureOabRequest(BaseModel):
     oab: str
     uf: str
-    escritorio_id: int | None = None
     dias_default: int = 15
     data_inicio: date | None = None
     data_fim: date | None = None
@@ -300,7 +289,6 @@ class OabMonitoradaOut(BaseModel):
 
 
 class OabMonitoradaCreate(BaseModel):
-    escritorio_id: int | None = None
     oab: str
     uf: str
     intervalo_horas: int = 12
