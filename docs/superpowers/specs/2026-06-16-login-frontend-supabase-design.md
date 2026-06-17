@@ -36,16 +36,17 @@ escritório+usuário+convite via linha de comando.
 
 ## Conta de teste
 
-- **Local/dev (agora):** Dra. Helena Moreira —
-  `helena.moreira@demo.causor.com.br`. É um usuário fictício criado pelo
+- **Conta fictícia única (dev e deploy):** **Arthur Santos** —
+  **`causorai@gmail.com`**. É o usuário advogado responsável criado pelo
   `backend/app/sor/seed_demo.py` (escritório "Moreira & Caldas Advogados (Demo)").
-  Convidá-la no Supabase + definir senha permite logar e cair direto no escritório
+  Convidá-lo no Supabase + definir senha permite logar e cair direto no escritório
   de demo já populado, exercitando auth + isolamento de tenant. O
-  *claim-on-first-login* do backend amarra o usuário Supabase ao `usuario` Helena
+  *claim-on-first-login* do backend amarra o usuário Supabase ao `usuario` Arthur
   já existente, pelo e-mail.
-- **Deploy (futuro):** ao subir para hospedagem, o banco será limpo e provisionada
-  apenas a conta dev do dono: **`causorai@gmail.com`**. O script de provisionamento
-  (próximo passo) deve nascer apontando para esse e-mail.
+- A Helena foi descontinuada como conta de teste a pedido do dono: o seed agora
+  nasce com `causorai@gmail.com` / Arthur Santos. Ao subir para hospedagem, o banco
+  será limpo mantendo apenas essa conta. O script de provisionamento (próximo passo)
+  reusa o mesmo e-mail.
 
 ## Componentes
 

@@ -775,7 +775,7 @@ Run (em `backend/`, com o `.env` carregado no ambiente):
 .\.venv\Scripts\alembic.exe upgrade head
 .\.venv\Scripts\python.exe -m app.cli seed-demo
 ```
-> Se `seed-demo` não for um subcomando do CLI, rodar o seed pela função `app.sor.seed_demo.seed_demo` (verificar `app/cli.py`). Expected: escritório "Moreira & Caldas Advogados (Demo)" e a usuária Helena existem no banco.
+> Expected: escritório "Moreira & Caldas Advogados (Demo)" e o usuário **Arthur Santos** (`causorai@gmail.com`) existem no banco. (O subcomando `seed-demo` existe — `tests/test_seed_demo.py::test_cli_has_seed_demo_subcommand`.)
 
 - [ ] **Step 3: Configurar URLs de redirect no Supabase (para o convite local)**
 
@@ -785,7 +785,7 @@ No painel Supabase: **Authentication → URL Configuration**. Definir, para test
 
 - [ ] **Step 4: Convidar a conta de teste (Helena)**
 
-No painel Supabase: **Authentication → Users → Invite user** → e-mail `helena.moreira@demo.causor.com.br`.
+No painel Supabase: **Authentication → Users → Invite user** → e-mail `causorai@gmail.com`.
 
 - [ ] **Step 5: Subir backend e frontend**
 
@@ -801,7 +801,7 @@ pnpm dev
 - [ ] **Step 6: Validar o fluxo end-to-end**
 
 1. Abrir o link do e-mail de convite → cai em `/set-password` → definir senha → redireciona para `/`.
-2. Se redirecionar para `/login`, entrar com `helena.moreira@demo.causor.com.br` + a senha definida.
+2. Se redirecionar para `/login`, entrar com `causorai@gmail.com` + a senha definida.
 3. Expected: o dashboard carrega com os dados da demo (processos, prazos, minutas), sem 401.
 4. Abrir o modal de Conta → clicar **Sair** → deve voltar para `/login`.
 5. Tentar abrir `http://localhost:3000/` sem sessão → deve redirecionar para `/login`.

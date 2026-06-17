@@ -190,8 +190,8 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
 
     advogada = models.Usuario(
         escritorio_id=escritorio.id,
-        nome="Dra. Helena Moreira",
-        email="helena.moreira@demo.causor.com.br",
+        nome="Arthur Santos",
+        email="causorai@gmail.com",
         oab="123456",
         oab_uf="SP",
     )
