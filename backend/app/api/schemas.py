@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class IntimacaoOut(BaseModel):
@@ -128,6 +128,12 @@ class ProtocolarAsyncRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     credencial_id: int | None = None
+    assinatura_modo: Literal["manual_pjeoffice", "cloud_certificate"] = "manual_pjeoffice"
+
+
+class ConfirmarProtocoloRequest(BaseModel):
+    protocolo: str = Field(min_length=3, max_length=100)
+    comprovante_uri: str | None = Field(default=None, max_length=1024)
 
 
 class CreateCredencialAssinaturaRequest(BaseModel):
@@ -135,6 +141,34 @@ class CreateCredencialAssinaturaRequest(BaseModel):
 
     provedor: str = Field(min_length=2, max_length=50)
     referencia_externa: str = Field(min_length=4, max_length=255)
+
+
+def _walk_keys(value):
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            yield key
+            yield from _walk_keys(nested)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _walk_keys(item)
+
+
+class CreatePjeSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tribunal: str = Field(min_length=2, max_length=50)
+    url_base: str = Field(min_length=10, max_length=255)
+    storage_state: dict = Field(min_length=1)
+    assinatura_modo: Literal["manual_pjeoffice", "cloud_certificate"] = "manual_pjeoffice"
+
+    @field_validator("storage_state")
+    @classmethod
+    def reject_password_like_keys(cls, value: dict) -> dict:
+        blocked = ("senha", "password", "pfx", "private_key", "chave_privada", "certificado")
+        serialized_keys = " ".join(str(key).lower() for key in _walk_keys(value))
+        if any(token in serialized_keys for token in blocked):
+            raise ValueError("storage_state nao pode conter senha/certificado/chave privada")
+        return value
 
 
 class CredencialAssinaturaOut(BaseModel):

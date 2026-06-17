@@ -10,6 +10,7 @@ from __future__ import annotations
 from pydantic import BaseModel, Field
 
 from app.agent.llm import LLMProvider, get_provider
+from app.settings import settings
 
 _SYSTEM = (
     "Você é um assistente jurídico especializado em direito processual brasileiro. "
@@ -35,7 +36,7 @@ def classify_intimacao(
     *,
     provider: LLMProvider | None = None,
 ) -> ClassificacaoIntimacao:
-    provider = provider or get_provider()
+    provider = provider or get_provider(model=settings.claude_classification_model)
     result = provider.complete_structured(
         system=_SYSTEM,
         user=f"Classifique a seguinte intimação:\n\n{texto}",

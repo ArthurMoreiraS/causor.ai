@@ -301,11 +301,29 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 /** Protocolo simulado via job assíncrono — retorna o job com comprovante. */
 export async function protocolarPeticaoAsync(
   peticaoId: number,
-  credencialId?: number
+  credencialId?: number,
+  assinaturaModo: "manual_pjeoffice" | "cloud_certificate" = "manual_pjeoffice"
 ): Promise<JobExecucao> {
   return request<JobExecucao>(`/peticoes/${peticaoId}/protocolar/async`, {
     method: "POST",
-    body: JSON.stringify(credencialId != null ? { credencial_id: credencialId } : {})
+    body: JSON.stringify({
+      ...(credencialId != null ? { credencial_id: credencialId } : {}),
+      assinatura_modo: assinaturaModo
+    })
+  });
+}
+
+export async function confirmarProtocoloManual(
+  peticaoId: number,
+  protocolo: string,
+  comprovanteUri?: string
+): Promise<Peticao> {
+  return request<Peticao>(`/peticoes/${peticaoId}/protocolar/confirmar`, {
+    method: "POST",
+    body: JSON.stringify({
+      protocolo,
+      ...(comprovanteUri ? { comprovante_uri: comprovanteUri } : {})
+    })
   });
 }
 

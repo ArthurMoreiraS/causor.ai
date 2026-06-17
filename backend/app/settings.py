@@ -15,10 +15,8 @@ BACKEND_DIR = Path(__file__).resolve().parents[1]
 REPO_DIR = BACKEND_DIR.parent
 
 # Load .env into the process environment at import time. pydantic-settings reads
-# the CAUSOR_* knobs below straight from the file, but the Anthropic and Gemini
-# SDKs read their keys (ANTHROPIC_API_KEY / GEMINI_API_KEY — no CAUSOR_ prefix)
-# directly from os.environ. Without this, those keys never reach the SDKs unless
-# the caller manually exports the .env, and /chat + /draft fail with a 503.
+# the CAUSOR_* knobs below straight from the file, while the Anthropic SDK reads
+# ANTHROPIC_API_KEY directly from os.environ.
 for _env_file in (REPO_DIR / ".env", BACKEND_DIR / ".env"):
     if _env_file.exists():
         load_dotenv(_env_file, override=False)
@@ -50,15 +48,21 @@ class Settings(BaseSettings):
     # tokens ES256 tambem podem ser validados pelo JWKS anunciado no issuer.
     supabase_jwt_secret: str = ""
 
-    # Agente / LLM. Classificacao + redacao de minuta passam por um provider
-    # plugavel; trocar de modelo no futuro e mudar estas vars, nao codigo.
-    llm_provider: str = "gemini"  # "gemini" (default) | "claude"
-    gemini_model: str = "gemini-2.5-flash"
-    claude_model: str = "claude-opus-4-8"
+    # Agente / LLM. O Causor usa Claude; modelos por tarefa mantem custo baixo:
+    # Haiku for routine chat/classification; Sonnet for legal drafting quality.
+    claude_model: str = "claude-sonnet-4-6"
+    claude_chat_model: str = "claude-haiku-4-5"
+    claude_classification_model: str = "claude-haiku-4-5"
+    claude_draft_model: str = "claude-sonnet-4-6"
 
     # Capture scheduling
     capture_lookback_days: int = 3
     capture_intervalo_horas_default: int = 12
+
+    # Vault. Localdev stores only deterministic non-secret references. In
+    # production, set to "supabase" so sensitive connector/session material goes
+    # into the Supabase Vault extension instead of the SOR tables.
+    vault_provider: str = "localdev"  # "localdev" | "supabase"
 
 
 settings = Settings()

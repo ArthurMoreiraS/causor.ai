@@ -51,7 +51,7 @@ Frontend (`/frontend`): Next.js (TypeScript) + React — inbox of intimations, d
 - Data: PostgreSQL. Queue/cache: Redis + Celery/RQ.
 - Frontend: Next.js (TypeScript) + React.
 - Deadline engine base: `workalendar` / `python-holidays` for Brazilian holidays.
-- Claude model: `claude-opus-4-8` with adaptive thinking, `effort: "high"`. Consult the `claude-api` skill for SDK details (tool use, `client.messages.create`) before writing agent code.
+- Claude models: `claude-haiku-4-5` for chat/classification and `claude-sonnet-4-6` for drafting. Avoid premium models in the default/test path.
 
 ## Non-negotiable constraints
 

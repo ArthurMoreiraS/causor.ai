@@ -709,6 +709,68 @@ def test_protocolar_async_com_credencial_inativa_retorna_409(client, db_session,
     assert peticao.status == "aprovada"
 
 
+def test_protocolar_async_pje_prepara_sem_marcar_protocolada(client, db_session, seeded):
+    seeded.sistema = "PJe"
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=7,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "completed"
+    assert body["payload"]["sistema"] == "PJe"
+    assert body["payload"]["modo"] == "pje_assistido_playwright"
+    assert body["resultado"]["checkpoint"] == "ready_to_sign"
+    assert body["resultado"]["irreversible"] is False
+    assert "protocolo" not in body["resultado"]
+
+    db_session.refresh(peticao)
+    assert peticao.status == "aprovada"
+    assert peticao.protocolada_em is None
+
+    audit = db_session.query(models.AuditLog).filter_by(
+        acao="peticao_protocolo_preparado"
+    ).one()
+    assert audit.detalhe["checkpoint"] == "ready_to_sign"
+
+
+def test_confirmar_protocolo_pje_marca_protocolada_e_audita(client, db_session, seeded):
+    seeded.sistema = "PJe"
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=7,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    resp = client.post(
+        f"/peticoes/{peticao.id}/protocolar/confirmar",
+        json={"protocolo": "PJE-2026-0001", "comprovante_uri": "s3://comprovante.pdf"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "protocolada"
+    assert body["protocolada_em"] is not None
+
+    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
+    assert audit.detalhe["protocolo"] == "PJE-2026-0001"
+    assert audit.detalhe["origem"] == "pje_assistido"
+
+
 def test_cadastrar_listar_e_desativar_credencial_assinatura(client, db_session, seeded):
     usuario = models.Usuario(
         escritorio_id=seeded.escritorio_id,
@@ -761,6 +823,49 @@ def test_credencial_assinatura_rejeita_campo_de_segredo(client, db_session, seed
             "provedor": "A1",
             "referencia_externa": "provider-ref",
             "senha_pfx": "nao-pode-vazar",
+        },
+    )
+
+    assert resp.status_code == 422
+    assert db_session.query(models.CredencialAssinatura).count() == 0
+
+
+def test_cadastrar_sessao_pje_guarda_referencia_sem_vazar_storage_state(client, db_session, seeded):
+    usuario = db_session.query(models.Usuario).first()
+    storage_state = {
+        "cookies": [{"name": "JSESSIONID", "value": "cookie-super-sensivel"}],
+        "origins": [],
+    }
+
+    resp = client.post(
+        f"/usuarios/{usuario.id}/pje-sessoes",
+        json={
+            "tribunal": "TRF3",
+            "url_base": "https://pje1g.trf3.jus.br/pje",
+            "storage_state": storage_state,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["provedor"] == "PJeSession"
+    assert body["referencia_vault"].startswith("localdev://assinatura/")
+    assert "cookie-super-sensivel" not in str(body)
+
+    audit = db_session.query(models.AuditLog).filter_by(acao="sessao_pje_cadastrada").one()
+    assert audit.detalhe == {"tribunal": "TRF3", "assinatura": "manual_pjeoffice"}
+    assert "cookie-super-sensivel" not in str(audit.detalhe)
+
+
+def test_cadastrar_sessao_pje_rejeita_senha_ou_certificado(client, db_session, seeded):
+    usuario = db_session.query(models.Usuario).first()
+
+    resp = client.post(
+        f"/usuarios/{usuario.id}/pje-sessoes",
+        json={
+            "tribunal": "TRF3",
+            "url_base": "https://pje1g.trf3.jus.br/pje",
+            "storage_state": {"cookies": [], "senha_pje": "nao"},
         },
     )
 

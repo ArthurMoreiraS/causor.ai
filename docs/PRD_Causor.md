@@ -78,7 +78,7 @@ Cálculo **determinístico** (`compute_deadline` sobre `ForensicCalendar`): cont
 Clientes **DJEN/Comunica** (intimações) e **DataJud** (metadados/andamentos), normalização e orquestração `poll_oab` (captura por OAB/UF, dedupe por `fonte/fonte_id`, vincula processo, dispara cálculo de prazo). Testes de integração ao vivo opt-in (`RUN_LIVE=1`).
 
 ### 5.4 Camada de agente (`backend/app/agent`) — ✅ parcial
-- **Classificador** (`claude-opus-4-8`, adaptive thinking, effort high, structured output): interpreta o teor da intimação → tipo do ato, peça cabível, prazo em dias, dias úteis vs. corridos, confiança. O **cálculo da data continua determinístico**.
+- **Classificador** (`claude-haiku-4-5`, structured output): interpreta o teor da intimação → tipo do ato, peça cabível, prazo em dias, dias úteis vs. corridos, confiança. O **cálculo da data continua determinístico**.
 - **Drafter:** gera rascunho de peça a partir do teor + classificação.
 - **Assistente agêntico** (`chat`): loop de tool use com ferramentas de **leitura** (listar prazos, buscar processo, ler intimação) e **proposta de ação** (gerar minuta, marcar prazo cumprido, aprovar petição). **Protocolar nunca é ferramenta do agente.** Segredos e rascunhos sensíveis não entram no contexto do modelo.
 

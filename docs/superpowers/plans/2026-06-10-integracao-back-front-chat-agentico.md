@@ -6,7 +6,7 @@
 
 **Architecture:** O backend roda um loop de tool-use do Claude em `POST /chat`: ferramentas de **leitura** executam contra o SOR; ferramentas de **ação** são interceptadas e devolvidas como *propostas* que o front renderiza como cards de confirmação (a execução real usa os endpoints REST existentes, auditada como `usuario:N`). `protocolar` nunca é exposto como ferramenta. Conversas são stateless (o front guarda o histórico).
 
-**Tech Stack:** Python 3 / FastAPI / SQLAlchemy / `anthropic` SDK (manual agentic loop, `claude-opus-4-8`, adaptive thinking) / pytest. Frontend Next.js + TypeScript.
+**Tech Stack:** Python 3 / FastAPI / SQLAlchemy / `anthropic` SDK (manual agentic loop) / pytest. Frontend Next.js + TypeScript.
 
 **Convenções de comando (rodar de `/backend`):**
 - Testes: `./.venv/Scripts/python.exe -m pytest -q`
@@ -14,7 +14,7 @@
 - Lint: `./.venv/Scripts/python.exe -m ruff check .`
 - Frontend type-check (de `/frontend`): `npx tsc --noEmit`
 
-**Nota de modelo:** o assistente usa `claude-opus-4-8` por padrão (constante `_MODEL`), com o parâmetro `model` injetável — o usuário trocará por um modelo mais barato depois sem mexer no resto.
+**Nota de modelo:** o assistente usa modelo Claude configurável; o padrão atual usa Haiku para chat/classificação e Sonnet para minuta.
 
 ---
 

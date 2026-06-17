@@ -20,6 +20,7 @@ export default function ProtocolarModal({
   const [credenciais, setCredenciais] = useState<CredencialAssinatura[]>([]);
   const [credencialId, setCredencialId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const isPje = processo?.sistema?.toLowerCase() === "pje";
 
   useEffect(() => {
     let cancelled = false;
@@ -52,11 +53,19 @@ export default function ProtocolarModal({
 
         <div className="protocolarAviso">
           <AlertTriangle size={16} />
-          <span>
-            O protocolo é o ato irreversível do fluxo. Esta execução é{" "}
-            <strong>simulada</strong> — conector PJe em desenvolvimento — mas o gate e a
-            auditoria funcionam como no fluxo real.
-          </span>
+          {isPje ? (
+            <span>
+              O Causor prepara o protocolo PJe assistido e para em{" "}
+              <strong>ready_to_sign</strong>. A assinatura/envio final acontece no PJe/PJeOffice;
+              depois registre o número do protocolo.
+            </span>
+          ) : (
+            <span>
+              O protocolo é o ato irreversível do fluxo. Esta execução é{" "}
+              <strong>simulada</strong> para sistemas sem conector real, mas o gate e a auditoria
+              funcionam como no fluxo real.
+            </span>
+          )}
         </div>
 
         <label className="protocolarCredencial">
@@ -78,8 +87,8 @@ export default function ProtocolarModal({
             </select>
           ) : (
             <span className="protocolarHint">
-              <LockKeyhole size={13} /> Nenhuma credencial ativa no vault — o protocolo simulado
-              segue sem assinatura. Cadastre em Configurações → Vault.
+              <LockKeyhole size={13} /> Nenhuma credencial ativa no vault. No PJe assistido, o
+              advogado pode assinar manualmente no PJe/PJeOffice.
             </span>
           )}
         </label>
@@ -94,7 +103,7 @@ export default function ProtocolarModal({
             onClick={() => onConfirm(credencialId)}
           >
             {busy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
-            Confirmar protocolo (simulado)
+            {isPje ? "Preparar no PJe" : "Confirmar protocolo (simulado)"}
           </button>
         </div>
       </div>

@@ -25,7 +25,9 @@ from app.api.schemas import (
     CaptureResultOut,
     ChatRequest,
     ChatResponse,
+    ConfirmarProtocoloRequest,
     CreateCredencialAssinaturaRequest,
+    CreatePjeSessionRequest,
     CredencialAssinaturaOut,
     DraftRequest,
     DraftResponse,
@@ -57,9 +59,12 @@ from app.queue.jobs import (
     CredencialNaoEncontradaError,
     JobNotFoundError,
     PeticaoNotFoundError,
+    UnsupportedFilingSystemError,
     create_job,
     get_job,
+    confirm_manual_protocol,
     run_fake_protocol_job,
+    run_pje_assisted_protocol_job,
 )
 from app.settings import settings
 from app.sor import models
@@ -67,8 +72,10 @@ from app.sor.db import get_session
 from app.vault.service import (
     CredencialNotFoundError,
     UsuarioNotFoundError,
+    VaultProviderError,
     deactivate_signature_credential,
     list_signature_credentials,
+    store_pje_session_reference,
     store_signature_reference,
 )
 
@@ -459,6 +466,34 @@ def create_app() -> FastAPI:
             )
         except CredencialNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        session.commit()
+        session.refresh(credencial)
+        return credencial
+
+    @app.post(
+        "/usuarios/{usuario_id}/pje-sessoes",
+        response_model=CredencialAssinaturaOut,
+    )
+    def cadastrar_sessao_pje(
+        usuario_id: int,
+        payload: CreatePjeSessionRequest,
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> models.CredencialAssinatura:
+        get_owned_or_404(session, models.Usuario, usuario_id, current)
+        try:
+            credencial = store_pje_session_reference(
+                session,
+                usuario_id=usuario_id,
+                tribunal=payload.tribunal,
+                url_base=payload.url_base,
+                storage_state=payload.storage_state,
+                signature_mode=payload.assinatura_modo,
+            )
+        except UsuarioNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except VaultProviderError as exc:
+            raise HTTPException(status_code=503, detail=str(exc)) from exc
         session.commit()
         session.refresh(credencial)
         return credencial
@@ -885,18 +920,56 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
-        get_owned_or_404(session, models.Peticao, peticao_id, current)
+        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         credencial_id = payload.credencial_id if payload is not None else None
+        assinatura_modo = payload.assinatura_modo if payload is not None else "manual_pjeoffice"
         try:
-            job = run_fake_protocol_job(session, peticao_id, credencial_id=credencial_id)
+            if (peticao.processo.sistema or "").strip().lower() == "pje":
+                job = run_pje_assisted_protocol_job(
+                    session,
+                    peticao_id,
+                    credencial_id=credencial_id,
+                    assinatura_modo=assinatura_modo,
+                )
+            else:
+                job = run_fake_protocol_job(session, peticao_id, credencial_id=credencial_id)
         except (PeticaoNotFoundError, CredencialNaoEncontradaError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except (AlreadyFiledError, ApprovalRequiredError, CredencialInativaError) as exc:
+        except (
+            AlreadyFiledError,
+            ApprovalRequiredError,
+            CredencialInativaError,
+            UnsupportedFilingSystemError,
+        ) as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
 
         session.commit()
         session.refresh(job)
         return job
+
+    @app.post("/peticoes/{peticao_id}/protocolar/confirmar", response_model=PeticaoOut)
+    def confirmar_protocolo_peticao(
+        peticao_id: int,
+        payload: ConfirmarProtocoloRequest,
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> models.Peticao:
+        get_owned_or_404(session, models.Peticao, peticao_id, current)
+        try:
+            peticao = confirm_manual_protocol(
+                session,
+                peticao_id,
+                protocolo=payload.protocolo,
+                comprovante_uri=payload.comprovante_uri,
+            )
+        except PeticaoNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except (AlreadyFiledError, ApprovalRequiredError) as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+        session.commit()
+        session.refresh(peticao)
+        return peticao
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(

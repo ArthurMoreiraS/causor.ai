@@ -10,7 +10,9 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from app.connectors.pje.connector import PjeAssistedConnector
 from app.capture.poll import poll_oab
+from app.filing.package import build_pje_package
 from app.sor import models
 
 
@@ -40,6 +42,10 @@ class CredencialNaoEncontradaError(JobError):
 
 class CredencialInativaError(JobError):
     """Raised when a filing job references a deactivated signature credential."""
+
+
+class UnsupportedFilingSystemError(JobError):
+    """Raised when a real connector is requested for an unsupported court system."""
 
 
 def _utcnow() -> datetime:
@@ -256,3 +262,127 @@ def run_fake_protocol_job(
         detalhe=detalhe,
     )
     return job
+
+
+def _validate_signature_credential(
+    session: Session,
+    credencial_id: int | None,
+) -> None:
+    if credencial_id is None:
+        return
+    credencial = session.get(models.CredencialAssinatura, credencial_id)
+    if credencial is None:
+        raise CredencialNaoEncontradaError("credencial de assinatura nao encontrada")
+    if not credencial.ativo:
+        raise CredencialInativaError("credencial de assinatura desativada")
+
+
+def run_pje_assisted_protocol_job(
+    session: Session,
+    peticao_id: int,
+    *,
+    credencial_id: int | None = None,
+    assinatura_modo: str = "manual_pjeoffice",
+    connector: PjeAssistedConnector | None = None,
+) -> models.JobExecucao:
+    """Prepare a PJe filing and stop before the irreversible signature/submit.
+
+    The lawyer logs into/signs inside PJe/PJeOffice or via a future cloud
+    certificate adapter. This job records the auditable checkpoint but does not
+    mark the petition as filed.
+    """
+    peticao = session.get(models.Peticao, peticao_id)
+    if peticao is None:
+        raise PeticaoNotFoundError("peticao nao encontrada")
+    if peticao.status == "protocolada":
+        raise AlreadyFiledError("peticao ja protocolada")
+    if peticao.status != "aprovada":
+        raise ApprovalRequiredError("aprovacao obrigatoria antes do protocolo")
+    if (peticao.processo.sistema or "").strip().lower() != "pje":
+        raise UnsupportedFilingSystemError("processo nao esta marcado como PJe")
+
+    _validate_signature_credential(session, credencial_id)
+    payload: dict = {
+        "peticao_id": peticao.id,
+        "sistema": "PJe",
+        "modo": "pje_assistido_playwright",
+        "assinatura": assinatura_modo,
+    }
+    if credencial_id is not None:
+        payload["credencial_id"] = credencial_id
+
+    job = create_job(
+        session,
+        tipo="protocolo_peticao",
+        entidade="peticao",
+        entidade_id=peticao.id,
+        payload=payload,
+        ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
+    )
+    mark_running(session, job)
+
+    package = build_pje_package(peticao, credencial_id=credencial_id)
+    checkpoint = (connector or PjeAssistedConnector()).prepare_filing(
+        package, signature_mode=assinatura_modo
+    )
+    resultado = {
+        "peticao_id": peticao.id,
+        "sistema": "PJe",
+        "modo": checkpoint.modo,
+        "checkpoint": checkpoint.checkpoint,
+        "irreversible": checkpoint.irreversible,
+        "next_action": checkpoint.next_action,
+        "evidence": checkpoint.evidence,
+    }
+    mark_completed(session, job, resultado)
+    _audit(
+        session,
+        acao="peticao_protocolo_preparado",
+        entidade="peticao",
+        entidade_id=peticao.id,
+        ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
+        escritorio_id=peticao.escritorio_id,
+        detalhe={
+            "job_id": job.id,
+            "sistema": "PJe",
+            "checkpoint": checkpoint.checkpoint,
+            "assinatura": assinatura_modo,
+            "credencial_id": credencial_id,
+        },
+    )
+    return job
+
+
+def confirm_manual_protocol(
+    session: Session,
+    peticao_id: int,
+    *,
+    protocolo: str,
+    comprovante_uri: str | None = None,
+) -> models.Peticao:
+    """Record the final PJe protocol after the lawyer signs/submits externally."""
+    peticao = session.get(models.Peticao, peticao_id)
+    if peticao is None:
+        raise PeticaoNotFoundError("peticao nao encontrada")
+    if peticao.status == "protocolada":
+        raise AlreadyFiledError("peticao ja protocolada")
+    if peticao.status != "aprovada":
+        raise ApprovalRequiredError("aprovacao obrigatoria antes do protocolo")
+
+    peticao.status = "protocolada"
+    peticao.protocolada_em = _utcnow()
+    _audit(
+        session,
+        acao="peticao_protocolada",
+        entidade="peticao",
+        entidade_id=peticao.id,
+        ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
+        escritorio_id=peticao.escritorio_id,
+        detalhe={
+            "tipo": peticao.tipo,
+            "protocolo": protocolo,
+            "comprovante_uri": comprovante_uri,
+            "origem": "pje_assistido",
+        },
+    )
+    return peticao

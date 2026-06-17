@@ -69,8 +69,8 @@ export default function ProtocolosView({
         <div>
           <strong>Jobs de protocolo</strong>
           <span className="protocolHint">
-            Simulado — conector PJe em desenvolvimento. Cada job preserva o gate humano e gera
-            eventos na auditoria.
+            PJe assistido prepara até ready_to_sign; sistemas sem conector seguem simulados. Cada
+            job preserva o gate humano e gera eventos na auditoria.
           </span>
         </div>
         <button className="toolbarButton compact" disabled={offline || busy} onClick={() => void reload()}>
@@ -84,6 +84,7 @@ export default function ProtocolosView({
           const { peticao, processo } = contexto(job);
           const comprovante = job.resultado?.protocolo ? String(job.resultado.protocolo) : null;
           const checkpoint = job.resultado?.checkpoint ? String(job.resultado.checkpoint) : null;
+          const nextAction = job.resultado?.next_action ? String(job.resultado.next_action) : null;
           return (
             <article className={`protocolCard ${job.status}`} key={job.id}>
               <header>
@@ -117,6 +118,7 @@ export default function ProtocolosView({
                 </div>
               </dl>
               {checkpoint ? <p className="protocolCheckpoint">{checkpoint}</p> : null}
+              {nextAction ? <p className="protocolCheckpoint">{nextAction}</p> : null}
               {job.erro ? <p className="protocolError">{job.erro}</p> : null}
             </article>
           );

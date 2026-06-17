@@ -15,7 +15,6 @@ dependencies = [
     "httpx>=0.27",
     "workalendar>=17.0",
     "anthropic>=0.40",
-    "google-genai>=1.0",
     "pyjwt>=2.8",
     "cryptography>=42",
 ]

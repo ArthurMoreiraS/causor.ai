@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.llm import LLMProvider, get_provider
+from app.settings import settings
 
 # Only non-sensitive process metadata may reach the prompt. Secrets
 # (certificate passwords, signing credentials) live in the vault and must never
@@ -32,7 +33,7 @@ def draft_peticao(
     template_conteudo: str | None = None,
     provider: LLMProvider | None = None,
 ) -> str:
-    provider = provider or get_provider()
+    provider = provider or get_provider(model=settings.claude_draft_model)
 
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = "\n".join(f"- {k}: {v}" for k, v in contexto.items())

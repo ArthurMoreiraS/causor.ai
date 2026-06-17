@@ -18,8 +18,10 @@ Pré-requisito: repo no GitHub (já está) e conta no Render.
 4. **Environment variables** (Settings → Environment):
    - `CAUSOR_DATABASE_URL` = string do Supabase (`postgresql+psycopg://...`)
    - `CAUSOR_DATAJUD_API_KEY` = chave pública do CNJ
-   - `GEMINI_API_KEY` = chave do Gemini (assistente)
-   - `ANTHROPIC_API_KEY` = chave do Claude (minuta) — opcional sem créditos
+   - `ANTHROPIC_API_KEY` = chave do Claude
+   - `CAUSOR_CLAUDE_CHAT_MODEL` = `claude-haiku-4-5`
+   - `CAUSOR_CLAUDE_CLASSIFICATION_MODEL` = `claude-haiku-4-5`
+   - `CAUSOR_CLAUDE_DRAFT_MODEL` = `claude-sonnet-4-6`
    - `CAUSOR_CORS_ORIGINS` = `https://<seu-front>.vercel.app` (ou seu domínio)
 5. Deploy. Teste: `GET https://<seu-back>.onrender.com/health` → `{"status":"ok"}`.
 
