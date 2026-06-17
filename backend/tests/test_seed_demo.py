@@ -126,6 +126,21 @@ def test_seed_is_idempotent(db_session):
         assert again == first, f"{model.__tablename__} duplicou: {first} -> {again}"
 
 
+def test_seed_sets_tenant_escritorio_on_all_records(db_session):
+    """Isolamento por tenant filtra por escritorio_id; sem ele, intimações,
+    prazos e petições somem da UI após o login (tenant_select retorna vazio)."""
+    result = _seed(db_session)
+
+    for model in (models.Intimacao, models.Prazo, models.Peticao):
+        rows = db_session.scalars(select(model)).all()
+        assert rows, f"{model.__tablename__} vazio no seed"
+        sem_tenant = [r for r in rows if r.escritorio_id is None]
+        assert not sem_tenant, (
+            f"{model.__tablename__}: {len(sem_tenant)} registros sem escritorio_id"
+        )
+        assert all(r.escritorio_id == result.escritorio_id for r in rows)
+
+
 def test_cli_has_seed_demo_subcommand():
     from app.cli import _build_parser
 

@@ -237,6 +237,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         dias_atras: int,
     ) -> models.Intimacao:
         intimacao = models.Intimacao(
+            escritorio_id=escritorio.id,
             processo_id=processo.id,
             fonte="DJEN",
             fonte_id=f"demo-{processo.numero}-{idx}",
@@ -263,6 +264,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         cumprido: bool = False,
     ) -> models.Prazo:
         prazo = models.Prazo(
+            escritorio_id=escritorio.id,
             processo_id=processo.id,
             intimacao_id=intimacao.id if intimacao is not None else None,
             descricao=descricao,
@@ -289,6 +291,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
     )
     _prazo(processos[0], int_citacao, descricao="Contestação", vence_em=1)
     pet_contestacao = models.Peticao(
+        escritorio_id=escritorio.id,
         processo_id=processos[0].id,
         prazo_id=None,
         tipo="Contestação",
@@ -320,6 +323,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
     )
     session.add(
         models.Peticao(
+            escritorio_id=escritorio.id,
             processo_id=processos[1].id,
             tipo="Manifestação sobre laudo pericial",
             status="rascunho",
@@ -351,6 +355,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         dias=5,
     )
     pet_embargos = models.Peticao(
+        escritorio_id=escritorio.id,
         processo_id=processos[2].id,
         tipo="Embargos de declaração",
         status="aprovada",
@@ -383,6 +388,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         cumprido=True,
     )
     pet_replica = models.Peticao(
+        escritorio_id=escritorio.id,
         processo_id=processos[3].id,
         tipo="Réplica",
         status="aprovada",
