@@ -7,10 +7,9 @@ in the deterministic prazo_engine; this only produces the inputs to it.
 
 from __future__ import annotations
 
-import anthropic
 from pydantic import BaseModel, Field
 
-_MODEL = "claude-opus-4-8"
+from app.agent.llm import LLMProvider, get_provider
 
 _SYSTEM = (
     "Você é um assistente jurídico especializado em direito processual brasileiro. "
@@ -34,22 +33,12 @@ class ClassificacaoIntimacao(BaseModel):
 def classify_intimacao(
     texto: str,
     *,
-    client: anthropic.Anthropic | None = None,
-    model: str = _MODEL,
+    provider: LLMProvider | None = None,
 ) -> ClassificacaoIntimacao:
-    client = client or anthropic.Anthropic()
-    response = client.messages.parse(
-        model=model,
-        max_tokens=2000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
+    provider = provider or get_provider()
+    result = provider.complete_structured(
         system=_SYSTEM,
-        messages=[
-            {
-                "role": "user",
-                "content": f"Classifique a seguinte intimação:\n\n{texto}",
-            }
-        ],
-        output_format=ClassificacaoIntimacao,
+        user=f"Classifique a seguinte intimação:\n\n{texto}",
+        schema=ClassificacaoIntimacao,
     )
-    return response.parsed_output
+    return result

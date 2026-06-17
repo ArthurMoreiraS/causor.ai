@@ -6,11 +6,8 @@ API/peticao status flow). This keeps the lawyer professionally responsible.
 
 from __future__ import annotations
 
-import anthropic
-
 from app.agent.classifier import ClassificacaoIntimacao
-
-_MODEL = "claude-opus-4-8"
+from app.agent.llm import LLMProvider, get_provider
 
 # Only non-sensitive process metadata may reach the prompt. Secrets
 # (certificate passwords, signing credentials) live in the vault and must never
@@ -33,10 +30,9 @@ def draft_peticao(
     classificacao: ClassificacaoIntimacao,
     contexto_processo: dict,
     template_conteudo: str | None = None,
-    client: anthropic.Anthropic | None = None,
-    model: str = _MODEL,
+    provider: LLMProvider | None = None,
 ) -> str:
-    client = client or anthropic.Anthropic()
+    provider = provider or get_provider()
 
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = "\n".join(f"- {k}: {v}" for k, v in contexto.items())
@@ -57,12 +53,4 @@ def draft_peticao(
         f"Redija a minuta da {classificacao.peticao_sugerida}."
     )
 
-    response = client.messages.create(
-        model=model,
-        max_tokens=8000,
-        thinking={"type": "adaptive"},
-        output_config={"effort": "high"},
-        system=_SYSTEM,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return "".join(block.text for block in response.content if block.type == "text")
+    return provider.complete_text(system=_SYSTEM, user=prompt, max_tokens=8000)

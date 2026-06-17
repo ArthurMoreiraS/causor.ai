@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # tokens ES256 tambem podem ser validados pelo JWKS anunciado no issuer.
     supabase_jwt_secret: str = ""
 
+    # Agente / LLM. Classificacao + redacao de minuta passam por um provider
+    # plugavel; trocar de modelo no futuro e mudar estas vars, nao codigo.
+    llm_provider: str = "gemini"  # "gemini" (default) | "claude"
+    gemini_model: str = "gemini-2.5-flash"
+    claude_model: str = "claude-opus-4-8"
+
     # Capture scheduling
     capture_lookback_days: int = 3
     capture_intervalo_horas_default: int = 12
