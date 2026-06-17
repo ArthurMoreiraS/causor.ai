@@ -14,9 +14,17 @@ export default function SetPasswordPage() {
 
   useEffect(() => {
     // O link de convite/recuperação do Supabase abre uma sessão de recovery
-    // (detectSessionInUrl=true no cliente). Só liberamos o form quando ela existe.
-    supabase.auth.getSession().then(({ data }) => setReady(!!data.session));
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setReady(!!s));
+    // (detectSessionInUrl=true). getSession pode resolver antes de a sessão
+    // existir, então também ligamos via onAuthStateChange. Só LIGAMOS o gate
+    // (nunca desligamos aqui) para evitar a corrida deixar o form travado.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setReady(true);
+    });
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || s) {
+        setReady(true);
+      }
+    });
     return () => sub.subscription.unsubscribe();
   }, []);
 

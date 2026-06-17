@@ -1,12 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "../AuthProvider";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { session } = useAuth();
+  useEffect(() => {
+    if (session) router.replace("/");
+  }, [session, router]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);

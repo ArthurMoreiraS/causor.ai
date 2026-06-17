@@ -1,6 +1,7 @@
 "use client";
 
 import { LogOut, X } from "lucide-react";
+import { useAuth } from "../AuthProvider";
 
 export default function ProfileModal({
   onClose,
@@ -9,6 +10,10 @@ export default function ProfileModal({
   onClose: () => void;
   onSignOut: () => void | Promise<void>;
 }) {
+  const { user } = useAuth();
+  const email = user?.email ?? "";
+  const initials = email ? email.slice(0, 2).toUpperCase() : "··";
+
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalCard settingsCard" onClick={(e) => e.stopPropagation()}>
@@ -19,9 +24,9 @@ export default function ProfileModal({
           </button>
         </header>
         <div className="profileCard">
-          <div className="avatar large">AM</div>
+          <div className="avatar large">{initials}</div>
           <div>
-            <strong>Sessão ativa</strong>
+            <strong>{email || "Sessão ativa"}</strong>
             <span>Você está autenticado via Supabase.</span>
           </div>
         </div>
