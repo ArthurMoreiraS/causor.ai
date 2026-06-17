@@ -1,3 +1,6 @@
+import { supabase } from "./supabase";
+import { withAuthHeaders } from "./auth-headers";
+
 export type Intimacao = {
   id: number;
   processo_id: number | null;
@@ -193,14 +196,26 @@ export type DashboardData = {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const headers = withAuthHeaders(
+    {
+      "Content-Type": "application/json",
+      ...((init?.headers as Record<string, string>) ?? {})
+    },
+    token
+  );
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {})
-    },
+    headers,
     cache: "no-store"
   });
+  if (response.status === 401) {
+    if (typeof window !== "undefined") {
+      window.location.href = "/login";
+    }
+    throw new Error("Sessão expirada");
+  }
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || `Request failed: ${response.status}`);
@@ -281,10 +296,6 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
     method: "POST",
     body: JSON.stringify({ usuario_id: usuarioId })
   });
-}
-
-export async function protocolarPeticao(peticaoId: number): Promise<void> {
-  await request(`/peticoes/${peticaoId}/protocolar`, { method: "POST" });
 }
 
 /** Protocolo simulado via job assíncrono — retorna o job com comprovante. */
