@@ -3,11 +3,7 @@
 import { Check, Copy, Loader2, RotateCcw, Save, X } from "lucide-react";
 import { useState } from "react";
 import type { Peticao, Prazo, Processo } from "@/lib/api";
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(value));
-}
+import { formatDate } from "@/lib/format";
 
 export default function MinutaEditor({
   peticao,

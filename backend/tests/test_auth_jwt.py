@@ -4,6 +4,8 @@ import time
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric import ec
 from fastapi import HTTPException
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
@@ -22,10 +24,34 @@ def _token(sub: str, email: str, exp_delta: int = 3600) -> str:
     return jwt.encode(payload, SECRET, algorithm="HS256")
 
 
+def _es256_token(sub: str, email: str, private_key, exp_delta: int = 3600) -> str:
+    payload = {
+        "sub": sub,
+        "email": email,
+        "aud": "authenticated",
+        "iss": "https://example.supabase.co/auth/v1",
+        "exp": int(time.time()) + exp_delta,
+    }
+    return jwt.encode(payload, private_key, algorithm="ES256", headers={"kid": "test-key"})
+
+
 @pytest.fixture
 def _secret(monkeypatch):
     from app.auth import jwt_auth
     monkeypatch.setattr(jwt_auth.settings, "supabase_jwt_secret", SECRET)
+
+
+@pytest.fixture
+def _p256_key(monkeypatch):
+    from app.auth import jwt_auth
+
+    private_key = ec.generate_private_key(ec.SECP256R1())
+    public_pem = private_key.public_key().public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    monkeypatch.setattr(jwt_auth.settings, "supabase_jwt_secret", public_pem.decode())
+    return private_key
 
 
 def _make_user(db_session, sub=None, email="a@b.com"):
@@ -42,6 +68,14 @@ def test_token_valido_resolve_usuario(db_session, _secret):
     esc, u = _make_user(db_session, sub="sub-1", email="a@b.com")
     cur = get_current_user(authorization=f"Bearer {_token('sub-1', 'a@b.com')}", session=db_session)
     assert isinstance(cur, CurrentUser)
+    assert cur.usuario_id == u.id
+    assert cur.escritorio_id == esc.id
+
+
+def test_token_es256_p256_resolve_usuario(db_session, _p256_key):
+    esc, u = _make_user(db_session, sub="sub-1", email="a@b.com")
+    token = _es256_token("sub-1", "a@b.com", _p256_key)
+    cur = get_current_user(authorization=f"Bearer {token}", session=db_session)
     assert cur.usuario_id == u.id
     assert cur.escritorio_id == esc.id
 

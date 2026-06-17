@@ -17,35 +17,43 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("usuario", sa.Column("supabase_user_id", sa.String(length=36), nullable=True))
-    op.create_unique_constraint("uq_usuario_supabase_user_id", "usuario", ["supabase_user_id"])
+    with op.batch_alter_table("usuario") as batch_op:
+        batch_op.add_column(sa.Column("supabase_user_id", sa.String(length=36), nullable=True))
+        batch_op.create_unique_constraint("uq_usuario_supabase_user_id", ["supabase_user_id"])
 
     for tabela in ("intimacao", "prazo", "peticao"):
-        op.add_column(tabela, sa.Column("escritorio_id", sa.Integer(), nullable=True))
-        op.create_foreign_key(
-            f"fk_{tabela}_escritorio", tabela, "escritorio", ["escritorio_id"], ["id"]
-        )
-        op.create_index(f"ix_{tabela}_escritorio_id", tabela, ["escritorio_id"])
+        with op.batch_alter_table(tabela) as batch_op:
+            batch_op.add_column(sa.Column("escritorio_id", sa.Integer(), nullable=True))
+            batch_op.create_foreign_key(
+                f"fk_{tabela}_escritorio", "escritorio", ["escritorio_id"], ["id"]
+            )
+            batch_op.create_index(f"ix_{tabela}_escritorio_id", ["escritorio_id"])
 
-    # Backfill via join no processo (Postgres).
+    # Backfill via correlated subquery; portable across SQLite and Postgres.
     op.execute(
-        "UPDATE prazo SET escritorio_id = p.escritorio_id "
-        "FROM processo p WHERE prazo.processo_id = p.id"
+        "UPDATE prazo SET escritorio_id = ("
+        "SELECT p.escritorio_id FROM processo p WHERE p.id = prazo.processo_id"
+        ") WHERE processo_id IS NOT NULL"
     )
     op.execute(
-        "UPDATE peticao SET escritorio_id = p.escritorio_id "
-        "FROM processo p WHERE peticao.processo_id = p.id"
+        "UPDATE peticao SET escritorio_id = ("
+        "SELECT p.escritorio_id FROM processo p WHERE p.id = peticao.processo_id"
+        ") WHERE processo_id IS NOT NULL"
     )
     op.execute(
-        "UPDATE intimacao SET escritorio_id = p.escritorio_id "
-        "FROM processo p WHERE intimacao.processo_id = p.id"
+        "UPDATE intimacao SET escritorio_id = ("
+        "SELECT p.escritorio_id FROM processo p WHERE p.id = intimacao.processo_id"
+        ") WHERE processo_id IS NOT NULL"
     )
 
 
 def downgrade() -> None:
     for tabela in ("intimacao", "prazo", "peticao"):
-        op.drop_index(f"ix_{tabela}_escritorio_id", table_name=tabela)
-        op.drop_constraint(f"fk_{tabela}_escritorio", tabela, type_="foreignkey")
-        op.drop_column(tabela, "escritorio_id")
-    op.drop_constraint("uq_usuario_supabase_user_id", "usuario", type_="unique")
-    op.drop_column("usuario", "supabase_user_id")
+        with op.batch_alter_table(tabela) as batch_op:
+            batch_op.drop_index(f"ix_{tabela}_escritorio_id")
+            batch_op.drop_constraint(f"fk_{tabela}_escritorio", type_="foreignkey")
+            batch_op.drop_column("escritorio_id")
+
+    with op.batch_alter_table("usuario") as batch_op:
+        batch_op.drop_constraint("uq_usuario_supabase_user_id", type_="unique")
+        batch_op.drop_column("supabase_user_id")

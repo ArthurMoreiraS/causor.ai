@@ -878,30 +878,6 @@ def create_app() -> FastAPI:
         session.refresh(peticao)
         return peticao
 
-    @app.post("/peticoes/{peticao_id}/protocolar", response_model=PeticaoOut)
-    def marcar_protocolada(
-        peticao_id: int,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.Peticao:
-        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
-        if peticao.status != "aprovada":
-            raise HTTPException(status_code=409, detail="aprovação obrigatória antes do protocolo")
-        peticao.status = "protocolada"
-        peticao.protocolada_em = datetime.now(timezone.utc)
-        _audit(
-            session,
-            acao="peticao_protocolada",
-            entidade="peticao",
-            entidade_id=peticao.id,
-            ator_id=peticao.aprovada_por,
-            escritorio_id=current.escritorio_id,
-            detalhe={"tipo": peticao.tipo},
-        )
-        session.commit()
-        session.refresh(peticao)
-        return peticao
-
     @app.post("/peticoes/{peticao_id}/protocolar/async", response_model=JobOut)
     def protocolar_peticao_async(
         peticao_id: int,

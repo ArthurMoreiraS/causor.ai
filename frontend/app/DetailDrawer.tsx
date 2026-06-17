@@ -3,22 +3,11 @@
 import { CalendarDays, FilePenLine, Loader2, Sparkles, X } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
+import { formatDate, statusLabel } from "@/lib/format";
 
 export type DetailSelection =
   | { kind: "processo"; id: number }
   | { kind: "intimacao"; id: number };
-
-function formatDate(value: string | null | undefined) {
-  if (!value) return "-";
-  return new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC" }).format(new Date(value));
-}
-
-function statusLabel(status: string) {
-  if (status === "rascunho") return "Em revisão";
-  if (status === "aprovada") return "Aprovada";
-  if (status === "protocolada") return "Protocolada";
-  return status;
-}
 
 export default function DetailDrawer({
   selection,

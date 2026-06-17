@@ -414,51 +414,6 @@ def test_editar_peticao_inexistente_retorna_404(client):
     assert resp.status_code == 404
 
 
-def test_protocolar_peticao_audita(client, db_session, seeded):
-    peticao = models.Peticao(
-        processo_id=seeded.id,
-        escritorio_id=seeded.escritorio_id,
-        tipo="Contestacao",
-        conteudo="m",
-        status="aprovada",
-        aprovada_por=1,
-    )
-    db_session.add(peticao)
-    db_session.flush()
-
-    resp = client.post(f"/peticoes/{peticao.id}/protocolar")
-
-    assert resp.status_code == 200
-    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
-    assert audit.entidade_id == peticao.id
-
-
-def test_protocolar_requires_approval(client, db_session, seeded):
-    peticao = models.Peticao(
-        processo_id=seeded.id,
-        escritorio_id=seeded.escritorio_id,
-        tipo="Contestacao",
-        conteudo="minuta",
-        status="rascunho",
-    )
-    db_session.add(peticao)
-    db_session.flush()
-
-    blocked = client.post(f"/peticoes/{peticao.id}/protocolar")
-    assert blocked.status_code == 409
-
-    seed_user = db_session.query(models.Usuario).first()
-    approved = client.post(f"/peticoes/{peticao.id}/approve")
-    assert approved.status_code == 200
-    assert approved.json()["status"] == "aprovada"
-    assert approved.json()["aprovada_por"] == seed_user.id
-
-    filed = client.post(f"/peticoes/{peticao.id}/protocolar")
-    assert filed.status_code == 200
-    assert filed.json()["status"] == "protocolada"
-    assert filed.json()["protocolada_em"] is not None
-
-
 def test_chat_retorna_reply_e_propostas(client, db_session, seeded, monkeypatch):
     def fake_chat(messages, *, session, **kwargs):
         return {
