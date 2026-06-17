@@ -2,7 +2,13 @@
 
 import { LogOut, X } from "lucide-react";
 
-export default function ProfileModal({ onClose }: { onClose: () => void }) {
+export default function ProfileModal({
+  onClose,
+  onSignOut
+}: {
+  onClose: () => void;
+  onSignOut: () => void | Promise<void>;
+}) {
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalCard settingsCard" onClick={(e) => e.stopPropagation()}>
@@ -15,14 +21,14 @@ export default function ProfileModal({ onClose }: { onClose: () => void }) {
         <div className="profileCard">
           <div className="avatar large">AM</div>
           <div>
-            <strong>Usuário do piloto</strong>
-            <span>Conta de demonstração — autenticação chega numa fase futura.</span>
+            <strong>Sessão ativa</strong>
+            <span>Você está autenticado via Supabase.</span>
           </div>
         </div>
         <div className="settingsFooter">
-          <button className="toolbarButton" disabled title="Disponível quando a autenticação for implementada">
+          <button className="toolbarButton" onClick={() => onSignOut()}>
             <LogOut size={14} />
-            Sair (em breve)
+            Sair
           </button>
         </div>
       </div>

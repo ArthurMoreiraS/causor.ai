@@ -76,6 +76,7 @@ import IntimacoesView from "./views/IntimacoesView";
 import PeticoesView from "./views/PeticoesView";
 import PrazosView from "./views/PrazosView";
 import ProcessosView from "./views/ProcessosView";
+import { useRequireAuth } from "./AuthProvider";
 import { useSettings } from "@/lib/settings";
 import { downloadCsv } from "@/lib/export";
 import {
@@ -109,8 +110,8 @@ const emptyData: DashboardData = {
 const API_BASE_LABEL = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
 export default function Home() {
+  const { loading: authLoading, session, signOut } = useRequireAuth();
   const [data, setData] = useState<DashboardData>(emptyData);
-  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setView] = useState<ViewKey>("fila");
@@ -165,7 +166,6 @@ export default function Home() {
   }
 
   async function refresh() {
-    setLoading(true);
     setError(null);
     try {
       setData(await loadDashboard());
@@ -173,8 +173,6 @@ export default function Home() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível carregar o Causor");
       setData(emptyData);
-    } finally {
-      setLoading(false);
     }
   }
 
@@ -611,6 +609,14 @@ export default function Home() {
       detail: "Cada passo do agente fica rastreável."
     }
   ];
+
+  if (authLoading || !session) {
+    return (
+      <div className="authShell">
+        <p className="authSub">Carregando…</p>
+      </div>
+    );
+  }
 
   return (
     <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}`}>
@@ -1220,7 +1226,7 @@ export default function Home() {
         ) : null}
 
         {overlay === "profile" ? (
-          <ProfileModal onClose={() => setOverlay(null)} />
+          <ProfileModal onClose={() => setOverlay(null)} onSignOut={signOut} />
         ) : null}
 
         {detail ? (
