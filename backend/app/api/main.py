@@ -961,6 +961,7 @@ def create_app() -> FastAPI:
                 peticao_id,
                 protocolo=payload.protocolo,
                 comprovante_uri=payload.comprovante_uri,
+                credencial_id=payload.credencial_id,
             )
         except PeticaoNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc

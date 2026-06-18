@@ -6,14 +6,18 @@ is intentionally the same shape a Redis/RQ worker will update later.
 
 from __future__ import annotations
 
+from dataclasses import asdict, replace
 from datetime import date, datetime, timezone
 
 from sqlalchemy.orm import Session
 
-from app.connectors.pje.connector import PjeAssistedConnector
+from app.connectors.pje.connector import PjeAssistedConnector, PjeConnectorError
 from app.capture.poll import poll_oab
 from app.filing.package import build_pje_package
+from app.filing.render import render_minuta_pdf
+from app.signing.providers import get_signature_provider
 from app.sor import models
+from app.vault.service import VaultError, load_pje_session_payload
 
 
 class JobError(RuntimeError):
@@ -321,18 +325,54 @@ def run_pje_assisted_protocol_job(
     )
     mark_running(session, job)
 
-    package = build_pje_package(peticao, credencial_id=credencial_id)
-    checkpoint = (connector or PjeAssistedConnector()).prepare_filing(
-        package, signature_mode=assinatura_modo
+    try:
+        session_payload = load_pje_session_payload(session, credencial_id=credencial_id)
+        package = build_pje_package(peticao, credencial_id=credencial_id)
+        package = replace(
+            package,
+            pdf_bytes=render_minuta_pdf(
+                package.conteudo or "",
+                meta={
+                    "processo": package.numero_processo,
+                    "tipo": package.tipo_peticao,
+                    "tribunal": package.tribunal,
+                },
+            ),
+            pje_base_url=session_payload.get("url_base") if session_payload else None,
+            storage_state=session_payload.get("storage_state") if session_payload else None,
+        )
+        checkpoint = (connector or PjeAssistedConnector()).prepare_filing(
+            package, signature_mode=assinatura_modo
+        )
+    except (PjeConnectorError, VaultError) as exc:
+        mark_failed(session, job, str(exc))
+        return job
+
+    # Derive the human signing handoff from the credential's provider/mode.
+    # The handoff carries no secret — only the message/actions the UI shows.
+    credencial = (
+        session.get(models.CredencialAssinatura, credencial_id)
+        if credencial_id is not None
+        else None
     )
+    handoff = get_signature_provider(
+        credencial.provedor if credencial is not None else None,
+        credencial.modo if credencial is not None else "manual_handoff",
+    ).handoff(package)
+
+    evidence = dict(checkpoint.evidence)
+    evidence["handoff"] = asdict(handoff)
     resultado = {
         "peticao_id": peticao.id,
         "sistema": "PJe",
         "modo": checkpoint.modo,
+        # ready_to_sign is the connector's state; the handoff signals to the UI
+        # that human signature is now required (signature_required).
         "checkpoint": checkpoint.checkpoint,
+        "estado": "signature_required",
         "irreversible": checkpoint.irreversible,
         "next_action": checkpoint.next_action,
-        "evidence": checkpoint.evidence,
+        "evidence": evidence,
     }
     mark_completed(session, job, resultado)
     _audit(
@@ -346,7 +386,8 @@ def run_pje_assisted_protocol_job(
             "job_id": job.id,
             "sistema": "PJe",
             "checkpoint": checkpoint.checkpoint,
-            "assinatura": assinatura_modo,
+            "assinatura_provedor": handoff.provedor,
+            "assinatura_modo": handoff.modo,
             "credencial_id": credencial_id,
         },
     )
@@ -359,6 +400,7 @@ def confirm_manual_protocol(
     *,
     protocolo: str,
     comprovante_uri: str | None = None,
+    credencial_id: int | None = None,
 ) -> models.Peticao:
     """Record the final PJe protocol after the lawyer signs/submits externally."""
     peticao = session.get(models.Peticao, peticao_id)
@@ -371,6 +413,19 @@ def confirm_manual_protocol(
 
     peticao.status = "protocolada"
     peticao.protocolada_em = _utcnow()
+    detalhe = {
+        "tipo": peticao.tipo,
+        "protocolo": protocolo,
+        "comprovante_uri": comprovante_uri,
+        "origem": "pje_assistido",
+    }
+    # Tie the signed act to the credential used, so the audit trail records
+    # which provider/mode produced the signature. No secret is stored.
+    if credencial_id is not None:
+        credencial = session.get(models.CredencialAssinatura, credencial_id)
+        if credencial is not None:
+            detalhe["provedor"] = credencial.provedor
+            detalhe["modo"] = credencial.modo
     _audit(
         session,
         acao="peticao_protocolada",
@@ -378,11 +433,6 @@ def confirm_manual_protocol(
         entidade_id=peticao.id,
         ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
         escritorio_id=peticao.escritorio_id,
-        detalhe={
-            "tipo": peticao.tipo,
-            "protocolo": protocolo,
-            "comprovante_uri": comprovante_uri,
-            "origem": "pje_assistido",
-        },
+        detalhe=detalhe,
     )
     return peticao

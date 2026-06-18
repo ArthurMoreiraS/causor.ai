@@ -44,7 +44,9 @@ export default function SetPasswordPage() {
   return (
     <div className="authShell">
       <form className="authCard" onSubmit={handleSubmit}>
-        <h1 className="authTitle">Causor</h1>
+        <div className="authBrand">
+          <img src="/brand/causor-wordmark-dark-cropped.png" alt="Causor" />
+        </div>
         <p className="authSub">Defina sua senha</p>
         {!ready && (
           <p className="authError">Abra esta página pelo link enviado ao seu e-mail.</p>

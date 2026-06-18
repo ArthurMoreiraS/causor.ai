@@ -67,7 +67,7 @@ export const VIEW_COPY: Record<ViewKey, string> = {
   prazos: "Lista operacional de prazos com revisão e baixa.",
   peticoes: "Ambiente de minuta e revisão de conteúdo antes do gate.",
   gate: "Fila de aprovação humana e protocolo assistido com responsabilidade OAB.",
-  protocolos: "Jobs de protocolo com checkpoint, comprovante e falhas — simulado até o conector PJe.",
+  protocolos: "Jobs de protocolo com checkpoint ready_to_sign, comprovante, falhas e trilha de auditoria.",
   conectores: "Status dos conectores oficiais de captura e dos conectores de protocolo.",
   auditoria: "Trilha imutável dos atos executados pelo sistema."
 };

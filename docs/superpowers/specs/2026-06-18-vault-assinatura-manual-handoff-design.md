@@ -229,3 +229,27 @@ por petição.
 4. Ajuste do conector (`evidence["assinatura"]` → `signature_required`).
 5. Frontend (`lib/api.ts` + `ProtocolarModal`), type-check.
 6. Suíte completa verde + ruff.
+
+---
+
+## 14. Notas de execução (desvios do design, implementado em 2026-06-18)
+
+Pequenos ajustes feitos durante a implementação, todos aditivos/seguros:
+
+1. **`signature_required` não sobrescreve o checkpoint.** Um teste de API já
+   fixava `resultado["checkpoint"] == "ready_to_sign"` (estado do conector). Em
+   vez de sobrescrever, o job adiciona `resultado["estado"] = "signature_required"`
+   e o `evidence["handoff"]`. O conector permanece intocado (sem novo método de
+   ação) — mais seguro do que mexer no `evidence["assinatura"]` do conector.
+2. **`ConfirmarProtocoloRequest` ganhou `credencial_id` opcional.** O design dizia
+   "sem mudança no schema", mas para enriquecer a auditoria de fechamento com
+   `provedor`/`modo` a partir do frontend, o campo opcional é necessário. É
+   retrocompatível (default `None`).
+3. **Form de "registrar protocolo" no frontend fica para fase 2.** Surfaçamos o
+   handoff (mensagem + instruções + provedor/modo) read-only no card do job em
+   `ProtocolosView`; `confirmarProtocoloManual` já aceita `credencialId`. O form
+   com input de número + parent-refresh é UI de fase 2, como o próprio design
+   marca o frontend.
+
+Verificação: backend 179 passed / 3 skipped, ruff limpo; frontend `tsc` limpo,
+vitest 2 passed.

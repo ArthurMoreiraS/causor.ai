@@ -165,10 +165,20 @@ export type CredencialAssinatura = {
   id: number;
   usuario_id: number;
   provedor: string;
+  modo: string;
   referencia_vault: string;
   ativo: boolean;
   created_at: string;
   updated_at: string;
+};
+
+/** How the lawyer signs after the robot stops at ready_to_sign. Carries no secret. */
+export type SignatureHandoff = {
+  provedor: string;
+  modo: string;
+  mensagem: string;
+  instrucoes: string[];
+  acoes: string[];
 };
 
 export type TemplatePeticao = {
@@ -298,7 +308,7 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
   });
 }
 
-/** Protocolo simulado via job assíncrono — retorna o job com comprovante. */
+/** Protocolo assíncrono: PJe assistido até ready_to_sign; demais conectores usam registro controlado. */
 export async function protocolarPeticaoAsync(
   peticaoId: number,
   credencialId?: number,
@@ -316,13 +326,15 @@ export async function protocolarPeticaoAsync(
 export async function confirmarProtocoloManual(
   peticaoId: number,
   protocolo: string,
-  comprovanteUri?: string
+  comprovanteUri?: string,
+  credencialId?: number
 ): Promise<Peticao> {
   return request<Peticao>(`/peticoes/${peticaoId}/protocolar/confirmar`, {
     method: "POST",
     body: JSON.stringify({
       protocolo,
-      ...(comprovanteUri ? { comprovante_uri: comprovanteUri } : {})
+      ...(comprovanteUri ? { comprovante_uri: comprovanteUri } : {}),
+      ...(credencialId != null ? { credencial_id: credencialId } : {})
     })
   });
 }

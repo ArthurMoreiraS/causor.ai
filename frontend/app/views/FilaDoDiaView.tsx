@@ -33,6 +33,10 @@ function badgeDePrazo(item: ReviewQueueItem) {
   return <span className="dayBadge neutral">Vence em {dias} dias</span>;
 }
 
+function usaPje(item: ReviewQueueItem): boolean {
+  return item.processo?.sistema?.toLowerCase() === "pje";
+}
+
 export default function FilaDoDiaView({
   items,
   busy,
@@ -78,7 +82,7 @@ export default function FilaDoDiaView({
           onClick={() => onFile(peticao)}
         >
           {busy === `file-${peticao.id}` ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
-          Protocolar (simulado)
+          {usaPje(item) ? "Preparar PJe" : "Registrar protocolo"}
         </button>
       );
     }

@@ -17,6 +17,7 @@ dependencies = [
     "anthropic>=0.40",
     "pyjwt>=2.8",
     "cryptography>=42",
+    "playwright>=1.45",
 ]
 
 [project.optional-dependencies]

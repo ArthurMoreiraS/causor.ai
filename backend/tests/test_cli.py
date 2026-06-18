@@ -79,3 +79,68 @@ def test_cli_capture_due_runs(db_session, monkeypatch):
     assert db_session.query(models.Intimacao).count() == 1
     job = db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").one()
     assert job.status == "completed"
+
+
+def test_parser_accepts_pje_capture_session():
+    parser = _build_parser()
+    args = parser.parse_args(
+        [
+            "pje-capture-session",
+            "--usuario",
+            "7",
+            "--tribunal",
+            "TJSP",
+            "--url-base",
+            "https://pje-treinamento.tjsp.jus.br/pje",
+        ]
+    )
+    assert args.command == "pje-capture-session"
+    assert args.usuario == 7
+    assert args.assinatura_modo == "manual_pjeoffice"
+
+
+def test_cli_pje_capture_session_stores_vault_reference(db_session, monkeypatch):
+    import app.cli as cli
+    from app.sor import models
+
+    esc = models.Escritorio(nome="Escritorio PJe")
+    db_session.add(esc)
+    db_session.flush()
+    usuario = models.Usuario(escritorio_id=esc.id, nome="Adv", email="adv@example.com")
+    db_session.add(usuario)
+    db_session.flush()
+
+    storage_state = {"cookies": [{"name": "JSESSIONID", "value": "secret-cookie"}]}
+    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(
+        cli,
+        "capture_pje_storage_state",
+        lambda **kwargs: storage_state,
+    )
+
+    rc = cli.main(
+        [
+            "pje-capture-session",
+            "--usuario",
+            str(usuario.id),
+            "--tribunal",
+            "TJSP",
+            "--url-base",
+            "https://pje-treinamento.tjsp.jus.br/pje",
+        ]
+    )
+
+    assert rc == 0
+    credencial = db_session.query(models.CredencialAssinatura).one()
+    assert credencial.provedor == "PJeSession"
+    assert "secret-cookie" not in credencial.referencia_vault
+
+
+def test_parser_accepts_pje_simulator():
+    parser = _build_parser()
+    args = parser.parse_args(["pje-simulator", "--port", "8765"])
+
+    assert args.command == "pje-simulator"
+    assert args.host == "127.0.0.1"
+    assert args.port == 8765

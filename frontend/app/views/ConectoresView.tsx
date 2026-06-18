@@ -7,7 +7,7 @@ import { connectorStatusLabel } from "@/lib/format";
 const CONNECTOR_NOTES: Record<string, string> = {
   djen: "Captura oficial de intimações via Comunica/DJEN — sem scraping.",
   datajud: "Metadados e movimentos de processo via API pública do CNJ.",
-  pje: "Protocolo assistido em desenvolvimento — hoje o protocolo é simulado com gate humano.",
+  pje: "Protocolo assistido: prepara peça, anexos e checkpoint ready_to_sign; assinatura e envio final seguem no PJe/PJeOffice.",
   esaj: "Próximo conector após o piloto PJe."
 };
 

@@ -134,6 +134,7 @@ class ProtocolarAsyncRequest(BaseModel):
 class ConfirmarProtocoloRequest(BaseModel):
     protocolo: str = Field(min_length=3, max_length=100)
     comprovante_uri: str | None = Field(default=None, max_length=1024)
+    credencial_id: int | None = None
 
 
 class CreateCredencialAssinaturaRequest(BaseModel):
@@ -177,6 +178,7 @@ class CredencialAssinaturaOut(BaseModel):
     id: int
     usuario_id: int
     provedor: str
+    modo: str
     referencia_vault: str
     ativo: bool
     created_at: datetime

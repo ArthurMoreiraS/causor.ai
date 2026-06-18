@@ -2,9 +2,17 @@
 
 import { CheckCircle2, Clock3, Loader2, RefreshCcw, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { JobExecucao, listarJobs, Peticao, Processo } from "@/lib/api";
+import { JobExecucao, listarJobs, Peticao, Processo, SignatureHandoff } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { Empty } from "../components/ui";
+
+/** Pull the (secret-free) signing handoff the job attached at ready_to_sign. */
+function extrairHandoff(job: JobExecucao): SignatureHandoff | null {
+  const evidence = (job.resultado?.evidence ?? null) as Record<string, unknown> | null;
+  const handoff = evidence?.handoff as SignatureHandoff | undefined;
+  if (!handoff || typeof handoff.mensagem !== "string") return null;
+  return handoff;
+}
 
 function jobStatusLabel(status: JobExecucao["status"]) {
   if (status === "queued") return "Na fila";
@@ -69,8 +77,8 @@ export default function ProtocolosView({
         <div>
           <strong>Jobs de protocolo</strong>
           <span className="protocolHint">
-            PJe assistido prepara até ready_to_sign; sistemas sem conector seguem simulados. Cada
-            job preserva o gate humano e gera eventos na auditoria.
+            PJe assistido prepara até ready_to_sign; sistemas sem conector dedicado usam registro
+            operacional com gate humano e eventos de auditoria.
           </span>
         </div>
         <button className="toolbarButton compact" disabled={offline || busy} onClick={() => void reload()}>
@@ -85,6 +93,7 @@ export default function ProtocolosView({
           const comprovante = job.resultado?.protocolo ? String(job.resultado.protocolo) : null;
           const checkpoint = job.resultado?.checkpoint ? String(job.resultado.checkpoint) : null;
           const nextAction = job.resultado?.next_action ? String(job.resultado.next_action) : null;
+          const handoff = extrairHandoff(job);
           return (
             <article className={`protocolCard ${job.status}`} key={job.id}>
               <header>
@@ -102,7 +111,7 @@ export default function ProtocolosView({
               <dl className="protocolMeta">
                 <div>
                   <dt>Comprovante</dt>
-                  <dd className="mono">{comprovante ?? "—"}</dd>
+                  <dd className="mono">{comprovante ?? "-"}</dd>
                 </div>
                 <div>
                   <dt>Executado em</dt>
@@ -119,12 +128,27 @@ export default function ProtocolosView({
               </dl>
               {checkpoint ? <p className="protocolCheckpoint">{checkpoint}</p> : null}
               {nextAction ? <p className="protocolCheckpoint">{nextAction}</p> : null}
+              {handoff ? (
+                <div className="protocolHandoff">
+                  <p className="protocolHandoffMsg">{handoff.mensagem}</p>
+                  {handoff.instrucoes.length ? (
+                    <ol className="protocolHandoffSteps">
+                      {handoff.instrucoes.map((passo, i) => (
+                        <li key={i}>{passo}</li>
+                      ))}
+                    </ol>
+                  ) : null}
+                  <span className="protocolHandoffMeta mono">
+                    assinatura: {handoff.provedor} ({handoff.modo})
+                  </span>
+                </div>
+              ) : null}
               {job.erro ? <p className="protocolError">{job.erro}</p> : null}
             </article>
           );
         })}
         {!jobs.length ? (
-          <Empty label="Nenhum protocolo executado ainda — aprove uma minuta no Gate OAB e protocole" />
+          <Empty label="Nenhum protocolo executado ainda - aprove uma minuta no Gate OAB e protocole" />
         ) : null}
       </div>
     </section>

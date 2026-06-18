@@ -34,6 +34,9 @@ class VaultProviderError(VaultError):
     """Raised when the configured vault provider cannot store a secret."""
 
 
+_LOCALDEV_SECRETS: dict[str, str] = {}
+
+
 def _audit(
     session: Session,
     *,
@@ -71,7 +74,9 @@ def _store_secret_reference(
 ) -> str:
     provider = settings.vault_provider.strip().lower()
     if provider == "localdev":
-        return _reference_for(usuario_id, provedor, secret)
+        reference = _reference_for(usuario_id, provedor, secret)
+        _LOCALDEV_SECRETS[reference] = secret
+        return reference
     if provider == "supabase":
         try:
             secret_id = session.execute(
@@ -91,6 +96,50 @@ def _store_secret_reference(
     raise VaultProviderError(
         f"vault provider desconhecido: {settings.vault_provider!r}"
     )
+
+
+def _load_secret_from_reference(session: Session, reference: str) -> str:
+    if reference.startswith("localdev://"):
+        try:
+            return _LOCALDEV_SECRETS[reference]
+        except KeyError as exc:
+            raise VaultProviderError(
+                "segredo localdev nao esta em memoria; recadastre a sessao assistida"
+            ) from exc
+    if reference.startswith("supabase-vault://"):
+        secret_id = reference.removeprefix("supabase-vault://")
+        try:
+            return session.execute(
+                text("select decrypted_secret from vault.decrypted_secrets where id = :secret_id"),
+                {"secret_id": secret_id},
+            ).scalar_one()
+        except Exception as exc:  # noqa: BLE001 - SQL extension errors vary by provider
+            raise VaultProviderError("falha ao recuperar segredo no Supabase Vault") from exc
+    raise VaultProviderError("referencia de vault desconhecida")
+
+
+def load_pje_session_payload(
+    session: Session,
+    *,
+    credencial_id: int | None,
+) -> dict | None:
+    if credencial_id is None:
+        return None
+    credencial = session.get(models.CredencialAssinatura, credencial_id)
+    if credencial is None:
+        raise CredencialNotFoundError("credencial de assinatura nao encontrada")
+    if credencial.provedor != "PJeSession":
+        return None
+    secret = _load_secret_from_reference(session, credencial.referencia_vault)
+    try:
+        payload = json.loads(secret)
+    except json.JSONDecodeError as exc:
+        raise VaultProviderError("payload de sessao PJe invalido no vault") from exc
+    if not isinstance(payload, dict):
+        raise VaultProviderError("payload de sessao PJe invalido no vault")
+    if not payload.get("url_base") or not payload.get("storage_state"):
+        raise VaultProviderError("payload de sessao PJe incompleto no vault")
+    return payload
 
 
 def store_signature_reference(

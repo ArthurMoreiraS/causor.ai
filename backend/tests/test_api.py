@@ -771,6 +771,39 @@ def test_confirmar_protocolo_pje_marca_protocolada_e_audita(client, db_session, 
     assert audit.detalhe["origem"] == "pje_assistido"
 
 
+def test_confirmar_protocolo_com_credencial_audita_provedor_modo(client, db_session, seeded):
+    seeded.sistema = "PJe"
+    usuario = models.Usuario(
+        escritorio_id=seeded.escritorio_id, nome="Adv", email="conf@example.com"
+    )
+    db_session.add(usuario)
+    db_session.flush()
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
+        tipo="Manifestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=usuario.id,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+    cred = client.post(
+        f"/usuarios/{usuario.id}/credenciais-assinatura",
+        json={"provedor": "birdid", "referencia_externa": "adv@birdid.example"},
+    ).json()
+
+    resp = client.post(
+        f"/peticoes/{peticao.id}/protocolar/confirmar",
+        json={"protocolo": "PJE-2026-0009", "credencial_id": cred["id"]},
+    )
+
+    assert resp.status_code == 200
+    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
+    assert audit.detalhe["provedor"] == "birdid"
+    assert audit.detalhe["modo"] == "manual_handoff"
+
+
 def test_cadastrar_listar_e_desativar_credencial_assinatura(client, db_session, seeded):
     usuario = models.Usuario(
         escritorio_id=seeded.escritorio_id,
@@ -791,6 +824,7 @@ def test_cadastrar_listar_e_desativar_credencial_assinatura(client, db_session, 
     body = resp.json()
     assert body["usuario_id"] == usuario.id
     assert body["provedor"] == "BirdID"
+    assert body["modo"] == "manual_handoff"
     assert body["ativo"] is True
     assert body["referencia_vault"].startswith("localdev://assinatura/")
     assert "birdid-account-123" not in body["referencia_vault"]

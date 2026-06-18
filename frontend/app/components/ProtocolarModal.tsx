@@ -47,7 +47,7 @@ export default function ProtocolarModal({
         <h3>Protocolar petição</h3>
         <p className="protocolarResumo">
           <strong>{peticao.tipo ?? "Petição"}</strong>
-          {" — processo "}
+          {" - processo "}
           <span className="mono">{processo?.numero ?? `#${peticao.processo_id}`}</span>
         </p>
 
@@ -61,9 +61,8 @@ export default function ProtocolarModal({
             </span>
           ) : (
             <span>
-              O protocolo é o ato irreversível do fluxo. Esta execução é{" "}
-              <strong>simulada</strong> para sistemas sem conector real, mas o gate e a auditoria
-              funcionam como no fluxo real.
+              O protocolo é o ato irreversível do fluxo. Para sistemas sem conector dedicado, o
+              Causor registra a execução operacional com gate e auditoria.
             </span>
           )}
         </div>
@@ -72,7 +71,7 @@ export default function ProtocolarModal({
           Credencial de assinatura
           {loading ? (
             <span className="protocolarHint">
-              <Loader2 className="spin" size={13} /> carregando credenciais…
+              <Loader2 className="spin" size={13} /> carregando credenciais...
             </span>
           ) : credenciais.length ? (
             <select
@@ -81,7 +80,7 @@ export default function ProtocolarModal({
             >
               {credenciais.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.provedor} · vault #{c.id}
+                  {c.provedor} ({c.modo}) - vault #{c.id}
                 </option>
               ))}
             </select>
@@ -103,7 +102,7 @@ export default function ProtocolarModal({
             onClick={() => onConfirm(credencialId)}
           >
             {busy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
-            {isPje ? "Preparar no PJe" : "Confirmar protocolo (simulado)"}
+            {isPje ? "Preparar no PJe" : "Registrar protocolo"}
           </button>
         </div>
       </div>

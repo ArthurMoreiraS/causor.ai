@@ -18,11 +18,14 @@ from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
 from app.capture.poll import PollResult, poll_oab
 from app.capture.scheduler import run_capture_for_oab, select_due
+from app.connectors.pje.simulator import serve as serve_pje_simulator
+from app.connectors.pje.session_capture import capture_pje_storage_state
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import create_job, mark_failed
 from app.sor import models
 from app.sor.db import SessionLocal
+from app.vault.service import store_pje_session_reference
 
 
 def default_calendar(today: date | None = None) -> ForensicCalendar:
@@ -50,6 +53,28 @@ def _build_parser() -> argparse.ArgumentParser:
     monitor.add_argument("--intervalo-horas", type=int, default=12)
 
     sub.add_parser("capture-due", help="Run capture for all due monitored OABs")
+
+    pje_session = sub.add_parser(
+        "pje-capture-session",
+        help="Open PJe for human login and store the Playwright session in the vault",
+    )
+    pje_session.add_argument("--usuario", required=True, type=int)
+    pje_session.add_argument("--tribunal", required=True)
+    pje_session.add_argument("--url-base", required=True)
+    pje_session.add_argument(
+        "--assinatura-modo",
+        choices=["manual_pjeoffice", "cloud_certificate"],
+        default="manual_pjeoffice",
+    )
+    pje_session.add_argument("--timeout-seconds", type=int, default=300)
+    pje_session.add_argument("--headless", action="store_true")
+
+    pje_simulator = sub.add_parser(
+        "pje-simulator",
+        help="Run a local fake PJe page for connector testing without tribunal access",
+    )
+    pje_simulator.add_argument("--host", default="127.0.0.1")
+    pje_simulator.add_argument("--port", type=int, default=8765)
     return parser
 
 
@@ -165,6 +190,33 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  OAB {label}: FALHA {exc}")
         finally:
             session.close()
+    if args.command == "pje-capture-session":
+        storage_state = capture_pje_storage_state(
+            base_url=args.url_base,
+            timeout_seconds=args.timeout_seconds,
+            headless=args.headless,
+        )
+        session = SessionLocal()
+        try:
+            credencial = store_pje_session_reference(
+                session,
+                usuario_id=args.usuario,
+                tribunal=args.tribunal,
+                url_base=args.url_base,
+                storage_state=storage_state,
+                signature_mode=args.assinatura_modo,
+            )
+            session.commit()
+            session.refresh(credencial)
+            credencial_id = credencial.id
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        print(f"Sessao PJe cadastrada como credencial {credencial_id}.")
+    if args.command == "pje-simulator":
+        serve_pje_simulator(host=args.host, port=args.port)
     return 0
 
 

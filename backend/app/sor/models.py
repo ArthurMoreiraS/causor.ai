@@ -24,6 +24,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import JSON
@@ -235,6 +236,13 @@ class CredencialAssinatura(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"), nullable=False)
     provedor: Mapped[str] = mapped_column(String(50), nullable=False)  # BirdID/VIDaaS/...
+    # How the lawyer signs: manual_handoff (signs outside Causor) | api | local_agent.
+    modo: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="manual_handoff",
+        server_default=text("'manual_handoff'"),
+    )
     referencia_vault: Mapped[str] = mapped_column(String(255), nullable=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 

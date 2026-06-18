@@ -36,7 +36,9 @@ export default function LoginPage() {
   return (
     <div className="authShell">
       <form className="authCard" onSubmit={handleSubmit}>
-        <h1 className="authTitle">Causor</h1>
+        <div className="authBrand">
+          <img src="/brand/causor-wordmark-dark-cropped.png" alt="Causor" />
+        </div>
         <p className="authSub">Entre na sua conta</p>
         <label className="authLabel">
           E-mail

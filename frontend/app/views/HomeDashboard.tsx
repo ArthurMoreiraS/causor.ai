@@ -1,6 +1,6 @@
 "use client";
 
-import { Clock3, FilePenLine, HomeIcon, MessageCircle, Search, ShieldCheck } from "lucide-react";
+import { Bot, CheckCircle2, Clock3, FilePenLine, HomeIcon, MessageCircle, Search, Send, ShieldCheck } from "lucide-react";
 import type { ConnectorStatus, ReviewQueueItem } from "@/lib/api";
 import { connectorStatusLabel, formatDate, reviewStatusLabel, riskLabel } from "@/lib/format";
 import type { PrazoRow, ViewKey } from "@/lib/views";
@@ -38,6 +38,44 @@ export default function HomeDashboard({
   onNavigate: (view: ViewKey) => void;
 }) {
   const nextDeadline = prazoRows.find((row) => !row.prazo.cumprido) ?? null;
+  const agentCycle = [
+    {
+      label: "Captura",
+      detail: `${metrics.captured} intimação${metrics.captured === 1 ? "" : "ões"}`,
+      status: metrics.captured > 0 ? "complete" : "active",
+      icon: <Search size={15} />
+    },
+    {
+      label: "Prazo",
+      detail: `${metrics.pending} pendente${metrics.pending === 1 ? "" : "s"}`,
+      status: metrics.pending > 0 ? "active" : metrics.captured > 0 ? "complete" : "queued",
+      icon: <Clock3 size={15} />
+    },
+    {
+      label: "Minuta",
+      detail: `${metrics.drafts} em revisão`,
+      status: metrics.drafts > 0 ? "review" : "queued",
+      icon: <FilePenLine size={15} />
+    },
+    {
+      label: "Gate OAB",
+      detail: `${metrics.approved} liberada${metrics.approved === 1 ? "" : "s"}`,
+      status: metrics.approved > 0 ? "active" : metrics.drafts > 0 ? "review" : "queued",
+      icon: <ShieldCheck size={15} />
+    },
+    {
+      label: "PJe assistido",
+      detail: metrics.approved > 0 ? "aguardando ready_to_sign" : "sem peça liberada",
+      status: metrics.approved > 0 ? "waiting" : "queued",
+      icon: <Send size={15} />
+    },
+    {
+      label: "Auditoria",
+      detail: "log completo do ato",
+      status: "queued",
+      icon: <CheckCircle2 size={15} />
+    }
+  ];
 
   return (
     <section className="homeSurface">
@@ -76,6 +114,47 @@ export default function HomeDashboard({
           <CommandStat label="Intimações" value={metrics.captured} detail="capturadas" />
           <CommandStat label="Prazos" value={metrics.pending} detail="pendentes" />
           <CommandStat label="Prazos em dia" value={`${metrics.compliance}%`} detail={`${metrics.overdue} vencido(s)`} />
+        </div>
+      </section>
+
+      <section className="agentCyclePanel" aria-label="Ciclo operacional do agente">
+        <header>
+          <div>
+            <span className="sectionKicker">Ciclo do agente</span>
+            <strong>Da captura ao protocolo assistido</strong>
+          </div>
+          <span className={`cycleHealth ${metrics.highRisk > 0 ? "risk" : "ok"}`}>
+            <Bot size={14} />
+            {metrics.highRisk > 0 ? "atenção em prazos" : "operação estável"}
+          </span>
+        </header>
+        <div className="agentCycle">
+          {agentCycle.map((step, index) => (
+            <button
+              className={`agentCycleStep ${step.status}`}
+              key={step.label}
+              onClick={() =>
+                onNavigate(
+                  step.label === "Captura"
+                    ? "intimacoes"
+                    : step.label === "Prazo"
+                      ? "prazos"
+                      : step.label === "Minuta"
+                        ? "peticoes"
+                        : step.label === "Gate OAB" || step.label === "PJe assistido"
+                          ? "gate"
+                          : "auditoria"
+                )
+              }
+            >
+              <span className="cycleIndex">{String(index + 1).padStart(2, "0")}</span>
+              <span className="cycleIcon">{step.icon}</span>
+              <span className="cycleCopy">
+                <strong>{step.label}</strong>
+                <small>{step.detail}</small>
+              </span>
+            </button>
+          ))}
         </div>
       </section>
 
