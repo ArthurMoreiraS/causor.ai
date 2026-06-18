@@ -229,14 +229,11 @@ export default function Home() {
     await runAction(`file-${peticao.id}`, async () => {
       const job = await protocolarPeticaoAsync(peticao.id, credencialId ?? undefined);
       const protocolo = job.resultado?.protocolo;
-      const checkpoint = job.resultado?.checkpoint;
       setLastProtocolo({
         tipo: peticao.tipo,
         protocolo: protocolo
           ? String(protocolo)
-          : checkpoint
-            ? `${String(checkpoint)} · job #${job.id}`
-            : `job #${job.id}`
+          : `Preparado para assinatura · job #${job.id}`
       });
     });
     setProtocolarTarget(null);

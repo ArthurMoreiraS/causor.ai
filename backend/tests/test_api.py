@@ -887,7 +887,7 @@ def test_cadastrar_sessao_pje_guarda_referencia_sem_vazar_storage_state(client, 
     assert "cookie-super-sensivel" not in str(body)
 
     audit = db_session.query(models.AuditLog).filter_by(acao="sessao_pje_cadastrada").one()
-    assert audit.detalhe == {"tribunal": "TRF3", "assinatura": "manual_pjeoffice"}
+    assert audit.detalhe == {"tribunal": "TRF3"}
     assert "cookie-super-sensivel" not in str(audit.detalhe)
 
 

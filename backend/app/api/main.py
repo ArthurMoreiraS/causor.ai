@@ -488,7 +488,6 @@ def create_app() -> FastAPI:
                 tribunal=payload.tribunal,
                 url_base=payload.url_base,
                 storage_state=payload.storage_state,
-                signature_mode=payload.assinatura_modo,
             )
         except UsuarioNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -922,14 +921,12 @@ def create_app() -> FastAPI:
     ) -> models.JobExecucao:
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         credencial_id = payload.credencial_id if payload is not None else None
-        assinatura_modo = payload.assinatura_modo if payload is not None else "manual_pjeoffice"
         try:
             if (peticao.processo.sistema or "").strip().lower() == "pje":
                 job = run_pje_assisted_protocol_job(
                     session,
                     peticao_id,
                     credencial_id=credencial_id,
-                    assinatura_modo=assinatura_modo,
                 )
             else:
                 job = run_fake_protocol_job(session, peticao_id, credencial_id=credencial_id)

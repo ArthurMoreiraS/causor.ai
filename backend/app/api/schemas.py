@@ -128,7 +128,6 @@ class ProtocolarAsyncRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     credencial_id: int | None = None
-    assinatura_modo: Literal["manual_pjeoffice", "cloud_certificate"] = "manual_pjeoffice"
 
 
 class ConfirmarProtocoloRequest(BaseModel):
@@ -160,7 +159,6 @@ class CreatePjeSessionRequest(BaseModel):
     tribunal: str = Field(min_length=2, max_length=50)
     url_base: str = Field(min_length=10, max_length=255)
     storage_state: dict = Field(min_length=1)
-    assinatura_modo: Literal["manual_pjeoffice", "cloud_certificate"] = "manual_pjeoffice"
 
     @field_validator("storage_state")
     @classmethod

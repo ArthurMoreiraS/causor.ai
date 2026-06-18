@@ -186,7 +186,6 @@ def store_pje_session_reference(
     tribunal: str,
     url_base: str,
     storage_state: dict,
-    signature_mode: str = "manual_pjeoffice",
 ) -> models.CredencialAssinatura:
     usuario = session.get(models.Usuario, usuario_id)
     if usuario is None:
@@ -197,7 +196,6 @@ def store_pje_session_reference(
             "tribunal": tribunal,
             "url_base": url_base,
             "storage_state": storage_state,
-            "signature_mode": signature_mode,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -223,7 +221,7 @@ def store_pje_session_reference(
         entidade_id=credencial.id,
         ator=f"usuario:{usuario.id}",
         escritorio_id=usuario.escritorio_id,
-        detalhe={"tribunal": tribunal, "assinatura": signature_mode},
+        detalhe={"tribunal": tribunal},
     )
     return credencial
 

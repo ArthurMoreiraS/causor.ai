@@ -46,7 +46,6 @@ class PjeFilingCheckpoint:
     checkpoint: str
     modo: str
     irreversible: bool
-    next_action: str
     evidence: dict
 
 
@@ -89,15 +88,9 @@ class PjeAssistedConnector:
     def prepare_filing(
         self,
         package: PjeFilingPackage,
-        *,
-        signature_mode: str = "manual_pjeoffice",
     ) -> PjeFilingCheckpoint:
-        if signature_mode not in {"manual_pjeoffice", "cloud_certificate"}:
-            raise ValueError("modo de assinatura PJe desconhecido")
-
-        next_action = self._next_action(signature_mode)
         if not package.pje_base_url or not package.storage_state:
-            return self._manual_checkpoint(package, signature_mode, next_action)
+            return self._manual_checkpoint(package)
         if not package.pdf_bytes:
             raise PjeConnectorError("PDF da minuta e obrigatorio para automacao PJe")
 
@@ -150,14 +143,12 @@ class PjeAssistedConnector:
             checkpoint="ready_to_sign",
             modo="pje_assistido_playwright",
             irreversible=False,
-            next_action=next_action,
             evidence={
                 "processo": package.numero_processo,
                 "tribunal": package.tribunal,
                 "orgao_julgador": package.orgao_julgador,
                 "tipo_peticao": package.tipo_peticao,
                 "credencial_id": package.credencial_id,
-                "assinatura": signature_mode,
                 "base_url": package.pje_base_url,
                 "draft_url": ready_evidence.get("draft_url"),
                 "screenshots": screenshots,
@@ -178,8 +169,6 @@ class PjeAssistedConnector:
     def _manual_checkpoint(
         self,
         package: PjeFilingPackage,
-        signature_mode: str,
-        next_action: str,
     ) -> PjeFilingCheckpoint:
         evidence = {
             "processo": package.numero_processo,
@@ -187,20 +176,11 @@ class PjeAssistedConnector:
             "orgao_julgador": package.orgao_julgador,
             "tipo_peticao": package.tipo_peticao,
             "credencial_id": package.credencial_id,
-            "assinatura": signature_mode,
             "automation": "pending_pje_session",
         }
         return PjeFilingCheckpoint(
             checkpoint="ready_to_sign",
             modo="pje_assistido_playwright",
             irreversible=False,
-            next_action=next_action,
             evidence=evidence,
         )
-
-    def _next_action(self, signature_mode: str) -> str:
-        if signature_mode == "manual_pjeoffice":
-            return (
-                "Advogado assina e envia no PJe/PJeOffice; depois informe o numero do protocolo."
-            )
-        return "Conectar provedor de certificado em nuvem antes do envio final."

@@ -46,13 +46,12 @@ class InspectingConnector:
     def __init__(self):
         self.package = None
 
-    def prepare_filing(self, package, *, signature_mode):
+    def prepare_filing(self, package):
         self.package = package
         return PjeFilingCheckpoint(
             checkpoint="ready_to_sign",
             modo="pje_assistido_playwright",
             irreversible=False,
-            next_action="manual",
             evidence={"states": ["ready_to_sign"]},
         )
 

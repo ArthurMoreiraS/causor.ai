@@ -127,13 +127,6 @@ def test_prepare_filing_orchestrates_browser_flow_and_stops_before_signature():
     assert session.closed is True
 
 
-def test_prepare_filing_rejects_unknown_signature_mode():
-    connector = PjeAssistedConnector(session_factory=lambda **kwargs: FakeSession())
-
-    with pytest.raises(ValueError):
-        connector.prepare_filing(_package(), signature_mode="senha_pje")
-
-
 def test_prepare_filing_requires_pdf_for_browser_automation():
     package = _package()
     package = PjeFilingPackage(

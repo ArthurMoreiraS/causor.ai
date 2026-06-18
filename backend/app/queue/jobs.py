@@ -286,7 +286,6 @@ def run_pje_assisted_protocol_job(
     peticao_id: int,
     *,
     credencial_id: int | None = None,
-    assinatura_modo: str = "manual_pjeoffice",
     connector: PjeAssistedConnector | None = None,
 ) -> models.JobExecucao:
     """Prepare a PJe filing and stop before the irreversible signature/submit.
@@ -310,7 +309,6 @@ def run_pje_assisted_protocol_job(
         "peticao_id": peticao.id,
         "sistema": "PJe",
         "modo": "pje_assistido_playwright",
-        "assinatura": assinatura_modo,
     }
     if credencial_id is not None:
         payload["credencial_id"] = credencial_id
@@ -341,9 +339,7 @@ def run_pje_assisted_protocol_job(
             pje_base_url=session_payload.get("url_base") if session_payload else None,
             storage_state=session_payload.get("storage_state") if session_payload else None,
         )
-        checkpoint = (connector or PjeAssistedConnector()).prepare_filing(
-            package, signature_mode=assinatura_modo
-        )
+        checkpoint = (connector or PjeAssistedConnector()).prepare_filing(package)
     except (PjeConnectorError, VaultError) as exc:
         mark_failed(session, job, str(exc))
         return job
@@ -371,7 +367,6 @@ def run_pje_assisted_protocol_job(
         "checkpoint": checkpoint.checkpoint,
         "estado": "signature_required",
         "irreversible": checkpoint.irreversible,
-        "next_action": checkpoint.next_action,
         "evidence": evidence,
     }
     mark_completed(session, job, resultado)

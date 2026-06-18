@@ -96,7 +96,6 @@ def test_parser_accepts_pje_capture_session():
     )
     assert args.command == "pje-capture-session"
     assert args.usuario == 7
-    assert args.assinatura_modo == "manual_pjeoffice"
 
 
 def test_cli_pje_capture_session_stores_vault_reference(db_session, monkeypatch):

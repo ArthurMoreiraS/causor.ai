@@ -311,15 +311,11 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
 /** Protocolo assíncrono: PJe assistido até ready_to_sign; demais conectores usam registro controlado. */
 export async function protocolarPeticaoAsync(
   peticaoId: number,
-  credencialId?: number,
-  assinaturaModo: "manual_pjeoffice" | "cloud_certificate" = "manual_pjeoffice"
+  credencialId?: number
 ): Promise<JobExecucao> {
   return request<JobExecucao>(`/peticoes/${peticaoId}/protocolar/async`, {
     method: "POST",
-    body: JSON.stringify({
-      ...(credencialId != null ? { credencial_id: credencialId } : {}),
-      assinatura_modo: assinaturaModo
-    })
+    body: JSON.stringify(credencialId != null ? { credencial_id: credencialId } : {})
   });
 }
 

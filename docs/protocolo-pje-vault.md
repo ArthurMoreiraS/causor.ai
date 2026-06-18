@@ -113,19 +113,27 @@ nosso software executa o fluxo de navegador esperado ate o gate seguro.
 
 ## Assinatura
 
-Modo inicial: `manual_pjeoffice`.
+A forma de assinar vem do provedor da credencial via o seam
+`app/signing/providers.py` (`SignatureProvider`). A coluna
+`credencial_assinatura.modo` define o caminho.
+
+Modo inicial: `manual_handoff` (BirdID/VIDaaS/PJeOffice/A3/A1).
 
 1. Playwright prepara o protocolo.
 2. O fluxo para em `ready_to_sign`.
-3. O advogado assina/envia no PJe/PJeOffice.
-4. O Causor registra o protocolo por confirmacao manual.
+3. O conector produz um `SignatureHandoff` (mensagem + instrucoes por provedor),
+   sem segredo, e o job o anexa ao resultado/auditoria.
+4. O advogado assina/envia fora do Causor (no app do provedor / PJe / PJeOffice).
+5. O Causor registra o protocolo por confirmacao manual; a auditoria grava o
+   provedor/modo da credencial usada.
 
-Modo futuro: `cloud_certificate`.
+Modo futuro: `api` (assinatura em nuvem). O gancho ja existe em
+`SignatureProvider.request_signature()` (hoje levanta `NotImplementedError`):
 
-1. Credencial do provedor ICP-Brasil em nuvem fica no Supabase Vault.
-2. O conector PJe chama o provedor de assinatura.
-3. O advogado confirma via push/OTP quando exigido.
-4. O Causor conclui o envio e registra comprovante automaticamente.
+1. Token/credencial do provedor ICP-Brasil em nuvem fica no Supabase Vault
+   (nunca PIN/senha).
+2. O provedor e chamado via API; o advogado confirma via push/OTP quando exigido.
+3. O Causor conclui o envio e registra comprovante automaticamente.
 
-Fallback A1 cifrado deve ser usado apenas se o provedor em nuvem nao atender o
-piloto; A3/token fisico fica fora do escopo de automacao de servidor.
+Fallback A1 cifrado so se o provedor em nuvem nao atender o piloto; A3/token
+fisico fica fora do escopo de automacao de servidor.

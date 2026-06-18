@@ -174,9 +174,10 @@ export default function ProtocolosView({
         {jobs.map((job) => {
           const { peticao, processo } = contexto(job);
           const comprovante = job.resultado?.protocolo ? String(job.resultado.protocolo) : null;
-          const checkpoint = job.resultado?.checkpoint ? String(job.resultado.checkpoint) : null;
-          const nextAction = job.resultado?.next_action ? String(job.resultado.next_action) : null;
           const handoff = extrairHandoff(job);
+          // Raw checkpoint only helps non-PJe (fake) jobs; PJe jobs show the handoff.
+          const checkpoint =
+            !handoff && job.resultado?.checkpoint ? String(job.resultado.checkpoint) : null;
           const baseUrl = extrairBaseUrl(job);
           const credencialId =
             job.payload?.credencial_id != null ? Number(job.payload.credencial_id) : undefined;
@@ -215,7 +216,6 @@ export default function ProtocolosView({
                 </div>
               </dl>
               {checkpoint ? <p className="protocolCheckpoint">{checkpoint}</p> : null}
-              {nextAction ? <p className="protocolCheckpoint">{nextAction}</p> : null}
               {handoff ? (
                 <div className="protocolHandoff">
                   <p className="protocolHandoffMsg">{handoff.mensagem}</p>

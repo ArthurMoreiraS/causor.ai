@@ -61,11 +61,6 @@ def _build_parser() -> argparse.ArgumentParser:
     pje_session.add_argument("--usuario", required=True, type=int)
     pje_session.add_argument("--tribunal", required=True)
     pje_session.add_argument("--url-base", required=True)
-    pje_session.add_argument(
-        "--assinatura-modo",
-        choices=["manual_pjeoffice", "cloud_certificate"],
-        default="manual_pjeoffice",
-    )
     pje_session.add_argument("--timeout-seconds", type=int, default=300)
     pje_session.add_argument("--headless", action="store_true")
 
@@ -204,7 +199,6 @@ def main(argv: list[str] | None = None) -> int:
                 tribunal=args.tribunal,
                 url_base=args.url_base,
                 storage_state=storage_state,
-                signature_mode=args.assinatura_modo,
             )
             session.commit()
             session.refresh(credencial)

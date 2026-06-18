@@ -253,3 +253,17 @@ Pequenos ajustes feitos durante a implementação, todos aditivos/seguros:
 
 Verificação: backend 179 passed / 3 skipped, ruff limpo; frontend `tsc` limpo,
 vitest 2 passed.
+
+4. **Refactor de organização (pós-implementação): colapso do "modo".** A seção 5
+   previa manter o `signature_mode` antigo do conector (`manual_pjeoffice` /
+   `cloud_certificate`) ao lado do `modo` novo. Numa varredura de código morto,
+   isso se mostrou redundância pura. O `signature_mode`/`assinatura_modo` foi
+   **removido** do conector, job, request schema, vault payload e CLI — o conector
+   para em `ready_to_sign` independente de como se assina, e o `SignatureProvider`
+   + `credencial.modo` viraram o **único** caminho de assinatura. Também saíram:
+   `PjeFilingCheckpoint.next_action` (redundante com `handoff.mensagem`), o dado
+   write-only `signature_mode` no vault, e a exibição da string crua
+   `ready_to_sign` no front (mostrada só para jobs fake). O gancho futuro de API é
+   apenas `SignatureProvider.request_signature()`.
+   Verificação pós-refactor: backend 178 passed / 3 skipped, ruff limpo; frontend
+   `tsc` limpo, vitest 2 passed.
