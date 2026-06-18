@@ -881,6 +881,7 @@ export default function Home() {
             processos={data.processos}
             offline={offline}
             refreshKey={refreshTick}
+            onChanged={refresh}
           />
         ) : view === "conectores" ? (
           <ConectoresView

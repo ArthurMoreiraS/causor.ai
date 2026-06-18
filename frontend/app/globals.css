@@ -3352,6 +3352,37 @@ h2 {
   font-size: 11px;
 }
 
+.registrarProtocolo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.registrarProtocolo label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.registrarProtocolo input {
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.registrarProtocolo .toolbarButton {
+  align-self: flex-start;
+}
+
 /* ---- Etapa 5: Conectores ---- */
 
 .connectorsSurface {

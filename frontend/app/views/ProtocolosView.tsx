@@ -1,8 +1,15 @@
 "use client";
 
-import { CheckCircle2, Clock3, Loader2, RefreshCcw, XCircle } from "lucide-react";
+import { CheckCircle2, Clock3, ExternalLink, Loader2, RefreshCcw, Send, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
-import { JobExecucao, listarJobs, Peticao, Processo, SignatureHandoff } from "@/lib/api";
+import {
+  confirmarProtocoloManual,
+  JobExecucao,
+  listarJobs,
+  Peticao,
+  Processo,
+  SignatureHandoff
+} from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import { Empty } from "../components/ui";
 
@@ -12,6 +19,80 @@ function extrairHandoff(job: JobExecucao): SignatureHandoff | null {
   const handoff = evidence?.handoff as SignatureHandoff | undefined;
   if (!handoff || typeof handoff.mensagem !== "string") return null;
   return handoff;
+}
+
+/** PJe base URL the connector recorded, when automation actually ran. */
+function extrairBaseUrl(job: JobExecucao): string | null {
+  const evidence = (job.resultado?.evidence ?? null) as Record<string, unknown> | null;
+  const baseUrl = evidence?.base_url;
+  return typeof baseUrl === "string" && baseUrl ? baseUrl : null;
+}
+
+/** Close the loop: the lawyer signed/filed in PJe and registers the protocol. */
+function RegistrarProtocoloForm({
+  peticaoId,
+  credencialId,
+  onDone
+}: {
+  peticaoId: number;
+  credencialId?: number;
+  onDone: () => void | Promise<void>;
+}) {
+  const [numero, setNumero] = useState("");
+  const [comprovante, setComprovante] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    const protocolo = numero.trim();
+    if (protocolo.length < 3) {
+      setErr("Informe o número do protocolo (mínimo 3 caracteres).");
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      await confirmarProtocoloManual(
+        peticaoId,
+        protocolo,
+        comprovante.trim() || undefined,
+        credencialId
+      );
+      await onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Falha ao registrar o protocolo.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="registrarProtocolo">
+      <label>
+        Número do protocolo
+        <input
+          value={numero}
+          onChange={(e) => setNumero(e.target.value)}
+          placeholder="ex.: PJE-2026-000123"
+          disabled={busy}
+        />
+      </label>
+      <label>
+        Comprovante (opcional)
+        <input
+          value={comprovante}
+          onChange={(e) => setComprovante(e.target.value)}
+          placeholder="link/URI do comprovante"
+          disabled={busy}
+        />
+      </label>
+      {err ? <p className="protocolError">{err}</p> : null}
+      <button className="toolbarButton primary compact" onClick={() => void submit()} disabled={busy}>
+        {busy ? <Loader2 className="spin" size={14} /> : <Send size={14} />}
+        Já assinei — registrar protocolo
+      </button>
+    </div>
+  );
 }
 
 function jobStatusLabel(status: JobExecucao["status"]) {
@@ -33,12 +114,14 @@ export default function ProtocolosView({
   peticoes,
   processos,
   offline,
-  refreshKey
+  refreshKey,
+  onChanged
 }: {
   peticoes: Peticao[];
   processos: Processo[];
   offline: boolean;
   refreshKey: number;
+  onChanged?: () => void | Promise<void>;
 }) {
   const [jobs, setJobs] = useState<JobExecucao[]>([]);
   const [busy, setBusy] = useState(false);
@@ -94,6 +177,11 @@ export default function ProtocolosView({
           const checkpoint = job.resultado?.checkpoint ? String(job.resultado.checkpoint) : null;
           const nextAction = job.resultado?.next_action ? String(job.resultado.next_action) : null;
           const handoff = extrairHandoff(job);
+          const baseUrl = extrairBaseUrl(job);
+          const credencialId =
+            job.payload?.credencial_id != null ? Number(job.payload.credencial_id) : undefined;
+          const aguardandoAssinatura =
+            handoff != null && peticao != null && peticao.status !== "protocolada";
           return (
             <article className={`protocolCard ${job.status}`} key={job.id}>
               <header>
@@ -141,7 +229,23 @@ export default function ProtocolosView({
                   <span className="protocolHandoffMeta mono">
                     assinatura: {handoff.provedor} ({handoff.modo})
                   </span>
+                  {baseUrl ? (
+                    <a className="toolbarButton compact" href={baseUrl} target="_blank" rel="noreferrer">
+                      <ExternalLink size={14} />
+                      Abrir PJe/PJeOffice
+                    </a>
+                  ) : null}
                 </div>
+              ) : null}
+              {aguardandoAssinatura && peticao ? (
+                <RegistrarProtocoloForm
+                  peticaoId={peticao.id}
+                  credencialId={credencialId}
+                  onDone={async () => {
+                    await reload();
+                    await onChanged?.();
+                  }}
+                />
               ) : null}
               {job.erro ? <p className="protocolError">{job.erro}</p> : null}
             </article>
