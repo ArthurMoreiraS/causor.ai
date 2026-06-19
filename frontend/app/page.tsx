@@ -3,20 +3,17 @@
 import {
   AlertTriangle,
   BookOpen,
-  Bot,
   CheckCircle2,
   ChevronDown,
   ChevronsLeft,
   ChevronsRight,
   ChevronRight,
-  CircleDot,
   Clock3,
   Download,
   FilePenLine,
   HelpCircle,
   HomeIcon,
   Loader2,
-  LockKeyhole,
   MessageCircle,
   Search,
   Send,
@@ -25,8 +22,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Table2,
-  Workflow,
-  Zap
+  Workflow
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -54,17 +50,8 @@ import FiltersPanel from "./components/FiltersPanel";
 import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
 import ProtocolarModal from "./components/ProtocolarModal";
-import QueueTable from "./components/QueueTable";
 import RadarBell from "./components/RadarBell";
-import {
-  AmountCard,
-  AuditItem,
-  Empty,
-  Metric,
-  NavGroup,
-  NavItem,
-  Panel
-} from "./components/ui";
+import { NavGroup, NavItem } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
 import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
@@ -77,27 +64,22 @@ import PeticoesView from "./views/PeticoesView";
 import PrazosView from "./views/PrazosView";
 import ProcessosView from "./views/ProcessosView";
 import { useRequireAuth } from "./AuthProvider";
-import { useSettings } from "@/lib/settings";
+import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
 import { downloadCsv } from "@/lib/export";
 import {
-  connectorStatusLabel,
   daysUntil,
   matchesQuery,
   passesFilters,
   reviewStatusLabel,
   riscoFromDias,
-  riskLabel,
-  statusLabel
+  riskLabel
 } from "@/lib/format";
 import {
   CONNECTORS_FALLBACK,
-  EMPTY_BY_VIEW,
   STATUS_MATCH,
   StatusKey,
-  VIEW_COPY,
   VIEW_LABEL,
-  ViewKey,
-  WORKFLOW_FALLBACK
+  ViewKey
 } from "@/lib/views";
 
 const emptyData: DashboardData = {
@@ -114,7 +96,7 @@ export default function Home() {
   const [data, setData] = useState<DashboardData>(emptyData);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewKey>("fila");
+  const [view, setView] = useState<ViewKey>("dashboard");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusKey>("pendentes");
   const [error, setError] = useState<string | null>(null);
@@ -151,10 +133,10 @@ export default function Home() {
 
   const calendarYears = useMemo(() => {
     const y = new Date().getFullYear();
-    const n = settings.calendarYears;
+    const n = CALENDAR_YEARS;
     const start = y - Math.floor((n - 1) / 2);
     return Array.from({ length: n }, (_, i) => start + i);
-  }, [settings.calendarYears]);
+  }, []);
 
   function openOab() {
     setOabForm((f) => ({
@@ -325,13 +307,16 @@ export default function Home() {
 
   const scopedQueue = useMemo(() => {
     return reviewQueue.filter((item) => {
-      if (view === "auditoria") return false;
-      if (view === "inicio") return true;
       if (view === "prazos") return Boolean(item.prazo);
       if (view === "peticoes" || view === "gate") return Boolean(item.peticao);
       return true;
     });
   }, [reviewQueue, view]);
+
+  const dashboardWorklist = useMemo(
+    () => scopedQueue.filter((item) => STATUS_MATCH[statusFilter](item.status)),
+    [scopedQueue, statusFilter]
+  );
 
   const filteredQueue = useMemo(() => {
     const byStatus = scopedQueue
@@ -592,25 +577,7 @@ export default function Home() {
   }
 
   const offline = Boolean(data.backendOffline);
-  const operationalWorkflow = data.operational?.workflow ?? WORKFLOW_FALLBACK;
   const operationalConnectors = data.operational?.connectors ?? CONNECTORS_FALLBACK;
-  const operationalAudit = data.operational?.audit_signals ?? [
-    {
-      key: "gate",
-      title: "Gate humano ativo",
-      detail: "Protocolo exige aprovação do advogado."
-    },
-    {
-      key: "secrets",
-      title: "Segredos fora do prompt",
-      detail: "Certificados e senhas pertencem ao vault."
-    },
-    {
-      key: "audit",
-      title: "Log operacional",
-      detail: "Cada passo do agente fica rastreável."
-    }
-  ];
 
   if (authLoading || !session) {
     return (
@@ -641,31 +608,17 @@ export default function Home() {
 
         <nav className="sideNav">
           <NavItem
-            icon={<Zap size={15} />}
-            label="Fila do dia"
-            active={view === "fila"}
-            onClick={() => setView("fila")}
+            icon={<HomeIcon size={15} />}
+            label="Dashboard"
+            active={view === "dashboard"}
+            onClick={() => setView("dashboard")}
           />
-          <NavGroup label="Operação diária">
-            <NavItem
-              icon={<HomeIcon size={15} />}
-              label="Central de Comando"
-              active={view === "inicio"}
-              onClick={() => setView("inicio")}
-            />
-            <NavItem
-              icon={<MessageCircle size={15} />}
-              label="Assistente"
-              active={view === "assistente"}
-              onClick={() => setView("assistente")}
-            />
-            <NavItem
-              icon={<Bot size={15} />}
-              label="Operações Processuais"
-              active={view === "operacao"}
-              onClick={() => setView("operacao")}
-            />
-          </NavGroup>
+          <NavItem
+            icon={<MessageCircle size={15} />}
+            label="Assistente"
+            active={view === "assistente"}
+            onClick={() => setView("assistente")}
+          />
           <NavGroup label="Automações">
             <NavItem
               icon={<FilePenLine size={15} />}
@@ -770,21 +723,6 @@ export default function Home() {
           </div>
         </header>
 
-        {view !== "assistente" && (
-          <section className="hero">
-            <div>
-              <p className="agentKicker">Plataforma de agentes Causor</p>
-              <h1>{VIEW_LABEL[view]}</h1>
-              <span className="heroCopy">{VIEW_COPY[view]}</span>
-            </div>
-            <div className="heroSignal">
-              <span>{offline ? "API indisponível" : "Prazos em dia"}</span>
-              <strong>{metrics.compliance}%</strong>
-              <small>{metrics.overdue} vencido(s) · {metrics.pending} pendente(s)</small>
-            </div>
-          </section>
-        )}
-
         {offline ? (
           <div className="notice">
             <AlertTriangle size={18} />
@@ -853,23 +791,6 @@ export default function Home() {
             offline={offline}
             onConfirmAction={confirmAssistantAction}
           />
-        ) : view === "fila" ? (
-          <FilaDoDiaView
-            items={reviewQueue}
-            busy={busy}
-            offline={offline}
-            onGenerateDraft={(intimacaoId) =>
-              runAction(`draft-${intimacaoId}`, async () => {
-                const cls = await gerarMinuta(intimacaoId, calendarYears);
-                if (cls)
-                  setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
-              })
-            }
-            onOpenEditor={(peticao) => setEditorPeticao(peticao)}
-            onApprove={(peticao) => runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))}
-            onFile={protocolar}
-            onNavigate={setView}
-          />
         ) : view === "templates" ? (
           <TemplatesView offline={offline} />
         ) : view === "protocolos" ? (
@@ -885,10 +806,9 @@ export default function Home() {
             connectors={operationalConnectors}
             onOpenVault={() => setOverlay("settings")}
           />
-        ) : view === "inicio" ? (
+        ) : view === "dashboard" ? (
           <HomeDashboard
             metrics={metrics}
-            priorityQueue={reviewQueue.slice(0, 5)}
             prazoRows={prazoRows.slice(0, 5)}
             operationalConnectors={operationalConnectors}
             offline={offline}
@@ -896,62 +816,60 @@ export default function Home() {
             onOpenOab={openOab}
             onOpenAssistant={() => setView("assistente")}
             onNavigate={setView}
+            worklistSlot={
+              <>
+                <section className="statusTabs">
+                  <button
+                    className={`statusTab ${statusFilter === "pendentes" ? "active" : ""}`}
+                    onClick={() => setStatusFilter("pendentes")}
+                  >
+                    <Clock3 size={15} />
+                    Pendentes ({statusCounts.pendentes})
+                  </button>
+                  <button
+                    className={`statusTab ${statusFilter === "minutadas" ? "active" : ""}`}
+                    onClick={() => setStatusFilter("minutadas")}
+                  >
+                    <Sparkles size={15} />
+                    Minutadas ({statusCounts.minutadas})
+                  </button>
+                  <button
+                    className={`statusTab ${statusFilter === "aprovadas" ? "active" : ""}`}
+                    onClick={() => setStatusFilter("aprovadas")}
+                  >
+                    <CheckCircle2 size={15} />
+                    Aprovadas ({statusCounts.aprovadas})
+                  </button>
+                  <button
+                    className={`statusTab ${statusFilter === "protocoladas" ? "active" : ""}`}
+                    onClick={() => setStatusFilter("protocoladas")}
+                  >
+                    <Send size={15} />
+                    Protocoladas ({statusCounts.protocoladas})
+                  </button>
+                </section>
+                <FilaDoDiaView
+                  items={dashboardWorklist}
+                  busy={busy}
+                  offline={offline}
+                  onGenerateDraft={(intimacaoId) =>
+                    runAction(`draft-${intimacaoId}`, async () => {
+                      const cls = await gerarMinuta(intimacaoId, calendarYears);
+                      if (cls)
+                        setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
+                    })
+                  }
+                  onOpenEditor={(peticao) => setEditorPeticao(peticao)}
+                  onApprove={(peticao) =>
+                    runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))
+                  }
+                  onFile={protocolar}
+                  onNavigate={setView}
+                />
+              </>
+            }
           />
-        ) : (
-        <>
-        <section className="metricStrip">
-          <Metric label="Processos Monitorados" value={metrics.monitored} />
-          <Metric label="Intimações Capturadas" value={metrics.captured} />
-          <Metric label="Prazos Pendentes" value={metrics.pending} />
-          <Metric label="Alto Risco" value={metrics.highRisk} />
-        </section>
-
-        <section className="workflowStrip" aria-label="Fluxo operacional">
-          {operationalWorkflow.map((step, index) => (
-            <div className={`workflowStep ${step.status}`} key={step.key}>
-              <div className="stepIndex">{String(index + 1).padStart(2, "0")}</div>
-              <div>
-                <strong>{step.label}</strong>
-                <span>{step.detail}</span>
-              </div>
-            </div>
-          ))}
-        </section>
-
-        {view === "operacao" ? (
-        <section className="statusTabs">
-          <button
-            className={`statusTab ${statusFilter === "pendentes" ? "active" : ""}`}
-            onClick={() => setStatusFilter("pendentes")}
-          >
-            <Clock3 size={15} />
-            Pendentes ({statusCounts.pendentes})
-          </button>
-          <button
-            className={`statusTab ${statusFilter === "minutadas" ? "active" : ""}`}
-            onClick={() => setStatusFilter("minutadas")}
-          >
-            <Sparkles size={15} />
-            Minutadas ({statusCounts.minutadas})
-          </button>
-          <button
-            className={`statusTab ${statusFilter === "aprovadas" ? "active" : ""}`}
-            onClick={() => setStatusFilter("aprovadas")}
-          >
-            <CheckCircle2 size={15} />
-            Aprovadas ({statusCounts.aprovadas})
-          </button>
-          <button
-            className={`statusTab ${statusFilter === "protocoladas" ? "active" : ""}`}
-            onClick={() => setStatusFilter("protocoladas")}
-          >
-            <Send size={15} />
-            Protocoladas ({statusCounts.protocoladas})
-          </button>
-        </section>
-        ) : null}
-
-        {view === "auditoria" ? (
+        ) : view === "auditoria" ? (
           <section className="workSurface auditSurface">
             <AuditPanel offline={offline} />
           </section>
@@ -995,35 +913,6 @@ export default function Home() {
               </button>
             </div>
           </div>
-
-          {view === "operacao" ? (
-            <>
-              <section className="amountCards">
-                <AmountCard label="Intimações sem minuta" value={metrics.withoutDraft} detail="aguardando redação" />
-                <AmountCard label="Minutas em revisão" value={metrics.drafts} detail="aguardando advogado" />
-                <AmountCard label="Prontas para protocolo" value={metrics.approved} detail="gate aprovado" />
-              </section>
-              <QueueTable
-                items={filteredQueue}
-                busy={busy}
-                offline={offline}
-                emptyLabel={EMPTY_BY_VIEW[view]}
-                onGenerateDraft={(intimacaoId) =>
-                  runAction(`draft-${intimacaoId}`, async () => {
-                    const cls = await gerarMinuta(intimacaoId, calendarYears);
-                    if (cls)
-                      setLastClassificacao({
-                        intimacaoId,
-                        tipo: cls.tipo,
-                        confianca: cls.confianca
-                      });
-                  })
-                }
-                onDonePrazo={(prazo) => runAction(`done-${prazo.id}`, () => cumprirPrazo(prazo.id))}
-                onEditPrazo={editarPrazo}
-              />
-            </>
-          ) : null}
 
           {view === "processos" ? (
             <ProcessosView
@@ -1077,103 +966,6 @@ export default function Home() {
             />
           ) : null}
         </section>
-        )}
-
-        {view === "operacao" ? (
-        <section className="insightGrid">
-          <Panel title="Conectores" action="oficiais primeiro">
-            <div className="connectorGrid">
-              {operationalConnectors.map((connector) => (
-                <article className={`connector ${connector.status}`} key={connector.name}>
-                  <div>
-                    <strong>{connector.name}</strong>
-                    <span>{connector.detail}</span>
-                  </div>
-                  <small>{connectorStatusLabel(connector.status)}</small>
-                </article>
-              ))}
-            </div>
-          </Panel>
-
-          <Panel title="Tese do produto" action="moat">
-            <div className="thesis">
-              <Workflow size={24} />
-              <div>
-                <strong>Da intimação ao protocolo</strong>
-                <span>
-                  O Causor centraliza o SOR, calcula prazos sem LLM, minuta com Claude e
-                  preserva o gate humano antes de qualquer ato irreversível.
-                </span>
-              </div>
-            </div>
-          </Panel>
-        </section>
-        ) : null}
-
-        {view === "operacao" ? (
-        <section className="bottomGrid">
-          <Panel title="Fila de aprovação" action={`${data.peticoes.length} minutas`}>
-            <div className="petitionList">
-              {data.peticoes.map((peticao) => (
-                <article className="petition" key={peticao.id}>
-                  <div className="petitionHead">
-                    <div>
-                      <strong>{peticao.tipo ?? "Petição"}</strong>
-                      <span>Processo #{peticao.processo_id}</span>
-                    </div>
-                    <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
-                  </div>
-                  <p>{peticao.conteudo ?? "Sem conteúdo"}</p>
-                  <div className="petitionActions">
-                    <button
-                      className="toolbarButton"
-                      disabled={peticao.status !== "rascunho" || busy === `approve-${peticao.id}` || offline}
-                      onClick={() =>
-                        runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))
-                      }
-                    >
-                      <CheckCircle2 size={15} />
-                      Aprovar
-                    </button>
-                    <button
-                      className="toolbarButton primary"
-                      disabled={peticao.status !== "aprovada" || busy === `file-${peticao.id}` || offline}
-                      onClick={() => protocolar(peticao)}
-                    >
-                      <Send size={15} />
-                      Protocolar
-                    </button>
-                  </div>
-                </article>
-              ))}
-              {!data.peticoes.length ? <Empty label="Nenhuma minuta aguardando aprovação" /> : null}
-            </div>
-          </Panel>
-
-          <Panel title="Auditoria e segurança" action="imutável">
-            <div className="auditList">
-              {operationalAudit.map((item, index) => (
-                <AuditItem
-                  key={item.key}
-                  icon={
-                    index === 0 ? (
-                      <ShieldCheck size={15} />
-                    ) : index === 1 ? (
-                      <LockKeyhole size={15} />
-                    ) : (
-                      <CircleDot size={15} />
-                    )
-                  }
-                  title={item.title}
-                  detail={item.detail}
-                />
-              ))}
-            </div>
-          </Panel>
-          <AuditPanel offline={offline} />
-        </section>
-        ) : null}
-        </>
         )}
 
         {oabForm.open ? (

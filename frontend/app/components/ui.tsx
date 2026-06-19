@@ -1,18 +1,25 @@
 "use client";
 
 import { ChevronDown, UserRound } from "lucide-react";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import type { Prazo } from "@/lib/api";
 import { daysUntil } from "@/lib/format";
 
 export function NavGroup({ label, children }: { label: string; children: ReactNode }) {
+  const [collapsed, setCollapsed] = useState(false);
   return (
-    <div className="navGroup">
-      <div className="navGroupLabel">
+    <div className={`navGroup${collapsed ? " collapsed" : ""}`}>
+      <button
+        type="button"
+        className="navGroupLabel"
+        aria-expanded={!collapsed}
+        onClick={() => setCollapsed((value) => !value)}
+      >
         <span>{label}</span>
         <ChevronDown size={12} />
-      </div>
-      {children}
+      </button>
+      {collapsed ? null : children}
     </div>
   );
 }
@@ -41,25 +48,6 @@ export function NavItem({
       {icon}
       <span>{label}</span>
     </a>
-  );
-}
-
-export function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="metric">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-export function AmountCard({ label, value, detail }: { label: string; value: number; detail: string }) {
-  return (
-    <article className="amountCard">
-      <span>{label}</span>
-      <strong>{value.toLocaleString("pt-BR")}</strong>
-      <small>{detail}</small>
-    </article>
   );
 }
 
@@ -120,18 +108,6 @@ export function DeadlineBadge({ prazo }: { prazo: Prazo | null | undefined }) {
   if (remaining <= 0) return <span className="dayBadge risk">Vencido</span>;
   if (remaining <= 3) return <span className="dayBadge today">{remaining}d</span>;
   return <span className="dayBadge neutral">{remaining}d</span>;
-}
-
-export function AuditItem({ icon, title, detail }: { icon: ReactNode; title: string; detail: string }) {
-  return (
-    <article className="auditItem">
-      <div className="auditIcon">{icon}</div>
-      <div>
-        <strong>{title}</strong>
-        <span>{detail}</span>
-      </div>
-    </article>
-  );
 }
 
 export function Empty({ label }: { label: string }) {

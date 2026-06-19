@@ -1,6 +1,7 @@
 "use client";
 
-import { RotateCcw, X } from "lucide-react";
+import { ChevronDown, RotateCcw, X } from "lucide-react";
+import { useState } from "react";
 import type { Settings } from "@/lib/settings";
 import VaultSection from "./components/VaultSection";
 
@@ -17,6 +18,8 @@ export default function SettingsModal({
   onReset: () => void;
   onClose: () => void;
 }) {
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   return (
     <div className="modalOverlay" onClick={onClose}>
       <div className="modalCard settingsCard" onClick={(e) => e.stopPropagation()}>
@@ -26,24 +29,6 @@ export default function SettingsModal({
             <X size={15} />
           </button>
         </header>
-
-        <div className="settingsGroup">
-          <span className="settingsLabel">Densidade da interface</span>
-          <div className="segmented">
-            <button
-              className={settings.density === "confortavel" ? "active" : ""}
-              onClick={() => onUpdate({ density: "confortavel" })}
-            >
-              Confortável
-            </button>
-            <button
-              className={settings.density === "compacta" ? "active" : ""}
-              onClick={() => onUpdate({ density: "compacta" })}
-            >
-              Compacta
-            </button>
-          </div>
-        </div>
 
         <div className="settingsGroup">
           <span className="settingsLabel">Captura — padrões</span>
@@ -67,39 +52,36 @@ export default function SettingsModal({
           </div>
         </div>
 
-        <div className="settingsGroup">
-          <span className="settingsLabel">Calendário forense</span>
-          <label className="settingsInline">
-            Anos considerados na contagem de prazos
-            <input
-              type="number"
-              min={1}
-              max={6}
-              value={settings.calendarYears}
-              onChange={(e) =>
-                onUpdate({ calendarYears: Math.max(1, Math.min(6, Number(e.target.value) || 1)) })
-              }
-            />
-          </label>
-        </div>
-
-        <div className="settingsGroup">
-          <span className="settingsLabel">
-            Limiar de confiança da IA — {Math.round(settings.confidenceThreshold * 100)}%
-          </span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            value={Math.round(settings.confidenceThreshold * 100)}
-            onChange={(e) => onUpdate({ confidenceThreshold: Number(e.target.value) / 100 })}
-          />
-          <small className="settingsHint">
-            Classificações abaixo deste valor são sinalizadas para revisão humana.
-          </small>
-        </div>
-
         <VaultSection offline={offline} />
+
+        <div className="settingsGroup">
+          <button
+            type="button"
+            className={`settingsAdvancedToggle${showAdvanced ? "" : " collapsed"}`}
+            aria-expanded={showAdvanced}
+            onClick={() => setShowAdvanced((value) => !value)}
+          >
+            <span>Avançado</span>
+            <ChevronDown size={14} />
+          </button>
+          {showAdvanced ? (
+            <div className="settingsAdvancedBody">
+              <span className="settingsLabel">
+                Limiar de confiança da IA — {Math.round(settings.confidenceThreshold * 100)}%
+              </span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(settings.confidenceThreshold * 100)}
+                onChange={(e) => onUpdate({ confidenceThreshold: Number(e.target.value) / 100 })}
+              />
+              <small className="settingsHint">
+                Classificações abaixo deste valor são sinalizadas para revisão humana.
+              </small>
+            </div>
+          ) : null}
+        </div>
 
         <footer className="settingsFooter">
           <button className="toolbarButton compact" onClick={onReset}>

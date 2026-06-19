@@ -26,11 +26,6 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-/* Compact density tightens core paddings. */
-:root[data-density="compacta"] {
-  --row-pad: 8px;
-}
-
 * {
   box-sizing: border-box;
 }
@@ -159,12 +154,31 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
   min-height: 22px;
   padding: 0 6px;
+  border: 0;
+  background: transparent;
   color: var(--muted);
+  font-family: inherit;
   font-size: 10px;
   font-weight: 700;
+  letter-spacing: inherit;
   text-transform: uppercase;
+  cursor: pointer;
+}
+
+.navGroupLabel:hover {
+  color: var(--ink-soft);
+}
+
+.navGroupLabel svg {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+
+.navGroup.collapsed .navGroupLabel svg {
+  transform: rotate(-90deg);
 }
 
 .sideNav a,
@@ -371,65 +385,6 @@ button:disabled {
   flex: 0 0 30px;
 }
 
-.hero {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 18px 28px 16px;
-  background: var(--panel);
-}
-
-.agentKicker {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.heroSignal {
-  min-width: 164px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  background: var(--panel-soft);
-}
-
-.heroSignal span,
-.heroSignal small,
-.heroSignal strong {
-  display: block;
-}
-
-.heroSignal span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.heroSignal strong {
-  margin-top: 8px;
-  font-size: 32px;
-  line-height: 1;
-}
-
-.heroSignal small {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.heroCopy {
-  display: block;
-  max-width: 640px;
-  margin-top: 12px;
-  color: var(--ink-soft);
-  font-size: 14px;
-  line-height: 1.4;
-}
-
 h1,
 h2,
 h3 {
@@ -469,103 +424,6 @@ h2 {
   background: var(--ok-bg);
 }
 
-.metricStrip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  background: var(--panel);
-  padding: 6px 28px 28px;
-}
-
-.workflowStrip {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 0;
-  padding: 0 28px 20px;
-  background: var(--panel);
-}
-
-.workflowStep {
-  display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 70px;
-  padding: 12px 14px;
-  border: 1px solid var(--line);
-  border-left: 0;
-}
-
-.workflowStep:first-child {
-  border-left: 1px solid var(--line);
-}
-
-.workflowStep.live {
-  background: #fbfffd;
-}
-
-.workflowStep.review {
-  background: #fffaf4;
-}
-
-.workflowStep.next,
-.workflowStep.planned {
-  background: var(--panel-soft);
-}
-
-.stepIndex {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  color: var(--muted);
-  background: var(--chip);
-  border-radius: 999px;
-  font-family: var(--font-mono);
-  font-size: 11px;
-  font-weight: 500;
-}
-
-.workflowStep strong,
-.workflowStep span {
-  display: block;
-}
-
-.workflowStep strong {
-  font-size: 13px;
-}
-
-.workflowStep span {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.3;
-}
-
-.metric {
-  min-height: 108px;
-  padding: 20px 26px;
-  border-left: 1px solid var(--line);
-}
-
-.metric:first-child {
-  border-left: 0;
-}
-
-.metric span {
-  display: block;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.metric strong {
-  display: block;
-  margin-top: 12px;
-  font-size: 40px;
-  line-height: 1;
-}
-
 .statusTabs {
   display: flex;
   align-items: center;
@@ -601,6 +459,22 @@ h2 {
   display: grid;
   gap: 16px;
   padding: 16px 28px 28px;
+}
+
+.dashboardWorklist {
+  display: grid;
+  gap: 12px;
+}
+
+.dashboardWorklist .statusTabs,
+.dashboardWorklist .filaSurface {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.dashboardWorklist .filaSurface {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 .homeCommand {
@@ -1005,30 +879,6 @@ h2 {
   font-size: 18px;
 }
 
-.segmented {
-  display: inline-flex;
-  gap: 2px;
-  padding: 3px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-  border-radius: 999px;
-}
-
-.segmented button {
-  min-width: 76px;
-  min-height: 26px;
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  border-radius: 999px;
-  font-size: 12px;
-}
-
-.segmented .selected {
-  color: var(--panel);
-  background: var(--solid);
-}
-
 .search {
   display: flex;
   align-items: center;
@@ -1050,119 +900,6 @@ h2 {
   color: var(--ink);
   background: transparent;
   font-size: 12px;
-}
-
-.amountCards {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  border: 1px solid var(--line);
-  border-bottom: 0;
-  background: var(--panel);
-}
-
-.amountCard {
-  min-height: 112px;
-  padding: 24px 26px;
-  border-left: 1px solid var(--line);
-}
-
-.amountCard:first-child {
-  border-left: 0;
-}
-
-.amountCard span {
-  display: block;
-  color: var(--muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-
-.amountCard strong {
-  display: block;
-  margin-top: 10px;
-  font-size: 30px;
-}
-
-.amountCard small {
-  color: var(--muted);
-}
-
-.tablePanel {
-  padding: 12px;
-  border: 1px solid var(--line);
-  background: var(--panel);
-}
-
-.tableHeader,
-.caseRow {
-  display: grid;
-  grid-template-columns: minmax(300px, 1.7fr) minmax(90px, 0.5fr) minmax(120px, 0.6fr) 76px minmax(130px, 0.7fr) 76px;
-  align-items: center;
-  gap: 12px;
-}
-
-.tableHeader {
-  height: 34px;
-  color: var(--muted-2);
-  border-bottom: 1px solid var(--line);
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.tableHeader span {
-  padding: 0 8px;
-}
-
-.caseRow {
-  min-height: 46px;
-  border-bottom: 1px solid var(--chip);
-  color: var(--ink-soft);
-  font-size: 12px;
-}
-
-.caseRow:last-child {
-  border-bottom: 0;
-}
-
-.caseRow > span,
-.caseRow > strong {
-  padding: 0 8px;
-}
-
-.caseCell {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.caseCell strong,
-.caseCell span,
-.caseCell small {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.caseCell strong {
-  color: var(--ink);
-  font-size: 12px;
-}
-
-.caseCell span {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.caseCell small {
-  margin-top: 3px;
-  color: var(--muted);
-  font-size: 11px;
 }
 
 .queueStatus {
@@ -1491,20 +1228,6 @@ h2 {
   justify-self: start;
 }
 
-.bottomGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
-  gap: 16px;
-  padding: 0 28px 28px;
-}
-
-.insightGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);
-  gap: 16px;
-  padding: 0 28px 16px;
-}
-
 .connectorGrid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1555,30 +1278,6 @@ h2 {
   background: var(--warn-bg);
 }
 
-.thesis {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 18px;
-}
-
-.thesis svg {
-  color: var(--accent);
-  flex: 0 0 auto;
-}
-
-.thesis strong,
-.thesis span {
-  display: block;
-}
-
-.thesis span {
-  margin-top: 6px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.42;
-}
-
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -1597,50 +1296,6 @@ h2 {
 .panel header span {
   color: var(--muted);
   font-size: 12px;
-}
-
-.petitionList {
-  display: grid;
-}
-
-.petition {
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.petition:last-child {
-  border-bottom: 0;
-}
-
-.petitionHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.petition strong,
-.petition span {
-  display: block;
-}
-
-.petition span {
-  color: var(--muted);
-  font-size: 12px;
-  margin-top: 2px;
-}
-
-.petition p {
-  margin: 12px 0;
-  color: var(--ink-soft);
-  line-height: 1.45;
-  max-height: 82px;
-  overflow: hidden;
-  font-size: 13px;
-}
-
-.petitionActions {
-  justify-content: flex-end;
 }
 
 .pill {
@@ -1699,41 +1354,6 @@ h2 {
 
 .auditList {
   display: grid;
-}
-
-.auditItem {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 10px;
-  min-height: 64px;
-  padding: 13px 16px;
-  border-bottom: 1px solid var(--line);
-}
-
-.auditItem:last-child {
-  border-bottom: 0;
-}
-
-.auditIcon {
-  width: 28px;
-  height: 28px;
-  display: grid;
-  place-items: center;
-  color: var(--accent);
-  background: var(--accent-bg);
-  border-radius: 999px;
-}
-
-.auditItem strong,
-.auditItem span {
-  display: block;
-}
-
-.auditItem span {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
 }
 
 .gate span {
@@ -2041,15 +1661,6 @@ h2 {
     grid-template-columns: 1fr 1fr;
   }
 
-  .tablePanel {
-    overflow-x: auto;
-  }
-
-  .tableHeader,
-  .caseRow {
-    min-width: 960px;
-  }
-
   .homeCommand,
   .homeGrid {
     grid-template-columns: 1fr;
@@ -2076,11 +1687,6 @@ h2 {
   .bottomGrid {
     padding-left: 16px;
     padding-right: 16px;
-  }
-
-  .hero {
-    align-items: stretch;
-    flex-direction: column;
   }
 
   .metricStrip,
@@ -2123,17 +1729,6 @@ h2 {
   .connector {
     border-right: 0;
     border-bottom: 1px solid var(--line);
-  }
-
-  .metric,
-  .amountCard {
-    border-left: 0;
-    border-top: 1px solid var(--line);
-  }
-
-  .metric:first-child,
-  .amountCard:first-child {
-    border-top: 0;
   }
 
   .statusTabs {
@@ -2267,34 +1862,38 @@ h2 {
   font-size: 11px;
 }
 
-.segmented {
-  display: inline-flex;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  overflow: hidden;
-  width: fit-content;
-}
-
-.segmented button {
-  display: inline-flex;
+.settingsAdvancedToggle {
+  display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 14px;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0;
   border: 0;
-  border-right: 1px solid var(--line);
-  background: var(--panel);
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.settingsAdvancedToggle:hover {
   color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 600;
 }
 
-.segmented button:last-child {
-  border-right: 0;
+.settingsAdvancedToggle svg {
+  transition: transform 0.15s ease;
 }
 
-.segmented button.active {
-  background: var(--solid);
-  color: var(--panel);
+.settingsAdvancedToggle.collapsed svg {
+  transform: rotate(-90deg);
+}
+
+.settingsAdvancedBody {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .settingsRow {
