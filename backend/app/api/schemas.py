@@ -124,6 +124,12 @@ class UsuarioOut(BaseModel):
     oab_uf: str | None = None
 
 
+class MeOut(BaseModel):
+    usuario_id: int
+    escritorio_id: int
+    email: str
+
+
 class ProtocolarAsyncRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

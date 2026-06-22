@@ -57,6 +57,7 @@ import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
 import GateOabView from "./views/GateOabView";
 import HomeDashboard from "./views/HomeDashboard";
+import OnboardingView from "./views/OnboardingView";
 import ProtocolosView from "./views/ProtocolosView";
 import TemplatesView from "./views/TemplatesView";
 import IntimacoesView from "./views/IntimacoesView";
@@ -614,6 +615,12 @@ export default function Home() {
             onClick={() => setView("dashboard")}
           />
           <NavItem
+            icon={<CheckCircle2 size={15} />}
+            label="Onboarding"
+            active={view === "onboarding"}
+            onClick={() => setView("onboarding")}
+          />
+          <NavItem
             icon={<MessageCircle size={15} />}
             label="Assistente"
             active={view === "assistente"}
@@ -786,7 +793,15 @@ export default function Home() {
           </div>
         ) : null}
 
-        {view === "assistente" ? (
+        {view === "onboarding" ? (
+          <OnboardingView
+            data={data}
+            offline={offline}
+            onOpenOab={openOab}
+            onNavigate={setView}
+            onOpenSettings={() => setOverlay("settings")}
+          />
+        ) : view === "assistente" ? (
           <AssistantWorkspace
             offline={offline}
             onConfirmAction={confirmAssistantAction}

@@ -39,6 +39,36 @@ def test_cli_monitor_oab_registers(db_session, monkeypatch):
     assert oab.ativo is True
 
 
+def test_cli_provision_pilot_is_idempotent(db_session, monkeypatch):
+    import app.cli as cli
+    from app.sor import models
+
+    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+
+    args = [
+        "provision-pilot",
+        "--escritorio",
+        "Teste Advocacia",
+        "--nome",
+        "Ana Teste",
+        "--email",
+        "ana@example.com",
+        "--oab",
+        "12345",
+        "--uf",
+        "sp",
+    ]
+    assert cli.main(args) == 0
+    assert cli.main(args) == 0
+
+    usuario = db_session.query(models.Usuario).one()
+    escritorio = db_session.query(models.Escritorio).one()
+    assert usuario.email == "ana@example.com"
+    assert usuario.oab_uf == "SP"
+    assert usuario.escritorio_id == escritorio.id
+
+
 def test_cli_capture_due_runs(db_session, monkeypatch):
     import app.cli as cli
     from app.capture.djen import ComunicacaoDTO

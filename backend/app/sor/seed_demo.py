@@ -135,6 +135,11 @@ def _wipe_previous_demo(session: Session, escritorio: models.Escritorio) -> None
         )
     )
     session.execute(
+        delete(models.OabMonitorada).where(
+            models.OabMonitorada.escritorio_id == escritorio.id
+        )
+    )
+    session.execute(
         delete(models.Cliente).where(models.Cliente.escritorio_id == escritorio.id)
     )
     if usuario_ids:
@@ -165,6 +170,80 @@ _PROCESSOS = [
      "1ª Vara Cível de Contagem", "PJe", "Farmácia Saúde Plena"),
     ("0911223", "2025", "8", "26", "0577", "Embargos à Execução", "TJSP",
      "4ª Vara Cível de Campinas", "e-SAJ", "Auto Peças Rodrigues"),
+]
+
+
+_EXTRA_CLIENTES = [
+    "Rede Horizonte de Clinicas",
+    "Alimentos Vale Forte Ltda",
+    "Nova Delta Tecnologia S/A",
+    "Condominio Jardim Aurora",
+    "Logistica Norte Sul",
+    "Editora Sol Nascente",
+    "Clinica Santa Clara",
+    "Varejo Popular Brasil",
+    "Agropecuaria Tres Lagoas",
+    "Metalurgica Linhares",
+    "Escola Prisma Ltda",
+    "Mercado Boa Vista",
+]
+
+_EXTRA_CLASSES = [
+    "Procedimento Comum Civel",
+    "Cumprimento de Sentenca",
+    "Execucao de Titulo Extrajudicial",
+    "Agravo de Instrumento",
+    "Mandado de Seguranca",
+    "Acao Trabalhista - Rito Ordinario",
+    "Consignacao em Pagamento",
+    "Acao de Cobranca",
+]
+
+_EXTRA_TRIBUNAIS = [
+    ("TJSP", "8", "26", "PJe", "Vara Civel de Sao Paulo"),
+    ("TJRJ", "8", "19", "PJe", "Vara Civel da Capital"),
+    ("TJMG", "8", "13", "PJe", "Unidade Jurisdicional de Belo Horizonte"),
+    ("TRT2", "5", "02", "PJe", "Vara do Trabalho de Sao Paulo"),
+    ("TRF3", "4", "03", "PJe", "Vara Federal de Sao Paulo"),
+    ("TJSP", "8", "26", "e-SAJ", "Foro Regional de Pinheiros"),
+    ("TJPR", "8", "16", "Projudi", "Vara Civel de Curitiba"),
+    ("TRF4", "4", "04", "EPROC", "Vara Federal de Porto Alegre"),
+]
+
+for _idx in range(42):
+    _tribunal, _segmento, _tribunal_codigo, _sistema, _orgao_base = _EXTRA_TRIBUNAIS[
+        _idx % len(_EXTRA_TRIBUNAIS)
+    ]
+    _PROCESSOS.append(
+        (
+            f"{1200000 + _idx:07d}",
+            str(2024 + (_idx % 2)),
+            _segmento,
+            _tribunal_codigo,
+            f"{1000 + _idx:04d}",
+            _EXTRA_CLASSES[_idx % len(_EXTRA_CLASSES)],
+            _tribunal,
+            f"{1 + (_idx % 18)}a {_orgao_base}",
+            _sistema,
+            _EXTRA_CLIENTES[_idx % len(_EXTRA_CLIENTES)],
+        )
+    )
+
+_EXTRA_WORK_ITEMS = [
+    ("Contrarrazoes de apelacao", "Intimacao", 15, "rascunho", 1),
+    ("Manifestacao sobre documentos", "Despacho", 5, None, 0),
+    ("Impugnacao ao cumprimento de sentenca", "Intimacao", 15, "em_revisao", -1),
+    ("Embargos de declaracao", "Intimacao de Sentenca", 5, "aprovada", 2),
+    ("Contestacao", "Citacao", 15, "protocolada", 0),
+    ("Agravo interno", "Decisao", 15, "rascunho", 3),
+    ("Recurso ordinario", "Sentenca", 8, "em_revisao", 5),
+    ("Manifestacao sobre calculos", "Intimacao", 10, "aprovada", 7),
+    ("Especificacao de provas", "Despacho", 15, None, 10),
+    ("Apelacao", "Intimacao de Sentenca", 15, "rascunho", 12),
+    ("Resposta a oficio", "Oficio", 10, "protocolada", -3),
+    ("Replica", "Intimacao", 15, "em_revisao", 4),
+    ("Pedido de desbloqueio SISBAJUD", "Despacho", 5, "aprovada", 6),
+    ("Manifestacao sobre pericia", "Intimacao", 15, None, 8),
 ]
 
 
@@ -202,6 +281,44 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
     )
     session.add_all([advogada, apoio])
     session.flush()
+
+    session.add_all(
+        [
+            models.OabMonitorada(
+                escritorio_id=escritorio.id,
+                oab=advogada.oab or "123456",
+                uf=advogada.oab_uf or "SP",
+                ativo=True,
+                intervalo_horas=6,
+                ultima_captura_em=datetime.combine(
+                    today, time(7, 30), tzinfo=timezone.utc
+                ),
+                cursor_data=today - timedelta(days=3),
+            ),
+            models.OabMonitorada(
+                escritorio_id=escritorio.id,
+                oab="654321",
+                uf="RJ",
+                ativo=True,
+                intervalo_horas=12,
+                ultima_captura_em=datetime.combine(
+                    today - timedelta(days=1), time(18, 10), tzinfo=timezone.utc
+                ),
+                cursor_data=today - timedelta(days=5),
+            ),
+            models.OabMonitorada(
+                escritorio_id=escritorio.id,
+                oab="778899",
+                uf="MG",
+                ativo=False,
+                intervalo_horas=24,
+                ultima_captura_em=datetime.combine(
+                    today - timedelta(days=4), time(9, 0), tzinfo=timezone.utc
+                ),
+                cursor_data=today - timedelta(days=8),
+            ),
+        ]
+    )
 
     clientes: dict[str, models.Cliente] = {}
     processos: list[models.Processo] = []
@@ -450,6 +567,91 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
     )
     _prazo(processos[6], int_recurso, descricao="Apelação", vence_em=12)
 
+    intimacoes_extra: list[models.Intimacao] = []
+    peticoes_extra: list[models.Peticao] = []
+    for idx, processo in enumerate(processos[7:], start=1):
+        descricao, tipo_comunicacao, dias, status_peticao, vence_em = _EXTRA_WORK_ITEMS[
+            (idx - 1) % len(_EXTRA_WORK_ITEMS)
+        ]
+        dias_atras = max(1, dias - vence_em + (idx % 4))
+        intimacao = _intimacao(
+            processo,
+            idx=100 + idx,
+            tipo=tipo_comunicacao,
+            teor=(
+                f"Publicacao sintetica de demo: {tipo_comunicacao}. "
+                f"Intima-se a parte para {descricao.lower()} no prazo de {dias} "
+                "dias, observadas as regras processuais aplicaveis."
+            ),
+            dias_atras=dias_atras,
+        )
+        intimacoes_extra.append(intimacao)
+        prazo = _prazo(
+            processo,
+            intimacao,
+            descricao=descricao,
+            vence_em=vence_em,
+            dias=dias,
+            cumprido=status_peticao == "protocolada",
+        )
+        session.flush()
+
+        session.add(
+            models.Documento(
+                processo_id=processo.id,
+                nome=f"Documento base {idx:02d}.pdf",
+                tipo="pdf",
+                uri=f"demo://processos/{processo.numero}/documento-base-{idx:02d}.pdf",
+            )
+        )
+
+        if idx % 2 == 0:
+            session.add(
+                models.Andamento(
+                    processo_id=processo.id,
+                    codigo=51,
+                    descricao="Conclusos para despacho",
+                    data=datetime.combine(
+                        today - timedelta(days=idx % 9),
+                        time(14, 20),
+                        tzinfo=timezone.utc,
+                    ),
+                )
+            )
+
+        if status_peticao is None:
+            continue
+
+        peticao = models.Peticao(
+            escritorio_id=escritorio.id,
+            processo_id=processo.id,
+            prazo_id=prazo.id,
+            tipo=descricao,
+            status="aprovada" if status_peticao == "protocolada" else status_peticao,
+            aprovada_por=advogada.id
+            if status_peticao in {"aprovada", "protocolada"}
+            else None,
+            conteudo=(
+                f"EXCELENTISSIMO JUIZO\n\n{processo.cliente.nome if processo.cliente else 'A parte'}, "
+                f"nos autos {processo.numero}, apresenta {descricao.upper()} em minuta "
+                "preparada para revisao da equipe. I - Sintese do ato. II - "
+                "Fundamentos principais. III - Requerimentos finais."
+            ),
+        )
+        session.add(peticao)
+        session.flush()
+        session.add(
+            models.Documento(
+                peticao_id=peticao.id,
+                nome=f"Minuta {descricao} {idx:02d}.pdf",
+                tipo="pdf",
+                uri=f"demo://peticoes/{peticao.id}/minuta.pdf",
+            )
+        )
+        peticoes_extra.append(peticao)
+        if status_peticao == "protocolada":
+            run_fake_protocol_job(session, peticao.id)
+
     for processo in processos:
         session.add(
             models.Andamento(
@@ -479,10 +681,50 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         )
     )
 
+    session.add_all(
+        [
+            models.TemplatePeticao(
+                escritorio_id=escritorio.id,
+                tipo="Manifestacao",
+                area="Civel",
+                nome="Manifestacao objetiva sobre documentos",
+                conteudo=(
+                    "MERITISSIMO JUIZO\n\n{{cliente}} manifesta-se sobre os documentos "
+                    "juntados, destacando os pontos controvertidos e requerendo "
+                    "{{pedidos}}."
+                ),
+                ativo=True,
+            ),
+            models.TemplatePeticao(
+                escritorio_id=escritorio.id,
+                tipo="Agravo de instrumento",
+                area="Civel",
+                nome="Agravo com pedido de efeito suspensivo",
+                conteudo=(
+                    "EGREGIO TRIBUNAL\n\n{{cliente}} interpoe AGRAVO DE INSTRUMENTO "
+                    "contra a decisao de {{decisao}}, com pedido de efeito suspensivo."
+                ),
+                ativo=True,
+            ),
+            models.TemplatePeticao(
+                escritorio_id=escritorio.id,
+                tipo="Recurso ordinario",
+                area="Trabalhista",
+                nome="RO trabalhista com preliminares",
+                conteudo=(
+                    "EGREGIO TRIBUNAL REGIONAL DO TRABALHO\n\n{{cliente}} apresenta "
+                    "RECURSO ORDINARIO, renovando preliminares e impugnando a sentenca."
+                ),
+                ativo=True,
+            ),
+        ]
+    )
+
     intimacoes_seed = [
         int_citacao, int_pericia, int_sentenca, int_replica, int_pagamento,
         int_despacho, int_recurso,
     ]
+    intimacoes_seed.extend(intimacoes_extra)
     for intimacao in intimacoes_seed:
         _audit(
             session,
@@ -493,7 +735,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
             escritorio_id=escritorio.id,
             detalhe={"fonte": "DJEN", "tipo": intimacao.tipo_comunicacao},
         )
-    for peticao in (pet_contestacao, pet_embargos, pet_replica):
+    for peticao in (pet_contestacao, pet_embargos, pet_replica, *peticoes_extra):
         _audit(
             session,
             acao="minuta_gerada",
@@ -503,7 +745,12 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
             escritorio_id=escritorio.id,
             detalhe={"tipo": peticao.tipo},
         )
-    for peticao in (pet_embargos, pet_replica):
+    peticoes_aprovadas = [
+        peticao
+        for peticao in (pet_embargos, pet_replica, *peticoes_extra)
+        if peticao.aprovada_por is not None
+    ]
+    for peticao in peticoes_aprovadas:
         _audit(
             session,
             acao="peticao_aprovada",
@@ -525,11 +772,22 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
     )
     session.flush()
 
+    total_prazos = len(
+        session.scalars(
+            select(models.Prazo).where(models.Prazo.escritorio_id == escritorio.id)
+        ).all()
+    )
+    total_peticoes = len(
+        session.scalars(
+            select(models.Peticao).where(models.Peticao.escritorio_id == escritorio.id)
+        ).all()
+    )
+
     return SeedDemoResult(
         escritorio_id=escritorio.id,
         usuarios=2,
         processos=len(processos),
         intimacoes=len(intimacoes_seed),
-        prazos=7,
-        peticoes=4,
+        prazos=total_prazos,
+        peticoes=total_peticoes,
     )

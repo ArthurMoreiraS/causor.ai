@@ -94,6 +94,21 @@ def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
 
+def test_me_retorna_usuario_e_tenant_autenticados(client, db_session, seeded):
+    usuario = db_session.scalar(
+        select(models.Usuario).where(models.Usuario.escritorio_id == seeded.escritorio_id)
+    )
+
+    resp = client.get("/me")
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "usuario_id": usuario.id,
+        "escritorio_id": seeded.escritorio_id,
+        "email": "seed@example.com",
+    }
+
+
 def test_dashboard_operacional(client, seeded):
     resp = client.get("/dashboard/operational")
     assert resp.status_code == 200
@@ -972,7 +987,7 @@ def test_registrar_e_listar_oab_monitorada(client, db_session):
 
     resp = client.post(
         "/capturas/oab",
-        json={"escritorio_id": esc.id, "oab": "12345", "uf": "SP", "intervalo_horas": 6},
+        json={"oab": "12345", "uf": "SP", "intervalo_horas": 6},
     )
     assert resp.status_code == 201
     body = resp.json()

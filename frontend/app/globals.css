@@ -68,7 +68,8 @@ button:disabled {
 .shell {
   display: grid;
   grid-template-columns: 196px minmax(0, 1fr);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   transition: grid-template-columns 180ms ease;
 }
 
@@ -79,7 +80,7 @@ button:disabled {
 .sidebar {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   border-right: 1px solid var(--line);
   background: var(--panel-soft);
   transition: width 180ms ease;
@@ -312,10 +313,14 @@ button:disabled {
 
 .workspace {
   min-width: 0;
-  overflow: hidden;
+  height: 100vh;
+  overflow-y: auto;
 }
 
 .appbar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -459,6 +464,117 @@ h2 {
   display: grid;
   gap: 16px;
   padding: 16px 28px 28px;
+}
+
+.onboardingSurface {
+  display: grid;
+  gap: 14px;
+  padding: 16px 28px 28px;
+}
+
+.onboardingHero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 154px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  background: var(--panel);
+}
+
+.onboardingHero h2 {
+  margin-top: 8px;
+  font-size: 18px;
+}
+
+.onboardingHero p {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.onboardingScore {
+  min-width: 116px;
+  display: grid;
+  gap: 4px;
+  justify-items: end;
+}
+
+.onboardingScore strong {
+  font-size: 34px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.onboardingScore span {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.onboardingGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.onboardingStep {
+  min-height: 176px;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.onboardingStep.done {
+  border-color: rgba(23, 128, 88, 0.35);
+  background: var(--success-bg);
+}
+
+.onboardingStep header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.onboardingIcon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--panel-soft);
+}
+
+.onboardingStep.done .onboardingIcon {
+  color: var(--success);
+}
+
+.onboardingStep small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.onboardingStep strong {
+  font-size: 13px;
+}
+
+.onboardingStep p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .dashboardWorklist {
@@ -1614,11 +1730,19 @@ h2 {
   .shell,
   .shell.sidebarCollapsed {
     grid-template-columns: 1fr;
+    height: auto;
+    overflow: visible;
   }
 
   .sidebar {
     min-height: auto;
+    height: auto;
     border-right: 0;
+  }
+
+  .workspace {
+    height: auto;
+    overflow: visible;
   }
 
   .sideNav {
@@ -1666,6 +1790,19 @@ h2 {
     grid-template-columns: 1fr;
   }
 
+  .onboardingGrid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .onboardingHero {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .onboardingScore {
+    justify-items: start;
+  }
+
   .agentCycle {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -1683,6 +1820,7 @@ h2 {
   .hero,
   .workSurface,
   .homeSurface,
+  .onboardingSurface,
   .insightGrid,
   .bottomGrid {
     padding-left: 16px;
@@ -1714,6 +1852,10 @@ h2 {
   }
 
   .agentCycle {
+    grid-template-columns: 1fr;
+  }
+
+  .onboardingGrid {
     grid-template-columns: 1fr;
   }
 

@@ -161,6 +161,23 @@ export type Usuario = {
   oab_uf: string | null;
 };
 
+export type CurrentUser = {
+  usuario_id: number;
+  escritorio_id: number;
+  email: string;
+};
+
+export type OabMonitorada = {
+  id: number;
+  escritorio_id: number;
+  oab: string;
+  uf: string;
+  ativo: boolean;
+  intervalo_horas: number;
+  ultima_captura_em: string | null;
+  cursor_data: string | null;
+};
+
 export type CredencialAssinatura = {
   id: number;
   usuario_id: number;
@@ -350,24 +367,29 @@ export async function carregarAlertas(): Promise<AlertaPrazo[]> {
   return request<AlertaPrazo[]>("/alertas");
 }
 
+export async function listarOabsMonitoradas(): Promise<OabMonitorada[]> {
+  return request<OabMonitorada[]>("/capturas/oab");
+}
+
 export async function listarUsuarios(escritorioId?: number): Promise<Usuario[]> {
   const qs = escritorioId != null ? `?escritorio_id=${escritorioId}` : "";
   return request<Usuario[]>(`/usuarios${qs}`);
 }
 
-// A demo roda single-tenant sem auth: o "usuário logado" é o primeiro usuário
-// do banco (a seed recria usuários com ids novos, então nada pode ser fixo).
-let usuarioAtualId: number | null = null;
+let currentUserCache: CurrentUser | null = null;
+
+export async function carregarUsuarioAtual(): Promise<CurrentUser> {
+  if (currentUserCache != null) return currentUserCache;
+  currentUserCache = await request<CurrentUser>("/me");
+  return currentUserCache;
+}
 
 export async function resolverUsuarioAtual(): Promise<number> {
-  if (usuarioAtualId != null) return usuarioAtualId;
-  try {
-    const usuarios = await listarUsuarios();
-    usuarioAtualId = usuarios[0]?.id ?? 1;
-  } catch {
-    usuarioAtualId = 1;
-  }
-  return usuarioAtualId;
+  return (await carregarUsuarioAtual()).usuario_id;
+}
+
+export async function resolverEscritorioAtual(): Promise<number> {
+  return (await carregarUsuarioAtual()).escritorio_id;
 }
 
 export async function listarCredenciais(usuarioId?: number): Promise<CredencialAssinatura[]> {
@@ -393,15 +415,17 @@ export async function desativarCredencial(credencialId: number): Promise<Credenc
   });
 }
 
-export async function listarTemplates(escritorioId = 1): Promise<TemplatePeticao[]> {
-  return request<TemplatePeticao[]>(`/escritorios/${escritorioId}/templates-peticao`);
+export async function listarTemplates(escritorioId?: number): Promise<TemplatePeticao[]> {
+  const id = escritorioId ?? (await resolverEscritorioAtual());
+  return request<TemplatePeticao[]>(`/escritorios/${id}/templates-peticao`);
 }
 
 export async function criarTemplate(
   template: { tipo: string; area?: string | null; nome: string; conteudo: string; ativo?: boolean },
-  escritorioId = 1
+  escritorioId?: number
 ): Promise<TemplatePeticao> {
-  return request<TemplatePeticao>(`/escritorios/${escritorioId}/templates-peticao`, {
+  const id = escritorioId ?? (await resolverEscritorioAtual());
+  return request<TemplatePeticao>(`/escritorios/${id}/templates-peticao`, {
     method: "POST",
     body: JSON.stringify(template)
   });
@@ -439,9 +463,21 @@ export async function rodarCapturaOab(
   oab: string,
   uf: string
 ): Promise<CaptureResult> {
+  await cadastrarOabMonitorada(oab, uf);
   return request<CaptureResult>("/capture/oab", {
     method: "POST",
     body: JSON.stringify({ oab, uf })
+  });
+}
+
+export async function cadastrarOabMonitorada(
+  oab: string,
+  uf: string,
+  intervaloHoras = 12
+): Promise<OabMonitorada> {
+  return request<OabMonitorada>("/capturas/oab", {
+    method: "POST",
+    body: JSON.stringify({ oab, uf, intervalo_horas: intervaloHoras })
   });
 }
 

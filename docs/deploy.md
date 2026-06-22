@@ -1,49 +1,87 @@
-# Deploy — runbook
+# Deploy - runbook
 
-Arquitetura de produção: **Supabase** (Postgres, já configurado) + **backend**
-(FastAPI em Render/Railway) + **frontend** (Next.js na Vercel).
+Arquitetura de producao: Supabase (Postgres/Auth/Vault), backend FastAPI
+(Render/Railway ou equivalente) e frontend Next.js (Vercel ou equivalente).
 
-> ⚠️ **Antes de expor publicamente:** a API ainda **não tem autenticação**. Sem
-> a Fase 2 (Supabase Auth) ou um gate mínimo, qualquer pessoa com a URL lê/escreve
-> os dados. Suba assim apenas como **demo com dados fictícios**; para dados reais
-> de cliente, faça a Fase 2 primeiro.
+## 1. Backend
 
-## 1. Backend (Render — exemplo)
+Prerequisito: repo conectado ao provedor e root directory `backend`.
 
-Pré-requisito: repo no GitHub (já está) e conta no Render.
+1. Build command: `pip install -e .`
+2. Start command: usar o `Procfile`.
+3. Rodar migrations no release/startup: `alembic upgrade head`.
+4. Variaveis de ambiente:
+   - `CAUSOR_DATABASE_URL` = string do Supabase Postgres.
+   - `CAUSOR_DATAJUD_API_KEY` = chave DataJud/CNJ.
+   - `ANTHROPIC_API_KEY` = chave Claude.
+   - `CAUSOR_CLAUDE_CHAT_MODEL` = `claude-haiku-4-5`.
+   - `CAUSOR_CLAUDE_CLASSIFICATION_MODEL` = `claude-haiku-4-5`.
+   - `CAUSOR_CLAUDE_DRAFT_MODEL` = `claude-sonnet-4-6`.
+   - `CAUSOR_SUPABASE_JWT_SECRET` = segredo HS256 legado ou chave PEM ES256.
+   - `CAUSOR_CORS_ORIGINS` = URL final do frontend.
+   - `CAUSOR_VAULT_PROVIDER` = `supabase` em producao.
 
-1. New → **Web Service** → conecta o repo, root directory `backend`.
-2. Build command: `pip install -e .`
-3. Start command: vem do `Procfile` (`web:`); o `release:` roda as migrations.
-4. **Environment variables** (Settings → Environment):
-   - `CAUSOR_DATABASE_URL` = string do Supabase (`postgresql+psycopg://...`)
-   - `CAUSOR_DATAJUD_API_KEY` = chave pública do CNJ
-   - `ANTHROPIC_API_KEY` = chave do Claude
-   - `CAUSOR_CLAUDE_CHAT_MODEL` = `claude-haiku-4-5`
-   - `CAUSOR_CLAUDE_CLASSIFICATION_MODEL` = `claude-haiku-4-5`
-   - `CAUSOR_CLAUDE_DRAFT_MODEL` = `claude-sonnet-4-6`
-   - `CAUSOR_CORS_ORIGINS` = `https://<seu-front>.vercel.app` (ou seu domínio)
-5. Deploy. Teste: `GET https://<seu-back>.onrender.com/health` → `{"status":"ok"}`.
+Teste: `GET https://<backend>/health` deve retornar `{"status":"ok"}`.
 
-(No Railway o fluxo é equivalente: detecta o Procfile; setar as mesmas envs.)
+## 2. Frontend
 
-## 2. Frontend (Vercel)
+Root directory `frontend`.
 
-1. Import do repo, root directory `frontend`.
-2. Framework: Next.js (auto). Build padrão.
-3. **Environment variable**:
-   - `NEXT_PUBLIC_API_BASE` = `https://<seu-back>.onrender.com`
-4. Deploy. Acesse a URL da Vercel.
-5. Volte ao backend e ajuste `CAUSOR_CORS_ORIGINS` para a URL final da Vercel.
+Variaveis:
 
-## 3. Domínio próprio
+- `NEXT_PUBLIC_API_BASE` = URL do backend.
+- `NEXT_PUBLIC_SUPABASE_URL` = URL do projeto Supabase.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` = anon key do projeto Supabase.
 
-- Front: Vercel → Domains → aponta `app.seudominio.com`.
-- Back: Render → Custom Domain → `api.seudominio.com`.
-- Atualize `NEXT_PUBLIC_API_BASE` e `CAUSOR_CORS_ORIGINS` para os domínios finais.
+Depois do deploy, ajuste `CAUSOR_CORS_ORIGINS` no backend para a URL final do
+frontend.
 
-## 4. Agendamento da captura (opcional)
+## 3. Provisionamento de piloto
 
-A captura agendada roda via CLI `capture-due`. Em produção, configure um cron
-externo (Render Cron Job / GitHub Actions) chamando o comando no ambiente do
-backend. Sem isso, dispare manualmente por `POST /capturas/oab` + cron próprio.
+A API exige Supabase Auth/JWT. O usuario precisa existir tambem no SOR do
+Causor; caso contrario o backend retorna `403 usuario sem acesso`.
+
+1. Crie ou convide o usuario no Supabase Auth.
+2. No backend, rode:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m app.cli provision-pilot `
+  --escritorio "Nome do Escritorio" `
+  --nome "Nome do Advogado" `
+  --email "advogado@example.com" `
+  --oab "123456" `
+  --uf "SP"
+```
+
+3. O advogado faz login no frontend.
+4. Abra `Onboarding` no app e siga o checklist.
+
+## 4. Captura agendada
+
+A primeira captura pode ser feita pelo app em `Captura por OAB`; ela registra a
+OAB monitorada e roda a captura imediatamente.
+
+Para rotina agendada, configure um cron externo chamando:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m app.cli capture-due
+```
+
+## 5. PJe assistido
+
+No piloto, o protocolo PJe para em `ready_to_sign`; assinatura/envio final
+seguem no PJe/PJeOffice e o numero do protocolo e registrado no Causor.
+
+Para capturar sessao PJe assistida em ambiente controlado:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m app.cli pje-capture-session `
+  --usuario <usuario_id> `
+  --tribunal TJSP `
+  --url-base "https://pje-treinamento.example/pje"
+```
+
+Nao guardar senha, certificado, `.pfx`, chave privada ou OTP no Causor.

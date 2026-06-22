@@ -12,7 +12,20 @@ class Base(DeclarativeBase):
     """Declarative base for all SOR models."""
 
 
-engine = create_engine(settings.database_url, future=True)
+def _connect_args(database_url: str) -> dict:
+    if database_url.startswith("postgresql+psycopg"):
+        # Supabase's transaction pooler can reuse server-side prepared statement
+        # names across clients. Disabling psycopg prepared statements avoids
+        # DuplicatePreparedStatement during local/demo traffic.
+        return {"prepare_threshold": None}
+    return {}
+
+
+engine = create_engine(
+    settings.database_url,
+    future=True,
+    connect_args=_connect_args(settings.database_url),
+)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
 

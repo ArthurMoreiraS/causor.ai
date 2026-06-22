@@ -34,6 +34,7 @@ from app.api.schemas import (
     EditPeticaoRequest,
     IntimacaoOut,
     JobOut,
+    MeOut,
     OabMonitoradaCreate,
     OabMonitoradaOut,
     OperationalDashboard,
@@ -173,6 +174,14 @@ def create_app() -> FastAPI:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
+
+    @app.get("/me", response_model=MeOut)
+    def me(current: CurrentUser = Depends(get_current_user)) -> MeOut:
+        return MeOut(
+            usuario_id=current.usuario_id,
+            escritorio_id=current.escritorio_id,
+            email=current.email,
+        )
 
     @app.get("/dashboard/operational", response_model=OperationalDashboard)
     def dashboard_operacional(

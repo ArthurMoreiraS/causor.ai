@@ -46,6 +46,16 @@ def _build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("seed-demo", help="Create/refresh the idempotent demo dataset")
 
+    provision = sub.add_parser(
+        "provision-pilot",
+        help="Create or update a pilot office/user for Supabase-auth onboarding",
+    )
+    provision.add_argument("--escritorio", required=True, help="Office name")
+    provision.add_argument("--nome", required=True, help="Lawyer/user name")
+    provision.add_argument("--email", required=True, help="Supabase Auth email")
+    provision.add_argument("--oab", help="Main OAB number")
+    provision.add_argument("--uf", help="Main OAB state")
+
     monitor = sub.add_parser("monitor-oab", help="Register an OAB for scheduled capture")
     monitor.add_argument("--oab", required=True)
     monitor.add_argument("--uf", required=True)
@@ -119,6 +129,49 @@ def main(argv: list[str] | None = None) -> int:
             f"Seed de demo aplicada (escritório {seed.escritorio_id}): "
             f"{seed.processos} processos, {seed.intimacoes} intimações, "
             f"{seed.prazos} prazos, {seed.peticoes} petições."
+        )
+
+    if args.command == "provision-pilot":
+        session = SessionLocal()
+        try:
+            usuario = session.scalar(
+                select(models.Usuario).where(models.Usuario.email == args.email)
+            )
+            if usuario is not None:
+                escritorio = session.get(models.Escritorio, usuario.escritorio_id)
+                if escritorio is not None:
+                    escritorio.nome = args.escritorio
+                usuario.nome = args.nome
+                usuario.oab = args.oab
+                usuario.oab_uf = args.uf.upper() if args.uf else None
+            else:
+                escritorio = session.scalar(
+                    select(models.Escritorio).where(models.Escritorio.nome == args.escritorio)
+                )
+                if escritorio is None:
+                    escritorio = models.Escritorio(nome=args.escritorio)
+                    session.add(escritorio)
+                    session.flush()
+                usuario = models.Usuario(
+                    escritorio_id=escritorio.id,
+                    nome=args.nome,
+                    email=args.email,
+                    oab=args.oab,
+                    oab_uf=args.uf.upper() if args.uf else None,
+                )
+                session.add(usuario)
+            session.commit()
+            session.refresh(usuario)
+            escritorio_id = usuario.escritorio_id
+            usuario_id = usuario.id
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        print(
+            f"Piloto provisionado: escritorio {escritorio_id}, "
+            f"usuario {usuario_id} ({args.email})."
         )
 
     if args.command == "monitor-oab":
