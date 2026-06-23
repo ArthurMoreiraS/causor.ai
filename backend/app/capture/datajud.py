@@ -20,6 +20,8 @@ from app.settings import settings
 def _parse_date(value: str | None) -> date | None:
     if not value:
         return None
+    if value.isdigit() and len(value) in {8, 14}:
+        return datetime.strptime(value[:8], "%Y%m%d").date()
     # DataJud uses ISO timestamps like "2024-01-15T00:00:00.000Z".
     return datetime.fromisoformat(value.replace("Z", "+00:00")).date()
 

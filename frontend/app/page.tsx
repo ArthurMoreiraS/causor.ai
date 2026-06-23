@@ -32,11 +32,14 @@ import {
   DashboardData,
   editarPeticao,
   gerarMinuta,
+  listarOabsMonitoradas,
   loadDashboard,
+  OabMonitorada,
   Peticao,
   Prazo,
   ProposedAction,
   protocolarPeticaoAsync,
+  removerOabMonitorada,
   revisarPrazo,
   ReviewQueueItem,
   rodarCapturaOab
@@ -117,6 +120,7 @@ export default function Home() {
     oab: "",
     uf: "SP"
   });
+  const [oabsMonitoradas, setOabsMonitoradas] = useState<OabMonitorada[]>([]);
   const { settings, update: updateSettings, reset: resetSettings } = useSettings();
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
@@ -139,6 +143,14 @@ export default function Home() {
     return Array.from({ length: n }, (_, i) => start + i);
   }, []);
 
+  async function loadOabsMonitoradas() {
+    try {
+      setOabsMonitoradas(await listarOabsMonitoradas());
+    } catch {
+      setOabsMonitoradas([]);
+    }
+  }
+
   function openOab() {
     setOabForm((f) => ({
       ...f,
@@ -146,6 +158,7 @@ export default function Home() {
       oab: f.oab || settings.defaultOab,
       uf: f.uf || settings.defaultUf
     }));
+    void loadOabsMonitoradas();
   }
 
   async function refresh() {
@@ -180,9 +193,28 @@ export default function Home() {
       const result = await rodarCapturaOab(oabForm.oab.trim(), oabForm.uf.trim());
       setCaptureResult(result);
       setOabForm((f) => ({ ...f, open: false }));
+      await loadOabsMonitoradas();
       await refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Captura por OAB não concluída");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function removeCapturedOab(oab: OabMonitorada) {
+    const confirmed = window.confirm(
+      `Remover OAB ${oab.oab}/${oab.uf} e apagar intimações, prazos, processos e petições capturados por ela?`
+    );
+    if (!confirmed) return;
+    setBusy(`remove-oab-${oab.id}`);
+    setError(null);
+    try {
+      await removerOabMonitorada(oab.id, true);
+      await loadOabsMonitoradas();
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "OAB não removida");
     } finally {
       setBusy(null);
     }
@@ -1003,6 +1035,32 @@ export default function Home() {
                   onChange={(e) => setOabForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))}
                 />
               </label>
+              <div className="modalListBlock">
+                <strong>OABs monitoradas</strong>
+                {oabsMonitoradas.length === 0 ? (
+                  <p>Nenhuma OAB cadastrada.</p>
+                ) : (
+                  <div className="modalListRows">
+                    {oabsMonitoradas.map((oab) => (
+                      <div className="modalListRow" key={oab.id}>
+                        <span>
+                          {oab.oab}/{oab.uf}
+                        </span>
+                        <button
+                          className="toolbarButton compact danger"
+                          disabled={busy === `remove-oab-${oab.id}`}
+                          onClick={() => void removeCapturedOab(oab)}
+                        >
+                          {busy === `remove-oab-${oab.id}` ? (
+                            <Loader2 className="spin" size={14} />
+                          ) : null}
+                          Remover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               <div className="modalActions">
                 <button className="toolbarButton" onClick={() => setOabForm((f) => ({ ...f, open: false }))}>
                   Cancelar
@@ -1026,6 +1084,7 @@ export default function Home() {
             offline={offline}
             onUpdate={updateSettings}
             onReset={resetSettings}
+            onOabChanged={refresh}
             onClose={() => setOverlay(null)}
           />
         ) : null}

@@ -53,6 +53,28 @@ def test_consultar_processo_returns_dto(httpx_mock, client):
     assert proc.movimentos[0].nome == "Distribuição"
 
 
+def test_consultar_processo_accepts_compact_data_ajuizamento(httpx_mock, client):
+    sample = {
+        "hits": {
+            "total": {"value": 1},
+            "hits": [
+                {
+                    "_source": {
+                        **SAMPLE["hits"]["hits"][0]["_source"],
+                        "dataAjuizamento": "20260408000000",
+                    }
+                }
+            ],
+        }
+    }
+    httpx_mock.add_response(json=sample)
+
+    proc = client.consultar_processo("00000010020248260100", tribunal="stj")
+
+    assert proc is not None
+    assert proc.data_ajuizamento == date(2026, 4, 8)
+
+
 def test_hits_endpoint_and_auth_header(httpx_mock, client):
     httpx_mock.add_response(json=SAMPLE)
     client.consultar_processo("00000010020248260100", tribunal="tjsp")

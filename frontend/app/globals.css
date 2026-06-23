@@ -384,6 +384,11 @@ button:disabled {
   border-color: var(--solid);
 }
 
+.toolbarButton.danger {
+  border-color: rgba(185, 28, 28, 0.26);
+  color: #b91c1c;
+}
+
 .iconButton {
   width: 30px;
   height: 30px;
@@ -1932,7 +1937,7 @@ h2 {
   background: var(--panel);
   border-radius: 12px;
   padding: 20px;
-  width: 320px;
+  width: min(420px, 92vw);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -1952,6 +1957,47 @@ h2 {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.modalListBlock {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.modalListBlock > strong {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.modalListBlock p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.modalListRows {
+  display: grid;
+  gap: 8px;
+}
+
+.modalListRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+  padding: 7px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.modalListRow span {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 /* ===== Fase A — Configurações, filtros, ajuda, perfil ===== */
@@ -2044,6 +2090,10 @@ h2 {
   gap: 10px;
 }
 
+.settingsRow.single {
+  grid-template-columns: 1fr;
+}
+
 .settingsRow label,
 .settingsInline {
   display: flex;
@@ -2084,6 +2134,10 @@ h2 {
   justify-content: space-between;
   gap: 10px;
   margin-top: 4px;
+}
+
+.settingsSaveButton {
+  justify-self: start;
 }
 
 .filterWrap {

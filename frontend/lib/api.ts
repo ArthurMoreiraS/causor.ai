@@ -161,6 +161,25 @@ export type Usuario = {
   oab_uf: string | null;
 };
 
+export type Escritorio = {
+  id: number;
+  nome: string;
+  cnpj: string | null;
+};
+
+export type OperationalProfile = {
+  usuario: Usuario;
+  escritorio: Escritorio;
+};
+
+export type OperationalProfilePatch = Partial<{
+  nome_usuario: string;
+  nome_escritorio: string;
+  cnpj: string | null;
+  oab: string | null;
+  oab_uf: string | null;
+}>;
+
 export type CurrentUser = {
   usuario_id: number;
   escritorio_id: number;
@@ -176,6 +195,14 @@ export type OabMonitorada = {
   intervalo_horas: number;
   ultima_captura_em: string | null;
   cursor_data: string | null;
+};
+
+export type OabRemovalResult = {
+  oab_id: number;
+  oab: string;
+  uf: string;
+  purge: boolean;
+  removidos: Record<string, number>;
 };
 
 export type CredencialAssinatura = {
@@ -376,6 +403,19 @@ export async function listarUsuarios(escritorioId?: number): Promise<Usuario[]> 
   return request<Usuario[]>(`/usuarios${qs}`);
 }
 
+export async function carregarPerfilOperacional(): Promise<OperationalProfile> {
+  return request<OperationalProfile>("/settings/profile");
+}
+
+export async function atualizarPerfilOperacional(
+  patch: OperationalProfilePatch
+): Promise<OperationalProfile> {
+  return request<OperationalProfile>("/settings/profile", {
+    method: "PATCH",
+    body: JSON.stringify(patch)
+  });
+}
+
 let currentUserCache: CurrentUser | null = null;
 
 export async function carregarUsuarioAtual(): Promise<CurrentUser> {
@@ -478,6 +518,15 @@ export async function cadastrarOabMonitorada(
   return request<OabMonitorada>("/capturas/oab", {
     method: "POST",
     body: JSON.stringify({ oab, uf, intervalo_horas: intervaloHoras })
+  });
+}
+
+export async function removerOabMonitorada(
+  oabId: number,
+  purge = true
+): Promise<OabRemovalResult> {
+  return request<OabRemovalResult>(`/capturas/oab/${oabId}?purge=${purge ? "true" : "false"}`, {
+    method: "DELETE"
   });
 }
 

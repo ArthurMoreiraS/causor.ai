@@ -109,6 +109,46 @@ def test_me_retorna_usuario_e_tenant_autenticados(client, db_session, seeded):
     }
 
 
+def test_settings_profile_retorna_usuario_e_escritorio(client, db_session, seeded):
+    resp = client.get("/settings/profile")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["usuario"]["email"] == "seed@example.com"
+    assert body["usuario"]["nome"] == "Adv Seed"
+    assert body["escritorio"]["id"] == seeded.escritorio_id
+    assert body["escritorio"]["nome"] == "Escritório Teste"
+
+
+def test_settings_profile_atualiza_usuario_e_escritorio(client, db_session, seeded):
+    resp = client.patch(
+        "/settings/profile",
+        json={
+            "nome_usuario": "Arthur Moreira",
+            "nome_escritorio": "Causor Advocacia",
+            "cnpj": "12345678000190",
+            "oab": "206575",
+            "oab_uf": "sp",
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["usuario"]["nome"] == "Arthur Moreira"
+    assert body["usuario"]["oab"] == "206575"
+    assert body["usuario"]["oab_uf"] == "SP"
+    assert body["escritorio"]["nome"] == "Causor Advocacia"
+    assert body["escritorio"]["cnpj"] == "12345678000190"
+
+    usuario = db_session.get(models.Usuario, body["usuario"]["id"])
+    escritorio = db_session.get(models.Escritorio, body["escritorio"]["id"])
+    assert usuario.nome == "Arthur Moreira"
+    assert escritorio.nome == "Causor Advocacia"
+    assert db_session.query(models.AuditLog).filter_by(
+        acao="perfil_operacional_atualizado"
+    ).count() == 1
+
+
 def test_dashboard_operacional(client, seeded):
     resp = client.get("/dashboard/operational")
     assert resp.status_code == 200
@@ -1011,3 +1051,97 @@ def test_registrar_oab_idempotente_reativa(client, db_session):
     assert second.status_code == 201
     assert first.json()["id"] == second.json()["id"]
     assert db_session.query(models.OabMonitorada).count() == 1
+
+
+def test_remover_oab_monitorada_apaga_dados_capturados(client, db_session, seeded):
+    oab = models.OabMonitorada(
+        escritorio_id=seeded.escritorio_id,
+        oab="206575",
+        uf="SP",
+        ativo=True,
+    )
+    db_session.add(oab)
+    db_session.flush()
+    processo = models.Processo(escritorio_id=seeded.escritorio_id, numero="123")
+    db_session.add(processo)
+    db_session.flush()
+    intimacao = models.Intimacao(
+        processo_id=processo.id,
+        escritorio_id=seeded.escritorio_id,
+        fonte="DJEN",
+        fonte_id="target-oab",
+        numero_processo=processo.numero,
+        tipo_comunicacao="Intimacao",
+        data_disponibilizacao=date(2026, 6, 22),
+        payload={
+            "destinatarioadvogados": [
+                {"advogado": {"numero_oab": "206575", "uf_oab": "SP"}}
+            ]
+        },
+    )
+    outra_intimacao = models.Intimacao(
+        escritorio_id=seeded.escritorio_id,
+        fonte="DJEN",
+        fonte_id="other-oab",
+        numero_processo="456",
+        tipo_comunicacao="Intimacao",
+        data_disponibilizacao=date(2026, 6, 22),
+        payload={
+            "destinatarioadvogados": [
+                {"advogado": {"numero_oab": "999999", "uf_oab": "SP"}}
+            ]
+        },
+    )
+    db_session.add_all([intimacao, outra_intimacao])
+    db_session.flush()
+    prazo = models.Prazo(
+        processo_id=processo.id,
+        intimacao_id=intimacao.id,
+        escritorio_id=seeded.escritorio_id,
+        descricao="Prazo alvo",
+        data_inicio=date(2026, 6, 23),
+        dias=15,
+        dias_uteis=True,
+        data_fatal=date(2026, 7, 14),
+    )
+    db_session.add(prazo)
+    db_session.flush()
+    peticao = models.Peticao(
+        escritorio_id=seeded.escritorio_id,
+        processo_id=processo.id,
+        prazo_id=prazo.id,
+        tipo="Manifestacao",
+    )
+    db_session.add(peticao)
+    db_session.flush()
+    db_session.add_all(
+        [
+            models.Documento(processo_id=processo.id, nome="doc processo"),
+            models.Documento(peticao_id=peticao.id, nome="doc peticao"),
+            models.Andamento(processo_id=processo.id, codigo=1),
+            models.AuditLog(
+                escritorio_id=seeded.escritorio_id,
+                ator="agent:capture",
+                acao="captura_oab_executada",
+                entidade="escritorio",
+                entidade_id=seeded.escritorio_id,
+                detalhe={"oab": "206575", "uf": "SP"},
+            ),
+        ]
+    )
+    db_session.commit()
+
+    resp = client.delete(f"/capturas/oab/{oab.id}?purge=true")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["removidos"]["intimacoes"] == 1
+    assert body["removidos"]["prazos"] == 1
+    assert body["removidos"]["peticoes"] == 1
+    assert body["removidos"]["processos"] == 1
+    assert db_session.get(models.OabMonitorada, oab.id) is None
+    assert db_session.get(models.Intimacao, intimacao.id) is None
+    assert db_session.get(models.Prazo, prazo.id) is None
+    assert db_session.get(models.Peticao, peticao.id) is None
+    assert db_session.get(models.Processo, processo.id) is None
+    assert db_session.get(models.Intimacao, outra_intimacao.id) is not None

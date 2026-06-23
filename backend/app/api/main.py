@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
@@ -37,6 +37,9 @@ from app.api.schemas import (
     MeOut,
     OabMonitoradaCreate,
     OabMonitoradaOut,
+    OabRemovalResultOut,
+    OperationalProfileOut,
+    OperationalProfileUpdate,
     OperationalDashboard,
     PeticaoOut,
     PrazoOut,
@@ -161,6 +164,197 @@ def _status_revisao(
     return "capturada"
 
 
+def _payload_matches_oab(payload: dict | None, *, oab: str, uf: str) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    oab_digits = "".join(ch for ch in oab if ch.isdigit())
+    uf_upper = uf.upper()
+    for item in payload.get("destinatarioadvogados") or []:
+        if not isinstance(item, dict):
+            continue
+        advogado = item.get("advogado")
+        if not isinstance(advogado, dict):
+            continue
+        numero = "".join(ch for ch in str(advogado.get("numero_oab") or "") if ch.isdigit())
+        item_uf = str(advogado.get("uf_oab") or "").upper()
+        if numero == oab_digits and item_uf == uf_upper:
+            return True
+    return False
+
+
+def _job_matches_oab(job: models.JobExecucao, *, oab: str, uf: str) -> bool:
+    payload = job.payload if isinstance(job.payload, dict) else {}
+    return (
+        "".join(ch for ch in str(payload.get("oab") or "") if ch.isdigit())
+        == "".join(ch for ch in oab if ch.isdigit())
+        and str(payload.get("uf") or "").upper() == uf.upper()
+    )
+
+
+def _audit_matches_oab_or_entities(
+    audit: models.AuditLog,
+    *,
+    oab: str,
+    uf: str,
+    entity_ids: dict[str, set[int]],
+) -> bool:
+    detalhe = audit.detalhe if isinstance(audit.detalhe, dict) else {}
+    if (
+        "".join(ch for ch in str(detalhe.get("oab") or "") if ch.isdigit())
+        == "".join(ch for ch in oab if ch.isdigit())
+        and str(detalhe.get("uf") or "").upper() == uf.upper()
+    ):
+        return True
+    if audit.entidade and audit.entidade_id is not None:
+        return audit.entidade_id in entity_ids.get(audit.entidade, set())
+    return False
+
+
+def _purge_oab_data(
+    session: Session,
+    *,
+    escritorio_id: int,
+    oab: str,
+    uf: str,
+) -> dict[str, int]:
+    counts = {
+        "intimacoes": 0,
+        "prazos": 0,
+        "peticoes": 0,
+        "processos": 0,
+        "documentos": 0,
+        "andamentos": 0,
+        "jobs": 0,
+        "auditoria": 0,
+    }
+    intimacoes = list(
+        session.scalars(
+            select(models.Intimacao).where(models.Intimacao.escritorio_id == escritorio_id)
+        )
+    )
+    target_intimacao_ids = {
+        intimacao.id
+        for intimacao in intimacoes
+        if _payload_matches_oab(intimacao.payload, oab=oab, uf=uf)
+    }
+    if not target_intimacao_ids:
+        return counts
+
+    process_ids = {
+        intimacao.processo_id for intimacao in intimacoes
+        if intimacao.id in target_intimacao_ids and intimacao.processo_id is not None
+    }
+    target_prazo_ids = {
+        prazo.id
+        for prazo in session.scalars(
+            select(models.Prazo).where(
+                models.Prazo.escritorio_id == escritorio_id,
+                models.Prazo.intimacao_id.in_(target_intimacao_ids),
+            )
+        )
+    }
+    target_peticao_ids = {
+        peticao.id
+        for peticao in session.scalars(
+            select(models.Peticao).where(
+                models.Peticao.escritorio_id == escritorio_id,
+                models.Peticao.prazo_id.in_(target_prazo_ids),
+            )
+        )
+    }
+
+    target_process_ids: set[int] = set()
+    for process_id in process_ids:
+        process_intimacao_ids = {
+            row.id for row in session.scalars(
+                select(models.Intimacao).where(
+                    models.Intimacao.escritorio_id == escritorio_id,
+                    models.Intimacao.processo_id == process_id,
+                )
+            )
+        }
+        if process_intimacao_ids and process_intimacao_ids <= target_intimacao_ids:
+            target_process_ids.add(process_id)
+
+    if target_process_ids:
+        target_prazo_ids.update(
+            prazo.id
+            for prazo in session.scalars(
+                select(models.Prazo).where(
+                    models.Prazo.escritorio_id == escritorio_id,
+                    models.Prazo.processo_id.in_(target_process_ids),
+                )
+            )
+        )
+        target_peticao_ids.update(
+            peticao.id
+            for peticao in session.scalars(
+                select(models.Peticao).where(
+                    models.Peticao.escritorio_id == escritorio_id,
+                    models.Peticao.processo_id.in_(target_process_ids),
+                )
+            )
+        )
+
+    if target_peticao_ids:
+        counts["documentos"] += session.execute(
+            delete(models.Documento).where(models.Documento.peticao_id.in_(target_peticao_ids))
+        ).rowcount or 0
+    if target_process_ids:
+        counts["documentos"] += session.execute(
+            delete(models.Documento).where(models.Documento.processo_id.in_(target_process_ids))
+        ).rowcount or 0
+        counts["andamentos"] = session.execute(
+            delete(models.Andamento).where(models.Andamento.processo_id.in_(target_process_ids))
+        ).rowcount or 0
+
+    entity_ids = {
+        "intimacao": target_intimacao_ids,
+        "prazo": target_prazo_ids,
+        "peticao": target_peticao_ids,
+        "processo": target_process_ids,
+    }
+    audit_ids = [
+        audit.id
+        for audit in session.scalars(
+            select(models.AuditLog).where(models.AuditLog.escritorio_id == escritorio_id)
+        )
+        if _audit_matches_oab_or_entities(audit, oab=oab, uf=uf, entity_ids=entity_ids)
+    ]
+    if audit_ids:
+        counts["auditoria"] = session.execute(
+            delete(models.AuditLog).where(models.AuditLog.id.in_(audit_ids))
+        ).rowcount or 0
+
+    job_ids = [
+        job.id
+        for job in session.scalars(select(models.JobExecucao))
+        if _job_matches_oab(job, oab=oab, uf=uf)
+        or (job.entidade in entity_ids and job.entidade_id in entity_ids[job.entidade])
+    ]
+    if job_ids:
+        counts["jobs"] = session.execute(
+            delete(models.JobExecucao).where(models.JobExecucao.id.in_(job_ids))
+        ).rowcount or 0
+
+    if target_peticao_ids:
+        counts["peticoes"] = session.execute(
+            delete(models.Peticao).where(models.Peticao.id.in_(target_peticao_ids))
+        ).rowcount or 0
+    if target_prazo_ids:
+        counts["prazos"] = session.execute(
+            delete(models.Prazo).where(models.Prazo.id.in_(target_prazo_ids))
+        ).rowcount or 0
+    counts["intimacoes"] = session.execute(
+        delete(models.Intimacao).where(models.Intimacao.id.in_(target_intimacao_ids))
+    ).rowcount or 0
+    if target_process_ids:
+        counts["processos"] = session.execute(
+            delete(models.Processo).where(models.Processo.id.in_(target_process_ids))
+        ).rowcount or 0
+    return counts
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Causor API", version="0.1.0")
     app.add_middleware(
@@ -182,6 +376,60 @@ def create_app() -> FastAPI:
             escritorio_id=current.escritorio_id,
             email=current.email,
         )
+
+    @app.get("/settings/profile", response_model=OperationalProfileOut)
+    def carregar_perfil_operacional(
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> OperationalProfileOut:
+        usuario = session.get(models.Usuario, current.usuario_id)
+        escritorio = session.get(models.Escritorio, current.escritorio_id)
+        if usuario is None or escritorio is None:
+            raise HTTPException(status_code=404, detail="perfil nao encontrado")
+        return OperationalProfileOut(usuario=usuario, escritorio=escritorio)
+
+    @app.patch("/settings/profile", response_model=OperationalProfileOut)
+    def atualizar_perfil_operacional(
+        payload: OperationalProfileUpdate,
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> OperationalProfileOut:
+        usuario = session.get(models.Usuario, current.usuario_id)
+        escritorio = session.get(models.Escritorio, current.escritorio_id)
+        if usuario is None or escritorio is None or usuario.escritorio_id != escritorio.id:
+            raise HTTPException(status_code=404, detail="perfil nao encontrado")
+
+        changes: dict[str, str | None] = {}
+        if payload.nome_usuario is not None:
+            usuario.nome = payload.nome_usuario.strip()
+            changes["nome_usuario"] = usuario.nome
+        if payload.nome_escritorio is not None:
+            escritorio.nome = payload.nome_escritorio.strip()
+            changes["nome_escritorio"] = escritorio.nome
+        if payload.cnpj is not None:
+            escritorio.cnpj = payload.cnpj.strip() or None
+            changes["cnpj"] = escritorio.cnpj
+        if payload.oab is not None:
+            usuario.oab = payload.oab.strip() or None
+            changes["oab"] = usuario.oab
+        if payload.oab_uf is not None:
+            usuario.oab_uf = payload.oab_uf.strip().upper() or None
+            changes["oab_uf"] = usuario.oab_uf
+
+        if changes:
+            _audit(
+                session,
+                acao="perfil_operacional_atualizado",
+                entidade="usuario",
+                entidade_id=usuario.id,
+                ator_id=current.usuario_id,
+                escritorio_id=current.escritorio_id,
+                detalhe=changes,
+            )
+        session.commit()
+        session.refresh(usuario)
+        session.refresh(escritorio)
+        return OperationalProfileOut(usuario=usuario, escritorio=escritorio)
 
     @app.get("/dashboard/operational", response_model=OperationalDashboard)
     def dashboard_operacional(
@@ -410,6 +658,36 @@ def create_app() -> FastAPI:
         session.commit()
         session.refresh(oab)
         return oab
+
+    @app.delete("/capturas/oab/{oab_id}", response_model=OabRemovalResultOut)
+    def remover_oab_monitorada(
+        oab_id: int,
+        purge: bool = Query(default=True),
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> OabRemovalResultOut:
+        oab = get_owned_or_404(session, models.OabMonitorada, oab_id, current)
+        oab_numero = oab.oab
+        uf = oab.uf
+        counts = (
+            _purge_oab_data(
+                session,
+                escritorio_id=current.escritorio_id,
+                oab=oab_numero,
+                uf=uf,
+            )
+            if purge
+            else {}
+        )
+        session.delete(oab)
+        session.commit()
+        return OabRemovalResultOut(
+            oab_id=oab_id,
+            oab=oab_numero,
+            uf=uf,
+            purge=purge,
+            removidos=counts,
+        )
 
     @app.get("/usuarios", response_model=list[UsuarioOut])
     def listar_usuarios(

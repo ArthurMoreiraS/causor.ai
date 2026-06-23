@@ -124,10 +124,31 @@ class UsuarioOut(BaseModel):
     oab_uf: str | None = None
 
 
+class EscritorioOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    nome: str
+    cnpj: str | None = None
+
+
 class MeOut(BaseModel):
     usuario_id: int
     escritorio_id: int
     email: str
+
+
+class OperationalProfileOut(BaseModel):
+    usuario: UsuarioOut
+    escritorio: EscritorioOut
+
+
+class OperationalProfileUpdate(BaseModel):
+    nome_usuario: str | None = Field(default=None, min_length=2, max_length=255)
+    nome_escritorio: str | None = Field(default=None, min_length=2, max_length=255)
+    cnpj: str | None = Field(default=None, max_length=20)
+    oab: str | None = Field(default=None, max_length=20)
+    oab_uf: str | None = Field(default=None, max_length=2)
 
 
 class ProtocolarAsyncRequest(BaseModel):
@@ -326,6 +347,14 @@ class OabMonitoradaOut(BaseModel):
     cursor_data: date | None = None
 
     model_config = {"from_attributes": True}
+
+
+class OabRemovalResultOut(BaseModel):
+    oab_id: int
+    oab: str
+    uf: str
+    purge: bool
+    removidos: dict[str, int]
 
 
 class OabMonitoradaCreate(BaseModel):
