@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertaPrazo, carregarAlertas } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 
@@ -41,10 +41,28 @@ export default function RadarBell({
   const [alertas, setAlertas] = useState<AlertaPrazo[]>([]);
   const [read, setRead] = useState<string[]>([]);
   const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setRead(readStored());
   }, []);
+
+  // Fecha o popover ao pressionar Esc ou clicar fora do conjunto sino+painel.
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
 
   useEffect(() => {
     if (offline) return;
@@ -76,20 +94,30 @@ export default function RadarBell({
     }
   }
 
+  const bellLabel = unread.length
+    ? `Radar de Prazo, ${unread.length} ${unread.length === 1 ? "alerta não lido" : "alertas não lidos"}`
+    : "Radar de Prazo";
+
   return (
-    <div className="radarWrap">
+    <div className="radarWrap" ref={wrapRef}>
       <button
         className={`iconButton radarBell ${unread.length ? "hasUnread" : ""}`}
         title="Radar de Prazo"
-        aria-label="Radar de Prazo"
+        aria-label={bellLabel}
+        aria-haspopup="dialog"
+        aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
       >
         <Bell size={15} />
-        {unread.length ? <span className="radarCount mono">{unread.length}</span> : null}
+        {unread.length ? (
+          <span className="radarCount mono" aria-hidden="true">
+            {unread.length}
+          </span>
+        ) : null}
       </button>
 
       {open ? (
-        <div className="radarPanel">
+        <div className="radarPanel" role="dialog" aria-label="Radar de Prazo">
           <header>
             <strong>Radar de Prazo</strong>
             <button className="iconButton" onClick={() => setOpen(false)} aria-label="Fechar">

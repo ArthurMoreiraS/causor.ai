@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { ConnectorStatus } from "@/lib/api";
 import { connectorStatusLabel, formatDate } from "@/lib/format";
 import type { PrazoRow, ViewKey } from "@/lib/views";
-import { CommandStat, DeadlineBadge, Empty, FeatureTile, Panel } from "../components/ui";
+import { CommandStat, DeadlineBadge, Empty, FeatureTile, LoadingButton, Panel } from "../components/ui";
 
 export default function HomeDashboard({
   metrics,
@@ -99,10 +99,15 @@ export default function HomeDashboard({
             </p>
           </div>
           <div className="quickActions">
-            <button className="toolbarButton primary" onClick={onOpenOab} disabled={busy === "capture" || offline}>
-              <Search size={15} />
-              Captura por OAB
-            </button>
+            <LoadingButton
+              className="toolbarButton primary"
+              icon={<Search size={15} />}
+              loading={busy === "capture"}
+              onClick={onOpenOab}
+              disabled={busy === "capture" || offline}
+            >
+              {busy === "capture" ? "Capturando..." : "Captura por OAB"}
+            </LoadingButton>
             <button className="toolbarButton" onClick={onOpenAssistant} disabled={offline}>
               <MessageCircle size={15} />
               Assistente

@@ -2,6 +2,7 @@
 
 import { LogOut, X } from "lucide-react";
 import { useAuth } from "../AuthProvider";
+import { Modal } from "./ui";
 
 export default function ProfileModal({
   onClose,
@@ -15,10 +16,9 @@ export default function ProfileModal({
   const initials = email ? email.slice(0, 2).toUpperCase() : "··";
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
-      <div className="modalCard settingsCard" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} labelledBy="profileModalTitle" className="settingsCard">
         <header className="settingsHeader">
-          <h3>Conta</h3>
+          <h3 id="profileModalTitle">Conta</h3>
           <button className="iconButton" onClick={onClose} aria-label="Fechar">
             <X size={15} />
           </button>
@@ -36,7 +36,6 @@ export default function ProfileModal({
             Sair
           </button>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }

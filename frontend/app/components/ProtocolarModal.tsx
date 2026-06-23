@@ -1,8 +1,10 @@
 "use client";
 
-import { AlertTriangle, Loader2, LockKeyhole, Send } from "lucide-react";
+import { AlertTriangle, LockKeyhole, Send } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CredencialAssinatura, listarCredenciais, Peticao, Processo } from "@/lib/api";
+import SearchSelect from "./SearchSelect";
+import { LoadingButton, Modal, Skeleton } from "./ui";
 
 export default function ProtocolarModal({
   peticao,
@@ -21,6 +23,12 @@ export default function ProtocolarModal({
   const [credencialId, setCredencialId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const isPje = processo?.sistema?.toLowerCase() === "pje";
+  const credencialOptions = credenciais.map((credencial) => ({
+    value: String(credencial.id),
+    label: `${credencial.provedor} (${credencial.modo}) - vault #${credencial.id}`,
+    detail: `${credencial.provedor} (${credencial.modo}) - vault #${credencial.id}`,
+    searchText: `${credencial.provedor} ${credencial.modo} vault ${credencial.id}`
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -42,9 +50,8 @@ export default function ProtocolarModal({
   }, []);
 
   return (
-    <div className="modalOverlay" onClick={onClose}>
-      <div className="modalCard" onClick={(e) => e.stopPropagation()}>
-        <h3>Protocolar petição</h3>
+    <Modal onClose={onClose} labelledBy="protocolarModalTitle">
+        <h3 id="protocolarModalTitle">Protocolar petição</h3>
         <p className="protocolarResumo">
           <strong>{peticao.tipo ?? "Petição"}</strong>
           {" - processo "}
@@ -70,20 +77,13 @@ export default function ProtocolarModal({
         <label className="protocolarCredencial">
           Credencial de assinatura
           {loading ? (
-            <span className="protocolarHint">
-              <Loader2 className="spin" size={13} /> carregando credenciais...
-            </span>
+            <Skeleton height={34} radius={9} />
           ) : credenciais.length ? (
-            <select
-              value={credencialId ?? ""}
-              onChange={(e) => setCredencialId(e.target.value ? Number(e.target.value) : null)}
-            >
-              {credenciais.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.provedor} ({c.modo}) - vault #{c.id}
-                </option>
-              ))}
-            </select>
+            <SearchSelect
+              value={String(credencialId ?? credenciais[0]?.id ?? "")}
+              options={credencialOptions}
+              onChange={(value) => setCredencialId(Number(value))}
+            />
           ) : (
             <span className="protocolarHint">
               <LockKeyhole size={13} /> Nenhuma credencial ativa no vault. No PJe assistido, o
@@ -96,16 +96,16 @@ export default function ProtocolarModal({
           <button className="toolbarButton" onClick={onClose} disabled={busy}>
             Cancelar
           </button>
-          <button
+          <LoadingButton
             className="toolbarButton primary"
+            loading={busy}
+            icon={<Send size={15} />}
             disabled={busy}
             onClick={() => onConfirm(credencialId)}
           >
-            {busy ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
             {isPje ? "Preparar no PJe" : "Registrar protocolo"}
-          </button>
+          </LoadingButton>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
