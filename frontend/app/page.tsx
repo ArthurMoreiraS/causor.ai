@@ -54,7 +54,9 @@ import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
 import ProtocolarModal from "./components/ProtocolarModal";
 import RadarBell from "./components/RadarBell";
-import { NavGroup, NavItem } from "./components/ui";
+import { useToast } from "./components/Toast";
+import UfSearchSelect from "./components/UfSearchSelect";
+import { LoadingButton, NavGroup, NavItem, Skeleton, ThemeToggle } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
 import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
@@ -70,6 +72,7 @@ import ProcessosView from "./views/ProcessosView";
 import { useRequireAuth } from "./AuthProvider";
 import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
 import { downloadCsv } from "@/lib/export";
+import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import {
   daysUntil,
   matchesQuery,
@@ -95,8 +98,19 @@ const emptyData: DashboardData = {
 
 const API_BASE_LABEL = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
 
+function actionSuccessTitle(key: string) {
+  if (key.startsWith("draft-")) return "Minuta gerada";
+  if (key.startsWith("approve-")) return "Petição aprovada";
+  if (key.startsWith("file-")) return "Protocolo preparado";
+  if (key.startsWith("done-")) return "Prazo marcado como cumprido";
+  if (key.startsWith("edit-")) return "Prazo atualizado";
+  if (key.startsWith("save-pet-")) return "Minuta salva";
+  return "Ação concluída";
+}
+
 export default function Home() {
   const { loading: authLoading, session, signOut } = useRequireAuth();
+  const toast = useToast();
   const [data, setData] = useState<DashboardData>(emptyData);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -105,6 +119,7 @@ export default function Home() {
   const [statusFilter, setStatusFilter] = useState<StatusKey>("pendentes");
   const [error, setError] = useState<string | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
+  const [captureContext, setCaptureContext] = useState<{ oab: string; uf: string } | null>(null);
   const [lastClassificacao, setLastClassificacao] = useState<{
     intimacaoId: number;
     tipo: string;
@@ -152,11 +167,13 @@ export default function Home() {
   }
 
   function openOab() {
+    const defaultUf = (settings.defaultUf || "SP").toUpperCase();
+    const validUf = BRASIL_UFS.some((uf) => uf.sigla === defaultUf) ? defaultUf : "SP";
     setOabForm((f) => ({
       ...f,
       open: true,
       oab: f.oab || settings.defaultOab,
-      uf: f.uf || settings.defaultUf
+      uf: f.uf || validUf
     }));
     void loadOabsMonitoradas();
   }
@@ -178,25 +195,38 @@ export default function Home() {
     try {
       await action();
       await refresh();
+      toast({ kind: "success", title: actionSuccessTitle(key) });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ação não concluída");
+      const message = err instanceof Error ? err.message : "Ação não concluída";
+      setError(message);
+      toast({ kind: "error", title: "Ação não concluída", description: message });
     } finally {
       setBusy(null);
     }
   }
 
   async function runCaptureOab() {
+    const oab = oabForm.oab.trim();
+    const uf = oabForm.uf.trim().toUpperCase();
     setBusy("capture");
     setError(null);
     setCaptureResult(null);
+    setCaptureContext({ oab, uf });
     try {
-      const result = await rodarCapturaOab(oabForm.oab.trim(), oabForm.uf.trim());
+      const result = await rodarCapturaOab(oab, uf);
       setCaptureResult(result);
       setOabForm((f) => ({ ...f, open: false }));
       await loadOabsMonitoradas();
       await refresh();
+      toast({
+        kind: "success",
+        title: "Captura concluída",
+        description: `${result.intimacoes_novas} intimações novas, ${result.processos_enriquecidos} processos enriquecidos.`
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Captura por OAB não concluída");
+      const message = err instanceof Error ? err.message : "Captura por OAB não concluída";
+      setError(message);
+      toast({ kind: "error", title: "Captura não concluída", description: message });
     } finally {
       setBusy(null);
     }
@@ -213,8 +243,15 @@ export default function Home() {
       await removerOabMonitorada(oab.id, true);
       await loadOabsMonitoradas();
       await refresh();
+      toast({
+        kind: "success",
+        title: `OAB ${oab.oab}/${oab.uf} removida`,
+        description: "Os dados capturados por ela foram apagados."
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "OAB não removida");
+      const message = err instanceof Error ? err.message : "OAB não removida";
+      setError(message);
+      toast({ kind: "error", title: "OAB não removida", description: message });
     } finally {
       setBusy(null);
     }
@@ -614,8 +651,16 @@ export default function Home() {
 
   if (authLoading || !session) {
     return (
-      <div className="authShell">
-        <p className="authSub">Carregando…</p>
+      <div className="authShell authLoadingShell" aria-busy="true" aria-label="Carregando Causor">
+        <div className="authLoadingCard">
+          <Skeleton height={38} width={150} radius={10} />
+          <Skeleton height={14} width="82%" />
+          <Skeleton height={14} width="62%" />
+          <div className="authLoadingGrid">
+            <Skeleton height={78} radius={12} />
+            <Skeleton height={78} radius={12} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -750,6 +795,7 @@ export default function Home() {
             <strong>{VIEW_LABEL[view]}</strong>
           </div>
           <div className="appActions">
+            <ThemeToggle />
             <RadarBell
               offline={offline}
               refreshKey={refreshTick}
@@ -783,7 +829,9 @@ export default function Home() {
           <div className="notice success">
             <CheckCircle2 size={18} />
             <span>
-              Captura concluída: {captureResult.intimacoes_novas} intimações novas,{" "}
+              Captura concluída
+              {captureContext ? ` para OAB ${captureContext.oab}/${captureContext.uf}` : ""}:{" "}
+              {captureResult.intimacoes_novas} intimações novas,{" "}
               {captureResult.processos_enriquecidos} processos enriquecidos e{" "}
               {captureResult.prazos_registrados} prazos registrados.
             </span>
@@ -1016,7 +1064,12 @@ export default function Home() {
         )}
 
         {oabForm.open ? (
-          <div className="modalOverlay" onClick={() => setOabForm((f) => ({ ...f, open: false }))}>
+          <div
+            className="modalOverlay"
+            onClick={() => {
+              if (busy !== "capture") setOabForm((f) => ({ ...f, open: false }));
+            }}
+          >
             <div className="modalCard" onClick={(e) => e.stopPropagation()}>
               <h3>Captura por OAB</h3>
               <label>
@@ -1029,12 +1082,21 @@ export default function Home() {
               </label>
               <label>
                 UF
-                <input
+                <UfSearchSelect
                   value={oabForm.uf}
-                  maxLength={2}
-                  onChange={(e) => setOabForm((f) => ({ ...f, uf: e.target.value.toUpperCase() }))}
+                  disabled={busy === "capture"}
+                  onChange={(uf) => setOabForm((f) => ({ ...f, uf }))}
                 />
               </label>
+              {busy === "capture" ? (
+                <div className="captureFeedback" role="status" aria-live="polite">
+                  <Loader2 className="spin" size={14} />
+                  <span>
+                    Capturando intimações para OAB {oabForm.oab.trim() || "informada"}/
+                    {oabForm.uf}. Isso pode levar alguns instantes.
+                  </span>
+                </div>
+              ) : null}
               <div className="modalListBlock">
                 <strong>OABs monitoradas</strong>
                 {oabsMonitoradas.length === 0 ? (
@@ -1062,17 +1124,25 @@ export default function Home() {
                 )}
               </div>
               <div className="modalActions">
-                <button className="toolbarButton" onClick={() => setOabForm((f) => ({ ...f, open: false }))}>
+                <button
+                  className="toolbarButton"
+                  disabled={busy === "capture"}
+                  onClick={() => setOabForm((f) => ({ ...f, open: false }))}
+                >
                   Cancelar
                 </button>
-                <button
+                <LoadingButton
                   className="toolbarButton primary"
-                  disabled={!oabForm.oab.trim() || busy === "capture"}
+                  loading={busy === "capture"}
+                  disabled={
+                    !oabForm.oab.trim() ||
+                    busy === "capture" ||
+                    !BRASIL_UFS.some((uf) => uf.sigla === oabForm.uf)
+                  }
                   onClick={() => void runCaptureOab()}
                 >
-                  {busy === "capture" ? <Loader2 className="spin" size={15} /> : null}
-                  Capturar
-                </button>
+                  {busy === "capture" ? "Capturando..." : "Capturar"}
+                </LoadingButton>
               </div>
             </div>
           </div>

@@ -1,7 +1,9 @@
 "use client";
 
 import { Filter, X } from "lucide-react";
+import { useEffect } from "react";
 import type { FilterState } from "@/lib/format";
+import SearchSelect from "./SearchSelect";
 
 export default function FiltersPanel({
   filters,
@@ -16,6 +18,14 @@ export default function FiltersPanel({
   onClear: () => void;
   onClose: () => void;
 }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   const RISCOS = [
     { value: "", label: "Todos" },
     { value: "vencido", label: "Vencido" },
@@ -24,8 +34,22 @@ export default function FiltersPanel({
     { value: "baixo", label: "Baixo" },
     { value: "cumprido", label: "Cumprido" }
   ];
+  const tribunalOptions = [
+    { value: "", label: "Todos" },
+    ...options.tribunais.map((tribunal) => ({ value: tribunal, label: tribunal }))
+  ];
+  const sistemaOptions = [
+    { value: "", label: "Todos" },
+    ...options.sistemas.map((sistema) => ({ value: sistema, label: sistema }))
+  ];
+
   return (
-    <div className="filterPanel" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="filterPanel"
+      role="dialog"
+      aria-label="Filtros"
+      onClick={(e) => e.stopPropagation()}
+    >
       <header>
         <strong>Filtros</strong>
         <button className="iconButton" onClick={onClose} aria-label="Fechar">
@@ -34,44 +58,27 @@ export default function FiltersPanel({
       </header>
       <label>
         Tribunal
-        <select
+        <SearchSelect
           value={filters.tribunal}
-          onChange={(e) => onChange({ ...filters, tribunal: e.target.value })}
-        >
-          <option value="">Todos</option>
-          {options.tribunais.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
+          options={tribunalOptions}
+          onChange={(tribunal) => onChange({ ...filters, tribunal })}
+        />
       </label>
       <label>
         Sistema
-        <select
+        <SearchSelect
           value={filters.sistema}
-          onChange={(e) => onChange({ ...filters, sistema: e.target.value })}
-        >
-          <option value="">Todos</option>
-          {options.sistemas.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
+          options={sistemaOptions}
+          onChange={(sistema) => onChange({ ...filters, sistema })}
+        />
       </label>
       <label>
         Risco
-        <select
+        <SearchSelect
           value={filters.risco}
-          onChange={(e) => onChange({ ...filters, risco: e.target.value })}
-        >
-          {RISCOS.map((r) => (
-            <option key={r.value} value={r.value}>
-              {r.label}
-            </option>
-          ))}
-        </select>
+          options={RISCOS}
+          onChange={(risco) => onChange({ ...filters, risco })}
+        />
       </label>
       <footer>
         <button className="toolbarButton compact" onClick={onClear}>

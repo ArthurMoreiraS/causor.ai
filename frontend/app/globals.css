@@ -21,9 +21,92 @@
   --risk-bg: #fef2f2;
   --ok: #166534;
   --ok-bg: #f0fdf4;
+  --success: #166534;
+  --success-bg: #f0fdf4;
   --shadow: rgba(0, 0, 0, 0.06);
   --font-title: "Satoshi", Inter, ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  color-scheme: light;
+}
+
+/* ===== Tema escuro (opt-in) =====
+   Ativado apenas quando <html data-theme="dark">. O tema claro permanece o
+   padrão e não é afetado. Para validar:
+   document.documentElement.dataset.theme = "dark"  // remover volta ao claro */
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0b0f14;
+  --panel: #131a23;
+  --panel-soft: #1a2330;
+  --sidebar: #0e141c;
+  --ink: #f1f5f9;
+  --ink-soft: #cbd5e1;
+  --muted: #94a3b8;
+  --muted-2: #64748b;
+  --line: #243040;
+  --line-strong: #36465a;
+  --chip: #1e2937;
+  --accent: #2dd4bf;
+  --accent-bg: #0c2b28;
+  --accent-border: #155e56;
+  --solid: #f1f5f9;
+  --warn: #fbbf24;
+  --warn-bg: #2a2310;
+  --risk: #f87171;
+  --risk-bg: #2c1618;
+  --ok: #4ade80;
+  --ok-bg: #11271b;
+  --success: #4ade80;
+  --success-bg: #11271b;
+  --shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* Superfícies que usam cores literais (fora dos tokens) precisam de ajuste
+   explícito no escuro para manter contraste e intenção. */
+[data-theme="dark"] .notice,
+[data-theme="dark"] .assistantError.wide {
+  border-color: color-mix(in srgb, var(--risk) 38%, transparent);
+  background: var(--risk-bg);
+}
+[data-theme="dark"] .notice.success {
+  border-color: color-mix(in srgb, var(--ok) 38%, transparent);
+}
+[data-theme="dark"] .queueStatus,
+[data-theme="dark"] .dayBadge.neutral,
+[data-theme="dark"] .chatTurn.user {
+  background: var(--chip);
+}
+[data-theme="dark"] .cycleHealth.risk {
+  border-color: color-mix(in srgb, var(--risk) 38%, transparent);
+}
+[data-theme="dark"] .chatTurn.assistant {
+  background: var(--panel-soft);
+}
+[data-theme="dark"] .proposedAction,
+[data-theme="dark"] .assistantActionCard {
+  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
+  background: var(--warn-bg);
+}
+[data-theme="dark"] .assistantActionCard span {
+  color: var(--ink-soft);
+}
+[data-theme="dark"] .assistantError {
+  color: var(--risk);
+}
+[data-theme="dark"] .auditLogRow {
+  border-bottom-color: var(--line);
+}
+[data-theme="dark"] .authButton {
+  color: var(--panel);
+}
+[data-theme="dark"] .authButton:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--solid) 85%, var(--ink-soft));
+}
+[data-theme="dark"] .brandWordmarkDark {
+  display: none;
+}
+[data-theme="dark"] .brandWordmarkLight {
+  display: block;
 }
 
 * {
@@ -45,7 +128,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -183,26 +267,38 @@ button:disabled {
 }
 
 .sideNav a,
-.sidebarFooter a {
+.sideNav .navItem,
+.sidebarFooter a,
+.sidebarFooter .navItem {
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   min-height: 28px;
   padding: 0 7px;
+  border: 0;
+  background: transparent;
   color: var(--ink-soft);
   text-decoration: none;
+  text-align: left;
   border-radius: 6px;
+  font: inherit;
   font-size: 12px;
 }
 
 .sideNav a svg,
-.sidebarFooter a svg {
+.sideNav .navItem svg,
+.sidebarFooter a svg,
+.sidebarFooter .navItem svg {
   flex: 0 0 auto;
 }
 
 .sideNav a.active,
 .sideNav a:hover,
-.sidebarFooter a:hover {
+.sideNav .navItem.active,
+.sideNav .navItem:hover,
+.sidebarFooter a:hover,
+.sidebarFooter .navItem:hover {
   color: var(--ink);
   background: var(--chip);
 }
@@ -252,14 +348,18 @@ button:disabled {
 .sidebarCollapsed .navGroupLabel span,
 .sidebarCollapsed .navGroupLabel svg,
 .sidebarCollapsed .sideNav a span,
+.sidebarCollapsed .sideNav .navItem span,
 .sidebarCollapsed .sidebarFooter a span,
+.sidebarCollapsed .sidebarFooter .navItem span,
 .sidebarCollapsed .profile > div:not(.avatar),
 .sidebarCollapsed .profile > svg {
   display: none;
 }
 
 .sidebarCollapsed .sideNav a,
-.sidebarCollapsed .sidebarFooter a {
+.sidebarCollapsed .sideNav .navItem,
+.sidebarCollapsed .sidebarFooter a,
+.sidebarCollapsed .sidebarFooter .navItem {
   justify-content: center;
   min-height: 34px;
   padding: 0;
@@ -468,13 +568,13 @@ h2 {
 .homeSurface {
   display: grid;
   gap: 16px;
-  padding: 16px 28px 28px;
+  padding: 16px 28px 24px;
 }
 
 .onboardingSurface {
   display: grid;
   gap: 14px;
-  padding: 16px 28px 28px;
+  padding: 16px 28px 24px;
 }
 
 .onboardingHero {
@@ -1455,6 +1555,11 @@ h2 {
   border: 1px solid var(--accent-border);
 }
 
+.pill.inativa {
+  color: var(--muted);
+  background: var(--chip);
+}
+
 .gate {
   display: flex;
   align-items: center;
@@ -1826,6 +1931,11 @@ h2 {
   .workSurface,
   .homeSurface,
   .onboardingSurface,
+  .filaSurface,
+  .templatesSurface,
+  .protocolSurface,
+  .connectorsSurface,
+  .assistantWorkspace,
   .insightGrid,
   .bottomGrid {
     padding-left: 16px;
@@ -1942,6 +2052,11 @@ h2 {
   flex-direction: column;
   gap: 12px;
 }
+/* O card recebe foco programático (role=dialog, tabindex=-1); o anel visível
+   fica reservado aos controles internos. */
+.modalCard:focus {
+  outline: none;
+}
 .modalCard label {
   display: flex;
   flex-direction: column;
@@ -1957,6 +2072,148 @@ h2 {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.searchSelect {
+  position: relative;
+  z-index: 1;
+}
+
+.searchSelect.open {
+  z-index: 25;
+}
+
+.searchSelectControl {
+  height: 32px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: linear-gradient(180deg, var(--panel), color-mix(in srgb, var(--panel) 88%, var(--panel-soft)));
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 58%), 0 1px 2px rgb(15 23 42 / 4%);
+  transition: border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.searchSelectControl:focus-within,
+.searchSelect.open .searchSelectControl {
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent) 13%, transparent),
+    0 8px 18px -16px rgb(15 23 42 / 30%);
+}
+
+.searchSelectControl svg {
+  color: var(--muted);
+}
+
+.searchSelect.open .searchSelectControl > svg:last-child {
+  color: var(--accent);
+  transform: rotate(180deg);
+}
+
+.modalCard .searchSelectControl input {
+  width: 100%;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.modalCard .searchSelectControl input:disabled {
+  cursor: not-allowed;
+}
+
+.searchSelectPopover {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  display: grid;
+  gap: 3px;
+  width: max(100%, 190px);
+  max-height: 226px;
+  padding: 5px;
+  overflow-y: auto;
+  border: 1px solid color-mix(in srgb, var(--line-strong) 82%, var(--accent));
+  border-radius: 10px;
+  background: var(--panel);
+  box-shadow: 0 18px 40px -20px rgb(15 23 42 / 42%), 0 8px 18px -18px rgb(15 23 42 / 22%);
+}
+
+.searchSelectOption {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-soft);
+  text-align: left;
+  font-size: 12px;
+}
+
+.searchSelectOption.withDetail {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+}
+
+.searchSelectOption strong {
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.searchSelectOption span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.searchSelectOption:hover,
+.searchSelectOption.active {
+  background: var(--panel-soft);
+  color: var(--ink);
+}
+
+.searchSelectOption.selected {
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.searchSelectEmpty {
+  padding: 10px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.captureFeedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 9px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.captureFeedback svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
 }
 
 .modalListBlock {
@@ -2021,6 +2278,58 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 18px;
+}
+
+/* Variante ampliada do modal de configurações: mais largura e seções em
+   cartões distribuídos em duas colunas para melhor uso do espaço. */
+.settingsCardWide {
+  width: min(960px, 94vw);
+}
+
+.settingsLayout {
+  display: grid;
+  gap: 14px;
+}
+
+.settingsColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.settingsColumn {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+  min-width: 0;
+}
+
+/* No modal ampliado cada grupo vira um cartão delimitado. */
+.settingsCardWide .settingsGroup {
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel-soft);
+}
+
+.settingsRow.single {
+  grid-template-columns: 1fr;
+}
+
+.settingsRow.duo {
+  grid-template-columns: 1fr 1fr;
+}
+
+.settingsRow.ufRow {
+  grid-template-columns: minmax(0, 1fr) minmax(176px, 0.62fr);
+}
+
+@media (max-width: 720px) {
+  .settingsColumns {
+    grid-template-columns: 1fr;
+  }
 }
 
 .settingsHeader {
@@ -2090,6 +2399,10 @@ h2 {
   gap: 10px;
 }
 
+.settingsRow.ufRow {
+  grid-template-columns: minmax(0, 1fr) minmax(176px, 0.62fr);
+}
+
 .settingsRow.single {
   grid-template-columns: 1fr;
 }
@@ -2110,6 +2423,7 @@ h2 {
 }
 
 .settingsRow input,
+.settingsRow select,
 .settingsInline input {
   height: 32px;
   padding: 0 10px;
@@ -2117,6 +2431,14 @@ h2 {
   border-radius: 6px;
   background: var(--panel);
   color: var(--ink);
+}
+
+.settingsRow input:focus-visible,
+.settingsRow select:focus-visible,
+.settingsInline input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  outline-offset: 2px;
+  border-color: color-mix(in srgb, var(--accent) 58%, var(--line));
 }
 
 .settingsInline input {
@@ -2938,6 +3260,21 @@ h2 {
   margin-top: 2px;
 }
 
+.vaultForm {
+  display: grid;
+  gap: 10px;
+}
+
+.vaultFields {
+  grid-template-columns: minmax(150px, 0.48fr) minmax(0, 1fr);
+  align-items: end;
+}
+
+.vaultSubmit {
+  justify-self: start;
+  min-height: 34px;
+}
+
 .vaultError {
   color: var(--risk);
 }
@@ -2971,16 +3308,35 @@ h2 {
   word-break: break-all;
 }
 
+@media (max-width: 680px) {
+  .settingsRow,
+  .vaultFields {
+    grid-template-columns: 1fr;
+  }
+
+  .vaultSubmit {
+    width: 100%;
+  }
+
+  .vaultItem {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
+
 /* ---- Etapa 5: Protocolos (jobs de protocolo) ---- */
 
 .protocolSurface {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px;
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  background: var(--panel);
+  padding: 16px 28px 24px;
+}
+
+/* Alerta dentro da surface usa o gutter da própria surface, não a margem global. */
+.protocolSurface .notice {
+  margin-left: 0;
+  margin-right: 0;
 }
 
 .protocolHead {
@@ -3184,6 +3540,7 @@ h2 {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  padding: 16px 28px 24px;
 }
 
 .connectorGrid.large {
@@ -3401,4 +3758,546 @@ h2 {
   margin: 0;
   font-size: 13px;
   color: var(--risk);
+}
+
+/* Acessibilidade: respeita usuários que pedem menos movimento. Neutraliza o
+   spinner (.spin) e transições, sem remover mudanças de estado essenciais. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================
+   Motion, microinterações e feedback visual (CSS, sem libs).
+   Tudo abaixo é neutralizado pelo guard prefers-reduced-motion
+   acima (animation/transition !important), preservando a11y.
+   ============================================================ */
+
+/* Foco visível consistente para teclado (não afeta clique de mouse). */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  outline-offset: 2px;
+}
+
+/* Botões: transição suave + hover + press. */
+.toolbarButton,
+.iconButton {
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+    box-shadow 140ms ease, transform 90ms ease;
+}
+.toolbarButton:hover:not(:disabled),
+.iconButton:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: var(--panel-soft);
+}
+.toolbarButton.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--solid) 88%, var(--ink-soft));
+}
+.toolbarButton:active:not(:disabled),
+.iconButton:active:not(:disabled) {
+  transform: translateY(1px);
+}
+/* Preserva estados semânticos no hover. */
+.radarBell.hasUnread:hover:not(:disabled) {
+  border-color: var(--risk);
+  background: var(--risk-bg);
+}
+.toolbarButton.accentOn:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+/* Abas: realce sutil no hover. */
+.statusTab:hover:not(.active) {
+  color: var(--ink-soft);
+}
+
+/* Inputs: realce de borda no foco (mouse e teclado). */
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
+}
+
+/* Cards clicáveis: leve elevação no hover. */
+.recordCard.clickable:hover,
+.inboxItem.clickable:hover,
+.redactionCard.clickable:hover,
+.securityCard.clickable:hover,
+.detailRow.clickable:hover {
+  box-shadow: 0 8px 22px -16px var(--shadow);
+}
+
+/* Entrada de superfície ao trocar de módulo (montagem por view). */
+.workSurface,
+.homeSurface,
+.onboardingSurface,
+.filaSurface,
+.templatesSurface,
+.protocolSurface,
+.connectorsSurface,
+.moduleGrid,
+.inboxList,
+.deadlineBoard,
+.petitionBoard,
+.gateView {
+  animation: surfaceIn 200ms ease both;
+}
+@keyframes surfaceIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Modais: overlay em fade, card subindo com leve escala. */
+.modalOverlay,
+.drawerOverlay {
+  animation: overlayIn 160ms ease both;
+}
+.modalCard {
+  animation: modalIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.detailDrawer {
+  animation: drawerIn 260ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.filterPanel,
+.radarPanel {
+  animation: popIn 140ms ease both;
+  transform-origin: top right;
+}
+@keyframes overlayIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes modalIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+@keyframes drawerIn {
+  from {
+    opacity: 0.5;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* ---- Skeletons ---- */
+.skeleton {
+  display: block;
+  position: relative;
+  overflow: hidden;
+  background: var(--chip);
+  border-radius: 6px;
+}
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--panel) 65%, transparent),
+    transparent
+  );
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+@keyframes skeletonShimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+.skeletonGroup {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---- Tooltip / InfoHint ---- */
+.infoHint {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted-2);
+  cursor: help;
+  vertical-align: middle;
+  transition: color 140ms ease;
+}
+.infoHint:hover,
+.infoHint:focus-visible {
+  color: var(--accent);
+}
+.infoHintBubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  z-index: 80;
+  width: max-content;
+  max-width: 240px;
+  padding: 8px 10px;
+  transform: translateX(-50%) translateY(4px);
+  border-radius: 8px;
+  background: var(--ink);
+  color: var(--panel);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.45;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 14px 36px -16px rgba(0, 0, 0, 0.45);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+.infoHint:hover .infoHintBubble,
+.infoHint:focus-visible .infoHintBubble {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ---- Estados (vazio / erro) ---- */
+.stateBlock {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+  min-height: 160px;
+  padding: 28px 24px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--panel-soft);
+  text-align: center;
+}
+.stateBlock .stateIcon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--chip);
+  color: var(--muted);
+}
+.stateBlock.error .stateIcon {
+  background: var(--risk-bg);
+  color: var(--risk);
+}
+.stateBlock strong {
+  font-size: 14px;
+}
+.stateBlock p {
+  margin: 0;
+  max-width: 380px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.stateActions {
+  margin-top: 2px;
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- Toasts ---- */
+.toastViewport {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 10px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 13px;
+  box-shadow: 0 18px 44px -18px rgba(0, 0, 0, 0.3);
+  pointer-events: auto;
+  animation: toastIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.toast.success {
+  border-left-color: var(--ok);
+}
+.toast.error {
+  border-left-color: var(--risk);
+}
+.toast.info {
+  border-left-color: var(--accent);
+}
+.toast > svg {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}
+.toast.success > svg {
+  color: var(--ok);
+}
+.toast.error > svg {
+  color: var(--risk);
+}
+.toast.info > svg {
+  color: var(--accent);
+}
+.toastBody {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+.toastBody strong {
+  font-size: 13px;
+}
+.toastBody span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.toastClose {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin: -2px -4px 0 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  transition: background-color 140ms ease, color 140ms ease;
+}
+.toastClose:hover {
+  background: var(--chip);
+  color: var(--ink);
+}
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Aplicação visível dos componentes reutilizáveis ---- */
+.searchSelectControl input {
+  width: 100%;
+  height: 30px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  box-shadow: none;
+  outline: none;
+}
+.searchSelectControl input:focus,
+.searchSelectControl input:focus-visible {
+  border-color: transparent;
+  box-shadow: none;
+  outline: none;
+}
+.searchSelectControl input:disabled {
+  cursor: not-allowed;
+}
+.filterPanel .searchSelect,
+.protocolarCredencial .searchSelect,
+.settingsRow .searchSelect,
+.vaultFields .searchSelect {
+  width: 100%;
+}
+.filterPanel .searchSelectPopover {
+  right: 0;
+  width: 100%;
+  min-width: 0;
+}
+.protocolarCredencial .searchSelectPopover {
+  width: 100%;
+  min-width: min(100%, 280px);
+}
+.searchSelectPopover {
+  animation: popIn 140ms ease both;
+  transform-origin: top left;
+}
+
+/* ---- Estados assíncronos e skeleton inicial ---- */
+.authLoadingShell {
+  align-items: center;
+  justify-content: center;
+}
+.authLoadingCard {
+  width: min(420px, calc(100vw - 40px));
+  display: grid;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  box-shadow: 0 24px 60px -36px var(--shadow);
+  animation: modalIn 220ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.authLoadingGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+.notice,
+.captureFeedback,
+.protocolError {
+  animation: noticeIn 180ms ease both;
+}
+@keyframes noticeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---- Microinterações mais amplas ---- */
+.toolbarButton:disabled,
+.iconButton:disabled,
+.searchSelectControl:has(input:disabled) {
+  opacity: 0.62;
+  cursor: not-allowed;
+  filter: saturate(0.85);
+}
+.commandPanel,
+.agentCycleStep,
+.deadlineAgendaItem,
+.featureTile,
+.connector,
+.recordCard,
+.filaItem,
+.protocolCard,
+.vaultCredential,
+.settingsCard,
+.auditRow,
+.templateCard,
+.petitionCard,
+.processCard {
+  transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease,
+    transform 150ms ease;
+}
+.agentCycleStep:hover,
+.deadlineAgendaItem:hover,
+.featureTile:hover,
+.recordCard.clickable:hover,
+.filaItem:hover,
+.protocolCard:hover,
+.templateCard:hover,
+.petitionCard:hover,
+.processCard:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--line-strong) 76%, var(--accent));
+  box-shadow: 0 16px 38px -28px var(--shadow);
+}
+.agentCycleStep:active,
+.deadlineAgendaItem:active,
+.featureTile:active,
+.recordCard.clickable:active {
+  transform: translateY(0);
+}
+.agentCycleStep,
+.deadlineAgendaItem,
+.featureTile,
+.filaItem,
+.protocolCard {
+  animation: itemIn 190ms ease both;
+}
+.agentCycleStep:nth-child(2),
+.deadlineAgendaItem:nth-child(2),
+.featureTile:nth-child(2),
+.filaItem:nth-child(2),
+.protocolCard:nth-child(2) {
+  animation-delay: 28ms;
+}
+.agentCycleStep:nth-child(3),
+.deadlineAgendaItem:nth-child(3),
+.featureTile:nth-child(3),
+.filaItem:nth-child(3),
+.protocolCard:nth-child(3) {
+  animation-delay: 56ms;
+}
+.agentCycleStep:nth-child(4),
+.deadlineAgendaItem:nth-child(4),
+.featureTile:nth-child(4),
+.filaItem:nth-child(4),
+.protocolCard:nth-child(4) {
+  animation-delay: 84ms;
+}
+@keyframes itemIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.statusTab.active,
+.toolbarButton.accentOn,
+.cycleHealth.ok,
+.cycleHealth.risk {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
+    box-shadow 150ms ease;
+}
+.statusTab.active {
+  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 62%, transparent);
 }

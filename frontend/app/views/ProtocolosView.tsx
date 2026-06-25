@@ -11,7 +11,7 @@ import {
   SignatureHandoff
 } from "@/lib/api";
 import { formatDate } from "@/lib/format";
-import { Empty } from "../components/ui";
+import { EmptyState, Skeleton } from "../components/ui";
 
 /** Pull the (secret-free) signing handoff the job attached at ready_to_sign. */
 function extrairHandoff(job: JobExecucao): SignatureHandoff | null {
@@ -170,8 +170,20 @@ export default function ProtocolosView({
         </button>
       </div>
       {error ? <div className="notice">{error}</div> : null}
-      <div className="protocolList">
-        {jobs.map((job) => {
+      {busy && !jobs.length ? (
+        <div className="protocolList" aria-hidden="true">
+          <Skeleton height={150} radius={12} />
+          <Skeleton height={150} radius={12} />
+          <Skeleton height={150} radius={12} />
+        </div>
+      ) : !jobs.length ? (
+        <EmptyState
+          title="Nenhum protocolo executado ainda"
+          description="Aprove uma minuta no Gate OAB e protocole para acompanhar os jobs aqui."
+        />
+      ) : (
+        <div className="protocolList">
+          {jobs.map((job) => {
           const { peticao, processo } = contexto(job);
           const comprovante = job.resultado?.protocolo ? String(job.resultado.protocolo) : null;
           const handoff = extrairHandoff(job);
@@ -251,10 +263,8 @@ export default function ProtocolosView({
             </article>
           );
         })}
-        {!jobs.length ? (
-          <Empty label="Nenhum protocolo executado ainda - aprove uma minuta no Gate OAB e protocole" />
-        ) : null}
-      </div>
+        </div>
+      )}
     </section>
   );
 }

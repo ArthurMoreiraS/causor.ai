@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import type { ConnectorStatus } from "@/lib/api";
 import { connectorStatusLabel } from "@/lib/format";
+import { Modal } from "./ui";
 
 export default function HelpModal({
   connectors,
@@ -12,10 +13,9 @@ export default function HelpModal({
   onClose: () => void;
 }) {
   return (
-    <div className="modalOverlay" onClick={onClose}>
-      <div className="modalCard settingsCard" onClick={(e) => e.stopPropagation()}>
+    <Modal onClose={onClose} labelledBy="helpModalTitle" className="settingsCard">
         <header className="settingsHeader">
-          <h3>Ajuda</h3>
+          <h3 id="helpModalTitle">Ajuda</h3>
           <button className="iconButton" onClick={onClose} aria-label="Fechar">
             <X size={15} />
           </button>
@@ -51,7 +51,6 @@ export default function HelpModal({
             ))}
           </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   );
 }
