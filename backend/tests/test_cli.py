@@ -111,6 +111,36 @@ def test_cli_capture_due_runs(db_session, monkeypatch):
     assert job.status == "completed"
 
 
+def test_cli_capture_due_returns_failure_exit_code(db_session, monkeypatch):
+    import httpx
+
+    import app.cli as cli
+    from app.sor import models
+
+    esc = models.Escritorio(nome="Escritório Teste")
+    db_session.add(esc)
+    db_session.flush()
+    db_session.add(models.OabMonitorada(escritorio_id=esc.id, oab="12345", uf="SP"))
+    db_session.commit()
+
+    class FailingDjen:
+        def consultar(self, oab, uf, **kw):
+            request = httpx.Request("GET", "https://comunica.example")
+            raise httpx.ConnectError("offline", request=request)
+
+    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(cli, "DjenClient", lambda: FailingDjen())
+    monkeypatch.setattr(cli, "DatajudClient", lambda: object())
+
+    rc = cli.main(["capture-due", "--max-attempts", "2", "--backoff-seconds", "0"])
+
+    assert rc == 1
+    job = db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").one()
+    assert job.status == "failed"
+    assert job.payload["tentativas"] == 2
+
+
 def test_parser_accepts_pje_capture_session():
     parser = _build_parser()
     args = parser.parse_args(

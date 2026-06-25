@@ -12,6 +12,11 @@
   - redacao de minuta: `claude-sonnet-4-6`.
 - PJe assistido iniciado: protocolo prepara ate `ready_to_sign`; assinatura/envio
   final ainda fica com o advogado no PJe/PJeOffice.
+- Captura agendada possui retry exponencial limitado, recuperacao de jobs
+  interrompidos e codigo de saida nao-zero em falha definitiva.
+- CI valida Ruff, pytest, Vitest e build do Next.js.
+- Testes do frontend cobrem autenticacao HTTP e os principais contratos do
+  fluxo de captura, prazo, aprovacao e protocolo assistido.
 
 ## Chaves/servicos
 
@@ -22,14 +27,26 @@
 
 ## Ainda falta para MVP real
 
-1. Captura agendada em producao: cron chamando `capture-due`.
-2. Tela para registrar protocolo final depois do `ready_to_sign`.
-3. Vault real no Supabase para sessoes PJe/tokens de provedor.
-4. Conector PJe Playwright real para navegar ate a tela de assinatura.
+1. Executar um piloto ponta a ponta com OAB e dados reais.
+2. Configurar em producao o cron que chama `capture-due` e alertar quando seu
+   codigo de saida for diferente de zero.
+3. Validar o Vault Supabase para sessoes PJe/tokens no ambiente publicado.
+4. Fechar um unico conector PJe Playwright real ate a tela de assinatura,
+   escolhendo tribunal, grau e tipo de peticao do piloto.
 5. Integracao futura com certificado em nuvem, se o piloto exigir envio final
    automatizado.
-6. Onboarding real de escritorio/OAB/usuario, sem depender de seed/manual.
+6. Adicionar monitoramento externo do backend, cron e jobs `failed`.
 7. Alertas de prazo por e-mail ou WhatsApp.
+
+## Ordem de execucao
+
+1. Publicar backend e frontend com CI verde.
+2. Provisionar o primeiro escritorio conforme `onboarding-piloto.md`.
+3. Ativar o cron e acompanhar ao menos dois ciclos de captura.
+4. Validar captura, prazo e minuta com o advogado.
+5. Escolher o primeiro cenario PJe e concluir um protocolo assistido real.
+
+Nao ampliar para novos tribunais, billing ou RAG antes dessa validacao.
 
 ## Decisoes de custo de IA
 

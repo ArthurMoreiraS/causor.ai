@@ -7,8 +7,9 @@ is intentionally the same shape a Redis/RQ worker will update later.
 from __future__ import annotations
 
 from dataclasses import asdict, replace
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.connectors.pje.connector import PjeAssistedConnector, PjeConnectorError
@@ -201,6 +202,31 @@ def mark_failed(session: Session, job: models.JobExecucao, erro: str) -> None:
         entidade_id=job.id,
         detalhe={"tipo": job.tipo, "erro": erro},
     )
+
+
+def fail_stale_running_jobs(
+    session: Session,
+    *,
+    older_than_minutes: int,
+    now: datetime | None = None,
+) -> list[models.JobExecucao]:
+    """Fail jobs left running after a worker/process interruption."""
+    now = now or _utcnow()
+    cutoff = now - timedelta(minutes=older_than_minutes)
+    stmt = select(models.JobExecucao).where(models.JobExecucao.status == "running")
+    stale: list[models.JobExecucao] = []
+    for job in session.scalars(stmt):
+        updated_at = job.updated_at
+        if updated_at.tzinfo is None:
+            updated_at = updated_at.replace(tzinfo=timezone.utc)
+        if updated_at <= cutoff:
+            mark_failed(
+                session,
+                job,
+                f"job interrompido: permaneceu running por mais de {older_than_minutes} minutos",
+            )
+            stale.append(job)
+    return stale
 
 
 def run_fake_protocol_job(

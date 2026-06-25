@@ -4,7 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Repository status
 
-**MVP vertical slice in progress.** The `/backend` capture + prazo-engine slice is implemented and tested: SOR models (`app/sor`), deterministic deadline engine (`app/prazo_engine`), DJEN/DataJud clients + normalization + `poll_oab` orchestration (`app/capture`), read-only FastAPI (`app/api`), Alembic migrations (`backend/alembic`), and a CLI (`app/cli.py`). `PLANO_Agente_Operacional_Juridico.md` remains the product + architecture roadmap. Still to build: agent layer (drafting/classification), PJe connector, vault, queue, frontend.
+**Pilot-ready MVP under operational validation.** The repository already
+contains the SOR, deterministic deadline engine, DJEN/DataJud capture, Claude
+agent layer, FastAPI API, Supabase auth/tenant isolation, Next.js frontend,
+templates, persistent jobs, vault adapters and an assisted PJe flow that stops
+at `ready_to_sign`. The remaining work is primarily real-pilot validation,
+production scheduling/observability and completing one controlled PJe scenario.
+
+Use `README.md` for repository orientation and
+`docs/proximos-passos-mvp.md` as the source of truth for current status and
+execution order. The PRD is strategic; files in `docs/superpowers/` are
+historical design/implementation records.
 
 ### Build / lint / test (run from `/backend`)
 
@@ -20,7 +30,9 @@ python -m app.cli poll --oab 12345 --uf SP --escritorio 1       # run one captur
 
 On Linux/macOS use `.venv/bin/python` / `.venv/bin/alembic` instead of the `Scripts/` paths.
 
-**The plan document is the source of truth.** Read `PLANO_Agente_Operacional_Juridico.md` in full before making product or architecture decisions. Decisions already settled with the user (do not re-litigate without being asked):
+**The current status document is the source of truth.** Read
+`docs/proximos-passos-mvp.md` before making product or architecture decisions.
+Decisions already settled with the user (do not re-litigate without being asked):
 - Market: Brazil; initial customer: small/medium law firms (solo to ~50 lawyers).
 - First workflow: end-to-end case operations — **capture intimation → compute deadline → draft petition → file (protocol)**.
 - The moat is **autonomous action** (acting like the lawyer inside court systems), not publication monitoring (a commodity already served by Astrea, Projuris, Legal One, Digesto, Escavador). Do not build toward monitoring-only.

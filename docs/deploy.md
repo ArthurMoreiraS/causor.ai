@@ -69,6 +69,17 @@ cd backend
 .\.venv\Scripts\python.exe -m app.cli capture-due
 ```
 
+O comando tenta novamente falhas transitorias e retorna codigo `1` se alguma
+captura falhar definitivamente. Configure o provedor para alertar nesse caso.
+Na execucao seguinte, jobs que ficaram `running` alem de
+`CAUSOR_JOB_STALE_MINUTES` sao marcados como `failed`.
+
+Variaveis opcionais:
+
+- `CAUSOR_CAPTURE_RETRY_ATTEMPTS` (default `3`);
+- `CAUSOR_CAPTURE_RETRY_BACKOFF_SECONDS` (default `2`);
+- `CAUSOR_JOB_STALE_MINUTES` (default `60`).
+
 ## 5. PJe assistido
 
 No piloto, o protocolo PJe para em `ready_to_sign`; assinatura/envio final
@@ -85,3 +96,8 @@ cd backend
 ```
 
 Nao guardar senha, certificado, `.pfx`, chave privada ou OTP no Causor.
+
+## 6. CI
+
+O workflow `.github/workflows/ci.yml` valida backend e frontend em pushes para
+`main` e pull requests. Nao publicar uma revisao com CI vermelho.

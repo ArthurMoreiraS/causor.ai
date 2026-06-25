@@ -577,6 +577,9 @@ def create_app() -> FastAPI:
         # derivado da entidade que o job referencia.
         if job.entidade == "escritorio":
             return job.entidade_id == current.escritorio_id
+        if job.entidade == "oab_monitorada" and job.entidade_id is not None:
+            oab = session.get(models.OabMonitorada, job.entidade_id)
+            return oab is not None and oab.escritorio_id == current.escritorio_id
         if job.entidade == "peticao" and job.entidade_id is not None:
             peticao = session.get(models.Peticao, job.entidade_id)
             return peticao is not None and peticao.escritorio_id == current.escritorio_id

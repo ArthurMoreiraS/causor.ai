@@ -26,30 +26,42 @@ Escritorios pequenos e medios no Brasil, de advogados autonomos ate equipes com 
 
 ## Superficies implementadas
 
-- Backend FastAPI com SOR, captura, prazo engine, agente de classificacao/minuta, gate de aprovacao e API operacional.
-- Frontend Next.js com dashboard de operacao, modo demo para pilotos, workflow visual, conectores, fila de aprovacao e sinais de auditoria/seguranca.
-- Infra local com Postgres e Redis.
+- Backend FastAPI com SOR multi-tenant, captura, prazo engine, agente de
+  classificacao/minuta, gate de aprovacao, templates, jobs e auditoria.
+- Supabase Auth/JWT e Vault como caminhos de producao.
+- Frontend Next.js com dashboard, fila do dia, processos, intimacoes, prazos,
+  minutas, Gate OAB, conectores, configuracoes e onboarding.
+- PJe assistido ate `ready_to_sign`, com confirmacao manual do protocolo.
+- Captura agendada com retry limitado, deteccao de jobs interrompidos e falha
+  observavel pelo codigo de saida.
+- CI de backend e frontend.
 
 ## APIs atuais
 
 - `GET /health`
+- `GET /me`
 - `GET /dashboard/operational`
+- `GET /review/queue`
 - `GET /processos`
 - `GET /intimacoes`
 - `GET /prazos`
 - `GET /peticoes`
+- `GET /jobs`
+- `GET /audit`
 - `POST /intimacoes/{id}/draft`
 - `POST /peticoes/{id}/approve`
-- `POST /peticoes/{id}/protocolar`
+- `POST /peticoes/{id}/protocolar/async`
+- `POST /peticoes/{id}/protocolar/confirmar`
 
 ## Proximas fatias
 
-1. PJe pilotavel: conector Playwright para login, localizar processo e preparar protocolo, ainda com aprovacao humana.
-2. Vault: armazenamento seguro de referencia de certificado em nuvem e bloqueio total de segredo em prompt/log.
-3. Auditoria real: tabela `audit_log` preenchida por toda acao de captura, minuta, aprovacao e protocolo.
-4. Templates do escritorio: minutas por tipo de ato e area juridica.
-5. Multi-tenant minimo: isolamento por escritorio, usuario e OAB.
-6. Onboarding de piloto: cadastro de escritorio, OAB, tribunal inicial e status de conectores.
+1. Piloto real: validar captura, prazo, minuta, aprovacao e confirmacao de
+   protocolo com um escritorio.
+2. Operacao em producao: cron, monitoramento externo e alerta para jobs failed.
+3. PJe pilotavel: fechar um unico tribunal/grau/tipo de peticao ate
+   `ready_to_sign`.
+4. Validar sessoes PJe no Supabase Vault em ambiente publicado.
+5. Alertas de prazo por e-mail ou WhatsApp.
 
 ## Criterios de validacao
 

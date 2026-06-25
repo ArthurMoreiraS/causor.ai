@@ -671,6 +671,44 @@ def test_listar_jobs_mais_recentes_primeiro_com_filtros(client, db_session, seed
     assert [job["id"] for job in so_queued] == [capture["id"]]
 
 
+def test_job_agendado_por_oab_respeita_tenant(client, db_session, seeded):
+    own_oab = models.OabMonitorada(
+        escritorio_id=seeded.escritorio_id,
+        oab="123456",
+        uf="SP",
+    )
+    other_office = models.Escritorio(nome="Outro Escritório")
+    db_session.add_all([own_oab, other_office])
+    db_session.flush()
+    other_oab = models.OabMonitorada(
+        escritorio_id=other_office.id,
+        oab="999999",
+        uf="RJ",
+    )
+    db_session.add(other_oab)
+    db_session.flush()
+    own_job = models.JobExecucao(
+        tipo="captura_oab",
+        status="completed",
+        entidade="oab_monitorada",
+        entidade_id=own_oab.id,
+    )
+    other_job = models.JobExecucao(
+        tipo="captura_oab",
+        status="completed",
+        entidade="oab_monitorada",
+        entidade_id=other_oab.id,
+    )
+    db_session.add_all([own_job, other_job])
+    db_session.flush()
+
+    jobs = client.get("/jobs").json()
+
+    assert [job["id"] for job in jobs] == [own_job.id]
+    assert client.get(f"/jobs/{own_job.id}").status_code == 200
+    assert client.get(f"/jobs/{other_job.id}").status_code == 404
+
+
 def _usuario_com_credencial(client, db_session, escritorio_id):
     usuario = models.Usuario(
         escritorio_id=escritorio_id,

@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     # Capture scheduling
     capture_lookback_days: int = 3
     capture_intervalo_horas_default: int = 12
+    capture_retry_attempts: int = 3
+    capture_retry_backoff_seconds: float = 2.0
+    job_stale_minutes: int = 60
 
     # Vault. Localdev stores only deterministic non-secret references. In
     # production, set to "supabase" so sensitive connector/session material goes

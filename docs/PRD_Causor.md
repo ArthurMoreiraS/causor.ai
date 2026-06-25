@@ -1,5 +1,9 @@
 # PRD — Causor
 
+> Documento estratégico. Para estado implementado e ordem de execução atual,
+> use `docs/proximos-passos-mvp.md`. Contagens de testes e referências de branch
+> abaixo podem representar o momento em que este PRD foi escrito.
+
 **Produto:** Causor — Agente Operacional Jurídico
 **Categoria:** SaaS vertical de IA + automação ("computer use") para operação processual no Brasil
 **Análogo de referência:** [Handle.ai](https://usehandle.ai) (agentes que operam portais fragmentados e automatizam o back-office de seguros) — transposto para o jurídico brasileiro.

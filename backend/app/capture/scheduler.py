@@ -7,15 +7,20 @@ Redis/RQ pode substituir o executor depois sem tocar nesta camada.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 
+import httpx
 from sqlalchemy import select
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
 from app.prazo_engine.calendar import ForensicCalendar
-from app.queue.jobs import create_job, run_capture_oab_job
+from app.queue.jobs import create_job, mark_failed, run_capture_oab_job
 from app.settings import settings
 from app.sor import models
 
@@ -85,3 +90,84 @@ def run_capture_for_oab(
     oab.ultima_captura_em = now
     oab.cursor_data = today
     return job
+
+
+@dataclass(frozen=True)
+class ResilientCaptureResult:
+    job: models.JobExecucao
+    attempts: int
+    succeeded: bool
+
+
+RETRYABLE_CAPTURE_ERRORS = (httpx.HTTPError, OperationalError)
+
+
+def run_capture_for_oab_resilient(
+    session: Session,
+    oab: models.OabMonitorada,
+    *,
+    djen: DjenClient,
+    datajud: DatajudClient,
+    calendar: ForensicCalendar,
+    max_attempts: int | None = None,
+    backoff_seconds: float | None = None,
+    sleeper: Callable[[float], None] = time.sleep,
+    today: date | None = None,
+    now: datetime | None = None,
+) -> ResilientCaptureResult:
+    """Run and commit one scheduled capture with bounded transient retries."""
+    max_attempts = (
+        settings.capture_retry_attempts if max_attempts is None else max_attempts
+    )
+    backoff_seconds = (
+        settings.capture_retry_backoff_seconds
+        if backoff_seconds is None
+        else backoff_seconds
+    )
+    if max_attempts < 1:
+        raise ValueError("max_attempts deve ser pelo menos 1")
+
+    oab_id = oab.id
+    label = {"oab": oab.oab, "uf": oab.uf, "escritorio_id": oab.escritorio_id}
+    last_error: Exception | None = None
+
+    for attempt in range(1, max_attempts + 1):
+        current = session.get(models.OabMonitorada, oab_id)
+        if current is None:
+            raise ValueError(f"OAB monitorada {oab_id} nao encontrada")
+        try:
+            job = run_capture_for_oab(
+                session,
+                current,
+                djen=djen,
+                datajud=datajud,
+                calendar=calendar,
+                today=today,
+                now=now,
+            )
+            job.resultado = {**(job.resultado or {}), "tentativas": attempt}
+            session.commit()
+            return ResilientCaptureResult(job=job, attempts=attempt, succeeded=True)
+        except RETRYABLE_CAPTURE_ERRORS as exc:
+            session.rollback()
+            last_error = exc
+            if attempt < max_attempts:
+                sleeper(backoff_seconds * (2 ** (attempt - 1)))
+                continue
+        except Exception as exc:  # non-transient domain/programming failure
+            session.rollback()
+            last_error = exc
+
+        break
+
+    assert last_error is not None
+    job = create_job(
+        session,
+        tipo="captura_oab",
+        entidade="oab_monitorada",
+        entidade_id=oab_id,
+        payload={**label, "tentativas": attempt},
+    )
+    mark_failed(session, job, str(last_error)[:2000])
+    session.commit()
+    return ResilientCaptureResult(job=job, attempts=attempt, succeeded=False)

@@ -53,6 +53,20 @@ App:
 
 O botao `Captura por OAB` executa `POST /capture/oab` e grava somente retornos reais das APIs configuradas.
 
+## Captura agendada
+
+Para executar as OABs que estiverem vencidas:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m app.cli capture-due
+```
+
+Falhas HTTP ou de banco recebem retry exponencial limitado. O comando retorna
+codigo `1` se alguma OAB falhar definitivamente, permitindo que cron,
+Agendador de Tarefas ou monitor externo disparem um alerta. As configuracoes
+ficam em `backend/.env.example`.
+
 ## Se a tela abrir sem CSS
 
 Pare o dev server e limpe o cache:

@@ -17,12 +17,13 @@ from sqlalchemy import select
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
 from app.capture.poll import PollResult, poll_oab
-from app.capture.scheduler import run_capture_for_oab, select_due
+from app.capture.scheduler import run_capture_for_oab_resilient, select_due
 from app.connectors.pje.simulator import serve as serve_pje_simulator
 from app.connectors.pje.session_capture import capture_pje_storage_state
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
-from app.queue.jobs import create_job, mark_failed
+from app.queue.jobs import fail_stale_running_jobs
+from app.settings import settings
 from app.sor import models
 from app.sor.db import SessionLocal
 from app.vault.service import store_pje_session_reference
@@ -62,7 +63,19 @@ def _build_parser() -> argparse.ArgumentParser:
     monitor.add_argument("--escritorio", required=True, type=int)
     monitor.add_argument("--intervalo-horas", type=int, default=12)
 
-    sub.add_parser("capture-due", help="Run capture for all due monitored OABs")
+    capture_due = sub.add_parser("capture-due", help="Run capture for all due monitored OABs")
+    capture_due.add_argument(
+        "--max-attempts",
+        type=int,
+        default=settings.capture_retry_attempts,
+        help="Maximum attempts for transient HTTP/database failures",
+    )
+    capture_due.add_argument(
+        "--backoff-seconds",
+        type=float,
+        default=settings.capture_retry_backoff_seconds,
+        help="Initial exponential retry delay",
+    )
 
     pje_session = sub.add_parser(
         "pje-capture-session",
@@ -212,32 +225,42 @@ def main(argv: list[str] | None = None) -> int:
         datajud = DatajudClient()
         calendar = default_calendar()
         session = SessionLocal()
+        failures = 0
         try:
+            stale = fail_stale_running_jobs(
+                session,
+                older_than_minutes=settings.job_stale_minutes,
+            )
+            if stale:
+                session.commit()
+                print(f"{len(stale)} job(s) interrompido(s) marcado(s) como failed.")
             due = select_due(session)
             print(f"{len(due)} OAB(s) para capturar.")
             for oab in due:
-                oab_id, label = oab.id, f"{oab.oab}/{oab.uf}"
-                oab_str, uf_str, esc_id = oab.oab, oab.uf, oab.escritorio_id
-                try:
-                    job = run_capture_for_oab(
-                        session, oab, djen=djen, datajud=datajud, calendar=calendar
+                label = f"{oab.oab}/{oab.uf}"
+                result = run_capture_for_oab_resilient(
+                    session,
+                    oab,
+                    djen=djen,
+                    datajud=datajud,
+                    calendar=calendar,
+                    max_attempts=args.max_attempts,
+                    backoff_seconds=args.backoff_seconds,
+                )
+                if result.succeeded:
+                    print(
+                        f"  OAB {label}: job {result.job.id} completed "
+                        f"em {result.attempts} tentativa(s) -> {result.job.resultado}"
                     )
-                    session.commit()
-                    print(f"  OAB {label}: job {job.id} {job.status} -> {job.resultado}")
-                except Exception as exc:  # noqa: BLE001
-                    session.rollback()
-                    job = create_job(
-                        session,
-                        tipo="captura_oab",
-                        entidade="oab_monitorada",
-                        entidade_id=oab_id,
-                        payload={"oab": oab_str, "uf": uf_str, "escritorio_id": esc_id},
+                else:
+                    failures += 1
+                    print(
+                        f"  OAB {label}: FALHA apos {result.attempts} tentativa(s): "
+                        f"{result.job.erro}"
                     )
-                    mark_failed(session, job, str(exc))
-                    session.commit()
-                    print(f"  OAB {label}: FALHA {exc}")
         finally:
             session.close()
+        return 1 if failures else 0
     if args.command == "pje-capture-session":
         storage_state = capture_pje_storage_state(
             base_url=args.url_base,
