@@ -214,3 +214,19 @@ def test_resilient_capture_rejects_zero_attempts(db_session, escritorio, calenda
             calendar=calendar,
             max_attempts=0,
         )
+
+
+def test_resilient_capture_rejects_negative_backoff(db_session, escritorio, calendar):
+    oab = models.OabMonitorada(escritorio_id=escritorio.id, oab="12345", uf="SP")
+    db_session.add(oab)
+    db_session.flush()
+
+    with pytest.raises(ValueError, match="nao pode ser negativo"):
+        run_capture_for_oab_resilient(
+            db_session,
+            oab,
+            djen=FakeDjen([]),
+            datajud=FakeDatajud(),
+            calendar=calendar,
+            backoff_seconds=-1,
+        )

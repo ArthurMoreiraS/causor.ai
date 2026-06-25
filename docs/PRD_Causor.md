@@ -1,16 +1,18 @@
 # PRD — Causor
 
 > Documento estratégico. Para estado implementado e ordem de execução atual,
-> use `docs/proximos-passos-mvp.md`. Contagens de testes e referências de branch
-> abaixo podem representar o momento em que este PRD foi escrito.
+> use `docs/proximos-passos-mvp.md`.
 
 **Produto:** Causor — Agente Operacional Jurídico
 **Categoria:** SaaS vertical de IA + automação ("computer use") para operação processual no Brasil
 **Análogo de referência:** [Handle.ai](https://usehandle.ai) (agentes que operam portais fragmentados e automatizam o back-office de seguros) — transposto para o jurídico brasileiro.
-**Documento:** PRD vivo. Versão 0.1 — 11/06/2026.
-**Status do produto:** MVP em construção — fatia vertical *captura → prazo → minuta → (protocolo)* implementada e testada no backend, com frontend operacional. Conector de protocolo, cofre de credenciais e fila ainda não construídos.
+**Documento:** PRD vivo. Versão 0.2 — 25/06/2026.
+**Status do produto:** MVP pronto para validação operacional local. A fatia
+*captura → prazo → minuta → aprovação → protocolo assistido* existe; o envio
+final ainda é realizado pelo advogado no PJe/PJeOffice.
 
-> Este PRD complementa o `PLANO_Agente_Operacional_Juridico.md` (visão de produto + arquitetura + roteiro). O plano é a fonte de verdade de arquitetura; este PRD descreve **o que o produto é, para quem, o que já existe e quais features virão**.
+> Este PRD descreve a direção estratégica. O estado implementado e a ordem de
+> execução ficam em `docs/proximos-passos-mvp.md`.
 
 ---
 
@@ -70,7 +72,9 @@ O moat **não** é capturar publicação (commodity). É a **execução autônom
 
 ## 5. Estado atual do produto (o que já existe)
 
-Implementado e testado (backend: 86 testes passando; frontend: TypeScript sem erros). Branch `feat/mvp-captura-prazo-engine`.
+Implementado na branch `main`, com validação automática de backend e frontend
+no CI. Não manter contagens de testes neste documento; elas mudam a cada
+entrega e devem ser consultadas no workflow mais recente.
 
 ### 5.1 System of Record (`backend/app/sor`) — ✅ pronto
 Modelos Postgres/SQLite-portáveis para todas as entidades do domínio: `escritorio`, `usuario`, `cliente`, `processo`, `intimacao`, `prazo`, `peticao`, `andamento`, `documento`, `credencial_assinatura` (apenas **referência** ao cofre — nunca o segredo) e `audit_log` (append-only, imutável por convenção/grant).
@@ -99,12 +103,13 @@ Dashboard, inbox de intimações, painel de prazos com risco, fila de aprovaçã
 - **APIs oficiais antes de scraping** na captura.
 
 ### 5.8 O que ainda **não** existe
-- **Conector de protocolo (PJe)** — hoje `protocolar` só marca status; não há automação Playwright real no tribunal.
-- **Cofre de credenciais / assinatura em nuvem** (BirdID/VIDaaS/Certisign/SafeID) — só o modelo de referência existe.
-- **Fila assíncrona** (Celery/RQ + Redis) para capturas/ações longas — captura roda síncrona.
-- **Autenticação, multi-tenant real, billing.**
+- Conector PJe validado em um tribunal real até a tela de assinatura.
+- Assinatura e envio automáticos por certificado em nuvem.
+- Worker dedicado (Celery/RQ ou equivalente); os jobs persistem no SOR, mas o
+  executor atual roda no processo local/CLI.
+- Billing.
 - Conectores adicionais (e-SAJ, Projudi, EPROC).
-- Migrations executadas em Postgres de produção (existem, mas o dev usa SQLite).
+- Deploy definitivo e monitoramento externo.
 
 ---
 
@@ -129,15 +134,15 @@ Legenda de estado: ✅ pronto · 🟡 parcial · 🔭 nova ideia (proposta neste
 | F1 | Captura por OAB (DJEN + DataJud) | ✅ | Puxa intimações e metadados por OAB/UF, normaliza e grava no SOR. |
 | F2 | Motor de prazos determinístico | ✅ | Data fatal por CPC, dias úteis, feriados, recesso. |
 | F3 | Classificação da intimação por IA | ✅ | Tipo do ato, peça cabível, dias, confiança. |
-| F4 | Geração de minuta | 🟡 | Rascunho a partir do teor; **falta templates do escritório**. |
+| F4 | Geração de minuta | ✅ | Rascunho a partir do teor com templates do escritório. |
 | F5 | Gate de aprovação OAB | ✅ | Nenhum protocolo sem aprovação humana. |
 | F6 | Auditoria imutável | ✅ | Toda ação vira evento consultável. |
 | F7 | Assistente agêntico (chat) | ✅ | Lê o SOR e **propõe** ações (confirmação humana); nunca protocola. |
 | F8 | Painel de prazos com risco | ✅ | Vencido/alto/médio/baixo + dias para vencer. |
-| F9 | **Conector de protocolo PJe** | ⛔ | Playwright: login, localizar, anexar, assinar, protocolar, confirmar. **Próximo grande item.** |
-| F10 | **Cofre + assinatura em nuvem** | ⛔ | Integração com provedor ICP-Brasil em nuvem; segredos só no vault. |
-| F11 | Fila assíncrona (Celery/RQ) | ⛔ | Captura agendada e ações longas fora do request. |
-| F12 | Auth + multi-tenant + billing | ⛔ | Isolamento por `escritorio`, login, planos. |
+| F9 | **Conector de protocolo PJe** | 🟡 | Base Playwright e fluxo assistido até `ready_to_sign`; falta validação real. |
+| F10 | **Cofre + assinatura em nuvem** | 🟡 | Vault existe; integração ICP-Brasil em nuvem ainda não. |
+| F11 | Jobs persistidos e captura agendada | 🟡 | Executor local/CLI pronto; falta worker dedicado de produção. |
+| F12 | Auth + multi-tenant + billing | 🟡 | Auth e isolamento prontos; billing não iniciado. |
 
 ### 7.2 Novas ideias de feature (propostas)
 
@@ -150,15 +155,18 @@ Agrupadas por tema. Cada uma indica o **porquê** (valor) e um **esboço** do co
 - 🔭 **A4. Simulador de contagem de prazo.** Ferramenta no frontend onde o advogado insere data de publicação + tipo de prazo e vê a contagem explicada (quais dias foram pulados e por quê). Vira também ferramenta de marketing/aquisição (calculadora pública).
 
 #### B. Produtividade da minuta
-- 🔭 **B1. Biblioteca de templates do escritório.** Upload/edição de modelos por tipo de peça; a minuta passa a herdar tom, teses e cláusulas do escritório (fecha o gap do F4). *Valor:* minuta "aprovável com edição mínima" — critério de sucesso do MVP.
+- ✅ **B1. Biblioteca de templates do escritório.** Criação e edição de
+  modelos por tipo de peça e área.
 - 🔭 **B2. Memória de teses / RAG do escritório.** Indexa peças passadas e decisões favoráveis; a minuta cita precedentes internos e jurisprudência relevante. *Como:* embeddings + recuperação, com citação rastreável (sem alucinar).
 - 🔭 **B3. Editor colaborativo com diff e versões.** O advogado edita a minuta; o sistema guarda versões e mostra o que mudou entre IA e final — alimenta o aprendizado de templates.
 - 🔭 **B4. Pacote de protocolo automático.** Monta automaticamente os anexos exigidos (procuração, documentos do processo, custas) a partir do SOR/documentos.
 
 #### C. Operação e escala
-- 🔭 **C1. Fila do dia ("worklist") priorizada por risco.** Tela única que ordena tudo que precisa de ação hoje por risco × esforço, estilo "inbox zero" jurídico.
+- ✅ **C1. Fila do dia ("worklist") priorizada por risco.** Tela única para
+  organizar o trabalho operacional do dia.
 - 🔭 **C2. Distribuição/atribuição.** Roteia intimações para o advogado responsável por cliente/área; SLA por item.
-- 🔭 **C3. Captura agendada multi-OAB.** Poll automático diário de todas as OABs do escritório (depende de F11), sem clique manual.
+- 🟡 **C3. Captura agendada multi-OAB.** Executor e agendamento local prontos;
+  falta operação no ambiente definitivo.
 - 🔭 **C4. Conectores além do PJe.** e-SAJ (TJSP — maior mercado), depois Projudi/EPROC. Cada um isolado e testável.
 
 #### D. Governança, compliance e relação com o cliente
@@ -178,9 +186,12 @@ Agrupadas por tema. Cada uma indica o **porquê** (valor) e um **esboço** do co
 
 Mantém a ordem do plano: fatia vertical primeiro, depois expansão.
 
-**Fase 0 — Fechar o MVP vertical (now):** F9 (conector PJe) + F10 (cofre/assinatura) + B1 (templates) + F11 (fila) → primeiro protocolo real com gate, em homologação e depois 1 piloto.
+**Fase 0 — Validar o MVP vertical (now):** escolher o ambiente definitivo,
+operar captura agendada, validar o Vault e concluir o primeiro protocolo PJe
+assistido real com gate.
 
-**Fase 1 — Confiança e operação:** A1 (radar de prazo), A2 (dupla checagem), C1 (worklist), D1 (relatório de auditoria), F12 (auth/multi-tenant mínimo).
+**Fase 1 — Confiança e operação:** A1 (radar de prazo), A2 (dupla checagem),
+D1 (relatório de auditoria) e worker dedicado.
 
 **Fase 2 — Escala de captura e tribunais:** C3 (captura agendada), C4 (e-SAJ), A3 (cobertura), D3 (gate configurável).
 

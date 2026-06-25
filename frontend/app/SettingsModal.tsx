@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, RotateCcw, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   atualizarPerfilOperacional,
   carregarPerfilOperacional,
@@ -49,7 +49,7 @@ export default function SettingsModal({
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     if (offline) {
       setLoadingProfile(false);
       return;
@@ -71,7 +71,7 @@ export default function SettingsModal({
     } finally {
       setLoadingProfile(false);
     }
-  }
+  }, [offline]);
 
   async function saveProfile() {
     setSavingProfile(true);
@@ -101,7 +101,7 @@ export default function SettingsModal({
     }
   }
 
-  async function loadOabs() {
+  const loadOabs = useCallback(async () => {
     if (offline) {
       setOabs([]);
       setLoadingOabs(false);
@@ -116,7 +116,7 @@ export default function SettingsModal({
     } finally {
       setLoadingOabs(false);
     }
-  }
+  }, [offline]);
 
   async function removeOab(oab: OabMonitorada) {
     const confirmed = window.confirm(
@@ -140,7 +140,7 @@ export default function SettingsModal({
   useEffect(() => {
     void loadProfile();
     void loadOabs();
-  }, [offline]);
+  }, [loadOabs, loadProfile]);
 
   return (
     <Modal

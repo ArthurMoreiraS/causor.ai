@@ -68,8 +68,10 @@ def test_run_capture_job_completes_and_audits(db_session, escritorio, calendar):
     assert job.resultado["intimacoes_novas"] == 1
     assert job.resultado["prazos_registrados"] == 1
     db_session.flush()  # session uses autoflush=False; surface pending audit rows
-    acoes = {a.acao for a in db_session.query(models.AuditLog).all()}
+    audits = db_session.query(models.AuditLog).all()
+    acoes = {a.acao for a in audits}
     assert {"job_iniciado", "job_concluido"} <= acoes
+    assert all(a.escritorio_id == escritorio.id for a in audits)
 
 
 def test_run_capture_job_rejects_wrong_type(db_session, escritorio, calendar):

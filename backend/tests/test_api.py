@@ -557,6 +557,10 @@ def test_criar_e_consultar_job_captura_oab(client, db_session, seeded):
     audit = db_session.query(models.AuditLog).filter_by(acao="job_criado").one()
     assert audit.entidade == "job_execucao"
     assert audit.entidade_id == body["id"]
+    assert audit.escritorio_id == seeded.escritorio_id
+
+    visible_audit = client.get("/audit", params={"entidade": "job_execucao"}).json()
+    assert [row["id"] for row in visible_audit] == [audit.id]
 
 
 def test_consultar_job_inexistente_retorna_404(client, seeded):

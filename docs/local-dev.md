@@ -2,9 +2,31 @@
 
 Este caminho sobe o Causor ponta a ponta sem exigir Postgres local.
 
+## Uso diario
+
+Com `backend/.env`, `frontend/.env.local`, a venv e as dependencias ja
+configuradas, abra dois terminais na raiz do repositorio.
+
+Terminal 1:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Terminal 2:
+
+```powershell
+cd frontend
+pnpm dev
+```
+
+Valide `http://localhost:8000/health` e abra `http://localhost:3000`.
+
 ## Backend
 
-Execute na raiz do repositorio:
+Para a primeira instalacao, execute na raiz do repositorio:
 
 ```powershell
 cd backend

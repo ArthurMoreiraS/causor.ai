@@ -126,6 +126,8 @@ def run_capture_for_oab_resilient(
     )
     if max_attempts < 1:
         raise ValueError("max_attempts deve ser pelo menos 1")
+    if backoff_seconds < 0:
+        raise ValueError("backoff_seconds nao pode ser negativo")
 
     oab_id = oab.id
     label = {"oab": oab.oab, "uf": oab.uf, "escritorio_id": oab.escritorio_id}

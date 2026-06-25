@@ -79,6 +79,23 @@ def _audit(
     )
 
 
+def _job_escritorio_id(session: Session, job: models.JobExecucao) -> int | None:
+    """Resolve the tenant that owns a job."""
+    if job.entidade == "escritorio":
+        return job.entidade_id
+    if job.entidade == "oab_monitorada" and job.entidade_id is not None:
+        oab = session.get(models.OabMonitorada, job.entidade_id)
+        if oab is not None:
+            return oab.escritorio_id
+    if job.entidade == "peticao" and job.entidade_id is not None:
+        peticao = session.get(models.Peticao, job.entidade_id)
+        if peticao is not None:
+            return peticao.escritorio_id
+
+    escritorio_id = (job.payload or {}).get("escritorio_id")
+    return escritorio_id if isinstance(escritorio_id, int) else None
+
+
 def create_job(
     session: Session,
     *,
@@ -103,6 +120,7 @@ def create_job(
         entidade="job_execucao",
         entidade_id=job.id,
         ator=ator,
+        escritorio_id=_job_escritorio_id(session, job),
         detalhe={"tipo": tipo, "entidade": entidade, "entidade_id": entidade_id},
     )
     return job
@@ -175,6 +193,7 @@ def mark_running(session: Session, job: models.JobExecucao) -> None:
         acao="job_iniciado",
         entidade="job_execucao",
         entidade_id=job.id,
+        escritorio_id=_job_escritorio_id(session, job),
         detalhe={"tipo": job.tipo},
     )
 
@@ -188,6 +207,7 @@ def mark_completed(session: Session, job: models.JobExecucao, resultado: dict | 
         acao="job_concluido",
         entidade="job_execucao",
         entidade_id=job.id,
+        escritorio_id=_job_escritorio_id(session, job),
         detalhe={"tipo": job.tipo, "resultado": job.resultado},
     )
 
@@ -200,6 +220,7 @@ def mark_failed(session: Session, job: models.JobExecucao, erro: str) -> None:
         acao="job_falhou",
         entidade="job_execucao",
         entidade_id=job.id,
+        escritorio_id=_job_escritorio_id(session, job),
         detalhe={"tipo": job.tipo, "erro": erro},
     )
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "../AuthProvider";
@@ -37,7 +38,13 @@ export default function LoginPage() {
     <div className="authShell">
       <form className="authCard" onSubmit={handleSubmit}>
         <div className="authBrand">
-          <img src="/brand/causor-wordmark-dark-cropped.png" alt="Causor" />
+          <Image
+            src="/brand/causor-wordmark-dark-cropped.png"
+            alt="Causor"
+            width={157}
+            height={28}
+            priority
+          />
         </div>
         <p className="authSub">Entre na sua conta</p>
         <label className="authLabel">

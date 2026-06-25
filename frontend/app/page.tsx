@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   AlertTriangle,
   BookOpen,
@@ -670,8 +671,22 @@ export default function Home() {
       <aside className="sidebar">
         <div className="brand">
           <span className="brandWordmark" aria-label="Causor" title="Causor">
-            <img className="brandWordmarkDark" src="/brand/causor-wordmark-dark-cropped.png" alt="" />
-            <img className="brandWordmarkLight" src="/brand/causor-wordmark-light-cropped.png" alt="" />
+            <Image
+              className="brandWordmarkDark"
+              src="/brand/causor-wordmark-dark-cropped.png"
+              alt=""
+              fill
+              sizes="86px"
+              priority
+            />
+            <Image
+              className="brandWordmarkLight"
+              src="/brand/causor-wordmark-light-cropped.png"
+              alt=""
+              fill
+              sizes="86px"
+              priority
+            />
           </span>
           <button
             className="sidebarToggle"

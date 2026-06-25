@@ -26,8 +26,9 @@ $settings = New-ScheduledTaskSettingsSet `
     -StartWhenAvailable `
     -MultipleInstances IgnoreNew
 
+$currentUser = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
 $principal = New-ScheduledTaskPrincipal `
-    -UserId $env:USERNAME `
+    -UserId $currentUser `
     -LogonType Interactive `
     -RunLevel Limited
 

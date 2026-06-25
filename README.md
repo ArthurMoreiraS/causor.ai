@@ -58,7 +58,7 @@ cd backend
 .\.venv\Scripts\python.exe -m pytest -q
 
 cd ..\frontend
-pnpm test
+pnpm check
 pnpm build
 ```
 

@@ -1,7 +1,9 @@
 # Deploy - runbook
 
-Arquitetura de producao: Supabase (Postgres/Auth/Vault), backend FastAPI
-(Render/Railway ou equivalente) e frontend Next.js (Vercel ou equivalente).
+Arquitetura de producao: Supabase (Postgres/Auth/Vault), backend FastAPI em um
+provedor ainda a definir e frontend Next.js. O backend pode rodar em PaaS,
+container gerenciado ou VM, desde que suporte processo web, migrations,
+variaveis secretas, health check e um executor agendado separado.
 
 ## 1. Backend
 

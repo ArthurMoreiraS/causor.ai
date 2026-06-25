@@ -13,4 +13,5 @@ dist/
 coverage/
 *.log
 logs/
+*.tsbuildinfo
 backend/shots/
