@@ -12,4 +12,5 @@ out/
 dist/
 coverage/
 *.log
+logs/
 backend/shots/

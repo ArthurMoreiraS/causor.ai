@@ -67,6 +67,22 @@ codigo `1` se alguma OAB falhar definitivamente, permitindo que cron,
 Agendador de Tarefas ou monitor externo disparem um alerta. As configuracoes
 ficam em `backend/.env.example`.
 
+Para registrar temporariamente a captura horaria no Windows:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\register-local-capture-task.ps1
+```
+
+O task `Causor Capture Due` executa `scripts/run-capture-due.ps1` a cada hora.
+O computador precisa estar ligado e com o usuario conectado. O log local fica
+em `logs/capture-due.log` e nao e versionado.
+
+Para remover o agendamento quando o cron de producao estiver ativo:
+
+```powershell
+Unregister-ScheduledTask -TaskName "Causor Capture Due" -Confirm:$false
+```
+
 ## Se a tela abrir sem CSS
 
 Pare o dev server e limpe o cache:
