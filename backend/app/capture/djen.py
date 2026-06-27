@@ -11,6 +11,8 @@ params/field names against the live Swagger before production use.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from datetime import date
 
 import httpx
@@ -45,10 +47,25 @@ class ComunicacaoDTO(BaseModel):
 
 
 class DjenClient:
-    def __init__(self, http: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        http: httpx.Client | None = None,
+        *,
+        max_attempts: int = 3,
+        backoff_seconds: float = 1.0,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._http = http or httpx.Client(
-            base_url=settings.djen_base_url, timeout=settings.http_timeout_seconds
+            base_url=settings.djen_base_url,
+            timeout=httpx.Timeout(
+                settings.http_timeout_seconds,
+                connect=10.0,
+                read=settings.http_timeout_seconds,
+            ),
         )
+        self._max_attempts = max_attempts
+        self._backoff_seconds = backoff_seconds
+        self._sleeper = sleeper
 
     def consultar(
         self,
@@ -71,8 +88,23 @@ class DjenClient:
         if data_fim:
             params["dataDisponibilizacaoFim"] = data_fim.isoformat()
 
-        response = self._http.get("/comunicacao", params=params)
+        response = self._get_with_retry("/comunicacao", params=params)
         response.raise_for_status()
         body = response.json()
         items = body.get("items") or []
         return [ComunicacaoDTO.from_item(item) for item in items]
+
+    def _get_with_retry(
+        self, path: str, *, params: dict[str, str | int]
+    ) -> httpx.Response:
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                return self._http.get(path, params=params)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                last_error = exc
+                if attempt >= self._max_attempts:
+                    break
+                self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+        assert last_error is not None
+        raise last_error

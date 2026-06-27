@@ -1,6 +1,6 @@
 """TestClient TDD for the read-only API."""
 
-from datetime import date
+from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
@@ -92,6 +92,35 @@ def seeded(db_session):
 
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
+
+
+def test_capture_oab_defaults_to_bounded_lookback(client, seeded):
+    class FakeDjen:
+        def __init__(self):
+            self.calls = []
+
+        def consultar(self, oab, uf, **kw):
+            self.calls.append((oab, uf, kw))
+            return []
+
+    fake_djen = FakeDjen()
+    today_before = date.today()
+
+    with patch("app.api.main.DjenClient", return_value=fake_djen):
+        resp = client.post("/capture/oab", json={"oab": "12345", "uf": "SP"})
+
+    today_after = date.today()
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "intimacoes_novas": 0,
+        "processos_enriquecidos": 0,
+        "prazos_registrados": 0,
+    }
+    assert fake_djen.calls[0][0:2] == ("12345", "SP")
+    params = fake_djen.calls[0][2]
+    assert today_before <= params["data_fim"] <= today_after
+    assert params["data_inicio"] == params["data_fim"] - timedelta(days=180)
 
 
 def test_me_retorna_usuario_e_tenant_autenticados(client, db_session, seeded):

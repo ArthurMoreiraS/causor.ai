@@ -875,6 +875,11 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> CaptureResultOut:
         datajud = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
+        data_fim = payload.data_fim
+        data_inicio = payload.data_inicio
+        if data_inicio is None:
+            data_fim = data_fim or date.today()
+            data_inicio = data_fim - timedelta(days=settings.capture_manual_lookback_days)
         try:
             result = poll_oab(
                 session,
@@ -885,8 +890,8 @@ def create_app() -> FastAPI:
                 datajud=datajud,
                 calendar=build_calendar(_default_calendar_years()),
                 dias_default=payload.dias_default,
-                data_inicio=payload.data_inicio,
-                data_fim=payload.data_fim,
+                data_inicio=data_inicio,
+                data_fim=data_fim,
             )
         except Exception as exc:
             session.rollback()

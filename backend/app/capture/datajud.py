@@ -9,6 +9,8 @@ config at runtime, never hardcoded permanently.
 
 from __future__ import annotations
 
+import time
+from collections.abc import Callable
 from datetime import date, datetime
 
 import httpx
@@ -73,20 +75,55 @@ class ProcessoDTO(BaseModel):
 
 
 class DatajudClient:
-    def __init__(self, api_key: str | None = None, http: httpx.Client | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        http: httpx.Client | None = None,
+        *,
+        max_attempts: int = 3,
+        backoff_seconds: float = 1.0,
+        sleeper: Callable[[float], None] = time.sleep,
+    ) -> None:
         self._api_key = api_key or settings.datajud_api_key
         self._http = http or httpx.Client(
-            base_url=settings.datajud_base_url, timeout=settings.http_timeout_seconds
+            base_url=settings.datajud_base_url,
+            timeout=httpx.Timeout(
+                settings.http_timeout_seconds,
+                connect=10.0,
+                read=settings.http_timeout_seconds,
+            ),
         )
+        self._max_attempts = max_attempts
+        self._backoff_seconds = backoff_seconds
+        self._sleeper = sleeper
 
     def consultar_processo(self, numero_processo: str, *, tribunal: str) -> ProcessoDTO | None:
         endpoint = f"/api_publica_{tribunal.lower()}/_search"
         body = {"query": {"match": {"numeroProcesso": numero_processo}}}
         headers = {"Authorization": f"APIKey {self._api_key}"}
 
-        response = self._http.post(endpoint, json=body, headers=headers)
+        response = self._post_with_retry(endpoint, json=body, headers=headers)
         response.raise_for_status()
         hits = response.json().get("hits", {}).get("hits", [])
         if not hits:
             return None
         return ProcessoDTO.from_source(hits[0]["_source"])
+
+    def _post_with_retry(
+        self,
+        path: str,
+        *,
+        json: dict,
+        headers: dict[str, str],
+    ) -> httpx.Response:
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                return self._http.post(path, json=json, headers=headers)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                last_error = exc
+                if attempt >= self._max_attempts:
+                    break
+                self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+        assert last_error is not None
+        raise last_error

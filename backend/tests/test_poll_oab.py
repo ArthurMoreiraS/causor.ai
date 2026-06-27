@@ -2,6 +2,7 @@
 
 from datetime import date
 
+import httpx
 import pytest
 
 from app.capture.datajud import ProcessoDTO
@@ -29,6 +30,15 @@ class FakeDatajud:
     def consultar_processo(self, numero_processo, *, tribunal):
         self.calls.append((numero_processo, tribunal))
         return self._by_numero.get(numero_processo)
+
+
+class TimeoutDatajud:
+    def __init__(self):
+        self.calls = []
+
+    def consultar_processo(self, numero_processo, *, tribunal):
+        self.calls.append((numero_processo, tribunal))
+        raise httpx.ReadTimeout("The read operation timed out")
 
 
 @pytest.fixture
@@ -129,4 +139,21 @@ def test_poll_without_datajud_match_still_registers(db_session, escritorio, cale
     assert result.intimacoes_novas == 1
     assert result.processos_enriquecidos == 0
     assert result.prazos_registrados == 1
+    assert db_session.query(models.Prazo).count() == 1
+
+
+def test_poll_datajud_timeout_still_registers_deadline(db_session, escritorio, calendar):
+    djen = FakeDjen([_comunicacao()])
+    datajud = TimeoutDatajud()
+
+    result = poll_oab(
+        db_session, oab="12345", uf="SP", escritorio_id=escritorio.id,
+        djen=djen, datajud=datajud, calendar=calendar, dias_default=15,
+    )
+
+    assert result.intimacoes_novas == 1
+    assert result.processos_enriquecidos == 0
+    assert result.prazos_registrados == 1
+    assert db_session.query(models.Intimacao).count() == 1
+    assert db_session.query(models.Processo).count() == 1
     assert db_session.query(models.Prazo).count() == 1

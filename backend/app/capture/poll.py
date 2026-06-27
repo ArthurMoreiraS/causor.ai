@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+import httpx
 from sqlalchemy.orm import Session
 
 from app.capture.datajud import DatajudClient
@@ -55,9 +56,12 @@ def poll_oab(
         result.intimacoes_novas += 1
 
         if comunicacao.numero_processo and comunicacao.tribunal:
-            processo_dto = datajud.consultar_processo(
-                intimacao.numero_processo, tribunal=comunicacao.tribunal
-            )
+            try:
+                processo_dto = datajud.consultar_processo(
+                    intimacao.numero_processo, tribunal=comunicacao.tribunal
+                )
+            except httpx.HTTPError:
+                processo_dto = None
             if processo_dto is not None:
                 processo = enrich_processo(session, processo_dto, escritorio_id=escritorio_id)
                 session.flush()

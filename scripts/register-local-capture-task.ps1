@@ -12,10 +12,13 @@ $runner = Join-Path $PSScriptRoot "run-capture-due.ps1"
 if (-not (Test-Path -LiteralPath $runner)) {
     throw "Capture runner not found at $runner"
 }
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$backendDir = Join-Path $repoRoot "backend"
 
 $action = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
-    -Argument "-NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$runner`""
+    -Argument "-WindowStyle Hidden -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$runner`"" `
+    -WorkingDirectory $backendDir
 
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) `
     -RepetitionInterval (New-TimeSpan -Minutes $IntervalMinutes)

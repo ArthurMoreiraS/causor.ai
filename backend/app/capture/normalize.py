@@ -39,17 +39,27 @@ def normalize_intimacao(
         )
     )
     if existing is not None:
+        if existing.processo_id is None and existing.numero_processo:
+            processo = _get_or_create_processo(
+                session,
+                numero=existing.numero_processo,
+                escritorio_id=escritorio_id,
+                tribunal=existing.tribunal or dto.tribunal,
+            )
+            existing.processo_id = processo.id
         return existing
 
     numero = canonical_numero(dto.numero_processo)
-    processo = None
-    if numero:
-        processo = session.scalar(
-            select(models.Processo).where(
-                models.Processo.escritorio_id == escritorio_id,
-                models.Processo.numero == numero,
-            )
+    processo = (
+        _get_or_create_processo(
+            session,
+            numero=numero,
+            escritorio_id=escritorio_id,
+            tribunal=dto.tribunal,
         )
+        if numero
+        else None
+    )
 
     intimacao = models.Intimacao(
         processo_id=processo.id if processo else None,
@@ -65,6 +75,32 @@ def normalize_intimacao(
     )
     session.add(intimacao)
     return intimacao
+
+
+def _get_or_create_processo(
+    session: Session,
+    *,
+    numero: str,
+    escritorio_id: int,
+    tribunal: str | None = None,
+) -> models.Processo:
+    processo = session.scalar(
+        select(models.Processo).where(
+            models.Processo.escritorio_id == escritorio_id,
+            models.Processo.numero == numero,
+        )
+    )
+    if processo is None:
+        processo = models.Processo(
+            escritorio_id=escritorio_id,
+            numero=numero,
+            tribunal=tribunal,
+        )
+        session.add(processo)
+        session.flush()
+    elif tribunal and processo.tribunal is None:
+        processo.tribunal = tribunal
+    return processo
 
 
 def enrich_processo(session: Session, dto: ProcessoDTO, *, escritorio_id: int) -> models.Processo:

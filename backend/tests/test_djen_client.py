@@ -83,3 +83,18 @@ def test_http_error_raises(httpx_mock, client):
     httpx_mock.add_response(status_code=500)
     with pytest.raises(httpx.HTTPStatusError):
         client.consultar(oab="12345", uf="SP")
+
+
+def test_consultar_retries_read_timeout(httpx_mock):
+    client = DjenClient(
+        http=httpx.Client(base_url=BASE),
+        max_attempts=2,
+        backoff_seconds=0,
+    )
+    httpx_mock.add_exception(httpx.ReadTimeout("The read operation timed out"))
+    httpx_mock.add_response(json=SAMPLE)
+
+    result = client.consultar(oab="12345", uf="SP")
+
+    assert len(result) == 2
+    assert len(httpx_mock.get_requests()) == 2

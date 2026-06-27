@@ -60,11 +60,16 @@ def test_normalize_creates_intimacao(db_session, escritorio):
     intimacao = normalize_intimacao(db_session, _comunicacao(), escritorio_id=escritorio.id)
     db_session.flush()
     assert intimacao.id is not None
+    assert intimacao.processo_id is not None
     assert intimacao.fonte == "DJEN"
     assert intimacao.fonte_id == "111"
     assert intimacao.tipo_comunicacao == "Intimação"
     assert intimacao.data_disponibilizacao == date(2024, 9, 6)
     assert intimacao.numero_processo == "00000010020248260100"
+    processo = db_session.get(models.Processo, intimacao.processo_id)
+    assert processo is not None
+    assert processo.numero == "00000010020248260100"
+    assert processo.tribunal == "TJSP"
 
 
 def test_normalize_dedupes_on_fonte_id(db_session, escritorio):
@@ -86,6 +91,25 @@ def test_normalize_links_existing_processo(db_session, escritorio):
     intimacao = normalize_intimacao(db_session, _comunicacao(), escritorio_id=escritorio.id)
     db_session.flush()
     assert intimacao.processo_id == proc.id
+
+
+def test_normalize_backfills_processo_for_existing_intimacao(db_session, escritorio):
+    intimacao = models.Intimacao(
+        escritorio_id=escritorio.id,
+        fonte="DJEN",
+        fonte_id="111",
+        numero_processo="00000010020248260100",
+        tribunal="TJSP",
+    )
+    db_session.add(intimacao)
+    db_session.flush()
+
+    existing = normalize_intimacao(db_session, _comunicacao(), escritorio_id=escritorio.id)
+    db_session.flush()
+
+    assert existing.id == intimacao.id
+    assert existing.processo_id is not None
+    assert db_session.query(models.Processo).count() == 1
 
 
 def test_enrich_creates_processo_with_andamentos(db_session, escritorio):

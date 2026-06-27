@@ -93,3 +93,20 @@ def test_http_error_raises(httpx_mock, client):
     httpx_mock.add_response(status_code=401)
     with pytest.raises(httpx.HTTPStatusError):
         client.consultar_processo("0000000", tribunal="tjsp")
+
+
+def test_consultar_processo_retries_read_timeout(httpx_mock):
+    client = DatajudClient(
+        api_key="test-key",
+        http=httpx.Client(base_url=BASE),
+        max_attempts=2,
+        backoff_seconds=0,
+    )
+    httpx_mock.add_exception(httpx.ReadTimeout("The read operation timed out"))
+    httpx_mock.add_response(json=SAMPLE)
+
+    proc = client.consultar_processo("00000010020248260100", tribunal="tjsp")
+
+    assert proc is not None
+    assert proc.numero_processo == "00000010020248260100"
+    assert len(httpx_mock.get_requests()) == 2
