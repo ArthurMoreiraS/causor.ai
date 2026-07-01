@@ -51,6 +51,16 @@ def test_claude_complete_structured_uses_parse_with_thinking_and_effort():
     assert client._last["thinking"] == {"type": "adaptive"}
     assert client._last["output_config"] == {"effort": "high"}
     assert client._last["output_format"] is _Schema
+    assert client._last["max_tokens"] == 2000  # default for classification
+
+
+def test_claude_complete_structured_forwards_max_tokens():
+    client = _fake_anthropic_client_parse(_Schema(rotulo="Contestacao", confianca=0.9))
+    provider = llm.ClaudeProvider(client=client, model="claude-sonnet-4-6")
+
+    provider.complete_structured(system="sys", user="redija", schema=_Schema, max_tokens=8000)
+
+    assert client._last["max_tokens"] == 8000  # drafting needs the larger budget
 
 
 def test_claude_complete_text_returns_text():

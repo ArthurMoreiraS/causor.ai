@@ -177,6 +177,10 @@ class Peticao(TimestampMixin, Base):
     escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
     tipo: Mapped[str | None] = mapped_column(String(100))
     conteudo: Mapped[str | None] = mapped_column(Text)
+    # Dossiê de apoio gerado junto com a minuta (contexto consolidado, análise da
+    # providência, alertas e confiança). Fica separado de `conteudo` para manter a
+    # minuta protocolo-limpa. É conteúdo processual, nunca segredo (vault-only rule).
+    dossie: Mapped[dict | None] = mapped_column(JSON)
     # human approval gate before any irreversible filing
     status: Mapped[str] = mapped_column(String(30), default="rascunho")  # rascunho/aprovada/protocolada
     aprovada_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))

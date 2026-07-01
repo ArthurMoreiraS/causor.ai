@@ -26,6 +26,12 @@ export default function MinutaEditor({
 
   const dirty = text !== serverContent;
   const locked = peticao.status === "protocolada";
+  const dossie = peticao.dossie;
+  const hasDossie =
+    !!dossie &&
+    (!!dossie.contexto_consolidado ||
+      !!dossie.analise_providencia ||
+      (dossie.alertas?.length ?? 0) > 0);
 
   async function copy() {
     try {
@@ -58,6 +64,41 @@ export default function MinutaEditor({
             <div className="editorNotice">
               <span>Petição protocolada não pode ser editada.</span>
             </div>
+          ) : null}
+
+          {hasDossie && dossie ? (
+            <section className="dossie">
+              <div className="dossieHead">
+                <span className="sectionKicker">Dossiê de contexto</span>
+                {typeof dossie.confianca === "number" ? (
+                  <span className="dossieConfianca">
+                    confiança {Math.round(dossie.confianca * 100)}%
+                  </span>
+                ) : null}
+              </div>
+              {dossie.contexto_consolidado ? (
+                <div className="dossieBlock">
+                  <span className="sectionKicker">Contexto consolidado</span>
+                  <p>{dossie.contexto_consolidado}</p>
+                </div>
+              ) : null}
+              {dossie.analise_providencia ? (
+                <div className="dossieBlock">
+                  <span className="sectionKicker">Análise da providência</span>
+                  <p>{dossie.analise_providencia}</p>
+                </div>
+              ) : null}
+              {dossie.alertas && dossie.alertas.length > 0 ? (
+                <div className="dossieBlock">
+                  <span className="sectionKicker">Alertas</span>
+                  <ul className="dossieAlertas">
+                    {dossie.alertas.map((alerta, i) => (
+                      <li key={i}>{alerta}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </section>
           ) : null}
 
           <textarea

@@ -1,12 +1,21 @@
 """TDD for the persisted agent workflow."""
 
-from datetime import date
+from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 from app.agent.classifier import ClassificacaoIntimacao
-from app.agent.service import draft_from_intimacao
+from app.agent.drafter import MinutaGerada
+from app.agent.service import _historico_processo, draft_from_intimacao
 from app.prazo_engine.factory import build_calendar
 from app.sor import models
+
+_MINUTA = MinutaGerada(
+    contexto_consolidado="contexto",
+    analise_providencia="analise",
+    minuta="MINUTA",
+    alertas=["revisar qualificacao"],
+    confianca=0.77,
+)
 
 
 def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):
@@ -39,7 +48,7 @@ def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):
 
     with (
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
-        patch("app.agent.service.draft_peticao", return_value="MINUTA"),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA),
     ):
         prazo, peticao, result = draft_from_intimacao(
             db_session, intimacao, calendar=build_calendar([2024, 2025])
@@ -50,7 +59,12 @@ def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):
     assert prazo.descricao == "Intimacao para contestar"
     assert peticao.status == "rascunho"
     assert peticao.tipo == "Contestacao"
+    # conteudo carrega SÓ a minuta (protocolo-limpo); o dossiê fica separado.
     assert peticao.conteudo == "MINUTA"
+    assert peticao.dossie["contexto_consolidado"] == "contexto"
+    assert peticao.dossie["analise_providencia"] == "analise"
+    assert peticao.dossie["alertas"] == ["revisar qualificacao"]
+    assert peticao.dossie["confianca"] == 0.77
     assert peticao.processo_id == proc.id
 
 
@@ -91,8 +105,96 @@ def test_draft_from_intimacao_uses_active_office_template(db_session):
 
     with (
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
-        patch("app.agent.service.draft_peticao", return_value="MINUTA") as draft_mock,
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA) as draft_mock,
     ):
         draft_from_intimacao(db_session, intimacao, calendar=build_calendar([2024, 2025]))
 
     assert draft_mock.call_args.kwargs["template_conteudo"] == "ESTRUTURA DO ESCRITORIO"
+
+
+def test_draft_from_intimacao_feeds_process_history_to_drafter(db_session):
+    """The prior movements/intimations on the process must reach the drafter, not
+    just the isolated intimation (the context-enrichment fix)."""
+    esc = models.Escritorio(nome="Escritorio Historico")
+    db_session.add(esc)
+    db_session.flush()
+    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP")
+    db_session.add(proc)
+    db_session.flush()
+    db_session.add_all(
+        [
+            models.Andamento(
+                processo_id=proc.id,
+                codigo=193,
+                descricao="Sentenca publicada",
+                data=datetime(2024, 8, 1, tzinfo=timezone.utc),
+            ),
+            models.Intimacao(
+                processo_id=proc.id,
+                fonte="DJEN",
+                fonte_id="anterior-1",
+                numero_processo=proc.numero,
+                tipo_comunicacao="Intimacao",
+                teor="Intimacao anterior sobre pericia.",
+                data_disponibilizacao=date(2024, 7, 1),
+            ),
+        ]
+    )
+    intimacao = models.Intimacao(
+        processo_id=proc.id,
+        fonte="DJEN",
+        fonte_id="atual-1",
+        numero_processo=proc.numero,
+        tipo_comunicacao="Intimacao",
+        teor="Apresente contestacao em 15 dias uteis.",
+        data_disponibilizacao=date(2024, 9, 9),
+        data_publicacao=date(2024, 9, 9),
+    )
+    db_session.add(intimacao)
+    db_session.flush()
+
+    classificacao = ClassificacaoIntimacao(
+        tipo="Intimacao para contestar",
+        peticao_sugerida="Contestacao",
+        prazo_dias=15,
+        dias_uteis=True,
+        confianca=0.9,
+        resumo="Reu intimado para contestar.",
+    )
+
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=classificacao),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA) as draft_mock,
+    ):
+        draft_from_intimacao(db_session, intimacao, calendar=build_calendar([2024, 2025]))
+
+    historico = draft_mock.call_args.kwargs["historico"]
+    assert "Sentenca publicada" in historico
+    assert "Intimacao anterior sobre pericia." in historico
+    # a data fatal já calculada é repassada como texto pronto
+    assert draft_mock.call_args.kwargs["prazo_fatal"] is not None
+
+
+def test_historico_exclui_intimacao_atual_e_limita_trecho(db_session):
+    esc = models.Escritorio(nome="Escritorio Trecho")
+    db_session.add(esc)
+    db_session.flush()
+    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP")
+    db_session.add(proc)
+    db_session.flush()
+    atual = models.Intimacao(
+        processo_id=proc.id,
+        fonte="DJEN",
+        fonte_id="atual",
+        numero_processo=proc.numero,
+        tipo_comunicacao="Intimacao",
+        teor="TEOR_DA_INTIMACAO_ATUAL " + "x" * 2000,
+        data_disponibilizacao=date(2024, 9, 9),
+    )
+    db_session.add(atual)
+    db_session.flush()
+
+    historico = _historico_processo(db_session, proc, intimacao_atual_id=atual.id)
+
+    # sem outras movimentações/intimações/petições, não há histórico a montar
+    assert historico is None

@@ -66,6 +66,31 @@ describe("API client critical workflows", () => {
     }
   });
 
+  it("normalizes a trailing slash in NEXT_PUBLIC_API_BASE before requesting core endpoints", async () => {
+    vi.stubEnv("NEXT_PUBLIC_API_BASE", "http://localhost:8000/");
+    const fetchMock = mockFetch({
+      "GET /intimacoes": { body: [] },
+      "GET /processos": { body: [] },
+      "GET /prazos": { body: [] },
+      "GET /peticoes": { body: [] },
+      "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
+      "GET /review/queue": { body: [] }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadDashboard } = await import("./api");
+
+    await loadDashboard();
+
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      "/intimacoes",
+      "/processos",
+      "/prazos",
+      "/peticoes",
+      "/dashboard/operational",
+      "/review/queue"
+    ]);
+  });
+
   it("registers the monitored OAB before running the immediate capture", async () => {
     const fetchMock = mockFetch({
       "POST /capturas/oab": { body: { id: 1, oab: "12345", uf: "SP" } },

@@ -151,7 +151,7 @@ button:disabled {
 
 .shell {
   display: grid;
-  grid-template-columns: 196px minmax(0, 1fr);
+  grid-template-columns: 220px minmax(0, 1fr);
   height: 100vh;
   overflow: hidden;
   transition: grid-template-columns 180ms ease;
@@ -175,16 +175,16 @@ button:disabled {
   position: relative;
   align-items: center;
   justify-content: flex-start;
-  height: 64px;
-  padding: 0 14px;
+  height: 76px;
+  padding: 0 42px 0 18px;
   border-bottom: 1px solid var(--line);
 }
 
 .brandWordmark {
   position: relative;
   display: block;
-  width: 86px;
-  aspect-ratio: 786 / 139;
+  width: 280px;
+  height: 140px;
   overflow: hidden;
   transition: opacity 160ms ease, transform 160ms ease;
 }
@@ -415,6 +415,22 @@ button:disabled {
   min-width: 0;
   height: 100vh;
   overflow-y: auto;
+}
+
+.assistantWorkspaceHost {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.assistantWorkspaceHost > .appbar {
+  flex: 0 0 auto;
+}
+
+.assistantWorkspaceHost > .assistantWorkspace {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
 }
 
 .appbar {
@@ -1687,130 +1703,489 @@ h2 {
   font-size: 13px;
 }
 .assistantWorkspace {
-  min-height: calc(100vh - 244px);
+  height: auto;
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(236px, 284px) minmax(0, 1fr);
   gap: 18px;
-  padding: 24px 28px 28px;
+  overflow: hidden;
+  padding: 18px 24px 22px;
+  background:
+    radial-gradient(circle at 58% 0%, color-mix(in srgb, var(--accent-bg) 58%, transparent) 0%, transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-soft) 76%, transparent), transparent 44%);
+}
+
+.assistantHistoryPanel {
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-self: start;
+  padding: 13px;
+  border: 1px solid color-mix(in srgb, var(--line) 86%, transparent);
+  border-radius: 18px;
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  box-shadow: 0 16px 38px rgba(15, 23, 42, 0.05);
+}
+
+.assistantHistoryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.assistantHistoryHeader div {
+  display: grid;
+  gap: 2px;
+}
+
+.assistantHistoryHeader span,
+.assistantSessionHeader .sectionKicker {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.assistantHistoryHeader strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.assistantThreadList {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.assistantThread {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid transparent;
+  border-radius: 13px;
+  background: transparent;
+}
+
+.assistantThread.active {
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+  background: linear-gradient(135deg, var(--accent-bg), color-mix(in srgb, var(--panel) 82%, var(--accent-bg)));
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
+.assistantThreadMain {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+  min-height: 46px;
+  padding: 7px 6px 7px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistantThreadMain:disabled,
+.assistantThreadDelete:disabled,
+.assistantClearHistory:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.assistantThreadMain strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantThreadMain span {
+  display: none;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantThreadMain small {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.assistantThreadDelete {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.assistantThreadDelete:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--risk) 8%, var(--panel));
+  color: var(--risk);
+}
+
+.assistantThreadMore {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.3;
+  padding: 3px 10px 0;
+}
+
+.assistantThreadEmpty {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding: 16px;
+  border: 1px dashed color-mix(in srgb, var(--line-strong) 80%, transparent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--panel-soft) 74%, transparent);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.assistantThreadEmpty strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.assistantClearHistory {
+  min-height: 36px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.assistantClearHistory:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.assistantMain {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 12px;
+}
+
+.assistantSessionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1040px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--line) 84%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--panel) 94%, transparent), color-mix(in srgb, var(--panel-soft) 80%, transparent)),
+    var(--panel);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.045);
+}
+
+.assistantSessionHeader h2 {
+  margin: 4px 0 4px;
+  color: var(--ink);
+  font-size: clamp(20px, 1.7vw, 24px);
+  line-height: 1.2;
+}
+
+.assistantSessionHeader p {
+  max-width: 680px;
+  margin: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistantSessionStats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.assistantSessionStats span {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: var(--panel);
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .chatSurface {
-  max-width: 820px;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+  height: 100%;
+  max-width: 1040px;
   width: 100%;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
   gap: 14px;
+  padding: clamp(16px, 2vw, 24px);
+  border: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 12% 6%, color-mix(in srgb, var(--accent-bg) 74%, transparent) 0%, transparent 34%),
+    linear-gradient(180deg, color-mix(in srgb, var(--panel) 96%, transparent), color-mix(in srgb, var(--panel-soft) 76%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--panel) 80%, transparent), 0 18px 46px rgba(15, 23, 42, 0.06);
 }
+
+.chatSurface::before {
+  position: absolute;
+  inset: 18px;
+  content: "";
+  pointer-events: none;
+  border: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
+  border-radius: 20px;
+}
+
+.chatSurface > * {
+  position: relative;
+  z-index: 1;
+}
+
+.chatSurface.empty {
+  justify-content: center;
+}
+
+.chatSurface.active {
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.assistantIntro {
+  display: grid;
+  gap: 10px;
+  max-width: 540px;
+}
+
+.assistantIntroBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  justify-self: start;
+  padding: 7px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
+  border-radius: 999px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.assistantIntro h3 {
+  max-width: 540px;
+  margin: 0;
+  color: var(--ink);
+  font-size: clamp(24px, 2.2vw, 32px);
+  line-height: 1.1;
+  letter-spacing: -0.04em;
+}
+
 .promptSuggestions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   gap: 10px;
 }
+
 .promptSuggestions button {
-  display: flex;
-  align-items: flex-start;
+  position: relative;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
   gap: 10px;
-  min-height: 84px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  background: var(--panel);
+  min-height: 72px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--line) 88%, transparent);
+  background: color-mix(in srgb, var(--panel) 94%, transparent);
   color: var(--ink);
   text-align: left;
-  border-radius: 8px;
+  border-radius: 18px;
   font-size: 13px;
   line-height: 1.35;
+  cursor: pointer;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.045);
+  transition: transform 150ms ease, border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
-.promptSuggestions button:hover {
-  border-color: var(--line-strong);
-  background: var(--panel-soft);
+
+.promptSuggestions button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line-strong));
+  background: var(--panel);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.075);
 }
+
+.promptSuggestions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
+}
+
+.promptSuggestions strong {
+  display: block;
+}
+
+.promptSuggestions strong {
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.25;
+}
+
+.promptIcon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--accent-bg) 86%, var(--panel));
+  color: var(--accent);
+}
+
 .chatTimeline {
   display: grid;
+  align-content: start;
   gap: 14px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 6px 2px 2px;
+  overscroll-behavior: contain;
 }
+
+.chatSurface.active .chatTimeline {
+  flex: 1 1 auto;
+}
+
 .chatBubble {
   display: flex;
 }
+
 .chatBubble span {
-  max-width: min(680px, 86%);
-  padding: 12px 14px;
-  border-radius: 14px;
+  max-width: min(720px, 86%);
+  padding: 13px 15px;
+  border-radius: 16px;
   font-size: 14px;
   line-height: 1.45;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.045);
 }
+
 .chatBubble.user {
   justify-content: flex-end;
 }
+
 .chatBubble.user span {
   background: var(--solid);
   color: var(--panel);
   border-bottom-right-radius: 4px;
 }
+
 .chatBubble.assistant {
   justify-content: flex-start;
 }
+
 .chatBubble.assistant span {
   background: var(--panel);
   color: var(--ink);
   border: 1px solid var(--line);
   border-bottom-left-radius: 4px;
 }
+
 .assistantActionShelf {
   display: grid;
+  flex: 0 0 auto;
   gap: 10px;
 }
+
 .assistantActionCard {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 12px;
-  border: 1px solid #e0c98a;
-  background: #fbf6e8;
-  border-radius: 8px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 34%, var(--line));
+  background: linear-gradient(135deg, var(--warn-bg), color-mix(in srgb, var(--panel) 76%, var(--warn-bg)));
+  border-radius: 16px;
 }
+
 .assistantActionCard > div:first-child {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   gap: 4px 8px;
 }
+
 .assistantActionCard svg {
   grid-row: span 2;
 }
+
 .assistantActionCard strong,
 .assistantActionCard span {
   display: block;
 }
+
 .assistantActionCard span {
-  color: #74633b;
+  color: color-mix(in srgb, var(--warn) 72%, var(--ink-soft));
   font-size: 12px;
 }
+
 .assistantError.wide {
+  flex: 0 0 auto;
   padding: 10px 12px;
   border: 1px solid #f0b9b3;
   background: #fff4f2;
-  border-radius: 8px;
+  border-radius: 12px;
 }
+
 .assistantComposer {
-  max-width: 820px;
+  max-width: 1040px;
   width: 100%;
-  min-height: 58px;
+  min-height: 60px;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 36px;
-  align-items: end;
+  grid-template-columns: minmax(0, 1fr) 44px;
+  align-items: center;
   gap: 10px;
   margin: 0 auto;
-  padding: 10px;
+  padding: 8px 8px 8px 14px;
   border: 1px solid var(--line);
   background: var(--panel);
-  border-radius: 14px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.06);
+  border-radius: 20px;
+  box-shadow: 0 18px 42px rgba(15, 23, 42, 0.085);
 }
+
 .assistantComposer textarea {
-  min-height: 36px;
-  max-height: 160px;
+  min-height: 38px;
+  max-height: 96px;
   resize: none;
   border: 0;
   outline: 0;
@@ -1819,7 +2194,99 @@ h2 {
   font: inherit;
   font-size: 14px;
   line-height: 1.45;
-  padding: 8px 4px;
+  padding: 10px 4px;
+}
+
+.assistantComposer .iconButton {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  border-radius: 15px;
+  background: var(--solid);
+  color: var(--panel);
+  border-color: var(--solid);
+}
+
+.assistantComposer .iconButton:hover:not(:disabled) {
+  border-color: var(--solid);
+  background: color-mix(in srgb, var(--solid) 88%, var(--ink-soft));
+  color: var(--panel);
+}
+
+@media (max-width: 1080px) {
+  .assistantWorkspace {
+    grid-template-columns: 1fr;
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .assistantHistoryPanel {
+    height: auto;
+    max-height: none;
+    grid-template-rows: auto auto auto;
+    align-self: stretch;
+  }
+
+  .assistantThreadList {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    overflow: hidden;
+  }
+
+  .assistantClearHistory {
+    justify-self: start;
+    padding: 0 12px;
+  }
+
+  .assistantMain {
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+}
+
+@media (max-width: 680px) {
+  .assistantWorkspace {
+    padding: 14px;
+  }
+
+  .assistantSessionHeader {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 15px;
+  }
+
+  .assistantSessionStats {
+    justify-content: flex-start;
+  }
+
+  .assistantSessionHeader p {
+    white-space: normal;
+  }
+
+  .chatSurface {
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .chatSurface::before {
+    inset: 12px;
+    border-radius: 16px;
+  }
+
+  .assistantIntro h3 {
+    font-size: 24px;
+  }
+
+  .promptSuggestions {
+    grid-template-columns: 1fr;
+  }
+
+  .assistantActionCard {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .assistantComposer {
+    border-radius: 18px;
+  }
 }
 .auditLogRow {
   display: flex;
@@ -1923,6 +2390,28 @@ h2 {
 
   .agentCycleStep:nth-child(n + 4) {
     border-top: 1px solid var(--line);
+  }
+}
+
+@media (max-width: 1080px) {
+  .assistantShell,
+  .assistantShell.sidebarCollapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .assistantShell .workspace.assistantWorkspaceHost {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+  }
+
+  .assistantShell .assistantWorkspace {
+    height: auto;
+    min-height: 0;
   }
 }
 
@@ -2072,6 +2561,46 @@ h2 {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.confirmCard {
+  width: min(420px, calc(100vw - 32px));
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.confirmIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--risk) 10%, var(--panel));
+  color: var(--risk);
+  border: 1px solid color-mix(in srgb, var(--risk) 24%, var(--line));
+}
+
+.confirmBody {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.confirmBody p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.confirmCard .modalActions {
+  grid-column: 1 / -1;
+  padding-top: 4px;
+}
+
+.confirmDanger {
+  background: color-mix(in srgb, var(--risk) 8%, var(--panel));
 }
 
 .searchSelect {
@@ -2776,6 +3305,54 @@ h2 {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.dossie {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+}
+
+.dossieHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dossieConfianca {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.dossieBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dossieBlock p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--ink);
+  white-space: pre-wrap;
+}
+
+.dossieAlertas {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--warn);
 }
 
 .editorFooter {

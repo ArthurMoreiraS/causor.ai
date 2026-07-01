@@ -57,7 +57,7 @@ import ProtocolarModal from "./components/ProtocolarModal";
 import RadarBell from "./components/RadarBell";
 import { useToast } from "./components/Toast";
 import UfSearchSelect from "./components/UfSearchSelect";
-import { LoadingButton, NavGroup, NavItem, Skeleton, ThemeToggle } from "./components/ui";
+import { LoadingButton, Modal, NavGroup, NavItem, Skeleton, ThemeToggle } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
 import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
@@ -137,6 +137,7 @@ export default function Home() {
     uf: "SP"
   });
   const [oabsMonitoradas, setOabsMonitoradas] = useState<OabMonitorada[]>([]);
+  const [oabToRemove, setOabToRemove] = useState<OabMonitorada | null>(null);
   const { settings, update: updateSettings, reset: resetSettings } = useSettings();
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
@@ -234,16 +235,13 @@ export default function Home() {
   }
 
   async function removeCapturedOab(oab: OabMonitorada) {
-    const confirmed = window.confirm(
-      `Remover OAB ${oab.oab}/${oab.uf} e apagar intimações, prazos, processos e petições capturados por ela?`
-    );
-    if (!confirmed) return;
     setBusy(`remove-oab-${oab.id}`);
     setError(null);
     try {
       await removerOabMonitorada(oab.id, true);
       await loadOabsMonitoradas();
       await refresh();
+      setOabToRemove(null);
       toast({
         kind: "success",
         title: `OAB ${oab.oab}/${oab.uf} removida`,
@@ -667,24 +665,24 @@ export default function Home() {
   }
 
   return (
-    <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}`}>
+    <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}${view === "assistente" ? " assistantShell" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
           <span className="brandWordmark" aria-label="Causor" title="Causor">
             <Image
               className="brandWordmarkDark"
-              src="/brand/causor-wordmark-dark-cropped.png"
+              src="/brand/icon+markdown_black.png"
               alt=""
               fill
-              sizes="86px"
+              sizes="280px"
               priority
             />
             <Image
               className="brandWordmarkLight"
-              src="/brand/causor-wordmark-light-cropped.png"
+              src="/brand/icon+markdown_white.png"
               alt=""
               fill
-              sizes="86px"
+              sizes="280px"
               priority
             />
           </span>
@@ -802,7 +800,7 @@ export default function Home() {
         </div>
       </aside>
 
-      <section className="workspace">
+      <section className={view === "assistente" ? "workspace assistantWorkspaceHost" : "workspace"}>
         <header className="appbar">
           <div className="crumbs">
             <span>Legal Ops</span>
@@ -1126,7 +1124,10 @@ export default function Home() {
                         <button
                           className="toolbarButton compact danger"
                           disabled={busy === `remove-oab-${oab.id}`}
-                          onClick={() => void removeCapturedOab(oab)}
+                          onClick={() => {
+                            setError(null);
+                            setOabToRemove(oab);
+                          }}
                         >
                           {busy === `remove-oab-${oab.id}` ? (
                             <Loader2 className="spin" size={14} />
@@ -1161,6 +1162,52 @@ export default function Home() {
               </div>
             </div>
           </div>
+        ) : null}
+
+        {oabToRemove ? (
+          <Modal
+            onClose={() => {
+              if (!busy?.startsWith("remove-oab-")) setOabToRemove(null);
+            }}
+            labelledBy="removeCapturedOabTitle"
+            className="confirmCard"
+          >
+            <div className="confirmIcon danger" aria-hidden="true">
+              <AlertTriangle size={18} />
+            </div>
+            <div className="confirmBody">
+              <span className="settingsLabel" id="removeCapturedOabTitle">
+                Remover OAB {oabToRemove.oab}/{oabToRemove.uf}?
+              </span>
+              <p>
+                Esta ação apaga intimações, prazos, processos e petições capturados por essa OAB.
+                A operação não pode ser desfeita.
+              </p>
+              {error ? (
+                <small className="settingsHint vaultError" role="alert">
+                  {error}
+                </small>
+              ) : null}
+            </div>
+            <div className="modalActions">
+              <button
+                type="button"
+                className="toolbarButton compact"
+                disabled={busy?.startsWith("remove-oab-")}
+                onClick={() => setOabToRemove(null)}
+              >
+                Cancelar
+              </button>
+              <LoadingButton
+                className="toolbarButton compact danger confirmDanger"
+                loading={busy === `remove-oab-${oabToRemove.id}`}
+                icon={<AlertTriangle size={14} />}
+                onClick={() => void removeCapturedOab(oabToRemove)}
+              >
+                Remover definitivamente
+              </LoadingButton>
+            </div>
+          </Modal>
         ) : null}
 
         {overlay === "settings" ? (

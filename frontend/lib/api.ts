@@ -34,12 +34,22 @@ export type Prazo = {
   cumprido: boolean;
 };
 
+/** Dossiê de apoio gerado junto com a minuta. Fica separado de `conteudo` (que
+ * carrega só o texto da peça) e serve de contexto para a revisão do advogado. */
+export type Dossie = {
+  contexto_consolidado?: string;
+  analise_providencia?: string;
+  alertas?: string[];
+  confianca?: number;
+};
+
 export type Peticao = {
   id: number;
   processo_id: number;
   prazo_id: number | null;
   tipo: string | null;
   conteudo: string | null;
+  dossie: Dossie | null;
   status: "rascunho" | "em_revisao" | "aprovada" | "protocolada" | string;
   aprovada_por: number | null;
   protocolada_em: string | null;
@@ -247,7 +257,7 @@ export type DashboardData = {
   backendOffline?: boolean;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").replace(/\/+$/, "");
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();

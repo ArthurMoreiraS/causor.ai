@@ -23,7 +23,7 @@ class LLMProvider(Protocol):
     """Transport for the model capabilities the agent layer needs."""
 
     def complete_structured(
-        self, *, system: str, user: str, schema: type[BaseModel]
+        self, *, system: str, user: str, schema: type[BaseModel], max_tokens: int = 2000
     ) -> BaseModel: ...
 
     def complete_text(self, *, system: str, user: str, max_tokens: int) -> str: ...
@@ -44,11 +44,11 @@ class ClaudeProvider:
         return self._client
 
     def complete_structured(
-        self, *, system: str, user: str, schema: type[BaseModel]
+        self, *, system: str, user: str, schema: type[BaseModel], max_tokens: int = 2000
     ) -> BaseModel:
         response = self._get_client().messages.parse(
             model=self._model,
-            max_tokens=2000,
+            max_tokens=max_tokens,
             thinking={"type": "adaptive"},
             output_config={"effort": "high"},
             system=system,

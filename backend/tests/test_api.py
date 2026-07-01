@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.agent.classifier import ClassificacaoIntimacao
+from app.agent.drafter import MinutaGerada
 from app.api.main import create_app
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.sor.db import get_session
@@ -352,9 +353,16 @@ def test_gerar_minuta_creates_prazo_and_draft(client, db_session, seeded):
         resumo="Reu intimado para contestar.",
     )
 
+    minuta = MinutaGerada(
+        contexto_consolidado="ctx",
+        analise_providencia="analise",
+        minuta="MINUTA",
+        alertas=["revisar"],
+        confianca=0.8,
+    )
     with (
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
-        patch("app.agent.service.draft_peticao", return_value="MINUTA"),
+        patch("app.agent.service.draft_peticao", return_value=minuta),
     ):
         resp = client.post(
             f"/intimacoes/{intimacao.id}/draft",
@@ -365,6 +373,8 @@ def test_gerar_minuta_creates_prazo_and_draft(client, db_session, seeded):
     body = resp.json()
     assert body["peticao"]["status"] == "rascunho"
     assert body["peticao"]["conteudo"] == "MINUTA"
+    assert body["peticao"]["dossie"]["analise_providencia"] == "analise"
+    assert body["peticao"]["dossie"]["alertas"] == ["revisar"]
     assert body["prazo"]["dias"] == 15
     assert body["classificacao"]["peticao_sugerida"] == "Contestacao"
 
@@ -379,9 +389,16 @@ def test_gerar_minuta_audita(client, db_session, seeded):
         confianca=0.9,
         resumo="Reu intimado.",
     )
+    minuta = MinutaGerada(
+        contexto_consolidado="ctx",
+        analise_providencia="analise",
+        minuta="MINUTA",
+        alertas=[],
+        confianca=0.8,
+    )
     with (
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
-        patch("app.agent.service.draft_peticao", return_value="MINUTA"),
+        patch("app.agent.service.draft_peticao", return_value=minuta),
     ):
         resp = client.post(f"/intimacoes/{intimacao.id}/draft", json={})
 

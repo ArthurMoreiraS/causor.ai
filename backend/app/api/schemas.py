@@ -55,6 +55,7 @@ class PeticaoOut(BaseModel):
     prazo_id: int | None
     tipo: str | None
     conteudo: str | None
+    dossie: dict | None = None
     status: str
     aprovada_por: int | None
     protocolada_em: datetime | None

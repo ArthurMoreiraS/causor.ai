@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, RotateCcw, Trash2, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, RotateCcw, Trash2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import {
   atualizarPerfilOperacional,
@@ -36,6 +36,7 @@ export default function SettingsModal({
   const [oabs, setOabs] = useState<OabMonitorada[]>([]);
   const [loadingOabs, setLoadingOabs] = useState(true);
   const [removingOabId, setRemovingOabId] = useState<number | null>(null);
+  const [oabToRemove, setOabToRemove] = useState<OabMonitorada | null>(null);
   const [oabError, setOabError] = useState<string | null>(null);
   const [profile, setProfile] = useState<OperationalProfile | null>(null);
   const [profileForm, setProfileForm] = useState({
@@ -119,16 +120,13 @@ export default function SettingsModal({
   }, [offline]);
 
   async function removeOab(oab: OabMonitorada) {
-    const confirmed = window.confirm(
-      `Remover OAB ${oab.oab}/${oab.uf} e apagar intimações, prazos, processos e petições capturados por ela?`
-    );
-    if (!confirmed) return;
     setRemovingOabId(oab.id);
     try {
       await removerOabMonitorada(oab.id, true);
       await loadOabs();
       await onOabChanged();
       setOabError(null);
+      setOabToRemove(null);
       toast({ kind: "success", title: `OAB ${oab.oab}/${oab.uf} removida`, description: "Dados capturados por ela foram apagados." });
     } catch (err) {
       setOabError(err instanceof Error ? err.message : "OAB não removida");
@@ -298,7 +296,10 @@ export default function SettingsModal({
                         disabled={offline}
                         loading={removingOabId === oab.id}
                         icon={<Trash2 size={14} />}
-                        onClick={() => void removeOab(oab)}
+                        onClick={() => {
+                          setOabError(null);
+                          setOabToRemove(oab);
+                        }}
                       >
                         Remover dados
                       </LoadingButton>
@@ -359,6 +360,52 @@ export default function SettingsModal({
           Concluir
         </button>
       </footer>
+
+      {oabToRemove ? (
+        <Modal
+          onClose={() => {
+            if (removingOabId === null) setOabToRemove(null);
+          }}
+          labelledBy="removeOabConfirmTitle"
+          className="confirmCard"
+        >
+          <div className="confirmIcon danger" aria-hidden="true">
+            <AlertTriangle size={18} />
+          </div>
+          <div className="confirmBody">
+            <span className="settingsLabel" id="removeOabConfirmTitle">
+              Remover OAB {oabToRemove.oab}/{oabToRemove.uf}?
+            </span>
+            <p>
+              Esta ação apaga intimações, prazos, processos e petições capturados por essa OAB.
+              A operação não pode ser desfeita.
+            </p>
+            {oabError ? (
+              <small className="settingsHint vaultError" role="alert">
+                {oabError}
+              </small>
+            ) : null}
+          </div>
+          <div className="modalActions">
+            <button
+              type="button"
+              className="toolbarButton compact"
+              disabled={removingOabId !== null}
+              onClick={() => setOabToRemove(null)}
+            >
+              Cancelar
+            </button>
+            <LoadingButton
+              className="toolbarButton compact danger confirmDanger"
+              loading={removingOabId === oabToRemove.id}
+              icon={<Trash2 size={14} />}
+              onClick={() => void removeOab(oabToRemove)}
+            >
+              Remover definitivamente
+            </LoadingButton>
+          </div>
+        </Modal>
+      ) : null}
     </Modal>
   );
 }
