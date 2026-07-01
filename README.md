@@ -31,7 +31,9 @@ protocolo é confirmado depois no Causor.
 
 ## Desenvolvimento
 
-Consulte [docs/local-dev.md](docs/local-dev.md). Resumo:
+Consulte [`RODAR-LOCAL.md`](RODAR-LOCAL.md) para o quickstart (subir backend +
+frontend) e [`docs/operacao/local-dev.md`](docs/operacao/local-dev.md) para
+setup completo e troubleshooting. Resumo:
 
 ```powershell
 cd backend
@@ -67,10 +69,12 @@ O workflow `.github/workflows/ci.yml` executa essas verificações em pushes par
 
 ## Fonte de verdade
 
-- Estado e próximos passos: [docs/proximos-passos-mvp.md](docs/proximos-passos-mvp.md)
-- Operação do piloto: [docs/onboarding-piloto.md](docs/onboarding-piloto.md)
-- Deploy: [docs/deploy.md](docs/deploy.md)
-- Direção estratégica: [docs/PRD_Causor.md](docs/PRD_Causor.md)
+- Documentação (índice): [docs/README.md](docs/README.md)
+- Estado e próximos passos: [docs/estado.md](docs/estado.md)
+- Operação do piloto: [docs/operacao/onboarding-piloto.md](docs/operacao/onboarding-piloto.md)
+- Deploy: [docs/operacao/deploy.md](docs/operacao/deploy.md)
+- Direção estratégica: [docs/produto/PRD.md](docs/produto/PRD.md)
+- Protocolo PJe + vault: [docs/areas/pje-assistido.md](docs/areas/pje-assistido.md)
 
-Documentos em `docs/superpowers/` registram decisões e planos históricos; não
-devem ser usados isoladamente para inferir o estado atual.
+Documentos em `docs/historico/superpowers/` registram decisões e planos
+históricos; não devem ser usados isoladamente para inferir o estado atual.

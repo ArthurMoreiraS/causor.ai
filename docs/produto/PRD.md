@@ -1,7 +1,7 @@
 # PRD — Causor
 
 > Documento estratégico. Para estado implementado e ordem de execução atual,
-> use `docs/proximos-passos-mvp.md`.
+> use `docs/estado.md`.
 
 **Produto:** Causor — Agente Operacional Jurídico
 **Categoria:** SaaS vertical de IA + automação ("computer use") para operação processual no Brasil
@@ -12,7 +12,7 @@
 final ainda é realizado pelo advogado no PJe/PJeOffice.
 
 > Este PRD descreve a direção estratégica. O estado implementado e a ordem de
-> execução ficam em `docs/proximos-passos-mvp.md`.
+> execução ficam em `docs/estado.md`.
 
 ---
 
@@ -110,6 +110,25 @@ Dashboard, inbox de intimações, painel de prazos com risco, fila de aprovaçã
 - Billing.
 - Conectores adicionais (e-SAJ, Projudi, EPROC).
 - Deploy definitivo e monitoramento externo.
+
+### 5.9 Endpoints da API (FastAPI)
+- `GET /health`
+- `GET /me`
+- `GET /dashboard/operational`
+- `GET /review/queue`
+- `GET /processos`
+- `GET /intimacoes`
+- `GET /prazos`
+- `GET /peticoes`
+- `GET /jobs`
+- `GET /audit`
+- `POST /intimacoes/{id}/draft`
+- `POST /peticoes/{id}/approve`
+- `POST /peticoes/{id}/protocolar/async`
+- `POST /peticoes/{id}/protocolar/confirmar`
+
+> Lista de referência; para o contrato atualizado, consulte
+> `http://localhost:8000/docs` (Swagger) ou `backend/app/api/`.
 
 ---
 

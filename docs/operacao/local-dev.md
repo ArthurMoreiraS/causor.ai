@@ -1,5 +1,9 @@
 # Desenvolvimento local
 
+> **Quickstart:** para subir o backend e o frontend rapidamente, veja
+> [`RODAR-LOCAL.md`](../../RODAR-LOCAL.md) na raiz do repo. Este documento cobre
+> o setup completo (primeira instalação), troubleshooting e captura agendada.
+
 Este caminho sobe o Causor ponta a ponta sem exigir Postgres local.
 
 ## Uso diario
