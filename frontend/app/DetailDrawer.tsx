@@ -1,9 +1,10 @@
 "use client";
 
 import { CalendarDays, FilePenLine, Loader2, Sparkles, X } from "lucide-react";
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
 import { formatDate, statusLabel } from "@/lib/format";
+import { sanitizeHtml } from "@/lib/sanitize";
 
 export type DetailSelection =
   | { kind: "processo"; id: number }
@@ -231,7 +232,7 @@ function IntimacaoDetail({
       ) : null}
 
       <DetailSection title="Teor da intimação">
-        <p className="detailTeor">{intimacao.teor ?? "Teor não informado."}</p>
+        <TeorHtml teor={intimacao.teor} />
       </DetailSection>
 
       <div className="detailActions">
@@ -287,4 +288,17 @@ function DetailField({ label, value }: { label: string; value: string | null | u
       <strong>{value ?? "-"}</strong>
     </div>
   );
+}
+
+/** Renderiza o teor da intimação: HTML sanitizado (se houver tags) ou texto puro. */
+function TeorHtml({ teor }: { teor: string | null | undefined }) {
+  const html = useMemo(() => (teor ? sanitizeHtml(teor) : ""), [teor]);
+  if (!teor) {
+    return <p className="detailTeor">Teor não informado.</p>;
+  }
+  const looksLikeHtml = /<[a-zA-Z!/][^>]*>/.test(teor);
+  if (looksLikeHtml) {
+    return <div className="detailTeor" dangerouslySetInnerHTML={{ __html: html }} />;
+  }
+  return <p className="detailTeor">{teor}</p>;
 }

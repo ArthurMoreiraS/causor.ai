@@ -97,6 +97,8 @@ class CaptureResultOut(BaseModel):
     intimacoes_novas: int
     processos_enriquecidos: int
     prazos_registrados: int
+    djen_indisponivel: bool = False
+    djen_erro: str | None = None
 
 
 class JobOut(BaseModel):

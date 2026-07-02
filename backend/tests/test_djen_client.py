@@ -42,7 +42,11 @@ SAMPLE = {
 
 @pytest.fixture
 def client():
-    return DjenClient(http=httpx.Client(base_url=BASE))
+    return DjenClient(
+        http=httpx.Client(base_url=BASE),
+        max_attempts=3,
+        backoff_seconds=0,
+    )
 
 
 def test_consultar_returns_dtos(httpx_mock, client):
@@ -80,9 +84,29 @@ def test_consultar_empty_items(httpx_mock, client):
 
 
 def test_http_error_raises(httpx_mock, client):
+    # 3 tentativas (max_attempts default) todas 500 -> HTTPStatusError
+    httpx_mock.add_response(status_code=500)
+    httpx_mock.add_response(status_code=500)
     httpx_mock.add_response(status_code=500)
     with pytest.raises(httpx.HTTPStatusError):
         client.consultar(oab="12345", uf="SP")
+    assert len(httpx_mock.get_requests()) == 3
+
+
+def test_consultar_retries_500_then_succeeds(httpx_mock):
+    client = DjenClient(
+        http=httpx.Client(base_url=BASE),
+        max_attempts=3,
+        backoff_seconds=0,
+    )
+    httpx_mock.add_response(status_code=500)
+    httpx_mock.add_response(status_code=503)
+    httpx_mock.add_response(json=SAMPLE)
+
+    result = client.consultar(oab="12345", uf="SP")
+
+    assert len(result) == 2
+    assert len(httpx_mock.get_requests()) == 3
 
 
 def test_consultar_retries_read_timeout(httpx_mock):

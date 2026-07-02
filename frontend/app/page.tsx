@@ -23,7 +23,8 @@ import {
   SlidersHorizontal,
   Sparkles,
   Table2,
-  Workflow
+  Workflow,
+  X
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -848,6 +849,13 @@ export default function Home() {
               {captureResult.processos_enriquecidos} processos enriquecidos e{" "}
               {captureResult.prazos_registrados} prazos registrados.
             </span>
+            <button
+              className="dismiss-notice"
+              onClick={() => setCaptureResult(null)}
+              aria-label="Fechar aviso de captura"
+            >
+              <X size={16} />
+            </button>
           </div>
         ) : null}
 
@@ -858,6 +866,13 @@ export default function Home() {
               Fluxo de protocolo atualizado: {lastProtocolo.tipo ?? "petição"} — referência{" "}
               <strong className="mono">{lastProtocolo.protocolo}</strong>. Registrado na auditoria.
             </span>
+            <button
+              className="dismiss-notice"
+              onClick={() => setLastProtocolo(null)}
+              aria-label="Fechar aviso de protocolo"
+            >
+              <X size={16} />
+            </button>
           </div>
         ) : null}
 
@@ -883,6 +898,13 @@ export default function Home() {
                   )}%), revise com atenção.`
                 : ""}
             </span>
+            <button
+              className="dismiss-notice"
+              onClick={() => setLastClassificacao(null)}
+              aria-label="Fechar aviso de classificação"
+            >
+              <X size={16} />
+            </button>
           </div>
         ) : null}
 

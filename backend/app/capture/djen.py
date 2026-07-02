@@ -51,10 +51,14 @@ class DjenClient:
         self,
         http: httpx.Client | None = None,
         *,
-        max_attempts: int = 3,
-        backoff_seconds: float = 1.0,
+        max_attempts: int | None = None,
+        backoff_seconds: float | None = None,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
+        if max_attempts is None:
+            max_attempts = settings.capture_retry_attempts
+        if backoff_seconds is None:
+            backoff_seconds = settings.capture_retry_backoff_seconds
         self._http = http or httpx.Client(
             base_url=settings.djen_base_url,
             timeout=httpx.Timeout(
@@ -62,7 +66,7 @@ class DjenClient:
                 connect=10.0,
                 read=settings.http_timeout_seconds,
             ),
-        )
+)
         self._max_attempts = max_attempts
         self._backoff_seconds = backoff_seconds
         self._sleeper = sleeper
@@ -75,7 +79,7 @@ class DjenClient:
         data_inicio: date | None = None,
         data_fim: date | None = None,
         pagina: int = 1,
-        itens_por_pagina: int = 100,
+        itens_por_pagina: int = 50,
     ) -> list[ComunicacaoDTO]:
         params: dict[str, str | int] = {
             "numeroOab": oab,
@@ -97,14 +101,35 @@ class DjenClient:
     def _get_with_retry(
         self, path: str, *, params: dict[str, str | int]
     ) -> httpx.Response:
+        """GET com retry em falhas transientes.
+
+        Retenta em: timeout, erro de rede, e respostas 429/500/502/503/504
+        (servidor sobrecarregado — sintoma comum do DJEN do CNJ em horarios
+        de pico). Outros 4xx nao sao transientes e sobem imediatamente.
+        """
         last_error: httpx.HTTPError | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
-                return self._http.get(path, params=params)
+                response = self._http.get(path, params=params)
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
                 last_error = exc
                 if attempt >= self._max_attempts:
                     break
                 self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            if response.status_code in {429, 500, 502, 503, 504}:
+                last_error = httpx.HTTPStatusError(
+                    f"Server error '{response.status_code}'",
+                    request=response.request,
+                    response=response,
+                )
+                if attempt >= self._max_attempts:
+                    break
+                self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            return response
+
         assert last_error is not None
         raise last_error

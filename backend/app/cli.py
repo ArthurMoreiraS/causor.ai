@@ -93,6 +93,28 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     pje_simulator.add_argument("--host", default="127.0.0.1")
     pje_simulator.add_argument("--port", type=int, default=8765)
+
+    worker = sub.add_parser(
+        "worker",
+        help="Run the background job worker (drains queued captura_oab jobs)",
+    )
+    worker.add_argument(
+        "--batch-days",
+        type=int,
+        default=settings.capture_batch_days,
+        help="Window size (days) for progressive commit within a capture job",
+    )
+    worker.add_argument(
+        "--idle-seconds",
+        type=float,
+        default=2.0,
+        help="Sleep between polls when no jobs are queued",
+    )
+    worker.add_argument(
+        "--once",
+        action="store_true",
+        help="Drain queued jobs once and exit (no idle loop)",
+    )
     return parser
 
 
@@ -111,6 +133,7 @@ def main(argv: list[str] | None = None) -> int:
                 datajud=DatajudClient(),
                 calendar=default_calendar(),
                 dias_default=args.dias,
+                enrich=False,  # captura rapida; enriquecimento on-demand na minuta
             )
             session.commit()
         except Exception:
@@ -287,6 +310,29 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Sessao PJe cadastrada como credencial {credencial_id}.")
     if args.command == "pje-simulator":
         serve_pje_simulator(host=args.host, port=args.port)
+        return 0
+    if args.command == "worker":
+        from app.queue.worker import default_clients, run_loop, run_once
+
+        def commit_each(s):
+            s.commit()
+
+        if args.once:
+            n = run_once(
+                SessionLocal,
+                clients=default_clients(),
+                batch_days=args.batch_days,
+                commit_each=commit_each,
+            )
+            print(f"Worker processou {n} job(s).")
+            return 0
+        run_loop(
+            SessionLocal,
+            batch_days=args.batch_days,
+            commit_each=commit_each,
+            idle_seconds=args.idle_seconds,
+        )
+        return 0
     return 0
 
 

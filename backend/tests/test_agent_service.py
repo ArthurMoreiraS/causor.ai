@@ -198,3 +198,131 @@ def test_historico_exclui_intimacao_atual_e_limita_trecho(db_session):
 
     # sem outras movimentações/intimações/petições, não há histórico a montar
     assert historico is None
+
+
+def test_draft_enriches_process_on_demand_via_datajud(db_session):
+    """Processo "shell" (sem andamentos) é enriquecido on-demand pelo DataJud
+    quando a minuta é pedida — garante o contexto completo do processo que o
+    fix do histórico exige, sem travar a captura com enriquecimento sincrono."""
+    from app.capture.datajud import ProcessoDTO
+
+    esc = models.Escritorio(nome="Escritorio OnDemand")
+    db_session.add(esc)
+    db_session.flush()
+    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP")
+    db_session.add(proc)
+    db_session.flush()
+    intimacao = models.Intimacao(
+        processo_id=proc.id,
+        fonte="DJEN",
+        fonte_id="ondemand-1",
+        numero_processo=proc.numero,
+        tipo_comunicacao="Intimacao",
+        teor="Apresente contestacao em 15 dias uteis.",
+        data_publicacao=date(2024, 9, 9),
+    )
+    db_session.add(intimacao)
+    db_session.flush()
+
+    classificacao = ClassificacaoIntimacao(
+        tipo="Intimacao para contestar",
+        peticao_sugerida="Contestacao",
+        prazo_dias=15,
+        dias_uteis=True,
+        confianca=0.9,
+        resumo="Reu intimado para contestar.",
+    )
+
+    processo_dto = ProcessoDTO.from_source(
+        {
+            "numeroProcesso": "00000010020248260100",
+            "classe": {"nome": "Procedimento Comum Civel"},
+            "tribunal": "TJSP",
+            "sistema": {"nome": "PJe"},
+            "movimentos": [
+                {"codigo": 193, "nome": "Sentenca publicada", "dataHora": "2024-08-01T10:00:00.000Z"},
+            ],
+        }
+    )
+
+    class FakeDatajud:
+        def __init__(self):
+            self.calls = []
+
+        def consultar_processo(self, numero, *, tribunal):
+            self.calls.append((numero, tribunal))
+            return processo_dto
+
+    datajud = FakeDatajud()
+
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=classificacao),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA) as draft_mock,
+    ):
+        draft_from_intimacao(
+            db_session, intimacao,
+            calendar=build_calendar([2024, 2025]),
+            datajud=datajud,
+        )
+
+    # DataJud foi chamado on-demand para enriquecer o "shell"
+    assert len(datajud.calls) == 1
+    # andamentos agora estao no SOR
+    assert db_session.query(models.Andamento).count() == 1
+    andamento = db_session.query(models.Andamento).one()
+    assert andamento.descricao == "Sentenca publicada"
+    # o historico repassado ao drafter inclui a movimentacao
+    historico = draft_mock.call_args.kwargs["historico"]
+    assert "Sentenca publicada" in historico
+
+
+def test_draft_does_not_reenrich_when_process_already_has_andamentos(db_session):
+    """Processo ja enriquecido nao refaz DataJud a cada minuta (idempotente)."""
+    esc = models.Escritorio(nome="Escritorio JaEnriquecido")
+    db_session.add(esc)
+    db_session.flush()
+    proc = models.Processo(
+        escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP",
+        classe="Procedimento Comum Civel", sistema="PJe",
+    )
+    db_session.add(proc)
+    db_session.flush()
+    db_session.add(models.Andamento(
+        processo_id=proc.id, codigo=1, descricao="Distribuicao",
+        data=datetime(2024, 1, 1, tzinfo=timezone.utc),
+    ))
+    intimacao = models.Intimacao(
+        processo_id=proc.id, fonte="DJEN", fonte_id="ja-1",
+        numero_processo=proc.numero, tipo_comunicacao="Intimacao",
+        teor="Apresente contestacao em 15 dias uteis.",
+        data_publicacao=date(2024, 9, 9),
+    )
+    db_session.add(intimacao)
+    db_session.flush()
+
+    classificacao = ClassificacaoIntimacao(
+        tipo="Intimacao para contestar", peticao_sugerida="Contestacao",
+        prazo_dias=15, dias_uteis=True, confianca=0.9, resumo=".",
+    )
+
+    class FakeDatajud:
+        def __init__(self):
+            self.calls = []
+
+        def consultar_processo(self, numero, *, tribunal):
+            self.calls.append((numero, tribunal))
+            return None
+
+    datajud = FakeDatajud()
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=classificacao),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA),
+    ):
+        draft_from_intimacao(
+            db_session, intimacao,
+            calendar=build_calendar([2024, 2025]),
+            datajud=datajud,
+        )
+
+    # ja tem andamentos -> DataJud NAO foi chamado
+    assert datajud.calls == []

@@ -39,7 +39,7 @@ class Settings(BaseSettings):
     datajud_api_key: str = ""
 
     # HTTP / CORS
-    http_timeout_seconds: float = 30.0
+    http_timeout_seconds: float = 120.0
     # Comma-separated list of allowed frontend origins (set the deployed domain
     # in production, e.g. "https://app.seudominio.com").
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
@@ -55,13 +55,18 @@ class Settings(BaseSettings):
     claude_classification_model: str = "claude-haiku-4-5"
     claude_draft_model: str = "claude-sonnet-4-6"
 
-    # Capture scheduling
+# Capture scheduling
     capture_lookback_days: int = 3
-    capture_manual_lookback_days: int = 180
+    capture_manual_lookback_days: int = 60
     capture_intervalo_horas_default: int = 12
-    capture_retry_attempts: int = 3
-    capture_retry_backoff_seconds: float = 2.0
+    capture_retry_attempts: int = 5
+    capture_retry_backoff_seconds: float = 10.0
     job_stale_minutes: int = 60
+    # Janela (em dias) de cada lote dentro de um captura_oab job. Quebra um
+    # intervalo longo (ex.: 180 dias do /capture/oab manual) em transações
+    # curtas e commit progressivo, evitando travar a UI e segurar locks longos.
+    # 0 desativa (executa o intervalo inteiro em uma transacao so).
+    capture_batch_days: int = 15
 
     # Vault. Localdev stores only deterministic non-secret references. In
     # production, set to "supabase" so sensitive connector/session material goes

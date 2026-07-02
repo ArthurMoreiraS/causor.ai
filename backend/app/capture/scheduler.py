@@ -147,6 +147,13 @@ def run_capture_for_oab_resilient(
                 today=today,
                 now=now,
             )
+            # poll_oab engole falhas transientes do DJEN (5xx/timeout apos os
+            # retries internos do DjenClient) e retorna o parcial com
+            # djen_indisponivel=True. Aceitamos o parcial como sucesso: o que
+            # foi capturado fica salvo e o proximo ciclo agendado complementa
+            # (dedup idempotente). Retentar imediatamente nao ajuda quando o
+            # DJEN esta realmente fora; so adiciona carga. Erros transientes de
+            # DB (OperationalError) ainda retentam pelo except abaixo.
             job.resultado = {**(job.resultado or {}), "tentativas": attempt}
             session.commit()
             return ResilientCaptureResult(job=job, attempts=attempt, succeeded=True)

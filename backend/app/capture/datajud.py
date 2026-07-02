@@ -80,10 +80,14 @@ class DatajudClient:
         api_key: str | None = None,
         http: httpx.Client | None = None,
         *,
-        max_attempts: int = 3,
-        backoff_seconds: float = 1.0,
+        max_attempts: int | None = None,
+        backoff_seconds: float | None = None,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
+        if max_attempts is None:
+            max_attempts = settings.capture_retry_attempts
+        if backoff_seconds is None:
+            backoff_seconds = settings.capture_retry_backoff_seconds
         self._api_key = api_key or settings.datajud_api_key
         self._http = http or httpx.Client(
             base_url=settings.datajud_base_url,

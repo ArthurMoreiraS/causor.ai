@@ -105,23 +105,26 @@ def test_run_capture_for_oab_advances_cursor_and_captures(db_session, escritorio
     assert kw["data_fim"] == today
 
 
-def test_resilient_capture_retries_transient_http_failure(
+def test_resilient_capture_accepts_partial_when_djen_unavailable(
     db_session, escritorio, calendar
 ):
+    """DJEN fora: poll_oab preserva o parcial e marca djen_indisponivel=True.
+    O scheduler aceita como sucesso (parcial) e nao retenta — o proximo ciclo
+    agendado complementa (dedup idempotente)."""
     oab = models.OabMonitorada(escritorio_id=escritorio.id, oab="12345", uf="SP")
     db_session.add(oab)
     db_session.commit()
 
-    class FlakyDjen(FakeDjen):
+    class DownDjen(FakeDjen):
         def consultar(self, oab, uf, **kw):
             self.calls.append((oab, uf, kw))
-            if len(self.calls) == 1:
-                request = httpx.Request("GET", "https://comunica.example")
-                raise httpx.ConnectError("temporary failure", request=request)
-            return self._items
+            raise httpx.ConnectError(
+                "temporary failure",
+                request=httpx.Request("GET", "https://comunica.example"),
+            )
 
     sleeps = []
-    djen = FlakyDjen([_comunicacao()])
+    djen = DownDjen([])  # DJEN sempre fora
     result = run_capture_for_oab_resilient(
         db_session,
         oab,
@@ -135,10 +138,45 @@ def test_resilient_capture_retries_transient_http_failure(
     )
 
     assert result.succeeded is True
+    assert result.attempts == 1  # nao retenta DJEN; aceita parcial
+    assert result.job.status == "completed"
+    assert result.job.resultado["djen_indisponivel"] is True
+    assert sleeps == []  # nao houve retry externo
+    assert db_session.query(models.Intimacao).count() == 0
+
+
+def test_resilient_capture_records_failure_on_db_operational_error(
+    db_session, escritorio, calendar
+):
+    """Erros de DB (OperationalError) ainda sao transientes e retentados."""
+    from sqlalchemy.exc import OperationalError
+
+    oab = models.OabMonitorada(escritorio_id=escritorio.id, oab="12345", uf="SP")
+    db_session.add(oab)
+    db_session.commit()
+
+    class BoomDjen(FakeDjen):
+        def consultar(self, oab, uf, **kw):
+            self.calls.append((oab, uf, kw))
+            raise OperationalError("statement", {}, Exception("db dead"))
+
+    sleeps = []
+    djen = BoomDjen([_comunicacao()])
+    result = run_capture_for_oab_resilient(
+        db_session,
+        oab,
+        djen=djen,
+        datajud=FakeDatajud(),
+        calendar=calendar,
+        max_attempts=2,
+        backoff_seconds=0.5,
+        sleeper=sleeps.append,
+    )
+
+    assert result.succeeded is False
     assert result.attempts == 2
-    assert result.job.resultado["tentativas"] == 2
+    assert result.job.status == "failed"
     assert sleeps == [0.5]
-    assert db_session.query(models.Intimacao).count() == 1
 
 
 def test_resilient_capture_records_final_failure_without_retrying_domain_error(

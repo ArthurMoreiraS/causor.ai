@@ -14,6 +14,7 @@ from pathlib import Path
 import re
 
 from app.connectors.pje.pages.errors import (
+    AssinaturaPendenteError,
     CaptchaDetectedError,
     LayoutDesconhecidoError,
     PjePageError,
@@ -88,8 +89,25 @@ class PjeAssistedConnector:
     def prepare_filing(
         self,
         package: PjeFilingPackage,
+        *,
+        submit: bool = False,
     ) -> PjeFilingCheckpoint:
+        """Prepara (e opcionalmente submete) o protocolo PJe.
+
+        ``submit=False`` (legado) para em ``ready_to_sign`` — o advogado
+        assina/protocola manualmente e registra o numero aqui. ``submit=True``
+        clica em Assinar/Protocolar no PJe e captura o numero do protocolo do
+        comprovante, marcando a peticao como protocolada automaticamente. O
+        certificado/assinatura fica no PJeOffice local do advogado; o Causor
+        nao detem nem envia o PIN/certificado — soOrquestra o clique e captura
+        o comprovante.
+        """
         if not package.pje_base_url or not package.storage_state:
+            if submit:
+                raise PjeConnectorError(
+                    "sessao PJe obrigatoria para submit real; "
+                    "configure via 'pje-capture-session'"
+                )
             return self._manual_checkpoint(package)
         if not package.pdf_bytes:
             raise PjeConnectorError("PDF da minuta e obrigatorio para automacao PJe")
@@ -128,6 +146,36 @@ class PjeAssistedConnector:
 
                 ready_evidence = peticionar.assert_ready_to_sign()
                 self._record_evidence(page, "ready_to_sign", states, screenshots)
+
+                if not submit:
+                    return PjeFilingCheckpoint(
+                        checkpoint="ready_to_sign",
+                        modo="pje_assistido_playwright",
+                        irreversible=False,
+                        evidence={
+                            "processo": package.numero_processo,
+                            "tribunal": package.tribunal,
+                            "orgao_julgador": package.orgao_julgador,
+                            "tipo_peticao": package.tipo_peticao,
+                            "credencial_id": package.credencial_id,
+                            "base_url": package.pje_base_url,
+                            "draft_url": ready_evidence.get("draft_url"),
+                            "screenshots": screenshots,
+                            "states": states,
+                        },
+                    )
+
+                comprovante = peticionar.assinar_e_enviar()
+                self._record_evidence(page, "protocolado", states, screenshots)
+                protocolo = comprovante.get("protocolo")
+                if not protocolo:
+                    raise PjeConnectorError(
+                        "comprovante carregado mas numero do protocolo nao capturado"
+                    )
+        except AssinaturaPendenteError as exc:
+            # Advogado precisa confirmar assinatura no PJeOffice local; devolve
+            # checkpoint pronto p/ retomar. Nao e falha definitiva.
+            raise PjeConnectorError("assinatura_pendente_pjeoffice") from exc
         except PjeSessionInvalidError as exc:
             raise PjeConnectorError("sessao_invalida") from exc
         except CaptchaDetectedError as exc:
@@ -140,9 +188,9 @@ class PjeAssistedConnector:
             raise PjeConnectorError(str(exc)) from exc
 
         return PjeFilingCheckpoint(
-            checkpoint="ready_to_sign",
+            checkpoint="protocolado",
             modo="pje_assistido_playwright",
-            irreversible=False,
+            irreversible=True,
             evidence={
                 "processo": package.numero_processo,
                 "tribunal": package.tribunal,
@@ -150,6 +198,8 @@ class PjeAssistedConnector:
                 "tipo_peticao": package.tipo_peticao,
                 "credencial_id": package.credencial_id,
                 "base_url": package.pje_base_url,
+                "protocolo": protocolo,
+                "comprovante_url": comprovante.get("comprovante_url"),
                 "draft_url": ready_evidence.get("draft_url"),
                 "screenshots": screenshots,
                 "states": states,

@@ -111,7 +111,9 @@ def test_cli_capture_due_runs(db_session, monkeypatch):
     assert job.status == "completed"
 
 
-def test_cli_capture_due_returns_failure_exit_code(db_session, monkeypatch):
+def test_cli_capture_due_accepts_partial_when_djen_down(db_session, monkeypatch):
+    """DJEN sempre fora: scheduler aceita parcial (djen_indisponivel=True),
+    rc=0, job completed com flag de indisponibilidade."""
     import httpx
 
     import app.cli as cli
@@ -131,14 +133,19 @@ def test_cli_capture_due_returns_failure_exit_code(db_session, monkeypatch):
     monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
     monkeypatch.setattr(db_session, "close", lambda: None)
     monkeypatch.setattr(cli, "DjenClient", lambda: FailingDjen())
-    monkeypatch.setattr(cli, "DatajudClient", lambda: object())
+
+    class _NoopDatajud:
+        def consultar_processo(self, *a, **kw):
+            return None
+
+    monkeypatch.setattr(cli, "DatajudClient", lambda: _NoopDatajud())
 
     rc = cli.main(["capture-due", "--max-attempts", "2", "--backoff-seconds", "0"])
 
-    assert rc == 1
+    assert rc == 0
     job = db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").one()
-    assert job.status == "failed"
-    assert job.payload["tentativas"] == 2
+    assert job.status == "completed"
+    assert job.resultado.get("djen_indisponivel") is True
 
 
 def test_parser_accepts_pje_capture_session():

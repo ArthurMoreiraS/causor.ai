@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -63,12 +63,12 @@ from app.queue.jobs import (
     CredencialNaoEncontradaError,
     JobNotFoundError,
     PeticaoNotFoundError,
+    ProcessoSemOrgaoError,
     UnsupportedFilingSystemError,
     create_job,
     get_job,
     confirm_manual_protocol,
-    run_fake_protocol_job,
-    run_pje_assisted_protocol_job,
+    run_pje_protocol_job,
 )
 from app.settings import settings
 from app.sor import models
@@ -873,6 +873,7 @@ def create_app() -> FastAPI:
         payload: CaptureOabRequest,
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
+        response: Response = None,
     ) -> CaptureResultOut:
         datajud = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
         data_fim = payload.data_fim
@@ -892,11 +893,17 @@ def create_app() -> FastAPI:
                 dias_default=payload.dias_default,
                 data_inicio=data_inicio,
                 data_fim=data_fim,
+                enrich=False,  # captura rapida; enriquecimento on-demand na minuta
             )
         except Exception as exc:
             session.rollback()
             raise HTTPException(status_code=502, detail=f"captura não concluída: {exc}") from exc
 
+        # DJEN instavel (500/timeout do CNJ em pico): nao descarta o que ja veio.
+        # Commita o parcial e sinaliza com 206 + djen_indisponivel=True. O
+        # chamador pode retentar depois para pegar o restante das paginas.
+        if result.djen_indisponivel and response is not None:
+            response.status_code = 206
         _audit(
             session,
             acao="captura_oab_executada",
@@ -908,6 +915,7 @@ def create_app() -> FastAPI:
                 "oab": payload.oab,
                 "uf": payload.uf,
                 "resultado": result.__dict__,
+                "parcial": result.djen_indisponivel,
             },
         )
         session.commit()
@@ -1114,9 +1122,10 @@ def create_app() -> FastAPI:
         payload = payload or DraftRequest()
 
         calendar = build_calendar(payload.calendar_years or _default_calendar_years())
+        datajud_client = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
         try:
             prazo, peticao, classificacao = draft_from_intimacao(
-                session, intimacao, calendar=calendar
+                session, intimacao, calendar=calendar, datajud=datajud_client
             )
         except MissingIntimationTextError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -1218,15 +1227,28 @@ def create_app() -> FastAPI:
         credencial_id = payload.credencial_id if payload is not None else None
         try:
             if (peticao.processo.sistema or "").strip().lower() == "pje":
-                job = run_pje_assisted_protocol_job(
+                datajud_client = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
+                job = run_pje_protocol_job(
                     session,
                     peticao_id,
                     credencial_id=credencial_id,
+                    datajud=datajud_client,
+                    submit=True,
                 )
             else:
-                job = run_fake_protocol_job(session, peticao_id, credencial_id=credencial_id)
+                # Sistemas nao-PJe: o conector dedicado nao existe; o advogado
+                # registra o protocolo manualmente via /confirmar.
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "sistema nao-PJe sem conector dedicado; "
+                        "protocole manualmente e use /confirmar"
+                    ),
+                )
         except (PeticaoNotFoundError, CredencialNaoEncontradaError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except ProcessoSemOrgaoError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
         except (
             AlreadyFiledError,
             ApprovalRequiredError,

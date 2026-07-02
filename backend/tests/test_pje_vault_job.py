@@ -1,7 +1,7 @@
 """Tests for loading assisted PJe sessions into the filing job."""
 
 from app.connectors.pje.connector import PjeFilingCheckpoint
-from app.queue.jobs import confirm_manual_protocol, run_pje_assisted_protocol_job
+from app.queue.jobs import confirm_manual_protocol, run_pje_protocol_job
 from app.sor import models
 from app.vault.service import (
     load_pje_session_payload,
@@ -46,7 +46,7 @@ class InspectingConnector:
     def __init__(self):
         self.package = None
 
-    def prepare_filing(self, package):
+    def prepare_filing(self, package, *, submit=False):
         self.package = package
         return PjeFilingCheckpoint(
             checkpoint="ready_to_sign",
@@ -84,13 +84,14 @@ def test_run_pje_assisted_job_passes_vault_session_to_connector(db_session):
         url_base="https://pje-treinamento.tjsp.jus.br/pje",
         storage_state=storage_state,
     )
-    connector = InspectingConnector()
+connector = InspectingConnector()
 
-    job = run_pje_assisted_protocol_job(
+    job = run_pje_protocol_job(
         db_session,
         peticao.id,
         credencial_id=credencial.id,
         connector=connector,
+        submit=False,
     )
 
     assert job.status == "completed"
@@ -120,11 +121,12 @@ def test_job_attaches_signature_handoff_and_leaks_no_secret(db_session):
         storage_state=storage_state,
     )
 
-    job = run_pje_assisted_protocol_job(
+    job = run_pje_protocol_job(
         db_session,
         peticao.id,
         credencial_id=credencial.id,
         connector=InspectingConnector(),
+        submit=False,
     )
 
     handoff = job.resultado["evidence"]["handoff"]
@@ -149,8 +151,8 @@ def test_job_birdid_manual_handoff_without_session(db_session):
 
     # No PJe session stored -> connector takes the manual checkpoint path
     # (no browser) and the job still produces a BirdID-tailored handoff.
-    job = run_pje_assisted_protocol_job(
-        db_session, peticao.id, credencial_id=credencial.id
+    job = run_pje_protocol_job(
+        db_session, peticao.id, credencial_id=credencial.id, submit=False
     )
 
     assert job.status == "completed"

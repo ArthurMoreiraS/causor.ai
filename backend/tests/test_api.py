@@ -56,7 +56,7 @@ def seeded(db_session):
     )
     db_session.add(usuario)
     db_session.flush()
-    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100")
+    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP")
     db_session.add(proc)
     db_session.flush()
     intimacao = models.Intimacao(
@@ -117,11 +117,13 @@ def test_capture_oab_defaults_to_bounded_lookback(client, seeded):
         "intimacoes_novas": 0,
         "processos_enriquecidos": 0,
         "prazos_registrados": 0,
+        "djen_indisponivel": False,
+        "djen_erro": None,
     }
     assert fake_djen.calls[0][0:2] == ("12345", "SP")
     params = fake_djen.calls[0][2]
     assert today_before <= params["data_fim"] <= today_after
-    assert params["data_inicio"] == params["data_fim"] - timedelta(days=180)
+    assert params["data_inicio"] == params["data_fim"] - timedelta(days=60)
 
 
 def test_me_retorna_usuario_e_tenant_autenticados(client, db_session, seeded):
@@ -632,6 +634,7 @@ def test_protocolar_async_exige_aprovacao(client, db_session, seeded):
 
 
 def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded):
+    """Processo nao-PJe sem conector dedicado: 409 + mensagem p/ confirmar manual."""
     peticao = models.Peticao(
         processo_id=seeded.id,
         escritorio_id=seeded.escritorio_id,
@@ -645,21 +648,8 @@ def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded
 
     resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
 
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["tipo"] == "protocolo_peticao"
-    assert body["status"] == "completed"
-    assert body["entidade"] == "peticao"
-    assert body["entidade_id"] == peticao.id
-    assert body["resultado"]["peticao_id"] == peticao.id
-    assert body["resultado"]["protocolo"].startswith("FAKE-")
-
-    db_session.refresh(peticao)
-    assert peticao.status == "protocolada"
-    assert peticao.protocolada_em is not None
-
-    actions = {row.acao for row in db_session.query(models.AuditLog).all()}
-    assert {"job_criado", "job_iniciado", "job_concluido", "peticao_protocolada"} <= actions
+    assert resp.status_code == 409
+    assert "confirmar" in resp.json()["detail"]
 
 
 def test_listar_usuarios_por_escritorio(client, db_session, seeded):
@@ -692,33 +682,24 @@ def test_listar_usuarios_por_escritorio(client, db_session, seeded):
 
 
 def test_listar_jobs_mais_recentes_primeiro_com_filtros(client, db_session, seeded):
-    peticao = models.Peticao(
-        processo_id=seeded.id,
-        escritorio_id=seeded.escritorio_id,
-        tipo="Contestacao",
-        conteudo="minuta",
-        status="aprovada",
-        aprovada_por=7,
-    )
-    db_session.add(peticao)
-    db_session.flush()
-
+    """Listagem de jobs retorna mais recentes primeiro e filtra por tipo/status."""
     capture = client.post(
         "/jobs/capture/oab",
         json={"oab": "123456", "uf": "SP", "escritorio_id": seeded.escritorio_id},
     ).json()
-    protocolo = client.post(f"/peticoes/{peticao.id}/protocolar/async").json()
 
     todos = client.get("/jobs").json()
-    assert [job["id"] for job in todos] == [protocolo["id"], capture["id"]]
+    assert [job["id"] for job in todos] == [capture["id"]]
 
-    so_protocolo = client.get("/jobs", params={"tipo": "protocolo_peticao"}).json()
-    assert [job["id"] for job in so_protocolo] == [protocolo["id"]]
-    assert so_protocolo[0]["status"] == "completed"
-    assert so_protocolo[0]["resultado"]["protocolo"].startswith("FAKE-")
+    so_cap = client.get("/jobs", params={"tipo": "captura_oab"}).json()
+    assert [job["id"] for job in so_cap] == [capture["id"]]
+    assert so_cap[0]["status"] == "queued"
 
     so_queued = client.get("/jobs", params={"status": "queued"}).json()
     assert [job["id"] for job in so_queued] == [capture["id"]]
+
+    none_completed = client.get("/jobs", params={"status": "completed"}).json()
+    assert none_completed == []
 
 
 def test_job_agendado_por_oab_respeita_tenant(client, db_session, seeded):
@@ -852,7 +833,10 @@ def test_protocolar_async_com_credencial_inativa_retorna_409(client, db_session,
     assert peticao.status == "aprovada"
 
 
-def test_protocolar_async_pje_prepara_sem_marcar_protocolada(client, db_session, seeded):
+def test_protocolar_async_pje_sem_sessao_falha_e_nao_protocola(client, db_session, seeded):
+    """Sem sessao PJe no vault, o submit real nao pode prosseguir: job failed,
+    peticao continua 'aprovada' (reverte de 'protocolando') e nada e marcado
+    como protocolada — o ato irreversivel nunca e simulado."""
     seeded.sistema = "PJe"
     peticao = models.Peticao(
         processo_id=seeded.id,
@@ -869,14 +853,56 @@ def test_protocolar_async_pje_prepara_sem_marcar_protocolada(client, db_session,
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "completed"
-    assert body["payload"]["sistema"] == "PJe"
-    assert body["payload"]["modo"] == "pje_assistido_playwright"
-    assert body["resultado"]["checkpoint"] == "ready_to_sign"
-    assert body["resultado"]["irreversible"] is False
-    assert "protocolo" not in body["resultado"]
-
+    assert body["status"] == "failed"
+    assert "sessao" in (body["erro"] or "").lower()
     db_session.refresh(peticao)
+    assert peticao.status == "aprovada"  # revertido, NAO protocolada
+    assert peticao.protocolada_em is None
+
+
+def test_protocolar_async_pje_sem_orgao_enriquece_on_demand(client, db_session, seeded):
+    """Processo sem orgao_julgador: o job enriquece on-demand via DataJud
+    antes de acionar o conector. Garante que o Playwright recebe o orgao."""
+    from app.capture.datajud import ProcessoDTO
+    from unittest.mock import patch
+
+    seeded.sistema = "PJe"
+    seeded.orgao_julgador = None  # shell, precisa enriquecer
+    seeded.classe = None
+    peticao = models.Peticao(
+        processo_id=seeded.id,
+        escritorio_id=seeded.escritorio_id,
+        tipo="Contestacao",
+        conteudo="minuta",
+        status="aprovada",
+        aprovada_por=7,
+    )
+    db_session.add(peticao)
+    db_session.flush()
+
+    processo_dto = ProcessoDTO.from_source(
+        {
+            "numeroProcesso": "00000010020248260100",
+            "classe": {"nome": "Procedimento Comum Civel"},
+            "tribunal": "TJSP",
+            "orgaoJulgador": "1a Vara Civel",
+            "sistema": {"nome": "PJe"},
+        }
+    )
+
+    fake = type("FakeD", (), {
+        "consultar_processo": lambda self, n, *, tribunal: processo_dto
+    })()
+    with patch("app.api.main.DatajudClient", return_value=fake):
+        resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    # enriqueceu on-demand (goal do teste) — orgao agora preenchido
+    db_session.refresh(seeded)
+    assert seeded.orgao_julgador == "1a Vara Civel"
+    # submit sem sessao -> job failed, peticao voltou a aprovada
+    assert body["status"] == "failed"
     assert peticao.status == "aprovada"
     assert peticao.protocolada_em is None
 

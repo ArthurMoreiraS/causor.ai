@@ -8,11 +8,14 @@ gate/API, not by this service.
 
 from __future__ import annotations
 
-from sqlalchemy import desc, select
+import httpx
+from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.agent.classifier import ClassificacaoIntimacao, classify_intimacao
 from app.agent.drafter import draft_peticao
+from app.capture.datajud import DatajudClient
+from app.capture.normalize import enrich_processo
 from app.capture.registrar import registrar_prazo
 from app.prazo_engine.calendar import ForensicCalendar
 from app.sor import models
@@ -131,14 +134,115 @@ def _template_for(
     return None
 
 
+def _processo_precisa_enriquecer(session: Session, processo: models.Processo) -> bool:
+    """Heuristica: enriquecemos on-demand apenas se o processo ainda nao tem
+    andamentos (DataJud) nem metadados basicos. Se ja foi capturado antes, o
+    historico do SOR basta — nao refazemos a cada minuta."""
+    if processo.classe is None and processo.orgao_julgador is None and processo.sistema is None:
+        return True
+    tem_andamentos = session.scalar(
+        select(func.count()).select_from(models.Andamento).where(
+            models.Andamento.processo_id == processo.id
+        )
+    )
+    return not tem_andamentos
+
+
+def _ensure_processo_enriched(
+    session: Session,
+    processo: models.Processo,
+    *,
+    datajud: DatajudClient | None,
+    tribunal_fallback: str | None = None,
+) -> bool:
+    """Enriquece um processo on-demand via DataJud se ainda faltam metadados.
+
+    Garante orgao_julgador, classe, sistema, data_ajuizamento e movimentacoes
+    (andamentos) no SOR. Usado tanto na geracao da minuta (contexto completo)
+    quanto antes de protocolar (o conector PJe precisa do orgao_julgador e do
+    tribunal para navegar ate a peticao no portal).
+
+    Retorna True se o processo ficou enriquecido (ou ja estava). False se o
+    DataJud esta indisponivel ou o processo nao tem identificadores suficientes
+    — o chamador decide se segue (minuta parcial) ou aborta (protocolo sem
+    orgao e inviavel).
+    """
+    if datajud is None:
+        return False
+    if not _processo_precisa_enriquecer(session, processo):
+        return True
+    tribunal = processo.tribunal or tribunal_fallback
+    if not tribunal:
+        return False
+    numero = processo.numero or ""
+    if not numero:
+        return False
+    try:
+        processo_dto = datajud.consultar_processo(numero, tribunal=tribunal)
+    except httpx.HTTPError:
+        return False
+    if processo_dto is None:
+        return False
+    enrich_processo(session, processo_dto, escritorio_id=processo.escritorio_id)
+    session.flush()
+    return True
+
+
+def _ensure_enriched(
+    session: Session,
+    intimacao: models.Intimacao,
+    *,
+    datajud: DatajudClient | None,
+) -> None:
+    """Enriquece o processo on-demand via DataJud antes de redigir a minuta.
+
+    Garante o contexto completo do processo (movimentacoes/andamentos) que o
+    ``_historico_processo`` precisa. So busca quando faltar; em seguida os
+    andamentos ficam no SOR para proximas minutas. Falhas do DataJud sao
+    engolidas: a minuta segue com o que existe (contexto parcial > nada).
+    """
+    processo = intimacao.processo
+    if processo is None:
+        return
+    _ensure_processo_enriched(
+        session, processo, datajud=datajud, tribunal_fallback=intimacao.tribunal
+    )
+
+
+def ensure_processo_enriched(
+    session: Session,
+    processo: models.Processo,
+    *,
+    datajud: DatajudClient | None,
+    tribunal_fallback: str | None = None,
+) -> bool:
+    """API publico: enriquece um processo on-demand via DataJud.
+
+    Usado pelo job de protocolo para garantir orgao_julgador/tribunal antes de
+    acionar o conector PJe (Playwright). Retorna True se enriquecido/ja-ok;
+    False se DataJud indisponivel — nesse caso o protocolo nao deve prosseguir.
+    """
+    return _ensure_processo_enriched(
+        session, processo, datajud=datajud, tribunal_fallback=tribunal_fallback
+    )
+
+
 def draft_from_intimacao(
     session: Session,
     intimacao: models.Intimacao,
     *,
     calendar: ForensicCalendar,
+    datajud: DatajudClient | None = None,
 ) -> tuple[models.Prazo, models.Peticao, ClassificacaoIntimacao]:
     if not intimacao.teor:
         raise MissingIntimationTextError("intimacao has no text to classify")
+
+    # Enriquecimento on-demand: garante o contexto completo do processo
+    # (andamentos do DataJud) antes de redigir a minuta. So busca quando o
+    # processo ainda nao foi enriquecido; apos a primeira minuta os
+    # andamentos ficam no SOR. Falhas do DataJud nao bloqueiam a minuta.
+    session.refresh(intimacao)
+    _ensure_enriched(session, intimacao, datajud=datajud)
 
     classificacao = classify_intimacao(intimacao.teor)
     prazo = registrar_prazo(

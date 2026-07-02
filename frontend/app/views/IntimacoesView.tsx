@@ -2,6 +2,7 @@
 
 import { Loader2, MessageCircle, Sparkles } from "lucide-react";
 import { formatDate, statusLabel } from "@/lib/format";
+import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
 import { DeadlineBadge, Empty } from "../components/ui";
 
@@ -33,7 +34,7 @@ export default function IntimacoesView({
               </div>
               <small>{formatDate(intimacao.data_publicacao ?? intimacao.data_disponibilizacao)}</small>
             </header>
-            <p>{intimacao.teor ?? "Teor não informado"}</p>
+            <p className="inboxTeor">{previewText(intimacao.teor ?? "") || "Teor não informado"}</p>
             <div className="inboxMeta">
               <span>{intimacao.tribunal ?? processo?.tribunal ?? "-"}</span>
               <DeadlineBadge prazo={prazo} />
