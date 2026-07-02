@@ -203,6 +203,7 @@ def store_pje_session_reference(
     credencial = models.CredencialAssinatura(
         usuario_id=usuario.id,
         provedor="PJeSession",
+        tribunal=tribunal,
         referencia_vault=_store_secret_reference(
             session,
             usuario_id=usuario.id,

@@ -758,6 +758,10 @@ def _usuario_com_credencial(client, db_session, escritorio_id):
 
 
 def test_protocolar_async_com_credencial_registra_payload_e_audita(client, db_session, seeded):
+    """Submit real exige sessao PJe no vault; sem sessao o job falha, mas o
+    credencial_id e registrado no payload do job e a referencia externa (segredo)
+    nunca vaza no job nem na auditoria."""
+    seeded.sistema = "PJe"
     usuario, credencial = _usuario_com_credencial(client, db_session, seeded.escritorio_id)
     peticao = models.Peticao(
         processo_id=seeded.id,
@@ -777,17 +781,23 @@ def test_protocolar_async_com_credencial_registra_payload_e_audita(client, db_se
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "completed"
+    # Sem sessao PJe no vault -> job failed (reverte p/ aprovada), nao protocolada.
+    assert body["status"] == "failed"
     assert body["payload"]["credencial_id"] == credencial["id"]
     # segredo/referência externa nunca aparece no job nem na auditoria
     assert "birdid-account-123" not in str(body)
 
-    audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
-    assert audit.detalhe["credencial_id"] == credencial["id"]
-    assert "birdid-account-123" not in str(audit.detalhe)
+    db_session.refresh(peticao)
+    assert peticao.status == "aprovada"
+    assert peticao.protocolada_em is None
+    # Nenhum registro de peticao_protocolada (o ato irreversivel nao aconteceu).
+    assert (
+        db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").count() == 0
+    )
 
 
 def test_protocolar_async_com_credencial_inexistente_retorna_404(client, db_session, seeded):
+    seeded.sistema = "PJe"
     peticao = models.Peticao(
         processo_id=seeded.id,
         escritorio_id=seeded.escritorio_id,
@@ -901,15 +911,11 @@ def test_protocolar_async_pje_sem_orgao_enriquece_on_demand(client, db_session, 
     # enriqueceu on-demand (goal do teste) — orgao agora preenchido
     db_session.refresh(seeded)
     assert seeded.orgao_julgador == "1a Vara Civel"
-    # submit sem sessao -> job failed, peticao voltou a aprovada
+    # submit sem sessao no vault -> job failed, peticao voltou a aprovada
     assert body["status"] == "failed"
+    db_session.refresh(peticao)
     assert peticao.status == "aprovada"
     assert peticao.protocolada_em is None
-
-    audit = db_session.query(models.AuditLog).filter_by(
-        acao="peticao_protocolo_preparado"
-    ).one()
-    assert audit.detalhe["checkpoint"] == "ready_to_sign"
 
 
 def test_confirmar_protocolo_pje_marca_protocolada_e_audita(client, db_session, seeded):

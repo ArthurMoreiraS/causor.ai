@@ -55,6 +55,21 @@ class Settings(BaseSettings):
     claude_classification_model: str = "claude-haiku-4-5"
     claude_draft_model: str = "claude-sonnet-4-6"
 
+    # Provedor de LLM para testes sem gastar creditos Claude. "claude" (default,
+    # producao) usa o SDK Anthropic; "openai_compat" aponta para qualquer endpoint
+    # compativel com a OpenAI Chat Completions API (Groq, OpenRouter, Gemini
+    # OpenAI-compat, Ollama local). So cobre o pipeline classificar+gerar minuta
+    # (LLMProvider); o chat agentic continua no Claude.
+    llm_provider: str = "claude"  # "claude" | "openai_compat"
+    llm_base_url: str = ""  # ex.: "https://api.groq.com/openai/v1" ou "http://localhost:11434/v1"
+    llm_api_key: str = ""  # "" para Ollama local; chave do provedor para Groq/OpenRouter
+    llm_model: str = ""  # ex.: "llama-3.3-70b-versatile" (Groq) ou "llama3.1:8b" (Ollama)
+    # Teto de tokens de saida para o provider openai_compat. O drafter pede 8000
+    # (afinado pro Claude); modelos gratuitos com contexto menor (ex.: 8192)
+    # rejeitam 413 quando entrada + max_tokens ultrapassa o contexto. 4000 e
+    # suficiente pra uma minuta de teste. 0 = respeita o valor pedido pelo caller.
+    llm_max_tokens: int = 4000
+
 # Capture scheduling
     capture_lookback_days: int = 3
     capture_manual_lookback_days: int = 60

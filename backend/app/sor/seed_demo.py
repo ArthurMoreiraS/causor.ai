@@ -16,7 +16,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app.queue.jobs import run_fake_protocol_job
+from app.queue.jobs import confirm_manual_protocol
 from app.sor import models
 from app.vault.service import store_signature_reference
 
@@ -650,7 +650,12 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         )
         peticoes_extra.append(peticao)
         if status_peticao == "protocolada":
-            run_fake_protocol_job(session, peticao.id)
+            confirm_manual_protocol(
+                session,
+                peticao.id,
+                protocolo=f"2026{peticao.id:08d}",
+                comprovante_uri=f"demo://peticoes/{peticao.id}/comprovante.pdf",
+            )
 
     for processo in processos:
         session.add(
@@ -761,8 +766,15 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
             detalhe={"tipo": peticao.tipo},
         )
 
-    # Protocola a réplica pelo mesmo caminho do produto (job + gate + auditoria).
-    run_fake_protocol_job(session, pet_replica.id)
+    # Protocola a réplica pelo mesmo caminho do produto (gate + auditoria),
+    # usando o fallback manual (registro do protocolo) — o conector PJe real
+    # so e disparado na operacao, nunca no seed de demonstracao.
+    confirm_manual_protocol(
+        session,
+        pet_replica.id,
+        protocolo=f"2026{pet_replica.id:08d}",
+        comprovante_uri=f"demo://peticoes/{pet_replica.id}/comprovante.pdf",
+    )
 
     store_signature_reference(
         session,

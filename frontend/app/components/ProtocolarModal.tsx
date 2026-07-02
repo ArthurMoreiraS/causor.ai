@@ -62,9 +62,10 @@ export default function ProtocolarModal({
           <AlertTriangle size={16} />
           {isPje ? (
             <span>
-              O Causor prepara o protocolo PJe assistido e para em{" "}
-              <strong>ready_to_sign</strong>. A assinatura/envio final acontece no PJe/PJeOffice;
-              depois registre o número do protocolo.
+              O Causor abre o PJe, anexa a minuta e clica em <strong>Assinar/Protocolar</strong>.
+              O certificado/PIN fica no PJeOffice local do advogado — o Causor só orquestra o clique
+              e captura o número do protocolo. Se o PJeOffice não responder a tempo, o fluxo cai
+              para o fallback manual (registrar o protocolo aqui).
             </span>
           ) : (
             <span>
@@ -103,7 +104,7 @@ export default function ProtocolarModal({
             disabled={busy}
             onClick={() => onConfirm(credencialId)}
           >
-            {isPje ? "Preparar no PJe" : "Registrar protocolo"}
+            {isPje ? "Confirmar e protocolar" : "Registrar protocolo"}
           </LoadingButton>
         </div>
     </Modal>

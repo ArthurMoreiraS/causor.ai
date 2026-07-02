@@ -1,31 +1,29 @@
 "use client";
 
-import { LockKeyhole, ShieldCheck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ExternalLink, KeyRound, LockKeyhole, Terminal } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
-  cadastrarCredencial,
   CredencialAssinatura,
   desativarCredencial,
   listarCredenciais
 } from "@/lib/api";
-import SearchSelect from "./SearchSelect";
-import { LoadingButton, Skeleton } from "./ui";
+import { LoadingButton, Modal, Skeleton } from "./ui";
 import { useToast } from "./Toast";
 
-const PROVEDORES = ["BirdID", "VIDaaS", "SafeID", "Certisign Cloud"];
+const PJE_HELP_URL = "https://www.cnj.jus.br/pje/";
+
+function pjeSessionLabel(credencial: CredencialAssinatura): string {
+  if (credencial.provedor !== "PJeSession") return credencial.provedor;
+  return credencial.tribunal ? `PJe · ${credencial.tribunal}` : "PJe";
+}
 
 export default function VaultSection({ offline }: { offline: boolean }) {
   const toast = useToast();
   const [credenciais, setCredenciais] = useState<CredencialAssinatura[]>([]);
-  const [provedor, setProvedor] = useState(PROVEDORES[0]);
-  const [referencia, setReferencia] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const providerOptions = useMemo(
-    () => PROVEDORES.map((provider) => ({ value: provider, label: provider })),
-    []
-  );
+  const [showConnect, setShowConnect] = useState(false);
 
   async function reload() {
     try {
@@ -46,85 +44,40 @@ export default function VaultSection({ offline }: { offline: boolean }) {
     void reload();
   }, [offline]);
 
-  async function cadastrar() {
-    if (referencia.trim().length < 4) {
-      setError("Informe a referência externa do certificado (mínimo 4 caracteres).");
-      return;
-    }
-    setBusy("create");
-    setError(null);
-    try {
-      await cadastrarCredencial(provedor, referencia.trim());
-      setReferencia("");
-      await reload();
-      toast({ kind: "success", title: "Credencial cadastrada", description: `${provedor} adicionado ao vault.` });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível cadastrar a credencial");
-    } finally {
-      setBusy(null);
-    }
-  }
-
   async function desativar(credencial: CredencialAssinatura) {
     setBusy(`off-${credencial.id}`);
     try {
       await desativarCredencial(credencial.id);
       await reload();
-      toast({ kind: "success", title: "Credencial desativada" });
+      toast({ kind: "success", title: "Sessão desativada" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível desativar a credencial");
+      setError(err instanceof Error ? err.message : "Não foi possível desativar");
     } finally {
       setBusy(null);
     }
   }
 
+  const sessions = credenciais.filter((c) => c.provedor === "PJeSession" && c.ativo);
+  const outras = credenciais.filter((c) => c.provedor !== "PJeSession");
+
   return (
     <div className="settingsGroup">
-      <span className="settingsLabel">Certificado de assinatura (vault)</span>
+      <span className="settingsLabel">Conexão de tribunal (vault)</span>
       <small className="settingsHint vaultHint">
         <LockKeyhole size={13} />
-        O Causor guarda apenas uma referência segura ao certificado no provedor em nuvem. Senha,
-        certificado e chave privada nunca entram no sistema, em prompts ou em logs.
+        O Causor guarda apenas a sessão autenticada do tribunal (cookie), nunca o
+        certificado, a senha ou o PIN. A assinatura continua no PJeOffice da sua máquina.
       </small>
 
-      <form
-        className="vaultForm"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void cadastrar();
-        }}
+      <LoadingButton
+        className="toolbarButton primary compact vaultSubmit"
+        disabled={offline}
+        loading={busy === "connect"}
+        icon={<KeyRound size={14} />}
+        onClick={() => setShowConnect(true)}
       >
-        <div className="settingsRow vaultFields">
-          <label>
-            Provedor
-            <SearchSelect
-              value={provedor}
-              name="provedor"
-              options={providerOptions}
-              disabled={offline || busy === "create"}
-              onChange={setProvedor}
-            />
-          </label>
-          <label>
-            Referência externa
-            <input
-              value={referencia}
-              disabled={offline || busy === "create"}
-              placeholder="ID do certificado no provedor"
-              onChange={(e) => setReferencia(e.target.value)}
-            />
-          </label>
-        </div>
-        <LoadingButton
-          type="submit"
-          className="toolbarButton primary compact vaultSubmit"
-          disabled={offline}
-          loading={busy === "create"}
-          icon={<ShieldCheck size={14} />}
-        >
-          Cadastrar credencial
-        </LoadingButton>
-      </form>
+        Conectar PJe
+      </LoadingButton>
 
       {error ? <small className="settingsHint vaultError">{error}</small> : null}
 
@@ -134,31 +87,101 @@ export default function VaultSection({ offline }: { offline: boolean }) {
             <Skeleton height={50} radius={8} />
             <Skeleton height={50} radius={8} />
           </>
-        ) : credenciais.length ? (
-          credenciais.map((credencial) => (
+        ) : sessions.length ? (
+          sessions.map((credencial) => (
             <article className="vaultItem" key={credencial.id}>
               <div>
-                <strong>{credencial.provedor}</strong>
-                <span className="mono">{credencial.referencia_vault}</span>
+                <strong>{pjeSessionLabel(credencial)}</strong>
+                <div className="pill ativa">Conectado</div>
               </div>
-              {credencial.ativo ? (
-                <LoadingButton
-                  className="toolbarButton compact"
-                  disabled={offline}
-                  loading={busy === `off-${credencial.id}`}
-                  onClick={() => void desativar(credencial)}
-                >
-                  Desativar
-                </LoadingButton>
-              ) : (
-                <span className="pill inativa">Inativa</span>
-              )}
+              <LoadingButton
+                className="toolbarButton compact"
+                disabled={offline}
+                loading={busy === `off-${credencial.id}`}
+                onClick={() => void desativar(credencial)}
+              >
+                Desativar
+              </LoadingButton>
             </article>
           ))
         ) : (
-          <small className="settingsHint">Nenhuma credencial cadastrada ainda.</small>
+          <small className="settingsHint">
+            Nenhum tribunal conectado ainda. Use “Conectar PJe” acima.
+          </small>
         )}
       </div>
+
+      {outras.length > 0 ? (
+        <small className="settingsHint vaultHint">
+          <LockKeyhole size={13} />
+          Referências de assinatura em nuvem (não habilitam protocolo direto hoje):
+          {outras.map((c) => ` ${c.provedor}`).join(" ·")}
+        </small>
+      ) : null}
+
+      {showConnect ? (
+        <ConectarPjeModal offline={offline} onClose={() => setShowConnect(false)} />
+      ) : null}
     </div>
+  );
+}
+
+function ConectarPjeModal({ offline, onClose }: { offline: boolean; onClose: () => void }) {
+  const [tribunal, setTribunal] = useState("TJSP");
+  const [urlBase, setUrlBase] = useState("https://pje.tjsp.jus.br/pje");
+
+  const comando = `python -m app.cli pje-capture-session \\
+  --usuario <seu-id> \\
+  --tribunal ${tribunal} \\
+  --url-base ${urlBase}`;
+
+  return (
+    <Modal onClose={onClose} labelledBy="conectarPjeTitle">
+      <h3 id="conectarPjeTitle">Conectar PJe</h3>
+      <p className="protocolarResumo">
+        A captura da sessão abre o PJe no seu computador para você logar uma vez com
+        certificado digital. O Causor guarda só o cookie de sessão — o certificado e o PIN
+        ficam no seu PJeOffice, nunca entram no sistema.
+      </p>
+
+      <div className="protocolarAviso">
+        <Terminal size={16} />
+        <span>
+          No piloto, esta etapa roda no terminal da sua máquina (o backend não consegue
+          abrir janela na sua tela). Copie o comando abaixo e execute localmente.
+        </span>
+      </div>
+
+      <label className="protocolarCredencial">
+        Tribunal
+        <input value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
+      </label>
+
+      <label className="protocolarCredencial">
+        URL base do PJe
+        <input value={urlBase} onChange={(e) => setUrlBase(e.target.value)} />
+      </label>
+
+      <pre className="vaultComando">{comando}</pre>
+
+      <div className="protocolarHint">
+        <ExternalLink size={13} /> Após logar no PJe e o painel carregar, volte ao terminal
+        e pressione <strong>Enter</strong>. A sessão aparece aqui como “PJe · {tribunal}”.
+      </div>
+
+      <div className="modalActions">
+        <button className="toolbarButton" onClick={onClose} disabled={offline}>
+          Fechar
+        </button>
+        <a
+          className="toolbarButton"
+          href={PJE_HELP_URL}
+          target="_blank"
+          rel="noreferrer"
+        >
+          <ExternalLink size={14} /> Ajuda do PJe
+        </a>
+      </div>
+    </Modal>
   );
 }

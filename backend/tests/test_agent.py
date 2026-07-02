@@ -78,6 +78,24 @@ def test_classify_sends_intimacao_text_in_prompt():
     assert TEXTO in provider.structured_calls[0]["user"]
 
 
+def test_classify_coerces_zero_prazo_to_minimum():
+    """Modelos fracos (Llama/Groq) podem devolver prazo_dias=0; o motor
+    deterministico rejeita <1. O schema coerciona para 1 na validacao, entao
+    qualquer provider (Claude parse ou OpenAI-compat model_validate) produzia
+    prazo valido e o fluxo nao quebra antes de redigir a minuta."""
+    coerced = ClassificacaoIntimacao(
+        tipo="x", peticao_sugerida="y", prazo_dias=0, dias_uteis=True,
+        confianca=0.2, resumo="z",
+    )
+    assert coerced.prazo_dias == 1
+
+    negative = ClassificacaoIntimacao(
+        tipo="x", peticao_sugerida="y", prazo_dias=-3, dias_uteis=False,
+        confianca=0.1, resumo="z",
+    )
+    assert negative.prazo_dias == 1
+
+
 def test_draft_returns_structured_minuta():
     provider = _FakeProvider(structured=_MINUTA)
 

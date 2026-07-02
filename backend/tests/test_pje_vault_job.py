@@ -84,7 +84,7 @@ def test_run_pje_assisted_job_passes_vault_session_to_connector(db_session):
         url_base="https://pje-treinamento.tjsp.jus.br/pje",
         storage_state=storage_state,
     )
-connector = InspectingConnector()
+    connector = InspectingConnector()
 
     job = run_pje_protocol_job(
         db_session,

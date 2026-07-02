@@ -219,6 +219,7 @@ export type CredencialAssinatura = {
   id: number;
   usuario_id: number;
   provedor: string;
+  tribunal: string | null;
   modo: string;
   referencia_vault: string;
   ativo: boolean;

@@ -78,14 +78,16 @@ def test_seed_covers_all_petition_phases_and_receipt(db_session):
     protocolada = next(p for p in peticoes if p.status == "protocolada")
     assert protocolada.protocolada_em is not None
 
-    job = db_session.scalars(
-        select(models.JobExecucao).where(
-            models.JobExecucao.entidade == "peticao",
-            models.JobExecucao.entidade_id == protocolada.id,
+    # O seed usa o fallback manual (confirm_manual_protocol), que registra
+    # auditoria + protocolo sem disparar o conector PJe real (sem job placebo).
+    audit = db_session.scalars(
+        select(models.AuditLog).where(
+            models.AuditLog.entidade == "peticao",
+            models.AuditLog.entidade_id == protocolada.id,
+            models.AuditLog.acao == "peticao_protocolada",
         )
     ).one()
-    assert job.status == "completed"
-    assert job.resultado and job.resultado.get("protocolo")
+    assert audit.detalhe.get("protocolo")
 
 
 def test_seed_creates_intimacoes_vault_credential_and_audit(db_session):
