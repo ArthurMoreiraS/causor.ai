@@ -1,10 +1,13 @@
 "use client";
 
 import { CheckCircle2, FilePenLine, Loader2, Send, Sparkles, Table2, Zap } from "lucide-react";
+import { useMemo, useState } from "react";
 import type { Peticao, ReviewQueueItem } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import type { ViewKey } from "@/lib/views";
-import { Empty } from "../components/ui";
+import { Empty, Pagination } from "../components/ui";
+
+const PAGE_SIZE = 8;
 
 function prioridade(item: ReviewQueueItem): number {
   if (item.status === "protocolada" || item.status === "cumprido") return 9;
@@ -15,6 +18,16 @@ function prioridade(item: ReviewQueueItem): number {
   if (dias === 1) return 2;
   if (dias <= 3) return 3;
   return 4;
+}
+
+/** Tom de urgência da linha: dirige a borda esquerda e o bloco de data. */
+function tomDeRisco(item: ReviewQueueItem): "risk" | "warn" | "done" | "" {
+  if (item.status === "protocolada" || item.status === "cumprido") return "done";
+  const dias = item.dias_para_vencer;
+  if (dias === null) return "";
+  if (dias <= 1) return "risk";
+  if (dias <= 3) return "warn";
+  return "";
 }
 
 function badgeDePrazo(item: ReviewQueueItem) {
@@ -56,12 +69,23 @@ export default function FilaDoDiaView({
   onFile: (peticao: Peticao) => void;
   onNavigate: (view: ViewKey) => void;
 }) {
-  const ordered = [...items].sort((a, b) => {
-    const pa = prioridade(a);
-    const pb = prioridade(b);
-    if (pa !== pb) return pa - pb;
-    return (a.dias_para_vencer ?? 999) - (b.dias_para_vencer ?? 999);
-  });
+  const [page, setPage] = useState(0);
+
+  const ordered = useMemo(
+    () =>
+      [...items].sort((a, b) => {
+        const pa = prioridade(a);
+        const pb = prioridade(b);
+        if (pa !== pb) return pa - pb;
+        return (a.dias_para_vencer ?? 999) - (b.dias_para_vencer ?? 999);
+      }),
+    [items]
+  );
+
+  // Página sempre válida mesmo quando a lista encolhe após uma ação.
+  const pageCount = Math.max(1, Math.ceil(ordered.length / PAGE_SIZE));
+  const safePage = Math.min(page, pageCount - 1);
+  const visible = ordered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   function acaoPrincipal(item: ReviewQueueItem) {
     const { peticao, intimacao } = item;
@@ -129,21 +153,34 @@ export default function FilaDoDiaView({
       </div>
 
       <div className="filaList">
-        {ordered.map((item) => {
+        {visible.map((item) => {
           const peca =
             item.peticao?.tipo ?? item.prazo?.descricao ?? item.intimacao.tipo_comunicacao ?? "Ato a definir";
+          const tone = tomDeRisco(item);
+          const dataFatal = item.prazo ? formatDate(item.prazo.data_fatal) : null;
           return (
-            <article className="filaItem" key={item.intimacao.id}>
+            <article className={tone ? `filaItem ${tone}` : "filaItem"} key={item.intimacao.id}>
+              <div
+                className={tone ? `filaDate ${tone}` : "filaDate"}
+                title={dataFatal ? `Data fatal ${dataFatal}` : "Prazo ainda não calculado"}
+              >
+                {dataFatal ? (
+                  <>
+                    <strong>{dataFatal.slice(0, 5)}</strong>
+                    <span>{dataFatal.slice(-4)}</span>
+                  </>
+                ) : (
+                  <>
+                    <strong>—</strong>
+                    <span>s/ prazo</span>
+                  </>
+                )}
+              </div>
               <div className="filaMain">
                 <strong>{peca}</strong>
                 <span className="mono">
                   {item.intimacao.numero_processo ?? item.processo?.numero ?? "Processo não identificado"}
                 </span>
-                <small>
-                  {item.prazo
-                    ? `Data fatal ${formatDate(item.prazo.data_fatal)}`
-                    : "Prazo ainda não calculado"}
-                </small>
               </div>
               <div className="filaMeta">{badgeDePrazo(item)}</div>
               <div className="filaAction">{acaoPrincipal(item)}</div>
@@ -154,6 +191,15 @@ export default function FilaDoDiaView({
           <Empty label="Fila vazia — rode uma captura por OAB ou aguarde novas intimações" />
         ) : null}
       </div>
+
+      <Pagination
+        page={safePage}
+        pageCount={pageCount}
+        totalItems={ordered.length}
+        pageSize={PAGE_SIZE}
+        onPageChange={setPage}
+        itemLabel="itens"
+      />
     </section>
   );
 }

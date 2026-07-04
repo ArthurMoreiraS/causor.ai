@@ -1,6 +1,17 @@
 "use client";
 
-import { AlertCircle, ChevronDown, Inbox, Info, Loader2, Moon, RefreshCw, Sun, UserRound } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Inbox,
+  Info,
+  Loader2,
+  Moon,
+  RefreshCw,
+  Sun
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import type { Prazo } from "@/lib/api";
@@ -336,9 +347,20 @@ export function Panel({
   );
 }
 
-export function CommandStat({ label, value, detail }: { label: string; value: ReactNode; detail: string }) {
+export function CommandStat({
+  label,
+  value,
+  detail,
+  tone
+}: {
+  label: string;
+  value: ReactNode;
+  detail: string;
+  /** Tom semântico opcional do valor (verde/âmbar/vermelho). */
+  tone?: "ok" | "warn" | "risk";
+}) {
   return (
-    <article className="commandStat">
+    <article className={tone ? `commandStat ${tone}` : "commandStat"}>
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{detail}</small>
@@ -378,8 +400,100 @@ export function DeadlineBadge({ prazo }: { prazo: Prazo | null | undefined }) {
 export function Empty({ label }: { label: string }) {
   return (
     <div className="empty">
-      <UserRound size={18} />
+      <Inbox size={18} />
       <span>{label}</span>
     </div>
+  );
+}
+
+/** Janela de páginas com reticências: sempre mostra primeira, última e vizinhas da atual. */
+function pageWindow(page: number, pageCount: number): Array<number | "gap"> {
+  if (pageCount <= 7) return Array.from({ length: pageCount }, (_, i) => i);
+  const visible = new Set<number>([0, pageCount - 1, page - 1, page, page + 1]);
+  // Perto das bordas, mantém 5 números contíguos para a largura não "pular".
+  if (page <= 2) [1, 2, 3].forEach((p) => visible.add(p));
+  if (page >= pageCount - 3) [pageCount - 4, pageCount - 3, pageCount - 2].forEach((p) => visible.add(p));
+  const sorted = Array.from(visible)
+    .filter((p) => p >= 0 && p < pageCount)
+    .sort((a, b) => a - b);
+  const out: Array<number | "gap"> = [];
+  let prev: number | null = null;
+  for (const p of sorted) {
+    if (prev !== null && p - prev > 1) out.push("gap");
+    out.push(p);
+    prev = p;
+  }
+  return out;
+}
+
+/**
+ * Paginação client-side padronizada: resumo "x–y de N" + números com
+ * reticências + anterior/próxima. `page` é 0-based; some quando só há 1 página.
+ */
+export function Pagination({
+  page,
+  pageCount,
+  totalItems,
+  pageSize,
+  onPageChange,
+  itemLabel = "registros"
+}: {
+  page: number;
+  pageCount: number;
+  totalItems: number;
+  pageSize: number;
+  onPageChange: (page: number) => void;
+  itemLabel?: string;
+}) {
+  if (pageCount <= 1) return null;
+  const start = page * pageSize + 1;
+  const end = Math.min(totalItems, (page + 1) * pageSize);
+  return (
+    <nav className="pagination" aria-label={`Paginação de ${itemLabel}`}>
+      <span className="paginationInfo">
+        <strong>
+          {start}–{end}
+        </strong>{" "}
+        de {totalItems} {itemLabel}
+      </span>
+      <div className="paginationControls">
+        <button
+          type="button"
+          className="pageButton"
+          aria-label="Página anterior"
+          disabled={page === 0}
+          onClick={() => onPageChange(page - 1)}
+        >
+          <ChevronLeft size={14} />
+        </button>
+        {pageWindow(page, pageCount).map((p, index) =>
+          p === "gap" ? (
+            <span key={`gap-${index}`} className="pageEllipsis" aria-hidden="true">
+              …
+            </span>
+          ) : (
+            <button
+              type="button"
+              key={p}
+              className={p === page ? "pageButton active" : "pageButton"}
+              aria-label={`Página ${p + 1}`}
+              aria-current={p === page ? "page" : undefined}
+              onClick={() => onPageChange(p)}
+            >
+              {p + 1}
+            </button>
+          )
+        )}
+        <button
+          type="button"
+          className="pageButton"
+          aria-label="Próxima página"
+          disabled={page === pageCount - 1}
+          onClick={() => onPageChange(page + 1)}
+        >
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </nav>
   );
 }

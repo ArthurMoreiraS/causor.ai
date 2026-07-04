@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, MessageCircle, Sparkles } from "lucide-react";
+import { Inbox, Loader2, Sparkles } from "lucide-react";
 import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
@@ -24,7 +24,7 @@ export default function IntimacoesView({
       {rows.map(({ intimacao, processo, prazo, peticao }) => (
         <article className="inboxItem clickable" key={intimacao.id} onClick={() => onOpen(intimacao.id)}>
           <div className="inboxMarker">
-            <MessageCircle size={15} />
+            <Inbox size={15} />
           </div>
           <div className="inboxContent">
             <header>

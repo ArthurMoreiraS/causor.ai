@@ -14,8 +14,10 @@ import {
   FilePenLine,
   HelpCircle,
   HomeIcon,
+  Inbox,
   Loader2,
   MessageCircle,
+  Scale,
   Search,
   Send,
   Settings,
@@ -656,6 +658,10 @@ export default function Home() {
   const offline = Boolean(data.backendOffline);
   const operationalConnectors = data.operational?.connectors ?? CONNECTORS_FALLBACK;
 
+  // Identidade real da sessão no rodapé da sidebar (e-mail + iniciais).
+  const userEmail = session?.user?.email ?? null;
+  const userInitials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "CS";
+
   if (authLoading || !session) {
     return (
       <div className="authShell authLoadingShell" aria-busy="true" aria-label="Carregando Causor">
@@ -752,13 +758,13 @@ export default function Home() {
           </NavGroup>
           <NavGroup label="Registro">
             <NavItem
-              icon={<HomeIcon size={15} />}
+              icon={<Scale size={15} />}
               label="Processos"
               active={view === "processos"}
               onClick={() => setView("processos")}
             />
             <NavItem
-              icon={<MessageCircle size={15} />}
+              icon={<Inbox size={15} />}
               label="Intimações"
               active={view === "intimacoes"}
               onClick={() => setView("intimacoes")}
@@ -798,10 +804,10 @@ export default function Home() {
             onClick={() => setOverlay("settings")}
           />
           <button className="profile" onClick={() => setOverlay("profile")}>
-            <div className="avatar">AM</div>
+            <div className="avatar">{userInitials}</div>
             <div>
               <strong>Conta</strong>
-              <span>Usuário do piloto</span>
+              <span>{userEmail ?? "Usuário do piloto"}</span>
             </div>
             <ChevronDown size={14} />
           </button>
@@ -966,34 +972,43 @@ export default function Home() {
                 <section className="statusTabs">
                   <button
                     className={`statusTab ${statusFilter === "pendentes" ? "active" : ""}`}
+                    aria-pressed={statusFilter === "pendentes"}
                     onClick={() => setStatusFilter("pendentes")}
                   >
                     <Clock3 size={15} />
-                    Pendentes ({statusCounts.pendentes})
+                    Pendentes
+                    <span className="tabCount">{statusCounts.pendentes}</span>
                   </button>
                   <button
                     className={`statusTab ${statusFilter === "minutadas" ? "active" : ""}`}
+                    aria-pressed={statusFilter === "minutadas"}
                     onClick={() => setStatusFilter("minutadas")}
                   >
                     <Sparkles size={15} />
-                    Minutadas ({statusCounts.minutadas})
+                    Minutadas
+                    <span className="tabCount">{statusCounts.minutadas}</span>
                   </button>
                   <button
                     className={`statusTab ${statusFilter === "aprovadas" ? "active" : ""}`}
+                    aria-pressed={statusFilter === "aprovadas"}
                     onClick={() => setStatusFilter("aprovadas")}
                   >
                     <CheckCircle2 size={15} />
-                    Aprovadas ({statusCounts.aprovadas})
+                    Aprovadas
+                    <span className="tabCount">{statusCounts.aprovadas}</span>
                   </button>
                   <button
                     className={`statusTab ${statusFilter === "protocoladas" ? "active" : ""}`}
+                    aria-pressed={statusFilter === "protocoladas"}
                     onClick={() => setStatusFilter("protocoladas")}
                   >
                     <Send size={15} />
-                    Protocoladas ({statusCounts.protocoladas})
+                    Protocoladas
+                    <span className="tabCount">{statusCounts.protocoladas}</span>
                   </button>
                 </section>
                 <FilaDoDiaView
+                  key={statusFilter}
                   items={dashboardWorklist}
                   busy={busy}
                   offline={offline}

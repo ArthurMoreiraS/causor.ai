@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CheckCircle2, Clock3, FilePenLine, HomeIcon, MessageCircle, Search, Send, ShieldCheck } from "lucide-react";
+import { Bot, CheckCircle2, Clock3, FilePenLine, Inbox, MessageCircle, Scale, Search, Send, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ConnectorStatus } from "@/lib/api";
 import { connectorStatusLabel, formatDate } from "@/lib/format";
@@ -42,7 +42,7 @@ export default function HomeDashboard({
   const agentCycle = [
     {
       label: "Captura",
-      detail: `${metrics.captured} intimação${metrics.captured === 1 ? "" : "ões"}`,
+      detail: `${metrics.captured} ${metrics.captured === 1 ? "intimação" : "intimações"}`,
       status: metrics.captured > 0 ? "complete" : "active",
       icon: <Search size={15} />
     },
@@ -119,7 +119,12 @@ export default function HomeDashboard({
           <CommandStat label="Processos" value={metrics.monitored} detail="monitorados" />
           <CommandStat label="Intimações" value={metrics.captured} detail="capturadas" />
           <CommandStat label="Prazos" value={metrics.pending} detail="pendentes" />
-          <CommandStat label="Prazos em dia" value={`${metrics.compliance}%`} detail={`${metrics.overdue} vencido(s)`} />
+          <CommandStat
+            label="Prazos em dia"
+            value={`${metrics.compliance}%`}
+            detail={`${metrics.overdue} vencido(s)`}
+            tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : "ok"}
+          />
         </div>
       </section>
 
@@ -139,6 +144,7 @@ export default function HomeDashboard({
             <button
               className={`agentCycleStep ${step.status}`}
               key={step.label}
+              title={`${step.label} — ${step.detail}`}
               onClick={() =>
                 onNavigate(
                   step.label === "Captura"
@@ -203,8 +209,8 @@ export default function HomeDashboard({
 
       <Panel title="Áreas de trabalho" action="atalhos">
           <div className="featureTiles">
-            <FeatureTile icon={<HomeIcon size={16} />} label="Processos" value={metrics.monitored} onClick={() => onNavigate("processos")} />
-            <FeatureTile icon={<MessageCircle size={16} />} label="Intimações" value={metrics.captured} onClick={() => onNavigate("intimacoes")} />
+            <FeatureTile icon={<Scale size={16} />} label="Processos" value={metrics.monitored} onClick={() => onNavigate("processos")} />
+            <FeatureTile icon={<Inbox size={16} />} label="Intimações" value={metrics.captured} onClick={() => onNavigate("intimacoes")} />
             <FeatureTile icon={<Clock3 size={16} />} label="Prazos" value={metrics.pending} onClick={() => onNavigate("prazos")} />
             <FeatureTile icon={<FilePenLine size={16} />} label="Minutas" value={metrics.drafts + metrics.approved} onClick={() => onNavigate("peticoes")} />
             <FeatureTile icon={<ShieldCheck size={16} />} label="Gate OAB" value={metrics.approved} onClick={() => onNavigate("gate")} />

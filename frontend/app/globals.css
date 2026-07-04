@@ -24,9 +24,21 @@
   --success: #166534;
   --success-bg: #f0fdf4;
   --shadow: rgba(0, 0, 0, 0.06);
-  --font-title: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Escala de raio — espelha a landing (cards 10–14px, pílulas 999). */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-pill: 999px;
+  /* Sombras com matiz de slate (não preto puro) em três níveis. */
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
+  --shadow-md: 0 8px 22px -16px rgb(15 23 42 / 24%);
+  --shadow-lg: 0 24px 60px -24px rgb(15 23 42 / 22%);
+  --font-title: var(--font-inter, "Inter"), ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: var(--font-jbmono, "JetBrains Mono"), ui-monospace, SFMono-Regular, Menlo,
+    Consolas, monospace;
   color-scheme: light;
 }
 
@@ -60,6 +72,9 @@
   --success: #4ade80;
   --success-bg: #11271b;
   --shadow: rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-md: 0 8px 22px -16px rgb(0 0 0 / 55%);
+  --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 60%);
 }
 
 /* Superfícies que usam cores literais (fora dos tokens) precisam de ajuste
@@ -125,6 +140,8 @@ body {
   color: var(--ink);
   font-family: var(--font-title);
   letter-spacing: 0;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 button,
@@ -147,12 +164,27 @@ button:disabled {
   font-family: var(--font-mono);
   font-size: 0.95em;
   letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Dígitos de largura fixa em contadores e datas: valores não "pulam" ao mudar. */
+.dayBadge,
+.queueStatus,
+.pill,
+.jobStatus,
+.commandStat strong,
+.dateBlock strong,
+.onboardingScore strong,
+.viewTitleBlock strong,
+.radarCount {
+  font-variant-numeric: tabular-nums;
 }
 
 .shell {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   height: 100vh;
+  height: 100dvh;
   overflow: hidden;
   transition: grid-template-columns 180ms ease;
 }
@@ -165,6 +197,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   height: 100vh;
+  height: 100dvh;
   border-right: 1px solid var(--line);
   background: var(--panel-soft);
   transition: width 180ms ease;
@@ -273,10 +306,10 @@ button:disabled {
 .sidebarFooter .navItem {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   width: 100%;
-  min-height: 28px;
-  padding: 0 7px;
+  min-height: 30px;
+  padding: 0 8px;
   border: 0;
   background: transparent;
   color: var(--ink-soft);
@@ -284,7 +317,8 @@ button:disabled {
   text-align: left;
   border-radius: 6px;
   font: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
+  transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
 }
 
 .sideNav a svg,
@@ -302,6 +336,23 @@ button:disabled {
 .sidebarFooter .navItem:hover {
   color: var(--ink);
   background: var(--chip);
+}
+
+/* Localização atual: barra de acento à esquerda + peso maior. */
+.sideNav a.active,
+.sideNav .navItem.active {
+  box-shadow: inset 2px 0 0 var(--accent);
+  font-weight: 600;
+}
+
+.sideNav a.active svg,
+.sideNav .navItem.active svg {
+  color: var(--accent);
+}
+
+.sidebarCollapsed .sideNav a.active,
+.sidebarCollapsed .sideNav .navItem.active {
+  box-shadow: inset 0 0 0 1px var(--accent-border);
 }
 
 .sidebarFooter {
@@ -390,6 +441,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   background: var(--panel);
   font-size: 10px;
   font-weight: 700;
@@ -415,6 +467,7 @@ button:disabled {
 .workspace {
   min-width: 0;
   height: 100vh;
+  height: 100dvh;
   overflow-y: auto;
 }
 
@@ -442,10 +495,15 @@ button:disabled {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  height: 42px;
+  height: 48px;
   padding: 0 28px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
+}
+
+/* Primeiro aviso abaixo da appbar respira em vez de colar na borda. */
+.appbar + .notice {
+  margin-top: 14px;
 }
 
 .crumbs {
@@ -477,8 +535,8 @@ button:disabled {
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
-  border-radius: 8px;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.03);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbarButton {
@@ -502,8 +560,8 @@ button:disabled {
 }
 
 .toolbarButton.danger {
-  border-color: rgba(185, 28, 28, 0.26);
-  color: #b91c1c;
+  border-color: color-mix(in srgb, var(--risk) 28%, var(--line));
+  color: var(--risk);
 }
 
 .iconButton {
@@ -539,15 +597,15 @@ h2 {
   margin: 0 28px 16px;
   padding: 10px 12px;
   color: var(--risk);
-  border: 1px solid #f0b9b3;
-  background: #fff4f2;
-  border-radius: 7px;
+  border: 1px solid color-mix(in srgb, var(--risk) 30%, var(--line));
+  background: var(--risk-bg);
+  border-radius: var(--radius-sm);
   font-size: 13px;
 }
 
 .notice.success {
   color: var(--ok);
-  border-color: #b9dfc8;
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
   background: var(--ok-bg);
 }
 
@@ -721,12 +779,41 @@ h2 {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
 
 .statusTab.active {
   color: var(--ink);
-  border-bottom-color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.statusTab.active svg {
+  color: var(--accent);
+}
+
+/* Contagem da aba como badge — mais escaneável que parênteses. */
+.tabCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--chip);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+.statusTab.active .tabCount {
+  background: var(--accent-bg);
+  color: var(--accent);
 }
 
 .workSurface {
@@ -754,6 +841,7 @@ h2 {
   padding: 22px;
   border: 1px solid var(--line);
   border-left: 4px solid var(--accent);
+  border-radius: var(--radius-lg);
   background: var(--panel);
 }
 
@@ -802,6 +890,7 @@ h2 {
   gap: 10px;
   padding: 14px;
   border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   background: var(--panel);
 }
 
@@ -879,6 +968,7 @@ h2 {
 .deadlineCard,
 .petitionCard {
   border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   background: var(--panel);
 }
 
@@ -952,6 +1042,20 @@ h2 {
   margin-top: 8px;
   font-size: 26px;
   line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+/* Tom semântico opcional do indicador (ex.: % de prazos em dia). */
+.commandStat.ok strong {
+  color: var(--ok);
+}
+
+.commandStat.warn strong {
+  color: var(--warn);
+}
+
+.commandStat.risk strong {
+  color: var(--risk);
 }
 
 .agentCyclePanel {
@@ -959,6 +1063,7 @@ h2 {
   gap: 12px;
   padding: 14px;
   border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
   background: var(--panel);
 }
 
@@ -999,13 +1104,15 @@ h2 {
 .cycleHealth.risk {
   color: var(--risk);
   background: var(--risk-bg);
-  border-color: #fecaca;
+  border-color: color-mix(in srgb, var(--risk) 32%, var(--line));
 }
 
 .agentCycle {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
+  overflow: hidden;
   border: 1px solid var(--line);
+  border-radius: var(--radius-md);
 }
 
 .agentCycleStep {
@@ -1031,20 +1138,57 @@ h2 {
   background: var(--panel-soft);
 }
 
-.agentCycleStep.complete {
-  background: color-mix(in srgb, var(--ok-bg) 62%, var(--panel));
+/* Trilho de progresso na base de cada etapa: lê-se como um pipeline. */
+.agentCycleStep::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: transparent;
+  transition: background-color 150ms ease;
 }
 
-.agentCycleStep.active {
-  box-shadow: inset 0 3px 0 var(--accent);
+.agentCycleStep.complete::after {
+  background: color-mix(in srgb, var(--ok) 55%, transparent);
 }
 
-.agentCycleStep.review,
-.agentCycleStep.waiting {
-  background: color-mix(in srgb, var(--warn-bg) 62%, var(--panel));
+.agentCycleStep.active::after {
+  background: var(--accent);
+}
+
+.agentCycleStep.review::after,
+.agentCycleStep.waiting::after {
+  background: color-mix(in srgb, var(--warn) 60%, transparent);
 }
 
 .agentCycleStep.queued {
+  color: var(--muted);
+}
+
+/* O estado vive no chip do ícone; as células ficam limpas. */
+.agentCycleStep.complete .cycleIcon {
+  border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
+  background: var(--ok-bg);
+  color: var(--ok);
+}
+
+.agentCycleStep.active .cycleIcon {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.agentCycleStep.review .cycleIcon,
+.agentCycleStep.waiting .cycleIcon {
+  border-color: color-mix(in srgb, var(--warn) 36%, var(--line));
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+.agentCycleStep.queued .cycleIcon {
+  background: var(--panel-soft);
   color: var(--muted);
 }
 
@@ -1180,6 +1324,7 @@ h2 {
   min-width: 56px;
   min-height: 52px;
   border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
   background: var(--panel-soft);
 }
 
@@ -1236,6 +1381,7 @@ h2 {
   height: 28px;
   display: grid;
   place-items: center;
+  border-radius: var(--radius-sm);
   color: var(--accent);
   background: var(--accent-bg);
 }
@@ -1295,9 +1441,9 @@ h2 {
   justify-self: start;
   min-height: 22px;
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   color: var(--muted);
-  background: #f4f4f4;
+  background: var(--chip);
   font-family: var(--font-mono);
   font-size: 10px;
   font-weight: 500;
@@ -1326,39 +1472,64 @@ h2 {
 
 /* Badges de risco no formato da landing: mono, caixa alta, cantos 4px. */
 .dayBadge {
-  justify-self: start;
+  justify-self: center;
   display: inline-flex;
   align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 4px;
+  justify-content: center;
+  gap: 6px;
+  min-height: 24px;
+  max-width: 100%;
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--muted) 16%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--chip) 84%, var(--panel));
+  color: var(--muted);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--panel) 72%, transparent);
   font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 500;
+  font-weight: 700;
+  line-height: 1;
+  text-align: center;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
+}
+
+.dayBadge::before {
+  content: "";
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.72;
 }
 
 .dayBadge.neutral {
   color: var(--muted);
-  background: #f4f4f4;
+  border-color: color-mix(in srgb, var(--muted) 18%, var(--line));
+  background: color-mix(in srgb, var(--chip) 86%, var(--panel));
 }
 
 .dayBadge.today {
   color: var(--warn);
-  background: var(--warn-bg);
+  border-color: color-mix(in srgb, var(--warn) 28%, var(--line));
+  background: color-mix(in srgb, var(--warn-bg) 84%, var(--panel));
 }
 
 .dayBadge.risk {
   color: var(--risk);
-  background: var(--risk-bg);
+  border-color: color-mix(in srgb, var(--risk) 30%, var(--line));
+  background: color-mix(in srgb, var(--risk-bg) 86%, var(--panel));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--panel) 68%, transparent),
+    0 8px 20px -18px color-mix(in srgb, var(--risk) 58%, transparent);
 }
 
 .dayBadge.done {
   color: var(--ok);
-  background: var(--ok-bg);
-  border: 1px solid var(--accent-border);
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+  background: color-mix(in srgb, var(--ok-bg) 86%, var(--panel));
 }
 
 .moduleGrid {
@@ -1441,6 +1612,7 @@ h2 {
 .recordProgress {
   height: 6px;
   overflow: hidden;
+  border-radius: var(--radius-pill);
   background: var(--chip);
 }
 
@@ -1468,6 +1640,7 @@ h2 {
   height: 30px;
   display: grid;
   place-items: center;
+  border-radius: var(--radius-sm);
   color: var(--accent);
   background: var(--accent-bg);
 }
@@ -1542,7 +1715,9 @@ h2 {
 
 .gateLane {
   min-width: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
+  border-radius: var(--radius-md);
   background: var(--panel);
 }
 
@@ -1668,8 +1843,10 @@ h2 {
 }
 
 .panel {
+  overflow: hidden;
   background: var(--panel);
   border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
 }
 
 .panel header {
@@ -1687,15 +1864,17 @@ h2 {
   font-size: 12px;
 }
 
-.pill {
-  display: inline-flex !important;
+/* `[class]` eleva a especificidade acima de seletores amplos como
+   `.vaultItem span` (display: block) sem recorrer a !important. */
+.pill[class] {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 24px;
   padding: 0 9px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   font-family: var(--font-mono);
-  font-size: 9.5px !important;
+  font-size: 10px;
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -1810,6 +1989,7 @@ h2 {
   right: 0;
   width: 360px;
   height: 100vh;
+  height: 100dvh;
   background: var(--panel);
   border-left: 1px solid var(--line);
   display: flex;
@@ -1851,16 +2031,16 @@ h2 {
 }
 .chatTurn.user {
   align-self: flex-end;
-  background: #f0ede6;
+  background: var(--chip);
 }
 .chatTurn.assistant {
   align-self: flex-start;
-  background: #f7f6f2;
+  background: var(--panel-soft);
 }
 .proposedAction {
-  border: 1px solid #e0c98a;
-  background: #fbf6e8;
-  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--warn) 40%, var(--line));
+  background: var(--warn-bg);
+  border-radius: var(--radius-md);
   padding: 10px;
 }
 .proposedActions {
@@ -1873,7 +2053,7 @@ h2 {
   font-size: 13px;
 }
 .assistantError {
-  color: #b00020;
+  color: var(--risk);
   font-size: 13px;
 }
 .assistantWorkspace {
@@ -2336,9 +2516,9 @@ h2 {
 .assistantError.wide {
   flex: 0 0 auto;
   padding: 10px 12px;
-  border: 1px solid #f0b9b3;
-  background: #fff4f2;
-  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, var(--risk) 30%, var(--line));
+  background: var(--risk-bg);
+  border-radius: var(--radius-lg);
 }
 
 .assistantComposer {
@@ -2467,7 +2647,7 @@ h2 {
   flex-direction: column;
   gap: 2px;
   padding: 8px 10px;
-  border-bottom: 1px solid #f0eee8;
+  border-bottom: 1px solid var(--line);
 }
 .auditLogRow strong {
   font-size: 13px;
@@ -2480,12 +2660,14 @@ h2 {
 @media (max-width: 1080px) {
   .shell,
   .shell.sidebarCollapsed {
-    grid-template-columns: 1fr;
+    /* minmax(0, …) impede que a faixa de navegação alargue o shell inteiro. */
+    grid-template-columns: minmax(0, 1fr);
     height: auto;
     overflow: visible;
   }
 
   .sidebar {
+    min-width: 0;
     min-height: auto;
     height: auto;
     border-right: 0;
@@ -2496,12 +2678,106 @@ h2 {
     overflow: visible;
   }
 
-  .sideNav {
+  /* Em telas estreitas o menu lateral vira uma faixa horizontal rolável —
+     a navegação continua acessível em vez de desaparecer. */
+  .sidebarToggle {
     display: none;
   }
 
-  .sidebarFooter {
+  .sideNav {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 10px 16px;
+    scrollbar-width: thin;
+  }
+
+  .navGroup {
+    display: contents;
+  }
+
+  .navGroupLabel,
+  .shell.sidebarCollapsed .navGroupLabel {
     display: none;
+  }
+
+  .sideNav a,
+  .sideNav .navItem,
+  .sidebarFooter a,
+  .sidebarFooter .navItem {
+    flex: 0 0 auto;
+    width: auto;
+    min-height: 34px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-pill);
+    background: var(--panel);
+    white-space: nowrap;
+  }
+
+  .sideNav a.active,
+  .sideNav .navItem.active {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+    color: var(--accent);
+    box-shadow: none;
+  }
+
+  .sidebarFooter {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: auto;
+    padding: 0 16px 12px;
+    border-top: 0;
+    scrollbar-width: thin;
+  }
+
+  .sidebarFooter .profile {
+    width: auto;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    margin-top: 0;
+    padding: 4px 8px;
+  }
+
+  .sidebarFooter .profile > div:not(.avatar) {
+    min-width: 0;
+    max-width: 180px;
+  }
+
+  /* Mesmo com a sidebar "colapsada" no desktop, a faixa horizontal mantém
+     rótulos e espaçamentos visíveis. */
+  .shell.sidebarCollapsed .sideNav a,
+  .shell.sidebarCollapsed .sideNav .navItem,
+  .shell.sidebarCollapsed .sidebarFooter a,
+  .shell.sidebarCollapsed .sidebarFooter .navItem {
+    justify-content: flex-start;
+    min-height: 34px;
+    padding: 0 12px;
+  }
+
+  .shell.sidebarCollapsed .sideNav a span,
+  .shell.sidebarCollapsed .sideNav .navItem span,
+  .shell.sidebarCollapsed .sidebarFooter a span,
+  .shell.sidebarCollapsed .sidebarFooter .navItem span {
+    display: inline;
+  }
+
+  .shell.sidebarCollapsed .brandWordmark {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .shell.sidebarCollapsed .brand {
+    padding: 0 42px 0 18px;
   }
 
   .appbar,
@@ -3726,28 +4002,103 @@ h2 {
 
 .filaItem {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 16px;
-  padding: 14px 16px;
+  gap: 14px;
+  padding: 12px 16px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--panel);
+}
+
+/* Borda esquerda colorida pelo risco: varredura visual imediata da fila. */
+.filaItem.risk {
+  box-shadow: inset 3px 0 0 var(--risk);
+}
+
+.filaItem.warn {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warn) 75%, transparent);
+}
+
+.filaItem.done {
+  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ok) 55%, transparent);
+}
+
+/* Âncora de data fatal: dd/mm em destaque, ano abaixo, tom pelo risco. */
+.filaDate {
+  display: grid;
+  place-items: center;
+  gap: 1px;
+  min-width: 60px;
+  min-height: 48px;
+  padding: 5px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-soft);
+}
+
+.filaDate strong {
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.filaDate span {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.filaDate.risk {
+  border-color: color-mix(in srgb, var(--risk) 30%, var(--line));
+  background: var(--risk-bg);
+}
+
+.filaDate.risk strong {
+  color: var(--risk);
+}
+
+.filaDate.warn {
+  border-color: color-mix(in srgb, var(--warn) 32%, var(--line));
+  background: var(--warn-bg);
+}
+
+.filaDate.warn strong {
+  color: var(--warn);
+}
+
+.filaDate.done {
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+  background: var(--ok-bg);
+}
+
+.filaDate.done strong {
+  color: var(--ok);
 }
 
 .filaMain {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   min-width: 0;
 }
 
 .filaMain strong {
   font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .filaMain span {
   color: var(--ink-soft);
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .filaMain small {
@@ -3758,6 +4109,7 @@ h2 {
 .filaMeta {
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 .filaAction {
@@ -3766,13 +4118,103 @@ h2 {
   min-width: 170px;
 }
 
+/* ---- Paginação ---- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 2px 2px 0;
+}
+
+.paginationInfo {
+  color: var(--muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.paginationInfo strong {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.paginationControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.pageButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+
+.pageButton:hover:not(:disabled):not(.active) {
+  border-color: var(--line-strong);
+  background: var(--panel-soft);
+  color: var(--ink);
+}
+
+.pageButton.active {
+  border-color: var(--solid);
+  background: var(--solid);
+  color: var(--panel);
+  font-weight: 600;
+}
+
+.pageButton:disabled {
+  opacity: 0.4;
+}
+
+.pageEllipsis {
+  min-width: 22px;
+  color: var(--muted-2);
+  text-align: center;
+  font-size: 12px;
+  user-select: none;
+}
+
 @media (max-width: 880px) {
   .filaItem {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .filaMain strong,
+  .filaMain span {
+    white-space: normal;
+  }
+
+  .filaMeta {
+    grid-column: 2;
+    justify-content: flex-start;
   }
 
   .filaAction {
+    grid-column: 1 / -1;
     justify-content: flex-start;
+    min-width: 0;
+  }
+
+  .pagination {
+    justify-content: center;
+  }
+
+  .paginationInfo {
+    width: 100%;
+    text-align: center;
   }
 }
 
@@ -3865,7 +4307,8 @@ h2 {
 .radarItemMeta {
   display: grid;
   gap: 4px;
-  justify-items: end;
+  justify-items: center;
+  text-align: center;
 }
 
 .radarItemMeta small {
@@ -4097,7 +4540,7 @@ h2 {
   border-radius: 8px;
   font-family: var(--font-mono);
   font-size: 11.5px;
-  color: var(--text);
+  color: var(--ink);
   white-space: pre-wrap;
   word-break: break-all;
 }
@@ -4455,6 +4898,7 @@ h2 {
 /* Login / set-password — espelha a identidade visual da landing. */
 .authShell {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -4539,7 +4983,7 @@ h2 {
   transition: background 180ms ease, transform 100ms ease;
 }
 .authButton:hover:not(:disabled) {
-  background: #272628;
+  background: color-mix(in srgb, var(--solid) 88%, var(--ink-soft));
 }
 .authButton:active:not(:disabled) {
   transform: scale(0.98);
@@ -5027,18 +5471,22 @@ textarea:focus {
   transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease,
     transform 150ms ease;
 }
-.agentCycleStep:hover,
-.deadlineAgendaItem:hover,
-.featureTile:hover,
+/* Elevação de hover apenas em cartões independentes e clicáveis — cartões
+   informativos (fila, protocolos) não devem sugerir clique que não existe. */
 .recordCard.clickable:hover,
-.filaItem:hover,
-.protocolCard:hover,
-.templateCard:hover,
-.petitionCard:hover,
-.processCard:hover {
+.inboxItem.clickable:hover,
+.redactionCard.clickable:hover,
+.templateCard.clickable:hover,
+.securityCard.clickable:hover {
   transform: translateY(-1px);
   border-color: color-mix(in srgb, var(--line-strong) 76%, var(--accent));
   box-shadow: 0 16px 38px -28px var(--shadow);
+}
+
+/* Células unidas (grades coladas) respondem com fundo, não com elevação. */
+.deadlineAgendaItem:hover,
+.featureTile:hover {
+  background: var(--panel-soft);
 }
 .agentCycleStep:active,
 .deadlineAgendaItem:active,
@@ -5091,7 +5539,4 @@ textarea:focus {
 .cycleHealth.risk {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
     box-shadow 150ms ease;
-}
-.statusTab.active {
-  box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--accent) 62%, transparent);
 }
