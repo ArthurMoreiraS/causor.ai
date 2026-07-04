@@ -153,6 +153,13 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
 
   const filtersActive = Boolean(filters.tribunal || filters.sistema || filters.risco);
+  const classificacaoAbaixoLimiar = lastClassificacao
+    ? lastClassificacao.confianca < settings.confidenceThreshold
+    : false;
+  const confiancaClassificacaoPct = lastClassificacao
+    ? Math.round(lastClassificacao.confianca * 100)
+    : 0;
+  const limiarConfiancaPct = Math.round(settings.confidenceThreshold * 100);
 
   const calendarYears = useMemo(() => {
     const y = new Date().getFullYear();
@@ -879,27 +886,35 @@ export default function Home() {
         {lastClassificacao ? (
           <div
             className={
-              lastClassificacao.confianca < settings.confidenceThreshold
-                ? "notice"
-                : "notice success"
+              classificacaoAbaixoLimiar
+                ? "notice classificationNotice"
+                : "notice success classificationNotice"
             }
           >
-            {lastClassificacao.confianca < settings.confidenceThreshold ? (
-              <AlertTriangle size={18} />
-            ) : (
-              <Sparkles size={18} />
-            )}
-            <span>
-              Minuta classificada pela IA: <strong>{lastClassificacao.tipo}</strong> · confiança{" "}
-              {Math.round(lastClassificacao.confianca * 100)}%
-              {lastClassificacao.confianca < settings.confidenceThreshold
-                ? ` — abaixo do limiar (${Math.round(
-                    settings.confidenceThreshold * 100
-                  )}%), revise com atenção.`
-                : ""}
-            </span>
+            <div className="classificationNoticeIcon" aria-hidden="true">
+              {classificacaoAbaixoLimiar ? <AlertTriangle size={18} /> : <Sparkles size={18} />}
+            </div>
+            <div className="classificationNoticeBody">
+              <div className="classificationNoticeEyebrow">Classificação da IA</div>
+              <div className="classificationNoticeTitleRow">
+                <strong className="classificationNoticeTitle">{lastClassificacao.tipo}</strong>
+                <span className="classificationNoticeConfidence">
+                  confiança {confiancaClassificacaoPct}%
+                </span>
+              </div>
+              <p className="classificationNoticeText">
+                {classificacaoAbaixoLimiar ? (
+                  <>
+                    Abaixo do limiar operacional de <strong>{limiarConfiancaPct}%</strong>.
+                    Revise a peça com atenção antes de seguir para aprovação.
+                  </>
+                ) : (
+                  "Classificação dentro do limiar configurado, pronta para revisão final."
+                )}
+              </p>
+            </div>
             <button
-              className="dismiss-notice"
+              className="dismiss-notice classificationNoticeDismiss"
               onClick={() => setLastClassificacao(null)}
               aria-label="Fechar aviso de classificação"
             >

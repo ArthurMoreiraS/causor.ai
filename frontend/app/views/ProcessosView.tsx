@@ -1,6 +1,6 @@
 "use client";
 
-import { formatDate } from "@/lib/format";
+import { formatDate, sistemaBadge } from "@/lib/format";
 import type { ProcessoRow } from "@/lib/views";
 import { DeadlineBadge, Empty } from "../components/ui";
 
@@ -24,12 +24,15 @@ export default function ProcessosView({
               <strong className="mono">{processo.numero}</strong>
               <span>{processo.classe ?? "Classe não informada"}</span>
             </div>
-            <small>{processo.sistema ?? processo.tribunal ?? "-"}</small>
+            <small>{processo.tribunal ?? "-"}</small>
           </header>
           <div className="recordMeta">
             <span>{processo.orgao_julgador ?? "Órgão não informado"}</span>
             <span>{intimacoes.length} intimações</span>
             <span>{peticoes.length} minutas</span>
+            <span className={`pill ${sistemaBadge(processo.sistema).className}`}>
+              {sistemaBadge(processo.sistema).label}
+            </span>
           </div>
           <div className="recordFooter">
             <div>

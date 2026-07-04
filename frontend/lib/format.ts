@@ -21,6 +21,14 @@ export function statusLabel(status: Peticao["status"]) {
   return status;
 }
 
+export function sistemaBadge(sistema: string | null | undefined): { label: string; className: string } {
+  if (!sistema) return { label: "Sistema não identificado", className: "sistemaDesconhecido" };
+  if (sistema.trim().toLowerCase() === "pje") {
+    return { label: "PJe · protocolo automatizado", className: "sistemaPje" };
+  }
+  return { label: `${sistema} · protocolo manual`, className: "sistemaOutro" };
+}
+
 export function connectorStatusLabel(status: string) {
   if (status === "online") return "ativo";
   if (status === "pilot") return "piloto";

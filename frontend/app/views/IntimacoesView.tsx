@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, MessageCircle, Sparkles } from "lucide-react";
-import { formatDate, statusLabel } from "@/lib/format";
+import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
 import { DeadlineBadge, Empty } from "../components/ui";
@@ -37,6 +37,9 @@ export default function IntimacoesView({
             <p className="inboxTeor">{previewText(intimacao.teor ?? "") || "Teor não informado"}</p>
             <div className="inboxMeta">
               <span>{intimacao.tribunal ?? processo?.tribunal ?? "-"}</span>
+              <span className={`pill ${sistemaBadge(processo?.sistema).className}`}>
+                {sistemaBadge(processo?.sistema).label}
+              </span>
               <DeadlineBadge prazo={prazo} />
               <span className={`queueStatus ${peticao?.status ?? "capturada"}`}>
                 {peticao ? statusLabel(peticao.status) : "Sem minuta"}

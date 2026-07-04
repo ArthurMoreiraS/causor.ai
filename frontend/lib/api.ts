@@ -297,39 +297,41 @@ async function requestOptional<T>(path: string): Promise<T | undefined> {
   }
 }
 
-export async function loadDashboard(): Promise<DashboardData> {
+async function requestList<T>(path: string): Promise<{ data: T[]; failed: boolean }> {
   try {
-    const [intimacoes, processos, prazos, peticoes] = await Promise.all([
-      request<Intimacao[]>("/intimacoes"),
-      request<Processo[]>("/processos"),
-      request<Prazo[]>("/prazos"),
-      request<Peticao[]>("/peticoes")
-    ]);
-    const [operational, reviewQueue] = await Promise.all([
-      requestOptional<OperationalDashboard>("/dashboard/operational"),
-      requestOptional<ReviewQueueItem[]>("/review/queue")
-    ]);
-    // Backend reachable: reflect its real state (even when empty).
-    // Optional aggregate endpoints may be absent during local development; the
-    // UI can derive those surfaces from core data.
-    return {
-      intimacoes,
-      processos,
-      prazos,
-      peticoes,
-      operational,
-      reviewQueue
-    };
+    return { data: await request<T[]>(path), failed: false };
   } catch (err) {
-    console.warn(`Backend indisponível em ${API_BASE}`, err);
-    return {
-      intimacoes: [],
-      processos: [],
-      prazos: [],
-      peticoes: [],
-      backendOffline: true
-    };
+    console.warn(`Falha ao carregar ${path}`, err);
+    return { data: [], failed: true };
   }
+}
+
+export async function loadDashboard(): Promise<DashboardData> {
+  // Cada lista falha de forma independente: um 500/timeout isolado em UM
+  // endpoint nao deve zerar os outros tres (era o que Promise.all fazia antes
+  // - uma falha rejeitava tudo e a tela inteira parecia vazia).
+  const [intimacoes, processos, prazos, peticoes] = await Promise.all([
+    requestList<Intimacao>("/intimacoes"),
+    requestList<Processo>("/processos"),
+    requestList<Prazo>("/prazos"),
+    requestList<Peticao>("/peticoes")
+  ]);
+  const [operational, reviewQueue] = await Promise.all([
+    requestOptional<OperationalDashboard>("/dashboard/operational"),
+    requestOptional<ReviewQueueItem[]>("/review/queue")
+  ]);
+  // So sinaliza "backend indisponivel" quando as quatro listas nucleares
+  // falharam juntas -- sintoma real de backend fora do ar, nao um erro isolado.
+  const backendOffline = [intimacoes, processos, prazos, peticoes].every((r) => r.failed);
+  return {
+    intimacoes: intimacoes.data,
+    processos: processos.data,
+    prazos: prazos.data,
+    peticoes: peticoes.data,
+    operational,
+    reviewQueue,
+    backendOffline
+  };
 }
 
 export async function gerarMinuta(

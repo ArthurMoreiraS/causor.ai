@@ -2,7 +2,7 @@
 
 import { FilePenLine } from "lucide-react";
 import type { Peticao } from "@/lib/api";
-import { formatDate, statusLabel } from "@/lib/format";
+import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import type { PeticaoRow } from "@/lib/views";
 import { Empty } from "../components/ui";
 
@@ -47,6 +47,9 @@ export default function PeticoesView({
                 </div>
                 <div className="redactionTags">
                   <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
+                  <span className={`pill ${sistemaBadge(processo?.sistema).className}`}>
+                    {sistemaBadge(processo?.sistema).label}
+                  </span>
                 </div>
               </header>
               <p className="redactionPreview">{content}</p>
