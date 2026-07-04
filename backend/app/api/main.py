@@ -893,7 +893,6 @@ def create_app() -> FastAPI:
                 dias_default=payload.dias_default,
                 data_inicio=data_inicio,
                 data_fim=data_fim,
-                enrich=False,  # captura rapida; enriquecimento on-demand na minuta
             )
         except Exception as exc:
             session.rollback()

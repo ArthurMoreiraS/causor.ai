@@ -110,3 +110,39 @@ def test_consultar_processo_retries_read_timeout(httpx_mock):
     assert proc is not None
     assert proc.numero_processo == "00000010020248260100"
     assert len(httpx_mock.get_requests()) == 2
+
+
+@pytest.mark.parametrize("status_code", [429, 500, 502, 503, 504])
+def test_consultar_processo_retries_transient_status_codes(httpx_mock, status_code):
+    """DataJud aplica rate limit (429) e sobrecarrega (5xx) sob rajada de
+    consultas -- essas sao transientes e devem ser retentadas, nao so falhas
+    de conexao/timeout."""
+    client = DatajudClient(
+        api_key="test-key",
+        http=httpx.Client(base_url=BASE),
+        max_attempts=2,
+        backoff_seconds=0,
+    )
+    httpx_mock.add_response(status_code=status_code)
+    httpx_mock.add_response(json=SAMPLE)
+
+    proc = client.consultar_processo("00000010020248260100", tribunal="tjsp")
+
+    assert proc is not None
+    assert len(httpx_mock.get_requests()) == 2
+
+
+def test_consultar_processo_gives_up_after_max_retries_on_429(httpx_mock):
+    client = DatajudClient(
+        api_key="test-key",
+        http=httpx.Client(base_url=BASE),
+        max_attempts=2,
+        backoff_seconds=0,
+    )
+    httpx_mock.add_response(status_code=429)
+    httpx_mock.add_response(status_code=429)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        client.consultar_processo("00000010020248260100", tribunal="tjsp")
+
+    assert len(httpx_mock.get_requests()) == 2

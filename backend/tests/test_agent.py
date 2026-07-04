@@ -8,7 +8,7 @@ Provider-specific SDK wiring is tested in test_llm.py.
 """
 
 from app.agent.classifier import ClassificacaoIntimacao, classify_intimacao
-from app.agent.drafter import MinutaGerada, draft_peticao
+from app.agent.drafter import MinutaGerada, _MinutaRedigida, draft_peticao
 
 TEXTO = "Fica a parte ré intimada para apresentar contestação no prazo de 15 dias úteis."
 
@@ -21,8 +21,9 @@ _CLASSIF = ClassificacaoIntimacao(
     resumo="Réu intimado para contestar em 15 dias úteis.",
 )
 
-_MINUTA = MinutaGerada(
-    contexto_consolidado="Processo distribuído; réu ora intimado para contestar.",
+# O que o LLM realmente devolve — sem contexto_consolidado, que agora e montado
+# deterministicamente por codigo (ver test_agent.py::test_draft_* abaixo).
+_MINUTA_LLM = _MinutaRedigida(
     analise_providencia="Cabe apresentar contestação no prazo legal.",
     minuta="EXCELENTÍSSIMO... CONTESTAÇÃO ...",
     alertas=["falta qualificação completa do réu"],
@@ -97,7 +98,7 @@ def test_classify_coerces_zero_prazo_to_minimum():
 
 
 def test_draft_returns_structured_minuta():
-    provider = _FakeProvider(structured=_MINUTA)
+    provider = _FakeProvider(structured=_MINUTA_LLM)
 
     resultado = draft_peticao(
         intimacao_texto=TEXTO,
@@ -109,14 +110,79 @@ def test_draft_returns_structured_minuta():
     assert isinstance(resultado, MinutaGerada)
     assert "CONTESTAÇÃO" in resultado.minuta
     assert resultado.alertas == ["falta qualificação completa do réu"]
-    assert provider.structured_calls[0]["schema"] is MinutaGerada
+    assert provider.structured_calls[0]["schema"] is _MinutaRedigida
     assert _CLASSIF.peticao_sugerida in provider.structured_calls[0]["user"]
+
+
+def test_draft_consolidates_context_deterministically_not_via_llm():
+    """contexto_consolidado nunca deve vir do LLM — sempre montado por codigo a
+    partir de dados ja deterministicos (classificacao, metadados, historico).
+    Isso evita a alucinacao de nomes/autoridades observada em producao."""
+    provider = _FakeProvider(structured=_MINUTA_LLM)
+
+    resultado = draft_peticao(
+        intimacao_texto=TEXTO,
+        classificacao=_CLASSIF,
+        contexto_processo={"numero": "00000010020248260100", "classe": "Procedimento Comum"},
+        historico="Intimações anteriores:\n- 2026-05-06 · Comunicação: teor anterior",
+        prazo_fatal="2026-07-23",
+        provider=provider,
+    )
+
+    assert "Procedimento Comum" in resultado.contexto_consolidado
+    assert _CLASSIF.tipo in resultado.contexto_consolidado
+    assert "2026-07-23" in resultado.contexto_consolidado
+    assert "teor anterior" in resultado.contexto_consolidado
+    # o LLM (schema _MinutaRedigida) nunca teve esse campo para preencher
+    assert "contexto_consolidado" not in _MinutaRedigida.model_fields
+
+
+def test_draft_flags_authority_names_not_present_in_source():
+    """Se o LLM citar uma autoridade (ministro/juiz/relator) que nao aparece no
+    teor/historico injetado, isso deve virar um alerta automatico."""
+    redigida_com_invencao = _MinutaRedigida(
+        analise_providencia="O relator, Ministro Sérgio Kukina, já decidiu os embargos.",
+        minuta="EXCELENTÍSSIMO... CONTESTAÇÃO ...",
+        alertas=[],
+        confianca=0.6,
+    )
+    provider = _FakeProvider(structured=redigida_com_invencao)
+
+    resultado = draft_peticao(
+        intimacao_texto="RELATOR: MINISTRO PRESIDENTE DO STJ. Fica intimada a parte.",
+        classificacao=_CLASSIF,
+        contexto_processo={"numero": "0001"},
+        provider=provider,
+    )
+
+    assert any("Ministro Sérgio Kukina" in aviso for aviso in resultado.alertas)
+
+
+def test_draft_does_not_flag_authority_names_present_in_source():
+    """Nome de autoridade que aparece de fato no teor/historico nao deve gerar
+    alerta — o objetivo e pegar invencao, nao autoridade legitima."""
+    redigida_legitima = _MinutaRedigida(
+        analise_providencia="O relator, Ministro Sérgio Kukina, ainda não decidiu.",
+        minuta="EXCELENTÍSSIMO... CONTESTAÇÃO ...",
+        alertas=[],
+        confianca=0.8,
+    )
+    provider = _FakeProvider(structured=redigida_legitima)
+
+    resultado = draft_peticao(
+        intimacao_texto="RELATOR: MINISTRO SÉRGIO KUKINA. Fica intimada a parte.",
+        classificacao=_CLASSIF,
+        contexto_processo={"numero": "0001"},
+        provider=provider,
+    )
+
+    assert resultado.alertas == []
 
 
 def test_draft_injects_history_and_ready_deadline_without_recalculating():
     """The drafter must receive the history + the pre-computed deadline, and be told
     explicitly not to recompute it (deterministic-deadline rule)."""
-    provider = _FakeProvider(structured=_MINUTA)
+    provider = _FakeProvider(structured=_MINUTA_LLM)
 
     draft_peticao(
         intimacao_texto=TEXTO,
@@ -134,7 +200,7 @@ def test_draft_injects_history_and_ready_deadline_without_recalculating():
 
 
 def test_draft_without_history_still_drafts():
-    provider = _FakeProvider(structured=_MINUTA)
+    provider = _FakeProvider(structured=_MINUTA_LLM)
 
     resultado = draft_peticao(
         intimacao_texto=TEXTO,
@@ -149,7 +215,7 @@ def test_draft_without_history_still_drafts():
 
 def test_draft_never_leaks_secrets():
     """A draft prompt must never carry credentials/passwords (vault-only rule)."""
-    provider = _FakeProvider(structured=_MINUTA)
+    provider = _FakeProvider(structured=_MINUTA_LLM)
     contexto = {"numero": "0001", "senha_certificado": "NUNCA_ENVIAR", "pfx_password": "x"}
 
     draft_peticao(
@@ -199,7 +265,7 @@ def test_minuta_usa_sonnet_por_padrao(monkeypatch):
 
     class Provider:
         def complete_structured(self, *, system, user, schema, max_tokens=None):
-            return _MINUTA
+            return _MINUTA_LLM
 
     def fake_get_provider(*, model=None):
         seen["model"] = model
@@ -213,4 +279,4 @@ def test_minuta_usa_sonnet_por_padrao(monkeypatch):
         contexto_processo={},
     )
 
-    assert seen["model"] == "claude-sonnet-4-6"
+    assert seen["model"] == "claude-sonnet-5"

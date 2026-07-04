@@ -18,6 +18,8 @@ agentic chat loop stays on Claude.
 from __future__ import annotations
 
 import json
+import time
+from collections.abc import Callable
 from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ValidationError
@@ -50,17 +52,24 @@ class ClaudeProvider:
             self._client = anthropic.Anthropic()
         return self._client
 
+    def _thinking_kwargs(self) -> dict:
+        # Haiku models don't support adaptive thinking / effort (400
+        # invalid_request_error); Sonnet/Opus/Fable do. Classification runs on
+        # Haiku (cheap/fast), drafting on Sonnet, so this must be per-call.
+        if self._model.startswith("claude-haiku"):
+            return {}
+        return {"thinking": {"type": "adaptive"}, "output_config": {"effort": "high"}}
+
     def complete_structured(
         self, *, system: str, user: str, schema: type[BaseModel], max_tokens: int = 2000
     ) -> BaseModel:
         response = self._get_client().messages.parse(
             model=self._model,
             max_tokens=max_tokens,
-            thinking={"type": "adaptive"},
-            output_config={"effort": "high"},
             system=system,
             messages=[{"role": "user", "content": user}],
             output_format=schema,
+            **self._thinking_kwargs(),
         )
         return response.parsed_output
 
@@ -68,10 +77,9 @@ class ClaudeProvider:
         response = self._get_client().messages.create(
             model=self._model,
             max_tokens=max_tokens,
-            thinking={"type": "adaptive"},
-            output_config={"effort": "high"},
             system=system,
             messages=[{"role": "user", "content": user}],
+            **self._thinking_kwargs(),
         )
         return "".join(block.text for block in response.content if block.type == "text")
 
@@ -95,11 +103,19 @@ class OpenAICompatProvider:
         api_key: str | None = None,
         model: str | None = None,
         timeout: float | None = None,
+        max_attempts: int | None = None,
+        backoff_seconds: float | None = None,
+        sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
         self._base_url = (base_url or settings.llm_base_url or "").rstrip("/")
         self._api_key = api_key if api_key is not None else settings.llm_api_key
         self._model = model or settings.llm_model
         self._timeout = timeout or settings.http_timeout_seconds
+        self._max_attempts = max_attempts or settings.llm_retry_attempts
+        self._backoff_seconds = (
+            settings.llm_retry_backoff_seconds if backoff_seconds is None else backoff_seconds
+        )
+        self._sleeper = sleeper
         if not self._base_url:
             raise LLMProviderError(
                 "CAUSOR_LLM_BASE_URL nao configurado para openai_compat"
@@ -110,20 +126,44 @@ class OpenAICompatProvider:
             )
 
     def _post(self, body: dict) -> dict:
+        """POST com retry em falhas transientes (429 rate-limit e 5xx de
+        sobrecarga — comuns em tiers gratuitos como o Gemini free tier).
+        Backoff exponencial, mesma logica de ``DjenClient._get_with_retry``.
+        """
         import httpx
 
         headers = {"Content-Type": "application/json"}
         if self._api_key:
             headers["Authorization"] = f"Bearer {self._api_key}"
         url = f"{self._base_url}/chat/completions"
-        try:
-            resp = httpx.post(
-                url, headers=headers, json=body, timeout=self._timeout
-            )
-            resp.raise_for_status()
-        except httpx.HTTPError as exc:
-            raise LLMProviderError(f"falha HTTP no endpoint LLM: {exc}") from exc
-        return resp.json()
+
+        last_error: httpx.HTTPError | None = None
+        for attempt in range(1, self._max_attempts + 1):
+            try:
+                resp = httpx.post(url, headers=headers, json=body, timeout=self._timeout)
+            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+                last_error = exc
+                if attempt >= self._max_attempts:
+                    break
+                self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            if resp.status_code in {429, 500, 502, 503, 504}:
+                last_error = httpx.HTTPStatusError(
+                    f"Server error '{resp.status_code}'", request=resp.request, response=resp
+                )
+                if attempt >= self._max_attempts:
+                    break
+                self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPError as exc:
+                raise LLMProviderError(f"falha HTTP no endpoint LLM: {exc}") from exc
+            return resp.json()
+
+        raise LLMProviderError(f"falha HTTP no endpoint LLM: {last_error}")
 
     def _cap_tokens(self, requested: int) -> int:
         # Modelos gratuitos com contexto menor rejeitam 413 quando

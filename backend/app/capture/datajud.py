@@ -120,14 +120,34 @@ class DatajudClient:
         json: dict,
         headers: dict[str, str],
     ) -> httpx.Response:
+        """POST com retry em falhas transientes: timeout/erro de rede, e 429/5xx
+        (DataJud aplica rate limit e sobrecarrega em picos — sintoma comum ao
+        consultar muitos processos em sequencia). Outros 4xx nao sao
+        transientes e sobem imediatamente. Mesmo padrao de
+        ``DjenClient._get_with_retry``."""
         last_error: httpx.HTTPError | None = None
         for attempt in range(1, self._max_attempts + 1):
             try:
-                return self._http.post(path, json=json, headers=headers)
+                response = self._http.post(path, json=json, headers=headers)
             except (httpx.TimeoutException, httpx.NetworkError) as exc:
                 last_error = exc
                 if attempt >= self._max_attempts:
                     break
                 self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            if response.status_code in {429, 500, 502, 503, 504}:
+                last_error = httpx.HTTPStatusError(
+                    f"Server error '{response.status_code}'",
+                    request=response.request,
+                    response=response,
+                )
+                if attempt >= self._max_attempts:
+                    break
+                self._sleeper(self._backoff_seconds * (2 ** (attempt - 1)))
+                continue
+
+            return response
+
         assert last_error is not None
         raise last_error

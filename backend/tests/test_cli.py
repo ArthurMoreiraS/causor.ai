@@ -203,6 +203,86 @@ def test_cli_pje_capture_session_stores_vault_reference(db_session, monkeypatch)
     assert "secret-cookie" not in credencial.referencia_vault
 
 
+def test_cli_enrich_processos_backfills_only_unenriched(db_session, monkeypatch):
+    import app.cli as cli
+    from app.capture.datajud import ProcessoDTO
+    from app.sor import models
+
+    esc = models.Escritorio(nome="Escritório Teste")
+    db_session.add(esc)
+    db_session.flush()
+
+    # numero fica sempre na forma canonica (so digitos, ver canonical_numero)
+    sem_sistema = models.Processo(
+        escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP"
+    )
+    ja_enriquecido = models.Processo(
+        escritorio_id=esc.id,
+        numero="00000020020248260100",
+        tribunal="TJSP",
+        sistema="pje",
+    )
+    sem_tribunal = models.Processo(
+        escritorio_id=esc.id, numero="00000030020248260100", tribunal=None
+    )
+    db_session.add_all([sem_sistema, ja_enriquecido, sem_tribunal])
+    db_session.flush()
+
+    consultados: list[str] = []
+
+    class FakeDatajud:
+        def consultar_processo(self, numero_processo, *, tribunal):
+            consultados.append(numero_processo)
+            return ProcessoDTO(numero_processo=numero_processo, sistema="pje")
+
+    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(cli, "DatajudClient", lambda: FakeDatajud())
+
+    rc = cli.main(["enrich-processos"])
+
+    assert rc == 0
+    # so o processo sem sistema (e com tribunal) foi consultado no DataJud
+    assert consultados == ["00000010020248260100"]
+    db_session.refresh(sem_sistema)
+    assert sem_sistema.sistema == "pje"
+    db_session.refresh(ja_enriquecido)
+    assert ja_enriquecido.sistema == "pje"  # inalterado, ja tinha valor
+    db_session.refresh(sem_tribunal)
+    assert sem_tribunal.sistema is None  # pulado, sem tribunal pra consultar
+
+
+def test_cli_enrich_processos_tolerates_datajud_failure(db_session, monkeypatch):
+    import httpx
+
+    import app.cli as cli
+    from app.sor import models
+
+    esc = models.Escritorio(nome="Escritório Teste")
+    db_session.add(esc)
+    db_session.flush()
+    processo = models.Processo(
+        escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP"
+    )
+    db_session.add(processo)
+    db_session.flush()
+
+    class FailingDatajud:
+        def consultar_processo(self, numero_processo, *, tribunal):
+            request = httpx.Request("POST", "https://datajud.example")
+            raise httpx.ConnectError("offline", request=request)
+
+    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(cli, "DatajudClient", lambda: FailingDatajud())
+
+    rc = cli.main(["enrich-processos"])
+
+    assert rc == 0  # uma falha isolada nao derruba o comando
+    db_session.refresh(processo)
+    assert processo.sistema is None
+
+
 def test_parser_accepts_pje_simulator():
     parser = _build_parser()
     args = parser.parse_args(["pje-simulator", "--port", "8765"])

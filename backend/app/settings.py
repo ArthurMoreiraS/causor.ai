@@ -50,10 +50,10 @@ class Settings(BaseSettings):
 
     # Agente / LLM. O Causor usa Claude; modelos por tarefa mantem custo baixo:
     # Haiku for routine chat/classification; Sonnet for legal drafting quality.
-    claude_model: str = "claude-sonnet-4-6"
+    claude_model: str = "claude-sonnet-5"
     claude_chat_model: str = "claude-haiku-4-5"
     claude_classification_model: str = "claude-haiku-4-5"
-    claude_draft_model: str = "claude-sonnet-4-6"
+    claude_draft_model: str = "claude-sonnet-5"
 
     # Provedor de LLM para testes sem gastar creditos Claude. "claude" (default,
     # producao) usa o SDK Anthropic; "openai_compat" aponta para qualquer endpoint
@@ -69,6 +69,11 @@ class Settings(BaseSettings):
     # rejeitam 413 quando entrada + max_tokens ultrapassa o contexto. 4000 e
     # suficiente pra uma minuta de teste. 0 = respeita o valor pedido pelo caller.
     llm_max_tokens: int = 4000
+    # Retry em falhas transientes do endpoint openai_compat: 429 (rate limit) e
+    # 5xx de sobrecarga sao comuns em tiers gratuitos (ex.: Gemini free tier).
+    # Mesma semantica de capture_retry_attempts/backoff: backoff exponencial.
+    llm_retry_attempts: int = 3
+    llm_retry_backoff_seconds: float = 2.0
 
 # Capture scheduling
     capture_lookback_days: int = 3

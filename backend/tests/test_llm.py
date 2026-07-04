@@ -43,16 +43,28 @@ def _fake_anthropic_client_create(text: str) -> SimpleNamespace:
 def test_claude_complete_structured_uses_parse_with_thinking_and_effort():
     expected = _Schema(rotulo="Contestacao", confianca=0.9)
     client = _fake_anthropic_client_parse(expected)
-    provider = llm.ClaudeProvider(client=client, model="claude-haiku-4-5")
+    provider = llm.ClaudeProvider(client=client, model="claude-sonnet-4-6")
 
     result = provider.complete_structured(system="sys", user="classifique", schema=_Schema)
 
     assert result == expected
-    assert client._last["model"] == "claude-haiku-4-5"
+    assert client._last["model"] == "claude-sonnet-4-6"
     assert client._last["thinking"] == {"type": "adaptive"}
     assert client._last["output_config"] == {"effort": "high"}
     assert client._last["output_format"] is _Schema
     assert client._last["max_tokens"] == 2000  # default for classification
+
+
+def test_claude_complete_structured_omits_thinking_and_effort_on_haiku():
+    """Haiku 4.5 returns 400 invalid_request_error on thinking/effort; the
+    classification model (Haiku) must not send either param."""
+    client = _fake_anthropic_client_parse(_Schema(rotulo="x", confianca=0.5))
+    provider = llm.ClaudeProvider(client=client, model="claude-haiku-4-5")
+
+    provider.complete_structured(system="sys", user="classifique", schema=_Schema)
+
+    assert "thinking" not in client._last
+    assert "output_config" not in client._last
 
 
 def test_claude_complete_structured_forwards_max_tokens():
@@ -74,6 +86,16 @@ def test_claude_complete_text_returns_text():
     assert client._last["model"] == "claude-sonnet-4-6"
     assert client._last["max_tokens"] == 8000
     assert client._last["output_config"] == {"effort": "high"}
+
+
+def test_claude_complete_text_omits_thinking_and_effort_on_haiku():
+    client = _fake_anthropic_client_create("resposta")
+    provider = llm.ClaudeProvider(client=client, model="claude-haiku-4-5")
+
+    provider.complete_text(system="sys", user="pergunta", max_tokens=500)
+
+    assert "thinking" not in client._last
+    assert "output_config" not in client._last
 
 
 # --- OpenAICompatProvider (free/local testing path) ---
@@ -144,9 +166,12 @@ def test_openai_compat_caps_max_tokens_to_avoid_413(httpx_mock, monkeypatch):
 
 
 def test_openai_compat_raises_on_http_error(httpx_mock):
-    httpx_mock.add_response(status_code=500)
+    httpx_mock.add_response(status_code=400)
     provider = llm.OpenAICompatProvider(
-        base_url="https://api.groq.example/openai/v1", api_key="k", model="llama3"
+        base_url="https://api.groq.example/openai/v1",
+        api_key="k",
+        model="llama3",
+        sleeper=lambda _seconds: None,
     )
 
     try:
@@ -155,6 +180,52 @@ def test_openai_compat_raises_on_http_error(httpx_mock):
         assert "HTTP" in str(exc)
     else:
         raise AssertionError("esperava LLMProviderError em falha HTTP")
+
+    assert len(httpx_mock.get_requests()) == 1  # 400 nao e transiente, nao retenta
+
+
+def test_openai_compat_retries_on_429_then_succeeds(httpx_mock):
+    httpx_mock.add_response(status_code=429)
+    httpx_mock.add_response(json=_compat_response("minuta gerada"))
+    sleeps: list[float] = []
+    provider = llm.OpenAICompatProvider(
+        base_url="https://api.groq.example/openai/v1",
+        api_key="k",
+        model="llama3",
+        max_attempts=3,
+        backoff_seconds=1.0,
+        sleeper=sleeps.append,
+    )
+
+    out = provider.complete_text(system="s", user="u", max_tokens=100)
+
+    assert out == "minuta gerada"
+    assert len(httpx_mock.get_requests()) == 2
+    assert sleeps == [1.0]  # backoff apos a 1a tentativa (429), antes de retentar
+
+
+def test_openai_compat_gives_up_after_max_retries_on_429(httpx_mock):
+    for _ in range(3):
+        httpx_mock.add_response(status_code=429)
+    sleeps: list[float] = []
+    provider = llm.OpenAICompatProvider(
+        base_url="https://api.groq.example/openai/v1",
+        api_key="k",
+        model="llama3",
+        max_attempts=3,
+        backoff_seconds=1.0,
+        sleeper=sleeps.append,
+    )
+
+    try:
+        provider.complete_text(system="s", user="u", max_tokens=100)
+    except llm.LLMProviderError as exc:
+        assert "429" in str(exc)
+    else:
+        raise AssertionError("esperava LLMProviderError apos esgotar retries em 429")
+
+    assert len(httpx_mock.get_requests()) == 3
+    assert sleeps == [1.0, 2.0]  # backoff exponencial entre as 3 tentativas
 
 
 def test_get_provider_switches_to_openai_compat_when_configured(monkeypatch):
