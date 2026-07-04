@@ -239,7 +239,7 @@ def test_cli_enrich_processos_backfills_only_unenriched(db_session, monkeypatch)
     monkeypatch.setattr(db_session, "close", lambda: None)
     monkeypatch.setattr(cli, "DatajudClient", lambda: FakeDatajud())
 
-    rc = cli.main(["enrich-processos"])
+    rc = cli.main(["enrich-processos", "--delay-seconds", "0"])
 
     assert rc == 0
     # so o processo sem sistema (e com tribunal) foi consultado no DataJud
@@ -276,7 +276,7 @@ def test_cli_enrich_processos_tolerates_datajud_failure(db_session, monkeypatch)
     monkeypatch.setattr(db_session, "close", lambda: None)
     monkeypatch.setattr(cli, "DatajudClient", lambda: FailingDatajud())
 
-    rc = cli.main(["enrich-processos"])
+    rc = cli.main(["enrich-processos", "--delay-seconds", "0"])
 
     assert rc == 0  # uma falha isolada nao derruba o comando
     db_session.refresh(processo)

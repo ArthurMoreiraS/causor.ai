@@ -10,6 +10,7 @@ Wires the real DJEN/DataJud clients and a SOR session, then delegates to
 from __future__ import annotations
 
 import argparse
+import time
 from datetime import date
 
 import httpx
@@ -338,10 +339,12 @@ def main(argv: list[str] | None = None) -> int:
                 stmt = stmt.where(models.Processo.escritorio_id == args.escritorio)
             processos = session.scalars(stmt).all()
             print(f"{len(processos)} processo(s) sem sistema identificado.")
-            for processo in processos:
+            for i, processo in enumerate(processos):
                 if not processo.tribunal:
                     sem_tribunal += 1
                     continue
+                if i > 0 and args.delay_seconds:
+                    time.sleep(args.delay_seconds)
                 try:
                     dto = datajud.consultar_processo(processo.numero, tribunal=processo.tribunal)
                 except httpx.HTTPError as exc:
