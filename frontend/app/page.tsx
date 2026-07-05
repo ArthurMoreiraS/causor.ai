@@ -682,23 +682,26 @@ export default function Home() {
     <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}${view === "assistente" ? " assistantShell" : ""}`}>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brandWordmark" aria-label="Causor" title="Causor">
-            <Image
-              className="brandWordmarkDark"
-              src="/brand/icon+markdown_black.png"
-              alt=""
-              fill
-              sizes="280px"
-              priority
-            />
-            <Image
-              className="brandWordmarkLight"
-              src="/brand/icon+markdown_white.png"
-              alt=""
-              fill
-              sizes="280px"
-              priority
-            />
+          <span className="brandLockup" aria-label="Causor" title="Causor">
+            <span className="brandArt">
+              <Image
+                className="brandAssetDark"
+                src="/brand/causor-lockup-dark.png"
+                alt=""
+                fill
+                sizes="95px"
+                priority
+              />
+              <Image
+                className="brandAssetLight"
+                src="/brand/causor-lockup-light.png"
+                alt=""
+                fill
+                sizes="95px"
+                priority
+              />
+            </span>
+            <span className="brandTag">Piloto</span>
           </span>
           <button
             className="sidebarToggle"

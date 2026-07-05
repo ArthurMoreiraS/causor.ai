@@ -118,10 +118,10 @@
 [data-theme="dark"] .authButton:hover:not(:disabled) {
   background: color-mix(in srgb, var(--solid) 85%, var(--ink-soft));
 }
-[data-theme="dark"] .brandWordmarkDark {
+[data-theme="dark"] .brandAssetDark {
   display: none;
 }
-[data-theme="dark"] .brandWordmarkLight {
+[data-theme="dark"] .brandAssetLight {
   display: block;
 }
 
@@ -208,28 +208,47 @@ button:disabled {
   position: relative;
   align-items: center;
   justify-content: flex-start;
-  height: 76px;
+  /* Mesma altura do .appbar: a linha de baixo atravessa sidebar e topo. */
+  height: 48px;
   padding: 0 42px 0 18px;
   overflow: hidden;
   border-bottom: 1px solid var(--line);
 }
 
-.brandWordmark {
-  position: relative;
-  display: block;
-  width: 280px;
-  height: 140px;
-  overflow: hidden;
+/* Lockup compacto no padrão Handle: ícone + nome + selo de ambiente. */
+.brandLockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-.brandWordmark img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+/* 95x18 segue a proporção do lockup aparado (1975x375). */
+.brandArt {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: 95px;
+  height: 18px;
+}
+
+.brandArt img {
   object-fit: contain;
   object-position: left center;
+}
+
+.brandTag {
+  padding: 3px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--chip);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 8.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .sidebarToggle {
@@ -255,7 +274,7 @@ button:disabled {
   color: var(--ink);
 }
 
-.brandWordmarkLight {
+.brandAssetLight {
   display: none;
 }
 
@@ -364,7 +383,7 @@ button:disabled {
   padding: 0;
 }
 
-.sidebarCollapsed .brandWordmark {
+.sidebarCollapsed .brandLockup {
   opacity: 0;
   pointer-events: none;
   transform: scale(0.92);
@@ -1349,7 +1368,9 @@ h2 {
   font-size: 20px;
 }
 
-.compactConnectors {
+/* Composto com .connectorGrid para vencer a regra base de 4 colunas,
+   declarada mais adiante no arquivo (mesma especificidade, ordem decide). */
+.connectorGrid.compactConnectors {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1471,7 +1492,10 @@ h2 {
 }
 
 /* Badges de risco no formato da landing: mono, caixa alta, cantos 4px. */
-.dayBadge {
+/* `[class]` eleva a especificidade acima de seletores amplos como
+   `.inboxItem span` (display: block), a exemplo de `.pill[class]`;
+   sem isso o badge vira block e perde a centralização vertical. */
+.dayBadge[class] {
   justify-self: center;
   display: inline-flex;
   align-items: center;
@@ -1809,6 +1833,21 @@ h2 {
 
 .connector:last-child {
   border-right: 0;
+}
+
+/* No grid compacto (2 colunas), separadores seguem a grade:
+   vertical só entre colunas, horizontal entre linhas. */
+.connectorGrid.compactConnectors .connector {
+  border-bottom: 1px solid var(--line);
+}
+
+.connectorGrid.compactConnectors .connector:nth-child(2n),
+.connectorGrid.compactConnectors .connector:last-child {
+  border-right: 0;
+}
+
+.connectorGrid.compactConnectors .connector:nth-last-child(-n + 2) {
+  border-bottom: 0;
 }
 
 .connector strong,
@@ -2770,7 +2809,7 @@ h2 {
     display: inline;
   }
 
-  .shell.sidebarCollapsed .brandWordmark {
+  .shell.sidebarCollapsed .brandLockup {
     opacity: 1;
     transform: none;
     pointer-events: auto;
@@ -2892,7 +2931,7 @@ h2 {
   .gateLanes,
   .gateSummary,
   .featureTiles,
-  .compactConnectors {
+  .connectorGrid.compactConnectors {
     grid-template-columns: 1fr;
   }
 
@@ -3911,6 +3950,8 @@ h2 {
 
 .redactionCard header {
   display: flex;
+  /* Tags longas descem para a própria linha em vez de vazar do card. */
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
@@ -3931,6 +3972,16 @@ h2 {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
+  /* `basis: auto` mantém a decisão de quebra do header pelo tamanho real
+     das tags; com grow, os pills seguem alinhados à direita na própria linha. */
+  flex: 1 1 auto;
+}
+
+/* Última defesa: um rótulo maior que o card quebra em várias linhas
+   dentro do pill em vez de estourar a largura do card. */
+.redactionTags .pill {
+  white-space: normal;
+  text-align: center;
 }
 
 .redactionPreview {
@@ -4298,7 +4349,9 @@ h2 {
   font-size: 12.5px;
 }
 
-.radarItem span {
+/* :not(.dayBadge) — o badge precisa manter o inline-flex próprio;
+   como block, o texto perde a centralização vertical na pílula. */
+.radarItem span:not(.dayBadge) {
   display: block;
   color: var(--muted);
   font-size: 11px;
