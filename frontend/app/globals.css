@@ -1,4 +1,4 @@
-﻿/* Tokens espelhando a landing (causor-landing/index.html). */
+/* Tokens espelhando a landing (causor-landing/index.html). */
 :root {
   --bg: #ffffff;
   --panel: #ffffff;
@@ -15,23 +15,23 @@
   --accent-bg: #f5f5f5;
   --accent-border: #e0e0e0;
   --solid: #111111;
-  --warn: #b45309; /* Ã¢mbar â€” vence em â‰¤3 dias */
+  --warn: #b45309; /* âmbar — vence em ≤3 dias */
   --warn-bg: #fffbeb;
-  --risk: #fb2c36; /* vermelho â€” vencido/risco */
+  --risk: #fb2c36; /* vermelho — vencido/risco */
   --risk-bg: #fef2f2;
   --ok: #166534;
   --ok-bg: #f0fdf4;
   --success: #166534;
   --success-bg: #f0fdf4;
   --shadow: rgba(0, 0, 0, 0.06);
-  /* Escala de raio Handle: cantos retos â€” badges 4, controles 6, cards 8. */
+  /* Escala de raio Handle: cantos retos — badges 4, controles 6, cards 8. */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius-md: 8px;
   --radius-lg: 8px;
   --radius-xl: 10px;
   --radius-pill: 999px;
-  /* Sombras sÃ³ em overlays (modal/dropdown/toast); superfÃ­cies sÃ£o flat. */
+  /* Sombras só em overlays (modal/dropdown/toast); superfícies são flat. */
   --shadow-sm: none;
   --shadow-md: 0 8px 22px -16px rgb(0 0 0 / 18%);
   --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 16%);
@@ -44,7 +44,7 @@
 
 /* ===== Tema escuro (opt-in) =====
    Ativado apenas quando <html data-theme="dark">. O tema claro permanece o
-   padrÃ£o e nÃ£o Ã© afetado. Para validar:
+   padrão e não é afetado. Para validar:
    document.documentElement.dataset.theme = "dark"  // remover volta ao claro */
 [data-theme="dark"] {
   color-scheme: dark;
@@ -77,8 +77,8 @@
   --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 60%);
 }
 
-/* SuperfÃ­cies que usam cores literais (fora dos tokens) precisam de ajuste
-   explÃ­cito no escuro para manter contraste e intenÃ§Ã£o. */
+/* Superfícies que usam cores literais (fora dos tokens) precisam de ajuste
+   explícito no escuro para manter contraste e intenção. */
 [data-theme="dark"] .notice,
 [data-theme="dark"] .assistantError.wide {
   border-color: color-mix(in srgb, var(--risk) 38%, transparent);
@@ -159,7 +159,7 @@ button:disabled {
   opacity: 0.45;
 }
 
-/* NÃºmeros de processo, contadores e referÃªncias tÃ©cnicas (como na landing). */
+/* Números de processo, contadores e referências técnicas (como na landing). */
 .mono {
   font-family: var(--font-mono);
   font-size: 0.95em;
@@ -167,7 +167,7 @@ button:disabled {
   font-variant-numeric: tabular-nums;
 }
 
-/* DÃ­gitos de largura fixa em contadores e datas: valores nÃ£o "pulam" ao mudar. */
+/* Dígitos de largura fixa em contadores e datas: valores não "pulam" ao mudar. */
 .dayBadge,
 .queueStatus,
 .pill,
@@ -215,7 +215,7 @@ button:disabled {
   border-bottom: 1px solid var(--line);
 }
 
-/* Lockup compacto no padrÃ£o Handle: Ã­cone + nome + selo de ambiente. */
+/* Lockup compacto no padrão Handle: ícone + nome + selo de ambiente. */
 .brandLockup {
   display: inline-flex;
   align-items: center;
@@ -223,7 +223,7 @@ button:disabled {
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-/* 95x18 segue a proporÃ§Ã£o do lockup aparado (1975x375). */
+/* 95x18 segue a proporção do lockup aparado (1975x375). */
 .brandArt {
   position: relative;
   display: block;
@@ -240,7 +240,7 @@ button:disabled {
 .brandTag {
   padding: 3px 7px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   background: var(--chip);
   color: var(--muted);
   font-family: var(--font-mono);
@@ -357,7 +357,7 @@ button:disabled {
   background: var(--chip);
 }
 
-/* LocalizaÃ§Ã£o atual: barra de acento Ã  esquerda + peso maior. */
+/* Localização atual: barra de acento à esquerda + peso maior. */
 .sideNav a.active,
 .sideNav .navItem.active {
   box-shadow: inset 2px 0 0 var(--accent);
@@ -701,7 +701,7 @@ h2 {
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   border: 1px solid rgba(217, 107, 97, 0.14);
   background: rgba(255, 255, 255, 0.74);
   color: color-mix(in srgb, currentColor 80%, var(--ink));
@@ -731,7 +731,7 @@ h2 {
   align-self: center;
   width: 32px;
   height: 32px;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   border: 1px solid rgba(0, 0, 0, 0.06);
   background: rgba(255, 255, 255, 0.58);
   opacity: 0.82;
@@ -811,7 +811,7 @@ h2 {
   color: var(--accent);
 }
 
-/* Contagem da aba como badge â€” mais escaneÃ¡vel que parÃªnteses. */
+/* Contagem da aba como badge — mais escaneável que parênteses. */
 .tabCount {
   display: inline-flex;
   align-items: center;
@@ -1063,7 +1063,7 @@ h2 {
   letter-spacing: -0.02em;
 }
 
-/* Tom semÃ¢ntico opcional do indicador (ex.: % de prazos em dia). */
+/* Tom semântico opcional do indicador (ex.: % de prazos em dia). */
 .commandStat.ok strong {
   color: var(--ok);
 }
@@ -1105,14 +1105,12 @@ h2 {
   min-height: 26px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
+  border-radius: 7px;
   background: var(--panel-soft);
   color: var(--muted);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  font-family: var(--font-mono);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
 }
 
 .cycleHealth.ok {
@@ -1158,7 +1156,7 @@ h2 {
   background: var(--panel-soft);
 }
 
-/* Trilho de progresso na base de cada etapa: lÃª-se como um pipeline. */
+/* Trilho de progresso na base de cada etapa: lê-se como um pipeline. */
 .agentCycleStep::after {
   content: "";
   position: absolute;
@@ -1187,7 +1185,7 @@ h2 {
   color: var(--muted);
 }
 
-/* O estado vive no chip do Ã­cone; as cÃ©lulas ficam limpas. */
+/* O estado vive no chip do ícone; as células ficam limpas. */
 .agentCycleStep.complete .cycleIcon {
   border-color: color-mix(in srgb, var(--ok) 32%, var(--line));
   background: var(--ok-bg);
@@ -1495,27 +1493,28 @@ h2 {
 /* Badges de risco no formato da landing: mono, caixa alta, cantos 4px. */
 /* `[class]` eleva a especificidade acima de seletores amplos como
    `.inboxItem span` (display: block), a exemplo de `.pill[class]`;
-   sem isso o badge vira block e perde a centralizaÃ§Ã£o vertical. */
+   sem isso o badge vira block e perde a centralização vertical. */
 .dayBadge[class] {
   justify-self: center;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  min-height: 22px;
+  min-height: 24px;
   max-width: 100%;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-xs);
-  background: var(--chip);
+  padding: 0 9px;
+  border: 1px solid color-mix(in srgb, var(--muted) 16%, var(--line));
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--chip) 84%, var(--panel));
   color: var(--muted);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--panel) 72%, transparent);
   font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
   text-align: center;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   white-space: nowrap;
 }
 
@@ -1531,23 +1530,29 @@ h2 {
 
 .dayBadge.neutral {
   color: var(--muted);
-  background: var(--chip);
+  border-color: color-mix(in srgb, var(--muted) 18%, var(--line));
+  background: color-mix(in srgb, var(--chip) 86%, var(--panel));
 }
 
 .dayBadge.today {
   color: var(--warn);
-  background: var(--warn-bg);
+  border-color: color-mix(in srgb, var(--warn) 28%, var(--line));
+  background: color-mix(in srgb, var(--warn-bg) 84%, var(--panel));
 }
 
 .dayBadge.risk {
   color: var(--risk);
-  background: var(--risk-bg);
-  box-shadow: none;
+  border-color: color-mix(in srgb, var(--risk) 30%, var(--line));
+  background: color-mix(in srgb, var(--risk-bg) 86%, var(--panel));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--panel) 68%, transparent),
+    0 8px 20px -18px color-mix(in srgb, var(--risk) 58%, transparent);
 }
 
 .dayBadge.done {
   color: var(--ok);
-  background: var(--ok-bg);
+  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
+  background: color-mix(in srgb, var(--ok-bg) 86%, var(--panel));
 }
 
 .moduleGrid {
@@ -1609,7 +1614,7 @@ h2 {
 .recordCard header small {
   min-height: 22px;
   padding: 4px 8px;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   color: var(--accent);
   background: var(--accent-bg);
   font-size: 11px;
@@ -1753,7 +1758,7 @@ h2 {
   min-height: 24px;
   display: grid;
   place-items: center;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   background: var(--chip);
   color: var(--ink-soft);
   font-size: 11px;
@@ -1830,7 +1835,7 @@ h2 {
 }
 
 /* No grid compacto (2 colunas), separadores seguem a grade:
-   vertical sÃ³ entre colunas, horizontal entre linhas. */
+   vertical só entre colunas, horizontal entre linhas. */
 .connectorGrid.compactConnectors .connector {
   border-bottom: 1px solid var(--line);
 }
@@ -1858,7 +1863,7 @@ h2 {
 .connector small {
   min-height: 22px;
   padding: 4px 8px;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   color: var(--ink-soft);
   background: var(--chip);
   font-size: 11px;
@@ -1905,12 +1910,12 @@ h2 {
   justify-content: center;
   min-height: 24px;
   padding: 0 9px;
-  border-radius: var(--radius-xs);
+  border-radius: var(--radius-pill);
   font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: 600;
+  font-weight: 500;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
@@ -2323,7 +2328,7 @@ h2 {
 
 .assistantSessionStats span {
   border: 1px solid var(--line);
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   padding: 6px 10px;
   background: var(--panel);
   color: var(--muted);
@@ -2387,7 +2392,7 @@ h2 {
   justify-self: start;
   padding: 7px 10px;
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   background: var(--accent-bg);
   color: var(--accent);
   font-size: 12px;
@@ -2693,7 +2698,7 @@ h2 {
 @media (max-width: 1080px) {
   .shell,
   .shell.sidebarCollapsed {
-    /* minmax(0, â€¦) impede que a faixa de navegaÃ§Ã£o alargue o shell inteiro. */
+    /* minmax(0, …) impede que a faixa de navegação alargue o shell inteiro. */
     grid-template-columns: minmax(0, 1fr);
     height: auto;
     overflow: visible;
@@ -2711,8 +2716,8 @@ h2 {
     overflow: visible;
   }
 
-  /* Em telas estreitas o menu lateral vira uma faixa horizontal rolÃ¡vel â€”
-     a navegaÃ§Ã£o continua acessÃ­vel em vez de desaparecer. */
+  /* Em telas estreitas o menu lateral vira uma faixa horizontal rolável —
+     a navegação continua acessível em vez de desaparecer. */
   .sidebarToggle {
     display: none;
   }
@@ -2785,8 +2790,8 @@ h2 {
     max-width: 180px;
   }
 
-  /* Mesmo com a sidebar "colapsada" no desktop, a faixa horizontal mantÃ©m
-     rÃ³tulos e espaÃ§amentos visÃ­veis. */
+  /* Mesmo com a sidebar "colapsada" no desktop, a faixa horizontal mantém
+     rótulos e espaçamentos visíveis. */
   .shell.sidebarCollapsed .sideNav a,
   .shell.sidebarCollapsed .sideNav .navItem,
   .shell.sidebarCollapsed .sidebarFooter a,
@@ -3024,7 +3029,7 @@ h2 {
   flex-direction: column;
   gap: 12px;
 }
-/* O card recebe foco programÃ¡tico (role=dialog, tabindex=-1); o anel visÃ­vel
+/* O card recebe foco programático (role=dialog, tabindex=-1); o anel visível
    fica reservado aos controles internos. */
 .modalCard:focus {
   outline: none;
@@ -3267,7 +3272,7 @@ h2 {
   font-weight: 600;
 }
 
-/* ===== Fase A â€” ConfiguraÃ§Ãµes, filtros, ajuda, perfil ===== */
+/* ===== Fase A — Configurações, filtros, ajuda, perfil ===== */
 
 .sidebarFooter .profile {
   width: 100%;
@@ -3290,8 +3295,8 @@ h2 {
   gap: 18px;
 }
 
-/* Variante ampliada do modal de configuraÃ§Ãµes: mais largura e seÃ§Ãµes em
-   cartÃµes distribuÃ­dos em duas colunas para melhor uso do espaÃ§o. */
+/* Variante ampliada do modal de configurações: mais largura e seções em
+   cartões distribuídos em duas colunas para melhor uso do espaço. */
 .settingsCardWide {
   width: min(960px, 94vw);
 }
@@ -3315,7 +3320,7 @@ h2 {
   min-width: 0;
 }
 
-/* No modal ampliado cada grupo vira um cartÃ£o delimitado. */
+/* No modal ampliado cada grupo vira um cartão delimitado. */
 .settingsCardWide .settingsGroup {
   gap: 10px;
   padding: 16px;
@@ -3574,7 +3579,7 @@ h2 {
 }
 
 /* Dark-mode patches for status tints left as literals */
-/* ===== Fase B â€” drill-down, editor de minuta, redaÃ§Ã£o ===== */
+/* ===== Fase B — drill-down, editor de minuta, redação ===== */
 
 .clickable {
   cursor: pointer;
@@ -3942,7 +3947,7 @@ h2 {
 
 .redactionCard header {
   display: flex;
-  /* Tags longas descem para a prÃ³pria linha em vez de vazar do card. */
+  /* Tags longas descem para a própria linha em vez de vazar do card. */
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
@@ -3964,12 +3969,12 @@ h2 {
   gap: 6px;
   flex-wrap: wrap;
   justify-content: flex-end;
-  /* `basis: auto` mantÃ©m a decisÃ£o de quebra do header pelo tamanho real
-     das tags; com grow, os pills seguem alinhados Ã  direita na prÃ³pria linha. */
+  /* `basis: auto` mantém a decisão de quebra do header pelo tamanho real
+     das tags; com grow, os pills seguem alinhados à direita na própria linha. */
   flex: 1 1 auto;
 }
 
-/* Ãšltima defesa: um rÃ³tulo maior que o card quebra em vÃ¡rias linhas
+/* Última defesa: um rótulo maior que o card quebra em várias linhas
    dentro do pill em vez de estourar a largura do card. */
 .redactionTags .pill {
   white-space: normal;
@@ -4005,7 +4010,7 @@ h2 {
 }
 
 
-/* ===== Etapa 4 â€” Fila do dia, Radar de Prazo, Templates, Vault ===== */
+/* ===== Etapa 4 — Fila do dia, Radar de Prazo, Templates, Vault ===== */
 
 .filaSurface {
   display: grid;
@@ -4067,7 +4072,7 @@ h2 {
   box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ok) 55%, transparent);
 }
 
-/* Ã‚ncora de data fatal: dd/mm em destaque, ano abaixo, tom pelo risco. */
+/* Âncora de data fatal: dd/mm em destaque, ano abaixo, tom pelo risco. */
 .filaDate {
   display: grid;
   place-items: center;
@@ -4161,7 +4166,7 @@ h2 {
   min-width: 170px;
 }
 
-/* ---- PaginaÃ§Ã£o ---- */
+/* ---- Paginação ---- */
 .pagination {
   display: flex;
   align-items: center;
@@ -4283,7 +4288,7 @@ h2 {
   display: grid;
   place-items: center;
   padding: 0 4px;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   background: var(--risk);
   color: #fff;
   font-size: 9px;
@@ -4341,8 +4346,8 @@ h2 {
   font-size: 12.5px;
 }
 
-/* :not(.dayBadge) â€” o badge precisa manter o inline-flex prÃ³prio;
-   como block, o texto perde a centralizaÃ§Ã£o vertical na pÃ­lula. */
+/* :not(.dayBadge) — o badge precisa manter o inline-flex próprio;
+   como block, o texto perde a centralização vertical na pílula. */
 .radarItem span:not(.dayBadge) {
   display: block;
   color: var(--muted);
@@ -4615,7 +4620,7 @@ h2 {
   padding: 16px 28px 24px;
 }
 
-/* Alerta dentro da surface usa o gutter da prÃ³pria surface, nÃ£o a margem global. */
+/* Alerta dentro da surface usa o gutter da própria surface, não a margem global. */
 .protocolSurface .notice {
   margin-left: 0;
   margin-right: 0;
@@ -4686,7 +4691,7 @@ h2 {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  border-radius: var(--radius-xs);
+  border-radius: 999px;
   background: var(--chip);
   color: var(--ink-soft);
   font-family: var(--font-mono);
@@ -4940,7 +4945,7 @@ h2 {
 }
 
 /* --- Auth (login / set-password) --- */
-/* Login / set-password â€” espelha a identidade visual da landing. */
+/* Login / set-password — espelha a identidade visual da landing. */
 .authShell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -5043,8 +5048,8 @@ h2 {
   color: var(--risk);
 }
 
-/* Acessibilidade: respeita usuÃ¡rios que pedem menos movimento. Neutraliza o
-   spinner (.spin) e transiÃ§Ãµes, sem remover mudanÃ§as de estado essenciais. */
+/* Acessibilidade: respeita usuários que pedem menos movimento. Neutraliza o
+   spinner (.spin) e transições, sem remover mudanças de estado essenciais. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -5057,18 +5062,18 @@ h2 {
 }
 
 /* ============================================================
-   Motion, microinteraÃ§Ãµes e feedback visual (CSS, sem libs).
-   Tudo abaixo Ã© neutralizado pelo guard prefers-reduced-motion
+   Motion, microinterações e feedback visual (CSS, sem libs).
+   Tudo abaixo é neutralizado pelo guard prefers-reduced-motion
    acima (animation/transition !important), preservando a11y.
    ============================================================ */
 
-/* Foco visÃ­vel consistente para teclado (nÃ£o afeta clique de mouse). */
+/* Foco visível consistente para teclado (não afeta clique de mouse). */
 :where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent);
   outline-offset: 2px;
 }
 
-/* BotÃµes: transiÃ§Ã£o suave + hover + press. */
+/* Botões: transição suave + hover + press. */
 .toolbarButton,
 .iconButton {
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
@@ -5086,7 +5091,7 @@ h2 {
 .iconButton:active:not(:disabled) {
   transform: translateY(1px);
 }
-/* Preserva estados semÃ¢nticos no hover. */
+/* Preserva estados semânticos no hover. */
 .radarBell.hasUnread:hover:not(:disabled) {
   border-color: var(--risk);
   background: var(--risk-bg);
@@ -5108,7 +5113,7 @@ textarea:focus {
   border-color: color-mix(in srgb, var(--accent) 45%, var(--line-strong));
 }
 
-/* Cards clicÃ¡veis: leve elevaÃ§Ã£o no hover. */
+/* Cards clicáveis: leve elevação no hover. */
 .recordCard.clickable:hover,
 .inboxItem.clickable:hover,
 .redactionCard.clickable:hover,
@@ -5117,7 +5122,7 @@ textarea:focus {
   box-shadow: 0 8px 22px -16px var(--shadow);
 }
 
-/* Entrada de superfÃ­cie ao trocar de mÃ³dulo (montagem por view). */
+/* Entrada de superfície ao trocar de módulo (montagem por view). */
 .workSurface,
 .homeSurface,
 .onboardingSurface,
@@ -5408,7 +5413,7 @@ textarea:focus {
   }
 }
 
-/* ---- AplicaÃ§Ã£o visÃ­vel dos componentes reutilizÃ¡veis ---- */
+/* ---- Aplicação visível dos componentes reutilizáveis ---- */
 .searchSelectControl input {
   width: 100%;
   height: 30px;
@@ -5453,7 +5458,7 @@ textarea:focus {
   transform-origin: top left;
 }
 
-/* ---- Estados assÃ­ncronos e skeleton inicial ---- */
+/* ---- Estados assíncronos e skeleton inicial ---- */
 .authLoadingShell {
   align-items: center;
   justify-content: center;
@@ -5491,7 +5496,7 @@ textarea:focus {
   }
 }
 
-/* ---- MicrointeraÃ§Ãµes mais amplas ---- */
+/* ---- Microinterações mais amplas ---- */
 .toolbarButton:disabled,
 .iconButton:disabled,
 .searchSelectControl:has(input:disabled) {
@@ -5516,8 +5521,8 @@ textarea:focus {
   transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease,
     transform 150ms ease;
 }
-/* ElevaÃ§Ã£o de hover apenas em cartÃµes independentes e clicÃ¡veis â€” cartÃµes
-   informativos (fila, protocolos) nÃ£o devem sugerir clique que nÃ£o existe. */
+/* Elevação de hover apenas em cartões independentes e clicáveis — cartões
+   informativos (fila, protocolos) não devem sugerir clique que não existe. */
 .recordCard.clickable:hover,
 .inboxItem.clickable:hover,
 .redactionCard.clickable:hover,
@@ -5528,7 +5533,7 @@ textarea:focus {
   box-shadow: 0 16px 38px -28px var(--shadow);
 }
 
-/* CÃ©lulas unidas (grades coladas) respondem com fundo, nÃ£o com elevaÃ§Ã£o. */
+/* Células unidas (grades coladas) respondem com fundo, não com elevação. */
 .deadlineAgendaItem:hover,
 .featureTile:hover {
   background: var(--panel-soft);
@@ -5585,17 +5590,3 @@ textarea:focus {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
     box-shadow 150ms ease;
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
