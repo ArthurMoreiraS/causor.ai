@@ -62,14 +62,18 @@ export default function AuditPanel({ offline }: { offline: boolean }) {
     <section className="panel">
       <header>
         <h2>
-          <Table2 size={15} /> Auditoria
+          <Table2 size={13} /> Auditoria
         </h2>
         <span>trilha imutável</span>
       </header>
       {error ? <div className="assistantError">{error}</div> : null}
       <div className="auditList">
+        <div className="dataHead auditHead" aria-hidden="true">
+          <span>Ação</span>
+          <span>Ator / entidade</span>
+        </div>
         {logs.map((log) => (
-          <article className="auditLogRow" key={log.id}>
+          <article className="dataRow auditRow" key={log.id}>
             <strong>{log.acao}</strong>
             <span>
               {auditActorLabel(log.ator, userNames)} · {log.entidade ?? "-"}

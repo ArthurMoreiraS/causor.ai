@@ -109,9 +109,6 @@
 [data-theme="dark"] .assistantError {
   color: var(--risk);
 }
-[data-theme="dark"] .auditLogRow {
-  border-bottom-color: var(--line);
-}
 [data-theme="dark"] .authButton {
   color: var(--panel);
 }
@@ -2679,19 +2676,22 @@ h2 {
     border-radius: 18px;
   }
 }
-.auditLogRow {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--line);
+.auditHead,
+.auditRow {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
 }
-.auditLogRow strong {
-  font-size: 13px;
+
+.auditRow {
+  min-height: 44px;
 }
-.auditLogRow span {
-  font-size: 12px;
+
+.auditRow strong {
+  font-size: 12.5px;
+}
+
+.auditRow span {
   color: var(--muted);
+  font-size: 12px;
 }
 
 @media (max-width: 1080px) {
@@ -4511,8 +4511,12 @@ h2 {
 }
 
 .protocolHead strong {
-  font-family: var(--font-title);
-  font-size: 15px;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .protocolHint {
@@ -4535,8 +4539,8 @@ h2 {
   gap: 10px;
   padding: 14px 16px;
   border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel-soft);
+  border-radius: var(--radius-md);
+  background: var(--panel);
 }
 
 .protocolCard.failed {
@@ -4607,7 +4611,8 @@ h2 {
   font-size: 10.5px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono);
+  letter-spacing: 0.08em;
 }
 
 .protocolMeta dd {
