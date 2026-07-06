@@ -832,7 +832,7 @@ export default function Home() {
               refreshKey={refreshTick}
               onGoToPrazos={() => setView("prazos")}
             />
-            <button className="toolbarButton" onClick={openOab} disabled={offline}>
+            <button className="toolbarButton primary" onClick={openOab} disabled={offline}>
               <Search size={15} />
               Captura por OAB
             </button>

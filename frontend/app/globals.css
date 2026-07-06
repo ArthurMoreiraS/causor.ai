@@ -199,7 +199,7 @@ button:disabled {
   height: 100vh;
   height: 100dvh;
   border-right: 1px solid var(--line);
-  background: var(--panel-soft);
+  background: var(--sidebar);
   transition: width 180ms ease;
 }
 
@@ -297,11 +297,11 @@ button:disabled {
   padding: 0 6px;
   border: 0;
   background: transparent;
-  color: var(--muted);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: inherit;
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
 }
@@ -357,21 +357,14 @@ button:disabled {
   background: var(--chip);
 }
 
-/* Localização atual: barra de acento à esquerda + peso maior. */
 .sideNav a.active,
 .sideNav .navItem.active {
-  box-shadow: inset 2px 0 0 var(--accent);
   font-weight: 600;
-}
-
-.sideNav a.active svg,
-.sideNav .navItem.active svg {
-  color: var(--accent);
 }
 
 .sidebarCollapsed .sideNav a.active,
 .sidebarCollapsed .sideNav .navItem.active {
-  box-shadow: inset 0 0 0 1px var(--accent-border);
+  box-shadow: none;
 }
 
 .sidebarFooter {
