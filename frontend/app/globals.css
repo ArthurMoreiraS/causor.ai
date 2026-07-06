@@ -223,13 +223,13 @@ button:disabled {
   transition: opacity 160ms ease, transform 160ms ease;
 }
 
-/* 95x18 segue a proporção do lockup aparado (1975x375). */
+/* 79x15 segue a proporção do lockup aparado (1975x375). */
 .brandArt {
   position: relative;
   display: block;
   flex: 0 0 auto;
-  width: 95px;
-  height: 18px;
+  width: 79px;
+  height: 15px;
 }
 
 .brandArt img {
@@ -1014,7 +1014,6 @@ h2 {
 }
 
 .recordCard,
-.inboxItem,
 .deadlineCard,
 .petitionCard {
   border: 1px solid var(--line);
@@ -1270,7 +1269,6 @@ h2 {
 .priorityList,
 .deadlineAgenda,
 .moduleGrid,
-.inboxList,
 .deadlineBoard,
 .petitionBoard,
 .featureTiles {
@@ -1513,7 +1511,7 @@ h2 {
 
 /* Badges de risco no formato da landing: mono, caixa alta, cantos 4px. */
 /* `[class]` eleva a especificidade acima de seletores amplos como
-   `.inboxItem span` (display: block), a exemplo de `.pill[class]`;
+   `.dataRowMain span` (display: block), a exemplo de `.pill[class]`;
    sem isso o badge vira block e perde a centralização vertical. */
 .dayBadge[class] {
   justify-self: center;
@@ -1582,7 +1580,6 @@ h2 {
 
 .recordCard header,
 .recordFooter,
-.inboxItem header,
 .deadlineMain header,
 .petitionCard header,
 .petitionMeta {
@@ -1595,8 +1592,6 @@ h2 {
 .recordCard strong,
 .recordCard span,
 .recordCard small,
-.inboxItem strong,
-.inboxItem span,
 .deadlineCard strong,
 .deadlineCard span,
 .petitionCard strong,
@@ -1605,7 +1600,6 @@ h2 {
 }
 
 .recordCard header strong,
-.inboxItem header strong,
 .deadlineMain header strong,
 .petitionCard header strong {
   color: var(--ink);
@@ -1615,8 +1609,6 @@ h2 {
 .recordCard header span,
 .recordMeta,
 .recordFooter span,
-.inboxItem header span,
-.inboxMeta,
 .deadlineMain p,
 .petitionMeta,
 .petitionCard p {
@@ -1660,44 +1652,36 @@ h2 {
   background: var(--accent);
 }
 
-.inboxList {
-  gap: 10px;
+.inboxTable .dataHead,
+.inboxTable .dataRow {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 92px 96px 130px auto;
 }
 
-.inboxItem {
-  display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
-  align-items: start;
-  gap: 12px;
-  padding: 14px;
+.dataRow > .pill,
+.dataRow > .queueStatus,
+.dataRow > .dayBadge {
+  justify-self: start;
 }
 
-.inboxMarker {
-  width: 30px;
-  height: 30px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  color: var(--accent);
-  background: var(--accent-bg);
-}
+@media (max-width: 1080px) {
+  .inboxTable .dataHead {
+    display: none;
+  }
 
-.inboxContent {
-  min-width: 0;
-}
+  .inboxTable .dataRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 
-.inboxContent p {
-  margin: 9px 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-  line-height: 1.42;
-}
+  .inboxTable .dataRow > .pill,
+  .inboxTable .dataRow > .queueStatus,
+  .inboxTable .dataRow > .dayBadge {
+    grid-column: 1;
+  }
 
-.inboxMeta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  .inboxTable .dataRowEnd {
+    grid-column: 2;
+    grid-row: 1;
+  }
 }
 
 .deadlineBoard {
@@ -3032,7 +3016,6 @@ h2 {
 
   .petitionHead,
   .petitionActions,
-  .inboxItem,
   .deadlineCard,
   .recordFooter,
   .petitionMeta {
@@ -3044,7 +3027,6 @@ h2 {
     justify-content: flex-start;
   }
 
-  .inboxItem,
   .deadlineCard {
     grid-template-columns: 1fr;
   }
@@ -3637,7 +3619,6 @@ h2 {
 }
 
 .recordCard.clickable:hover,
-.inboxItem.clickable:hover,
 .redactionCard.clickable:hover {
   border-color: var(--line-strong);
   background: var(--panel-soft);
@@ -3825,20 +3806,6 @@ h2 {
   border-left: 3px solid var(--line-strong);
   background: var(--panel);
   color: var(--muted);
-}
-
-/* Card da lista: teor truncado em 2 linhas */
-.inboxTeor {
-  margin: 4px 0 0;
-  color: var(--ink-soft);
-  font-size: 12.5px;
-  line-height: 1.45;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .detailActions {
@@ -5139,7 +5106,6 @@ textarea:focus {
 
 /* Cards clicáveis: leve elevação no hover. */
 .recordCard.clickable:hover,
-.inboxItem.clickable:hover,
 .redactionCard.clickable:hover,
 .securityCard.clickable:hover,
 .detailRow.clickable:hover {
@@ -5155,7 +5121,6 @@ textarea:focus {
 .protocolSurface,
 .connectorsSurface,
 .moduleGrid,
-.inboxList,
 .deadlineBoard,
 .petitionBoard,
 .gateView {
@@ -5547,7 +5512,6 @@ textarea:focus {
 /* Elevação de hover apenas em cartões independentes e clicáveis — cartões
    informativos (fila, protocolos) não devem sugerir clique que não existe. */
 .recordCard.clickable:hover,
-.inboxItem.clickable:hover,
 .redactionCard.clickable:hover,
 .templateCard.clickable:hover,
 .securityCard.clickable:hover {

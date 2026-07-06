@@ -1,6 +1,6 @@
 "use client";
 
-import { Inbox, Loader2, Sparkles } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
 import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
@@ -20,43 +20,58 @@ export default function IntimacoesView({
   onGenerateDraft: (intimacaoId: number) => void;
 }) {
   return (
-    <section className="inboxList">
+    <section className="dataTable inboxTable">
+      <div className="dataHead" aria-hidden="true">
+        <span>Intimação</span>
+        <span>Processo</span>
+        <span>Sistema</span>
+        <span>Prazo</span>
+        <span>Minuta</span>
+        <span className="dataRowEnd">Ação</span>
+      </div>
       {rows.map(({ intimacao, processo, prazo, peticao }) => (
-        <article className="inboxItem clickable" key={intimacao.id} onClick={() => onOpen(intimacao.id)}>
-          <div className="inboxMarker">
-            <Inbox size={15} />
+        <article
+          className="dataRow clickable"
+          key={intimacao.id}
+          onClick={() => onOpen(intimacao.id)}
+        >
+          <div className="dataRowMain">
+            <strong>{intimacao.tipo_comunicacao ?? "Comunicação judicial"}</strong>
+            <span>{previewText(intimacao.teor ?? "") || "Teor não informado"}</span>
           </div>
-          <div className="inboxContent">
-            <header>
-              <div>
-                <strong>{intimacao.tipo_comunicacao ?? "Comunicação judicial"}</strong>
-                <span className="mono">{intimacao.numero_processo ?? processo?.numero ?? "Processo não identificado"}</span>
-              </div>
-              <small>{formatDate(intimacao.data_publicacao ?? intimacao.data_disponibilizacao)}</small>
-            </header>
-            <p className="inboxTeor">{previewText(intimacao.teor ?? "") || "Teor não informado"}</p>
-            <div className="inboxMeta">
-              <span>{intimacao.tribunal ?? processo?.tribunal ?? "-"}</span>
-              <span className={`pill ${sistemaBadge(processo?.sistema).className}`}>
-                {sistemaBadge(processo?.sistema).label}
-              </span>
-              <DeadlineBadge prazo={prazo} />
-              <span className={`queueStatus ${peticao?.status ?? "capturada"}`}>
-                {peticao ? statusLabel(peticao.status) : "Sem minuta"}
-              </span>
-            </div>
+          <div className="dataRowMain">
+            <strong className="mono">
+              {intimacao.numero_processo ?? processo?.numero ?? "Não identificado"}
+            </strong>
+            <span>
+              {intimacao.tribunal ?? processo?.tribunal ?? "-"} ·{" "}
+              {formatDate(intimacao.data_publicacao ?? intimacao.data_disponibilizacao)}
+            </span>
           </div>
-          <button
-            className="toolbarButton"
-            disabled={busy === `draft-${intimacao.id}` || offline}
-            onClick={(e) => {
-              e.stopPropagation();
-              onGenerateDraft(intimacao.id);
-            }}
-          >
-            {busy === `draft-${intimacao.id}` ? <Loader2 className="spin" size={15} /> : <Sparkles size={15} />}
-            Minutar
-          </button>
+          <span className={`pill ${sistemaBadge(processo?.sistema).className}`}>
+            {sistemaBadge(processo?.sistema).label}
+          </span>
+          <DeadlineBadge prazo={prazo} />
+          <span className={`queueStatus ${peticao?.status ?? "capturada"}`}>
+            {peticao ? statusLabel(peticao.status) : "Sem minuta"}
+          </span>
+          <div className="dataRowEnd">
+            <button
+              className="toolbarButton compact"
+              disabled={busy === `draft-${intimacao.id}` || offline}
+              onClick={(e) => {
+                e.stopPropagation();
+                onGenerateDraft(intimacao.id);
+              }}
+            >
+              {busy === `draft-${intimacao.id}` ? (
+                <Loader2 className="spin" size={15} />
+              ) : (
+                <Sparkles size={15} />
+              )}
+              Minutar
+            </button>
+          </div>
         </article>
       ))}
       {!rows.length ? <Empty label="Nenhuma intimação encontrada" /> : null}
