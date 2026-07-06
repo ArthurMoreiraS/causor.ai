@@ -1013,7 +1013,6 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
-.recordCard,
 .deadlineCard,
 .petitionCard {
   border: 1px solid var(--line);
@@ -1567,19 +1566,34 @@ h2 {
   background: var(--ok-bg);
 }
 
-.moduleGrid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+.processTable .dataHead,
+.processTable .dataRow {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 92px 84px 72px minmax(180px, auto);
 }
 
-.recordCard {
-  display: grid;
-  gap: 14px;
-  padding: 16px;
+.cellCount {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
 }
 
-.recordCard header,
-.recordFooter,
+.cellDate {
+  color: var(--ink-soft);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 1080px) {
+  .processTable .dataHead {
+    display: none;
+  }
+
+  .processTable .dataRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
 .deadlineMain header,
 .petitionCard header,
 .petitionMeta {
@@ -1589,9 +1603,6 @@ h2 {
   gap: 12px;
 }
 
-.recordCard strong,
-.recordCard span,
-.recordCard small,
 .deadlineCard strong,
 .deadlineCard span,
 .petitionCard strong,
@@ -1599,57 +1610,18 @@ h2 {
   display: block;
 }
 
-.recordCard header strong,
 .deadlineMain header strong,
 .petitionCard header strong {
   color: var(--ink);
   font-size: 13px;
 }
 
-.recordCard header span,
-.recordMeta,
-.recordFooter span,
 .deadlineMain p,
 .petitionMeta,
 .petitionCard p {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.4;
-}
-
-.recordCard header small {
-  min-height: 22px;
-  padding: 4px 8px;
-  border-radius: 999px;
-  color: var(--accent);
-  background: var(--accent-bg);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.recordMeta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 14px;
-}
-
-.recordFooter strong {
-  margin-top: 4px;
-  font-size: 20px;
-}
-
-.recordProgress {
-  height: 6px;
-  overflow: hidden;
-  border-radius: var(--radius-pill);
-  background: var(--chip);
-}
-
-.recordProgress span {
-  display: block;
-  height: 100%;
-  min-width: 8px;
-  background: var(--accent);
 }
 
 .inboxTable .dataHead,
@@ -3618,7 +3590,6 @@ h2 {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-.recordCard.clickable:hover,
 .redactionCard.clickable:hover {
   border-color: var(--line-strong);
   background: var(--panel-soft);
@@ -5105,7 +5076,6 @@ textarea:focus {
 }
 
 /* Cards clicáveis: leve elevação no hover. */
-.recordCard.clickable:hover,
 .redactionCard.clickable:hover,
 .securityCard.clickable:hover,
 .detailRow.clickable:hover {
@@ -5497,7 +5467,6 @@ textarea:focus {
 .deadlineAgendaItem,
 .featureTile,
 .connector,
-.recordCard,
 .dataRow,
 .protocolCard,
 .vaultCredential,
@@ -5511,7 +5480,6 @@ textarea:focus {
 }
 /* Elevação de hover apenas em cartões independentes e clicáveis — cartões
    informativos (fila, protocolos) não devem sugerir clique que não existe. */
-.recordCard.clickable:hover,
 .redactionCard.clickable:hover,
 .templateCard.clickable:hover,
 .securityCard.clickable:hover {
@@ -5527,8 +5495,7 @@ textarea:focus {
 }
 .agentCycleStep:active,
 .deadlineAgendaItem:active,
-.featureTile:active,
-.recordCard.clickable:active {
+.featureTile:active {
   transform: translateY(0);
 }
 .agentCycleStep,

@@ -12,37 +12,39 @@ export default function ProcessosView({
   onOpen: (id: number) => void;
 }) {
   return (
-    <section className="moduleGrid">
-      {rows.map(({ processo, prazos, intimacoes, peticoes, proximoPrazo }) => (
+    <section className="dataTable processTable">
+      <div className="dataHead" aria-hidden="true">
+        <span>Processo</span>
+        <span>Órgão julgador</span>
+        <span>Sistema</span>
+        <span>Intimações</span>
+        <span>Minutas</span>
+        <span>Próximo prazo</span>
+      </div>
+      {rows.map(({ processo, intimacoes, peticoes, proximoPrazo }) => (
         <article
-          className="recordCard clickable"
+          className="dataRow clickable"
           key={processo.id}
           onClick={() => onOpen(processo.id)}
         >
-          <header>
-            <div>
-              <strong className="mono">{processo.numero}</strong>
-              <span>{processo.classe ?? "Classe não informada"}</span>
-            </div>
-            <small>{processo.tribunal ?? "-"}</small>
-          </header>
-          <div className="recordMeta">
+          <div className="dataRowMain">
+            <strong className="mono">{processo.numero}</strong>
+            <span>{processo.classe ?? "Classe não informada"}</span>
+          </div>
+          <div className="dataRowMain">
+            <strong>{processo.tribunal ?? "-"}</strong>
             <span>{processo.orgao_julgador ?? "Órgão não informado"}</span>
-            <span>{intimacoes.length} intimações</span>
-            <span>{peticoes.length} minutas</span>
-            <span className={`pill ${sistemaBadge(processo.sistema).className}`}>
-              {sistemaBadge(processo.sistema).label}
+          </div>
+          <span className={`pill ${sistemaBadge(processo.sistema).className}`}>
+            {sistemaBadge(processo.sistema).label}
+          </span>
+          <span className="cellCount">{intimacoes.length}</span>
+          <span className="cellCount">{peticoes.length}</span>
+          <div className="dataRowEnd">
+            <span className="cellDate">
+              {proximoPrazo ? formatDate(proximoPrazo.data_fatal) : "—"}
             </span>
-          </div>
-          <div className="recordFooter">
-            <div>
-              <span>Próximo prazo</span>
-              <strong>{proximoPrazo ? formatDate(proximoPrazo.data_fatal) : "-"}</strong>
-            </div>
             <DeadlineBadge prazo={proximoPrazo} />
-          </div>
-          <div className="recordProgress">
-            <span style={{ width: `${Math.min(100, prazos.length * 28 + peticoes.length * 18)}%` }} />
           </div>
         </article>
       ))}
