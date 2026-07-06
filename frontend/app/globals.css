@@ -3587,11 +3587,6 @@ h2 {
   transition: border-color 0.12s ease, background 0.12s ease;
 }
 
-.redactionCard.clickable:hover {
-  border-color: var(--line-strong);
-  background: var(--panel-soft);
-}
-
 .drawerOverlay {
   position: fixed;
   inset: 0;
@@ -3884,26 +3879,6 @@ h2 {
   gap: 14px;
 }
 
-.redactionIntro {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel-soft);
-}
-
-.redactionIntro strong {
-  display: block;
-  font-size: 13px;
-}
-
-.redactionIntro span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
 .linkButton {
   border: 0;
   background: none;
@@ -3914,76 +3889,19 @@ h2 {
   text-decoration: underline;
 }
 
-.redactionList {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: 12px;
+.redactionTable .dataHead,
+.redactionTable .dataRow {
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 110px 92px 92px auto;
 }
 
-.redactionCard {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
-}
+@media (max-width: 1080px) {
+  .redactionTable .dataHead {
+    display: none;
+  }
 
-.redactionCard header {
-  display: flex;
-  /* Tags longas descem para a própria linha em vez de vazar do card. */
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.redactionCard header strong {
-  display: block;
-  font-size: 14px;
-}
-
-.redactionCard header span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.redactionTags {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  /* `basis: auto` mantém a decisão de quebra do header pelo tamanho real
-     das tags; com grow, os pills seguem alinhados à direita na própria linha. */
-  flex: 1 1 auto;
-}
-
-/* Última defesa: um rótulo maior que o card quebra em várias linhas
-   dentro do pill em vez de estourar a largura do card. */
-.redactionTags .pill {
-  white-space: normal;
-  text-align: center;
-}
-
-.redactionPreview {
-  margin: 0;
-  color: var(--ink-soft);
-  font-size: 13px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 4;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.redactionFoot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  color: var(--muted);
-  font-size: 12px;
+  .redactionTable .dataRow {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
 }
 
 .redactionOpen {
@@ -5073,7 +4991,6 @@ textarea:focus {
 }
 
 /* Cards clicáveis: leve elevação no hover. */
-.redactionCard.clickable:hover,
 .securityCard.clickable:hover,
 .detailRow.clickable:hover {
   box-shadow: 0 8px 22px -16px var(--shadow);
@@ -5476,7 +5393,6 @@ textarea:focus {
 }
 /* Elevação de hover apenas em cartões independentes e clicáveis — cartões
    informativos (fila, protocolos) não devem sugerir clique que não existe. */
-.redactionCard.clickable:hover,
 .templateCard.clickable:hover,
 .securityCard.clickable:hover {
   transform: translateY(-1px);
