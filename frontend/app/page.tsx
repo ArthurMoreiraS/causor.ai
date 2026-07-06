@@ -663,6 +663,17 @@ export default function Home() {
   const userInitials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "CS";
   const isPilotAccount = userEmail === "causorai@gmail.com";
 
+  // Primeiro nome para a saudação da home (metadata do Supabase; sem fallback
+  // para o e-mail — local-part não é nome apresentável).
+  const userMeta = (session?.user?.user_metadata ?? {}) as Record<string, unknown>;
+  const rawUserName =
+    typeof userMeta.nome === "string"
+      ? userMeta.nome
+      : typeof userMeta.name === "string"
+        ? userMeta.name
+        : null;
+  const greetingName = rawUserName?.trim().split(/\s+/)[0] ?? null;
+
   if (authLoading || !session) {
     return (
       <div className="authShell authLoadingShell" aria-busy="true" aria-label="Carregando Causor">
@@ -971,6 +982,7 @@ export default function Home() {
             onOpenOab={openOab}
             onOpenAssistant={() => setView("assistente")}
             onNavigate={setView}
+            greetingName={greetingName}
             worklistSlot={
               <>
                 <section className="statusTabs">

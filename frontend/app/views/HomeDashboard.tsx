@@ -16,7 +16,8 @@ export default function HomeDashboard({
   worklistSlot,
   onOpenOab,
   onOpenAssistant,
-  onNavigate
+  onNavigate,
+  greetingName
 }: {
   metrics: {
     monitored: number;
@@ -37,8 +38,17 @@ export default function HomeDashboard({
   onOpenOab: () => void;
   onOpenAssistant: () => void;
   onNavigate: (view: ViewKey) => void;
+  greetingName: string | null;
 }) {
   const nextDeadline = prazoRows.find((row) => !row.prazo.cumprido) ?? null;
+  const hora = new Date().getHours();
+  const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
+  const dataLonga = new Intl.DateTimeFormat("pt-BR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric"
+  }).format(new Date());
   const agentCycle = [
     {
       label: "Captura",
@@ -80,53 +90,52 @@ export default function HomeDashboard({
 
   return (
     <section className="homeSurface">
-      <section className="homeCommand">
-        <div className="commandPanel primaryCommand">
-          <div>
-            <span className="sectionKicker">Hoje</span>
-            <h2>Prioridade operacional</h2>
-            <strong>
-              {metrics.highRisk > 0
-                ? `${metrics.highRisk} prazo${metrics.highRisk > 1 ? "s" : ""} em alto risco`
-                : "Nenhum alto risco aberto"}
-            </strong>
-            <p>
-              {nextDeadline
-                ? `${nextDeadline.prazo.descricao ?? "Prazo"} vence em ${formatDate(
-                    nextDeadline.prazo.data_fatal
-                  )}.`
-                : "A fila está sem vencimentos pendentes no momento."}
-            </p>
-          </div>
-          <div className="quickActions">
-            <LoadingButton
-              className="toolbarButton primary"
-              icon={<Search size={15} />}
-              loading={busy === "capture"}
-              onClick={onOpenOab}
-              disabled={busy === "capture" || offline}
-            >
-              {busy === "capture" ? "Capturando..." : "Captura por OAB"}
-            </LoadingButton>
-            <button className="toolbarButton" onClick={onOpenAssistant} disabled={offline}>
-              <MessageCircle size={15} />
-              Assistente
-            </button>
-          </div>
+      <section className="homeHero">
+        <div className="homeHeroText">
+          <h1 className="heroGreeting">
+            {saudacao}
+            {greetingName ? `, ${greetingName}` : ""}
+          </h1>
+          <span className="heroDate">{dataLonga}</span>
+          <p className="heroPriority">
+            {metrics.highRisk > 0
+              ? `${metrics.highRisk} prazo${metrics.highRisk > 1 ? "s" : ""} em alto risco. `
+              : ""}
+            {nextDeadline
+              ? `${nextDeadline.prazo.descricao ?? "Prazo"} vence em ${formatDate(
+                  nextDeadline.prazo.data_fatal
+                )}.`
+              : "A fila está sem vencimentos pendentes no momento."}
+          </p>
         </div>
-
-        <div className="commandStats">
-          <CommandStat label="Processos" value={metrics.monitored} detail="monitorados" />
-          <CommandStat label="Intimações" value={metrics.captured} detail="capturadas" />
-          <CommandStat label="Prazos" value={metrics.pending} detail="pendentes" />
-          <CommandStat
-            label="Prazos em dia"
-            value={`${metrics.compliance}%`}
-            detail={`${metrics.overdue} vencido(s)`}
-            tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : "ok"}
-          />
+        <div className="quickActions">
+          <LoadingButton
+            className="toolbarButton primary"
+            icon={<Search size={15} />}
+            loading={busy === "capture"}
+            onClick={onOpenOab}
+            disabled={busy === "capture" || offline}
+          >
+            {busy === "capture" ? "Capturando..." : "Captura por OAB"}
+          </LoadingButton>
+          <button className="toolbarButton" onClick={onOpenAssistant} disabled={offline}>
+            <MessageCircle size={15} />
+            Assistente
+          </button>
         </div>
       </section>
+
+      <div className="statRow">
+        <CommandStat label="Processos" value={metrics.monitored} detail="monitorados" />
+        <CommandStat label="Intimações" value={metrics.captured} detail="capturadas" />
+        <CommandStat label="Prazos" value={metrics.pending} detail="pendentes" />
+        <CommandStat
+          label="Prazos em dia"
+          value={`${metrics.compliance}%`}
+          detail={`${metrics.overdue} vencido(s)`}
+          tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : "ok"}
+        />
+      </div>
 
       <section className="agentCyclePanel" aria-label="Ciclo operacional do agente">
         <header>
