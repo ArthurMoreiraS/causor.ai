@@ -1053,8 +1053,8 @@ export default function Home() {
         <section className="workSurface">
           <div className="viewbar">
             <div className="viewTitleBlock">
-              <span className="sectionKicker">{VIEW_LABEL[view]}</span>
-              <strong>{viewCount.toLocaleString("pt-BR")} registros</strong>
+              <h1 className="viewTitle">{VIEW_LABEL[view]}</h1>
+              <span className="viewMeta">{viewCount.toLocaleString("pt-BR")} registros</span>
             </div>
             <div className="viewActions">
               <label className="search">
