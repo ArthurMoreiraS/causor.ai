@@ -1013,7 +1013,6 @@ h2 {
   border-bottom: 1px solid var(--line);
 }
 
-.deadlineCard,
 .petitionCard {
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
@@ -1268,7 +1267,6 @@ h2 {
 .priorityList,
 .deadlineAgenda,
 .moduleGrid,
-.deadlineBoard,
 .petitionBoard,
 .featureTiles {
   display: grid;
@@ -1594,7 +1592,6 @@ h2 {
   }
 }
 
-.deadlineMain header,
 .petitionCard header,
 .petitionMeta {
   display: flex;
@@ -1603,20 +1600,16 @@ h2 {
   gap: 12px;
 }
 
-.deadlineCard strong,
-.deadlineCard span,
 .petitionCard strong,
 .petitionCard span {
   display: block;
 }
 
-.deadlineMain header strong,
 .petitionCard header strong {
   color: var(--ink);
   font-size: 13px;
 }
 
-.deadlineMain p,
 .petitionMeta,
 .petitionCard p {
   color: var(--muted);
@@ -1656,24 +1649,33 @@ h2 {
   }
 }
 
-.deadlineBoard {
-  gap: 10px;
+.deadlineTable .dataHead,
+.deadlineTable .dataRow {
+  grid-template-columns: 84px minmax(0, 1.2fr) minmax(0, 0.8fr) 110px minmax(280px, auto);
 }
 
-.deadlineCard {
-  display: grid;
-  grid-template-columns: 88px minmax(0, 1fr);
-  gap: 14px;
-  padding: 14px;
+.cellText {
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.deadlineMain {
-  display: grid;
-  gap: 12px;
-}
+@media (max-width: 1080px) {
+  .deadlineTable .dataHead {
+    display: none;
+  }
 
-.deadlineMain p {
-  margin: 0;
+  .deadlineTable .dataRow {
+    grid-template-columns: 84px minmax(0, 1fr);
+  }
+
+  .deadlineTable .dataRowEnd {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 .petitionBoard {
@@ -2988,7 +2990,6 @@ h2 {
 
   .petitionHead,
   .petitionActions,
-  .deadlineCard,
   .recordFooter,
   .petitionMeta {
     align-items: stretch;
@@ -2997,10 +2998,6 @@ h2 {
 
   .quickActions {
     justify-content: flex-start;
-  }
-
-  .deadlineCard {
-    grid-template-columns: 1fr;
   }
 
   .deadlineAgendaItem {
@@ -5091,7 +5088,6 @@ textarea:focus {
 .protocolSurface,
 .connectorsSurface,
 .moduleGrid,
-.deadlineBoard,
 .petitionBoard,
 .gateView {
   animation: surfaceIn 200ms ease both;
