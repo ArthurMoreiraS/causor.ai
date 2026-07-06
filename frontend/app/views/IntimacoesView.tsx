@@ -48,7 +48,10 @@ export default function IntimacoesView({
               {formatDate(intimacao.data_publicacao ?? intimacao.data_disponibilizacao)}
             </span>
           </div>
-          <span className={`pill ${sistemaBadge(processo?.sistema).className}`}>
+          <span
+            className={`pill ${sistemaBadge(processo?.sistema).className}`}
+            title={sistemaBadge(processo?.sistema).title}
+          >
             {sistemaBadge(processo?.sistema).label}
           </span>
           <DeadlineBadge prazo={prazo} />

@@ -35,7 +35,10 @@ export default function ProcessosView({
             <strong>{processo.tribunal ?? "-"}</strong>
             <span>{processo.orgao_julgador ?? "Órgão não informado"}</span>
           </div>
-          <span className={`pill ${sistemaBadge(processo.sistema).className}`}>
+          <span
+            className={`pill ${sistemaBadge(processo.sistema).className}`}
+            title={sistemaBadge(processo.sistema).title}
+          >
             {sistemaBadge(processo.sistema).label}
           </span>
           <span className="cellCount">{intimacoes.length}</span>

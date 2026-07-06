@@ -48,7 +48,10 @@ export default function PeticoesView({
               {processo?.numero ?? `Processo #${peticao.processo_id}`}
             </span>
             <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
-            <span className={`pill ${sistemaBadge(processo?.sistema).className}`}>
+            <span
+              className={`pill ${sistemaBadge(processo?.sistema).className}`}
+              title={sistemaBadge(processo?.sistema).title}
+            >
               {sistemaBadge(processo?.sistema).label}
             </span>
             <span className="cellDate">

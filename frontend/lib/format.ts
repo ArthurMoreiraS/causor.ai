@@ -21,12 +21,25 @@ export function statusLabel(status: Peticao["status"]) {
   return status;
 }
 
-export function sistemaBadge(sistema: string | null | undefined): { label: string; className: string } {
-  if (!sistema) return { label: "Sistema não identificado", className: "sistemaDesconhecido" };
-  if (sistema.trim().toLowerCase() === "pje") {
-    return { label: "PJe · protocolo automatizado", className: "sistemaPje" };
+export function sistemaBadge(sistema: string | null | undefined): {
+  label: string;
+  className: string;
+  title: string;
+} {
+  // Rótulo compacto para a coluna "Sistema" das tabelas; a modalidade de
+  // protocolo (automatizado/manual) é redundante (derivada do sistema e já
+  // sinalizada pela cor) e fica no title/hover para não estourar a célula.
+  if (!sistema) {
+    return {
+      label: "Não identificado",
+      className: "sistemaDesconhecido",
+      title: "Sistema não identificado"
+    };
   }
-  return { label: `${sistema} · protocolo manual`, className: "sistemaOutro" };
+  if (sistema.trim().toLowerCase() === "pje") {
+    return { label: "PJe", className: "sistemaPje", title: "PJe · protocolo automatizado" };
+  }
+  return { label: sistema, className: "sistemaOutro", title: `${sistema} · protocolo manual` };
 }
 
 export function connectorStatusLabel(status: string) {

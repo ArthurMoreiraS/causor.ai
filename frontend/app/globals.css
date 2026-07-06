@@ -1554,7 +1554,7 @@ h2 {
 
 .processTable .dataHead,
 .processTable .dataRow {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 92px 84px 72px minmax(180px, auto);
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 132px 84px 72px minmax(180px, auto);
 }
 
 .cellCount {
@@ -1607,13 +1607,22 @@ h2 {
 
 .inboxTable .dataHead,
 .inboxTable .dataRow {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 92px 96px 130px auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 132px 96px 130px auto;
 }
 
 .dataRow > .pill,
 .dataRow > .queueStatus,
 .dataRow > .dayBadge {
   justify-self: start;
+}
+
+/* Badges nunca vazam da célula: cabem na coluna e quebram como último recurso. */
+.dataRow .pill[class],
+.dataRow .queueStatus {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.25;
 }
 
 @media (max-width: 1080px) {
@@ -3862,7 +3871,7 @@ h2 {
 
 .redactionTable .dataHead,
 .redactionTable .dataRow {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 110px 92px 92px auto;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) 110px 132px 92px auto;
 }
 
 @media (max-width: 1080px) {
