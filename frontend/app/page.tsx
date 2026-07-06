@@ -661,6 +661,7 @@ export default function Home() {
   // Identidade real da sessão no rodapé da sidebar (e-mail + iniciais).
   const userEmail = session?.user?.email ?? null;
   const userInitials = userEmail ? userEmail.slice(0, 2).toUpperCase() : "CS";
+  const isPilotAccount = userEmail === "causorai@gmail.com";
 
   if (authLoading || !session) {
     return (
@@ -689,7 +690,7 @@ export default function Home() {
                 src="/brand/causor-lockup-dark.png"
                 alt=""
                 fill
-                sizes="95px"
+                unoptimized
                 priority
               />
               <Image
@@ -697,11 +698,11 @@ export default function Home() {
                 src="/brand/causor-lockup-light.png"
                 alt=""
                 fill
-                sizes="95px"
+                unoptimized
                 priority
               />
             </span>
-            <span className="brandTag">Piloto</span>
+            {isPilotAccount ? <span className="brandTag">Piloto</span> : null}
           </span>
           <button
             className="sidebarToggle"
