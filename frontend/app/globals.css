@@ -4060,6 +4060,85 @@ h2 {
 }
 
 
+/* ===== Padrão Handle: tabela hairline ===== */
+.dataTable {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.dataHead,
+.dataRow {
+  display: grid;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+}
+
+.dataHead {
+  min-height: 34px;
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.dataRow {
+  min-height: 60px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.dataRow:last-child {
+  border-bottom: 0;
+}
+
+.dataRow.clickable:hover {
+  background: var(--panel-soft);
+}
+
+/* Célula título: linha principal + linha secundária. */
+.dataRowMain {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.dataRowMain strong {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataRowMain span {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dataRowEnd {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+/* Legenda de superfície (substitui os cards de introdução). */
+.surfaceCaption {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
 /* ===== Etapa 4 — Fila do dia, Radar de Prazo, Templates, Vault ===== */
 
 .filaSurface {
@@ -4068,71 +4147,15 @@ h2 {
   padding: 16px 28px 24px;
 }
 
-.filaIntro {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px 16px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--panel);
+.filaTable .dataHead,
+.filaTable .dataRow {
+  grid-template-columns: 84px minmax(0, 1fr) 170px minmax(170px, auto);
 }
 
-.filaIntro svg {
-  margin-top: 2px;
-  color: var(--accent);
-}
-
-.filaIntro strong {
-  display: block;
-  font-size: 13px;
-}
-
-.filaIntro span {
-  color: var(--muted);
-  font-size: 12.5px;
-}
-
-.filaList {
-  display: grid;
-  gap: 8px;
-}
-
-.filaItem {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 14px;
-  padding: 12px 16px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-md);
-  background: var(--panel);
-}
-
-/* Borda esquerda colorida pelo risco: varredura visual imediata da fila. */
-.filaItem.risk {
-  box-shadow: inset 3px 0 0 var(--risk);
-}
-
-.filaItem.warn {
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--warn) 75%, transparent);
-}
-
-.filaItem.done {
-  box-shadow: inset 3px 0 0 color-mix(in srgb, var(--ok) 55%, transparent);
-}
-
-/* Âncora de data fatal: dd/mm em destaque, ano abaixo, tom pelo risco. */
+/* Data fatal sem caixa: dd/mm mono + ano, cor pelo risco. */
 .filaDate {
   display: grid;
-  place-items: center;
-  gap: 1px;
-  min-width: 60px;
-  min-height: 48px;
-  padding: 5px 8px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: var(--panel-soft);
+  gap: 2px;
 }
 
 .filaDate strong {
@@ -4143,7 +4166,7 @@ h2 {
 }
 
 .filaDate span {
-  color: var(--muted);
+  color: var(--muted-2);
   font-family: var(--font-mono);
   font-size: 9.5px;
   font-variant-numeric: tabular-nums;
@@ -4151,69 +4174,22 @@ h2 {
   letter-spacing: 0.04em;
 }
 
-.filaDate.risk {
-  border-color: color-mix(in srgb, var(--risk) 30%, var(--line));
-  background: var(--risk-bg);
-}
-
 .filaDate.risk strong {
   color: var(--risk);
-}
-
-.filaDate.warn {
-  border-color: color-mix(in srgb, var(--warn) 32%, var(--line));
-  background: var(--warn-bg);
 }
 
 .filaDate.warn strong {
   color: var(--warn);
 }
 
-.filaDate.done {
-  border-color: color-mix(in srgb, var(--ok) 30%, var(--line));
-  background: var(--ok-bg);
-}
-
 .filaDate.done strong {
   color: var(--ok);
-}
-
-.filaMain {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.filaMain strong {
-  font-size: 13.5px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.filaMain span {
-  color: var(--ink-soft);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.filaMain small {
-  color: var(--muted);
-  font-size: 11.5px;
 }
 
 .filaMeta {
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.filaAction {
-  display: flex;
-  justify-content: flex-end;
-  min-width: 170px;
 }
 
 /* ---- Paginação ---- */
@@ -4286,13 +4262,12 @@ h2 {
 }
 
 @media (max-width: 880px) {
-  .filaItem {
-    grid-template-columns: auto minmax(0, 1fr);
+  .filaTable .dataHead {
+    display: none;
   }
 
-  .filaMain strong,
-  .filaMain span {
-    white-space: normal;
+  .filaTable .dataRow {
+    grid-template-columns: 84px minmax(0, 1fr);
   }
 
   .filaMeta {
@@ -4300,10 +4275,9 @@ h2 {
     justify-content: flex-start;
   }
 
-  .filaAction {
+  .filaTable .dataRowEnd {
     grid-column: 1 / -1;
     justify-content: flex-start;
-    min-width: 0;
   }
 
   .pagination {
@@ -5559,7 +5533,7 @@ textarea:focus {
 .featureTile,
 .connector,
 .recordCard,
-.filaItem,
+.dataRow,
 .protocolCard,
 .vaultCredential,
 .settingsCard,
@@ -5596,28 +5570,28 @@ textarea:focus {
 .agentCycleStep,
 .deadlineAgendaItem,
 .featureTile,
-.filaItem,
+.dataRow,
 .protocolCard {
   animation: itemIn 190ms ease both;
 }
 .agentCycleStep:nth-child(2),
 .deadlineAgendaItem:nth-child(2),
 .featureTile:nth-child(2),
-.filaItem:nth-child(2),
+.dataRow:nth-child(2),
 .protocolCard:nth-child(2) {
   animation-delay: 28ms;
 }
 .agentCycleStep:nth-child(3),
 .deadlineAgendaItem:nth-child(3),
 .featureTile:nth-child(3),
-.filaItem:nth-child(3),
+.dataRow:nth-child(3),
 .protocolCard:nth-child(3) {
   animation-delay: 56ms;
 }
 .agentCycleStep:nth-child(4),
 .deadlineAgendaItem:nth-child(4),
 .featureTile:nth-child(4),
-.filaItem:nth-child(4),
+.dataRow:nth-child(4),
 .protocolCard:nth-child(4) {
   animation-delay: 84ms;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, FilePenLine, Loader2, Send, Sparkles, Table2, Zap } from "lucide-react";
+import { CheckCircle2, FilePenLine, Loader2, Send, Sparkles, Table2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Peticao, ReviewQueueItem } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -144,22 +144,24 @@ export default function FilaDoDiaView({
 
   return (
     <section className="filaSurface">
-      <div className="filaIntro">
-        <Zap size={16} />
-        <div>
-          <strong>Fila do dia</strong>
-          <span>Worklist única priorizada por risco e proximidade do vencimento.</span>
-        </div>
-      </div>
+      <p className="surfaceCaption">
+        Worklist única priorizada por risco e proximidade do vencimento.
+      </p>
 
-      <div className="filaList">
+      <div className="dataTable filaTable">
+        <div className="dataHead" aria-hidden="true">
+          <span>Data fatal</span>
+          <span>Peça / processo</span>
+          <span>Status</span>
+          <span className="dataRowEnd">Ação</span>
+        </div>
         {visible.map((item) => {
           const peca =
             item.peticao?.tipo ?? item.prazo?.descricao ?? item.intimacao.tipo_comunicacao ?? "Ato a definir";
           const tone = tomDeRisco(item);
           const dataFatal = item.prazo ? formatDate(item.prazo.data_fatal) : null;
           return (
-            <article className={tone ? `filaItem ${tone}` : "filaItem"} key={item.intimacao.id}>
+            <article className="dataRow" key={item.intimacao.id}>
               <div
                 className={tone ? `filaDate ${tone}` : "filaDate"}
                 title={dataFatal ? `Data fatal ${dataFatal}` : "Prazo ainda não calculado"}
@@ -176,14 +178,14 @@ export default function FilaDoDiaView({
                   </>
                 )}
               </div>
-              <div className="filaMain">
+              <div className="dataRowMain">
                 <strong>{peca}</strong>
                 <span className="mono">
                   {item.intimacao.numero_processo ?? item.processo?.numero ?? "Processo não identificado"}
                 </span>
               </div>
               <div className="filaMeta">{badgeDePrazo(item)}</div>
-              <div className="filaAction">{acaoPrincipal(item)}</div>
+              <div className="dataRowEnd">{acaoPrincipal(item)}</div>
             </article>
           );
         })}
