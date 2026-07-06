@@ -59,7 +59,7 @@ describe("API client critical workflows", () => {
 
     const result = await loadDashboard();
 
-    expect(result.backendOffline).toBeUndefined();
+    expect(result.backendOffline).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(6);
     for (const [, init] of fetchMock.mock.calls) {
       expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
@@ -154,12 +154,12 @@ describe("API client critical workflows", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({ credencial_id: 5 });
   });
 
-  it("returns an explicit offline dashboard when a core endpoint fails", async () => {
+  it("flags the dashboard offline only when every core list fails together", async () => {
     const fetchMock = mockFetch({
       "GET /intimacoes": { status: 503, body: "temporarily unavailable" },
-      "GET /processos": { body: [] },
-      "GET /prazos": { body: [] },
-      "GET /peticoes": { body: [] }
+      "GET /processos": { status: 503, body: "temporarily unavailable" },
+      "GET /prazos": { status: 503, body: "temporarily unavailable" },
+      "GET /peticoes": { status: 503, body: "temporarily unavailable" }
     });
     vi.stubGlobal("fetch", fetchMock);
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
@@ -174,5 +174,25 @@ describe("API client critical workflows", () => {
       peticoes: [],
       backendOffline: true
     });
+  });
+
+  it("keeps the dashboard online when a single core list fails in isolation", async () => {
+    const fetchMock = mockFetch({
+      "GET /intimacoes": { status: 503, body: "temporarily unavailable" },
+      "GET /processos": { body: [{ id: 1 }] },
+      "GET /prazos": { body: [] },
+      "GET /peticoes": { body: [] },
+      "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
+      "GET /review/queue": { body: [] }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const { loadDashboard } = await import("./api");
+
+    const result = await loadDashboard();
+
+    expect(result.backendOffline).toBe(false);
+    expect(result.intimacoes).toEqual([]);
+    expect(result.processos).toEqual([{ id: 1 }]);
   });
 });

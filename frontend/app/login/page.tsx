@@ -39,10 +39,21 @@ export default function LoginPage() {
       <form className="authCard" onSubmit={handleSubmit}>
         <div className="authBrand">
           <Image
-            src="/brand/causor-wordmark-dark-cropped.png"
+            className="brandAssetDark"
+            src="/brand/causor-lockup-dark.png"
             alt="Causor"
-            width={157}
-            height={28}
+            width={137}
+            height={26}
+            unoptimized
+            priority
+          />
+          <Image
+            className="brandAssetLight"
+            src="/brand/causor-lockup-light.png"
+            alt="Causor"
+            width={137}
+            height={26}
+            unoptimized
             priority
           />
         </div>
