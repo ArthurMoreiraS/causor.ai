@@ -1,40 +1,40 @@
 /* Tokens espelhando a landing (causor-landing/index.html). */
 :root {
-  --bg: #f5f6f8;
+  --bg: #ffffff;
   --panel: #ffffff;
-  --panel-soft: #f8fafc;
-  --sidebar: #f3f4f6;
-  --ink: #111827;
-  --ink-soft: #374151;
-  --muted: #6b7280;
-  --muted-2: #9ca3af;
-  --line: #e5e7eb;
-  --line-strong: #cbd5e1;
-  --chip: #eef2f7;
-  --accent: #0f766e;
-  --accent-bg: #ecfdf5;
-  --accent-border: #99f6e4;
-  --solid: #111827;
-  --warn: #b45309; /* amber */
+  --panel-soft: #fafafa;
+  --sidebar: #fcfcfc;
+  --ink: #111111;
+  --ink-soft: #404040;
+  --muted: #737373;
+  --muted-2: #a3a3a3;
+  --line: #ececec;
+  --line-strong: #d4d4d4;
+  --chip: #f5f5f5;
+  --accent: #111111;
+  --accent-bg: #f5f5f5;
+  --accent-border: #e0e0e0;
+  --solid: #111111;
+  --warn: #b45309; /* âmbar — vence em ≤3 dias */
   --warn-bg: #fffbeb;
-  --risk: #fb2c36; /* red */
+  --risk: #fb2c36; /* vermelho — vencido/risco */
   --risk-bg: #fef2f2;
   --ok: #166534;
   --ok-bg: #f0fdf4;
   --success: #166534;
   --success-bg: #f0fdf4;
   --shadow: rgba(0, 0, 0, 0.06);
-  /* Escala de raio — espelha a landing (cards 10–14px, pílulas 999). */
+  /* Escala de raio Handle: cantos retos — badges 4, controles 6, cards 8. */
   --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 10px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 10px;
   --radius-pill: 999px;
-  /* Sombras com matiz de slate (não preto puro) em três níveis. */
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 5%);
-  --shadow-md: 0 8px 22px -16px rgb(15 23 42 / 24%);
-  --shadow-lg: 0 24px 60px -24px rgb(15 23 42 / 22%);
+  /* Sombras só em overlays (modal/dropdown/toast); superfícies são flat. */
+  --shadow-sm: none;
+  --shadow-md: 0 8px 22px -16px rgb(0 0 0 / 18%);
+  --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 16%);
   --font-title: var(--font-inter, "Inter"), ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-mono: var(--font-jbmono, "JetBrains Mono"), ui-monospace, SFMono-Regular, Menlo,
@@ -48,31 +48,31 @@
    document.documentElement.dataset.theme = "dark"  // remover volta ao claro */
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #0b0f14;
-  --panel: #131a23;
-  --panel-soft: #1a2330;
-  --sidebar: #0e141c;
-  --ink: #f1f5f9;
-  --ink-soft: #cbd5e1;
-  --muted: #94a3b8;
-  --muted-2: #64748b;
-  --line: #243040;
-  --line-strong: #36465a;
-  --chip: #1e2937;
-  --accent: #2dd4bf;
-  --accent-bg: #0c2b28;
-  --accent-border: #155e56;
-  --solid: #f1f5f9;
+  --bg: #0a0a0a;
+  --panel: #111113;
+  --panel-soft: #17171a;
+  --sidebar: #0d0d0f;
+  --ink: #f5f5f5;
+  --ink-soft: #d4d4d4;
+  --muted: #a3a3a3;
+  --muted-2: #6b6b70;
+  --line: #232326;
+  --line-strong: #3a3a3f;
+  --chip: #1c1c1f;
+  --accent: #f5f5f5;
+  --accent-bg: #1c1c1f;
+  --accent-border: #2e2e33;
+  --solid: #f5f5f5;
   --warn: #fbbf24;
-  --warn-bg: #2a2310;
+  --warn-bg: #251d0a;
   --risk: #f87171;
-  --risk-bg: #2c1618;
+  --risk-bg: #2a1517;
   --ok: #4ade80;
-  --ok-bg: #11271b;
+  --ok-bg: #10251a;
   --success: #4ade80;
-  --success-bg: #11271b;
+  --success-bg: #10251a;
   --shadow: rgba(0, 0, 0, 0.5);
-  --shadow-sm: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-sm: none;
   --shadow-md: 0 8px 22px -16px rgb(0 0 0 / 55%);
   --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 60%);
 }
