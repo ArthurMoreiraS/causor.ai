@@ -6,10 +6,15 @@
 **Produto:** Causor — Agente Operacional Jurídico
 **Categoria:** SaaS vertical de IA + automação ("computer use") para operação processual no Brasil
 **Análogo de referência:** [Handle.ai](https://usehandle.ai) (agentes que operam portais fragmentados e automatizam o back-office de seguros) — transposto para o jurídico brasileiro.
-**Documento:** PRD vivo. Versão 0.2 — 25/06/2026.
+**Documento:** PRD vivo. Versão 0.3 — 07/07/2026.
 **Status do produto:** MVP pronto para validação operacional local. A fatia
 *captura → prazo → minuta → aprovação → protocolo assistido* existe; o envio
-final ainda é realizado pelo advogado no PJe/PJeOffice.
+final ainda é realizado pelo advogado no PJe/PJeOffice. Desde a v0.2: reforma
+visual do frontend na linha do Handle.ai (paleta monocromática, tabelas
+hairline) — mudança de apresentação, sem alteração de escopo ou
+comportamento. O switch de provedor de LLM (`CAUSOR_LLM_PROVIDER`) existe no
+código, mas não é a prática de teste adotada — testes também rodam com
+Claude (ver 5.4).
 
 > Este PRD descreve a direção estratégica. O estado implementado e a ordem de
 > execução ficam em `docs/estado.md`.
@@ -89,12 +94,13 @@ Clientes **DJEN/Comunica** (intimações) e **DataJud** (metadados/andamentos), 
 - **Classificador** (`claude-haiku-4-5`, structured output): interpreta o teor da intimação → tipo do ato, peça cabível, prazo em dias, dias úteis vs. corridos, confiança. O **cálculo da data continua determinístico**.
 - **Drafter:** gera rascunho de peça a partir do teor + classificação.
 - **Assistente agêntico** (`chat`): loop de tool use com ferramentas de **leitura** (listar prazos, buscar processo, ler intimação) e **proposta de ação** (gerar minuta, marcar prazo cumprido, aprovar petição). **Protocolar nunca é ferramenta do agente.** Segredos e rascunhos sensíveis não entram no contexto do modelo.
+- **Switch de provedor de LLM** (`CAUSOR_LLM_PROVIDER`, ver `IA.md`): classificador e drafter passam por `get_provider()`, que suporta alternar entre `ClaudeProvider` (produção) e `OpenAICompatProvider` (Groq/Ollama). Na prática, **não é usado para teste** — testes e desenvolvimento também rodam com Claude, para manter a qualidade de classificação/redação consistente com produção. O chat agêntico permanece **Claude-only** por depender de tool-calling nativo.
 
 ### 5.5 API (`backend/app/api`) — ✅ pronto para o MVP
 FastAPI: dashboard operacional, fila de revisão (com risco/dias para vencer), listagens (intimações, processos, prazos, petições), `POST /capture/oab`, geração de minuta, **gate de aprovação** (`approve` → `protocolar`), revisão inline de prazo (`PATCH /prazos`), `cumprir`, `chat` e `GET /audit`. Toda mutação gera evento de auditoria.
 
 ### 5.6 Frontend (`frontend`, Next.js + React) — ✅ pronto para o MVP
-Dashboard, inbox de intimações, painel de prazos com risco, fila de aprovação, **painel do assistente agêntico** (cards de ação com confirmação humana), **painel de auditoria**, modal de **captura real por OAB**, revisão inline de data de prazo. Arquitetura offline-first (erros claros quando o backend/IA estão indisponíveis).
+Dashboard, inbox de intimações, painel de prazos com risco, fila de aprovação, **painel do assistente agêntico** (cards de ação com confirmação humana), **painel de auditoria**, modal de **captura real por OAB**, revisão inline de data de prazo. Arquitetura offline-first (erros claros quando o backend/IA estão indisponíveis). Reforma visual concluída em 05–06/07/2026 na linha do Handle.ai: paleta quase monocromática (teal removido, cor só como semântica de risco/sucesso), listas viradas em tabelas com divisores hairline, tipografia display + micro-labels em mono caixa alta. Mudança de apresentação apenas — nenhuma rota, dado ou comportamento mudou.
 
 ### 5.7 Guarda-corpos já no código
 - **Gate humano** antes de qualquer ato irreversível (protocolo exige `aprovada`).

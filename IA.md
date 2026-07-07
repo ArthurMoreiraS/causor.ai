@@ -106,6 +106,12 @@ ANTHROPIC_API_KEY=sk-ant-...      # lida direto pelo SDK Anthropic
 
 ### 4.2 Teste gratuito (Groq)
 
+> **Nota (07/07/2026):** o switch existe e é testado (`test_llm.py`), mas
+> **não é a prática atual** de desenvolvimento/teste do time — testes também
+> rodam com Claude, para manter a qualidade de classificação/redação
+> consistente com produção. Esta seção documenta a capacidade, não um fluxo
+> recomendado no momento.
+
 ```bash
 CAUSOR_LLM_PROVIDER=openai_compat
 CAUSOR_LLM_BASE_URL=https://api.groq.com/openai/v1
