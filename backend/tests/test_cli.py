@@ -199,7 +199,8 @@ def test_cli_pje_capture_session_stores_vault_reference(db_session, monkeypatch)
 
     assert rc == 0
     credencial = db_session.query(models.CredencialAssinatura).one()
-    assert credencial.provedor == "PJeSession"
+    assert credencial.provedor == "CourtSession"
+    assert credencial.sistema == "PJe"
     assert "secret-cookie" not in credencial.referencia_vault
 
 

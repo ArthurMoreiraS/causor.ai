@@ -207,6 +207,9 @@ class CredencialAssinaturaOut(BaseModel):
     usuario_id: int
     provedor: str
     tribunal: str | None
+    sistema: str | None = None
+    grau: str | None = None
+    tipo: str | None = None
     modo: str
     referencia_vault: str
     ativo: bool

@@ -118,7 +118,68 @@ def _load_secret_from_reference(session: Session, reference: str) -> str:
     raise VaultProviderError("referencia de vault desconhecida")
 
 
-def load_pje_session_payload(
+def store_court_session(
+    session: Session,
+    *,
+    usuario_id: int,
+    sistema: str,
+    tribunal: str,
+    grau: str,
+    url_base: str,
+    storage_state: dict,
+) -> models.CredencialAssinatura:
+    """Guarda uma sessao autenticada de tribunal no cofre (chaveiro).
+
+    Um advogado pode ter N sessoes, uma por ``(sistema, tribunal, grau)``. O
+    cofre guarda apenas o ``storage_state`` (cookie) e metadados; nunca senha,
+    certificado, PIN ou OTP.
+    """
+    usuario = session.get(models.Usuario, usuario_id)
+    if usuario is None:
+        raise UsuarioNotFoundError("usuario nao encontrado")
+
+    secret_payload = json.dumps(
+        {
+            "sistema": sistema,
+            "tribunal": tribunal,
+            "grau": grau,
+            "url_base": url_base,
+            "storage_state": storage_state,
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    credencial = models.CredencialAssinatura(
+        usuario_id=usuario.id,
+        provedor="CourtSession",
+        tipo="session",
+        sistema=sistema,
+        tribunal=tribunal,
+        grau=grau,
+        referencia_vault=_store_secret_reference(
+            session,
+            usuario_id=usuario.id,
+            provedor="CourtSession",
+            secret=secret_payload,
+            description="Sessao autenticada de tribunal; sem senha do usuario.",
+        ),
+        ativo=True,
+    )
+    session.add(credencial)
+    session.flush()
+    _audit(
+        session,
+        acao="sessao_tribunal_cadastrada",
+        entidade="credencial_assinatura",
+        entidade_id=credencial.id,
+        ator=f"usuario:{usuario.id}",
+        escritorio_id=usuario.escritorio_id,
+        detalhe={"sistema": sistema, "tribunal": tribunal, "grau": grau},
+    )
+    return credencial
+
+
+def load_court_session_payload(
     session: Session,
     *,
     credencial_id: int | None,
@@ -128,18 +189,51 @@ def load_pje_session_payload(
     credencial = session.get(models.CredencialAssinatura, credencial_id)
     if credencial is None:
         raise CredencialNotFoundError("credencial de assinatura nao encontrada")
-    if credencial.provedor != "PJeSession":
+    if credencial.tipo != "session":
         return None
     secret = _load_secret_from_reference(session, credencial.referencia_vault)
     try:
         payload = json.loads(secret)
     except json.JSONDecodeError as exc:
-        raise VaultProviderError("payload de sessao PJe invalido no vault") from exc
+        raise VaultProviderError("payload de sessao invalido no vault") from exc
     if not isinstance(payload, dict):
-        raise VaultProviderError("payload de sessao PJe invalido no vault")
+        raise VaultProviderError("payload de sessao invalido no vault")
     if not payload.get("url_base") or not payload.get("storage_state"):
-        raise VaultProviderError("payload de sessao PJe incompleto no vault")
+        raise VaultProviderError("payload de sessao incompleto no vault")
     return payload
+
+
+def find_active_session(
+    session: Session,
+    *,
+    usuario_id: int,
+    sistema: str,
+    tribunal: str,
+    grau: str,
+) -> models.CredencialAssinatura | None:
+    """Acha a sessao ativa que casa ``(sistema, tribunal, grau)`` do advogado."""
+    stmt = (
+        select(models.CredencialAssinatura)
+        .where(
+            models.CredencialAssinatura.usuario_id == usuario_id,
+            models.CredencialAssinatura.tipo == "session",
+            models.CredencialAssinatura.ativo.is_(True),
+            models.CredencialAssinatura.sistema == sistema,
+            models.CredencialAssinatura.tribunal == tribunal,
+            models.CredencialAssinatura.grau == grau,
+        )
+        .order_by(models.CredencialAssinatura.id.desc())
+    )
+    return session.scalars(stmt).first()
+
+
+def load_pje_session_payload(
+    session: Session,
+    *,
+    credencial_id: int | None,
+) -> dict | None:
+    """Wrapper retrocompativel: carrega uma sessao de tribunal do cofre."""
+    return load_court_session_payload(session, credencial_id=credencial_id)
 
 
 def store_signature_reference(
@@ -156,6 +250,7 @@ def store_signature_reference(
     credencial = models.CredencialAssinatura(
         usuario_id=usuario.id,
         provedor=provedor,
+        tipo="cloud_cert",  # referencia de assinatura, nao sessao de navegacao
         referencia_vault=_store_secret_reference(
             session,
             usuario_id=usuario.id,
@@ -187,44 +282,16 @@ def store_pje_session_reference(
     url_base: str,
     storage_state: dict,
 ) -> models.CredencialAssinatura:
-    usuario = session.get(models.Usuario, usuario_id)
-    if usuario is None:
-        raise UsuarioNotFoundError("usuario nao encontrado")
-
-    secret_payload = json.dumps(
-        {
-            "tribunal": tribunal,
-            "url_base": url_base,
-            "storage_state": storage_state,
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-    )
-    credencial = models.CredencialAssinatura(
-        usuario_id=usuario.id,
-        provedor="PJeSession",
-        tribunal=tribunal,
-        referencia_vault=_store_secret_reference(
-            session,
-            usuario_id=usuario.id,
-            provedor="PJeSession",
-            secret=secret_payload,
-            description="Sessao autenticada PJe assistida; sem senha do usuario.",
-        ),
-        ativo=True,
-    )
-    session.add(credencial)
-    session.flush()
-    _audit(
+    """Wrapper retrocompativel: grava uma sessao PJe (1o grau) no chaveiro."""
+    return store_court_session(
         session,
-        acao="sessao_pje_cadastrada",
-        entidade="credencial_assinatura",
-        entidade_id=credencial.id,
-        ator=f"usuario:{usuario.id}",
-        escritorio_id=usuario.escritorio_id,
-        detalhe={"tribunal": tribunal},
+        usuario_id=usuario_id,
+        sistema="PJe",
+        tribunal=tribunal,
+        grau="1",
+        url_base=url_base,
+        storage_state=storage_state,
     )
-    return credencial
 
 
 def list_signature_credentials(

@@ -240,9 +240,20 @@ class CredencialAssinatura(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"), nullable=False)
     provedor: Mapped[str] = mapped_column(String(50), nullable=False)  # BirdID/VIDaaS/...
-    # Tribunal the PJeSession was captured for (e.g. "TJSP"); null for cloud
-    # cert references. Metadata only, not a secret.
+    # Tribunal the session/credencial was captured for (e.g. "TJSP"); null for
+    # cloud cert references. Metadata only, not a secret.
     tribunal: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Processing system (PJe/e-SAJ/EPROC/Projudi) and grau (1/2) the session
+    # belongs to; null for cloud cert references. Routes filing to the session.
+    sistema: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    grau: Mapped[str | None] = mapped_column(String(4), nullable=True)
+    # Credential kind: "session" (court cookie) | "cloud_cert" (push-signing ref).
+    tipo: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="session",
+        server_default=text("'session'"),
+    )
     # How the lawyer signs: manual_handoff (signs outside Causor) | api | local_agent.
     modo: Mapped[str] = mapped_column(
         String(20),

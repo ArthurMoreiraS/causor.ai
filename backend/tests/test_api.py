@@ -1159,12 +1159,13 @@ def test_cadastrar_sessao_pje_guarda_referencia_sem_vazar_storage_state(client, 
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["provedor"] == "PJeSession"
+    assert body["provedor"] == "CourtSession"
+    assert body["sistema"] == "PJe"
     assert body["referencia_vault"].startswith("localdev://assinatura/")
     assert "cookie-super-sensivel" not in str(body)
 
-    audit = db_session.query(models.AuditLog).filter_by(acao="sessao_pje_cadastrada").one()
-    assert audit.detalhe == {"tribunal": "TRF3"}
+    audit = db_session.query(models.AuditLog).filter_by(acao="sessao_tribunal_cadastrada").one()
+    assert audit.detalhe == {"sistema": "PJe", "tribunal": "TRF3", "grau": "1"}
     assert "cookie-super-sensivel" not in str(audit.detalhe)
 
 
