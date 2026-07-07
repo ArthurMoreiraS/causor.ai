@@ -56,6 +56,29 @@ def test_canonical_numero_strips_mask():
     assert canonical_numero("00000010020248260100") == "00000010020248260100"
 
 
+def test_normalize_infers_sistema_from_tribunal(db_session, escritorio):
+    # O sistema é deduzido do tribunal já na captura (offline, sem DataJud):
+    # TJSP -> e-SAJ. Popula o filtro e o roteamento de protocolo na hora.
+    intimacao = normalize_intimacao(db_session, _comunicacao(), escritorio_id=escritorio.id)
+    db_session.flush()
+    processo = db_session.get(models.Processo, intimacao.processo_id)
+    assert processo.sistema == "e-SAJ"
+
+
+def test_normalize_backfills_sistema_on_existing_shell(db_session, escritorio):
+    # Processo capturado antes da inferência (shell sem sistema) recebe o sistema
+    # quando uma nova intimação do mesmo processo chega.
+    shell = models.Processo(escritorio_id=escritorio.id, numero="00000010020248260100", tribunal="TJSP")
+    db_session.add(shell)
+    db_session.flush()
+    assert shell.sistema is None
+
+    normalize_intimacao(db_session, _comunicacao(), escritorio_id=escritorio.id)
+    db_session.flush()
+    db_session.refresh(shell)
+    assert shell.sistema == "e-SAJ"
+
+
 def test_normalize_creates_intimacao(db_session, escritorio):
     intimacao = normalize_intimacao(db_session, _comunicacao(), escritorio_id=escritorio.id)
     db_session.flush()

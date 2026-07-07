@@ -221,6 +221,7 @@ def test_cli_enrich_processos_backfills_only_unenriched(db_session, monkeypatch)
         numero="00000020020248260100",
         tribunal="TJSP",
         sistema="pje",
+        classe="Procedimento Comum",  # já enriquecido pelo DataJud -> pulado
     )
     sem_tribunal = models.Processo(
         escritorio_id=esc.id, numero="00000030020248260100", tribunal=None

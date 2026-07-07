@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.capture.court_systems import sistema_para_tribunal
 from app.capture.datajud import ProcessoDTO
 from app.capture.djen import ComunicacaoDTO
 from app.sor import models
@@ -95,11 +96,17 @@ def _get_or_create_processo(
             escritorio_id=escritorio_id,
             numero=numero,
             tribunal=tribunal,
+            # Sistema deduzido do tribunal já na captura (offline). DataJud, quando
+            # traz o campo, sobrescreve (autoritativo) via enrich_processo.
+            sistema=sistema_para_tribunal(tribunal),
         )
         session.add(processo)
         session.flush()
-    elif tribunal and processo.tribunal is None:
-        processo.tribunal = tribunal
+    else:
+        if tribunal and processo.tribunal is None:
+            processo.tribunal = tribunal
+        if processo.sistema is None:
+            processo.sistema = sistema_para_tribunal(processo.tribunal)
     return processo
 
 

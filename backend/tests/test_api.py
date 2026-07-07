@@ -91,6 +91,16 @@ def seeded(db_session):
     return proc
 
 
+@pytest.fixture(autouse=True)
+def _no_background_enrichment(monkeypatch):
+    # /capture/oab agenda o backfill de enriquecimento como background task. A
+    # .env de dev traz datajud_api_key, então o gate ligaria em todo teste e o
+    # background task abriria um SessionLocal real (fora do db_session de teste),
+    # travando. Neutraliza por padrão; o teste que exercita o agendamento
+    # re-patcha este alvo com um spy.
+    monkeypatch.setattr("app.api.main.run_enrichment_backfill", lambda *a, **k: None)
+
+
 def test_health(client):
     assert client.get("/health").json() == {"status": "ok"}
 
@@ -124,6 +134,80 @@ def test_capture_oab_defaults_to_bounded_lookback(client, seeded):
     params = fake_djen.calls[0][2]
     assert today_before <= params["data_fim"] <= today_after
     assert params["data_inicio"] == params["data_fim"] - timedelta(days=60)
+
+
+def test_capture_oab_defers_datajud_enrichment(client, seeded, monkeypatch):
+    """Captura manual roda em modo rápido: NÃO chama DataJud no request.
+
+    O enriquecimento passa a ser on-demand (na geração da minuta). A captura só
+    grava intimações + prazos e deixa o processo como "shell"; isso evita o loop
+    sequencial de DataJud que trava a UI e é rate-limitado pelo CNJ em volume.
+    """
+    from app.capture.djen import ComunicacaoDTO
+
+    class FakeDjen:
+        def consultar(self, oab, uf, **kw):
+            return [
+                ComunicacaoDTO.from_item(
+                    {
+                        "id": "555",
+                        "numero_processo": "0000001-00.2024.8.26.0100",
+                        "siglaTribunal": "TJSP",
+                        "tipoComunicacao": "Intimação",
+                        "texto": "Intimada para manifestar em 15 dias.",
+                        "data_disponibilizacao": "2024-09-06",
+                    }
+                )
+            ]
+
+    class SpyDatajud:
+        def __init__(self):
+            self.calls = []
+
+        def consultar_processo(self, numero_processo, *, tribunal):
+            self.calls.append((numero_processo, tribunal))
+            return None
+
+    spy = SpyDatajud()
+    # Força o caminho DataJud-ativo: sem key o endpoint usaria _NoopDatajudClient
+    # e o teste passaria trivialmente (não provaria o desacoplamento).
+    monkeypatch.setattr("app.api.main.settings.datajud_api_key", "test-key")
+
+    with patch("app.api.main.DjenClient", return_value=FakeDjen()), patch(
+        "app.api.main.DatajudClient", return_value=spy
+    ):
+        resp = client.post("/capture/oab", json={"oab": "12345", "uf": "SP"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["intimacoes_novas"] == 1
+    assert body["prazos_registrados"] == 1
+    assert body["processos_enriquecidos"] == 0
+    assert spy.calls == []  # DataJud não foi chamado durante a captura
+
+
+def test_capture_oab_schedules_enrichment_backfill(client, seeded, monkeypatch):
+    """Após a captura rápida, o endpoint agenda o backfill de enriquecimento do
+    tenant como background task (fora do request). É assim que os processos shell
+    ganham sistema/classe/órgão sem travar a captura nem exigir worker separado.
+    """
+    scheduled: list[int] = []
+
+    class FakeDjen:
+        def consultar(self, oab, uf, **kw):
+            return []
+
+    monkeypatch.setattr("app.api.main.settings.datajud_api_key", "test-key")
+    monkeypatch.setattr(
+        "app.api.main.run_enrichment_backfill",
+        lambda escritorio_id, **kw: scheduled.append(escritorio_id),
+    )
+
+    with patch("app.api.main.DjenClient", return_value=FakeDjen()):
+        resp = client.post("/capture/oab", json={"oab": "12345", "uf": "SP"})
+
+    assert resp.status_code == 200
+    assert scheduled == [seeded.escritorio_id]
 
 
 def test_me_retorna_usuario_e_tenant_autenticados(client, db_session, seeded):

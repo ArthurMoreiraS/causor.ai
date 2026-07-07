@@ -10,15 +10,13 @@ Wires the real DJEN/DataJud clients and a SOR session, then delegates to
 from __future__ import annotations
 
 import argparse
-import time
 from datetime import date
 
-import httpx
 from sqlalchemy import select
 
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
-from app.capture.normalize import enrich_processo
+from app.capture.enrich import backfill_enrichment
 from app.capture.poll import PollResult, poll_oab
 from app.capture.scheduler import run_capture_for_oab_resilient, select_due
 from app.connectors.pje.simulator import serve as serve_pje_simulator
@@ -327,35 +325,14 @@ def main(argv: list[str] | None = None) -> int:
             session.close()
         print(f"Sessao PJe cadastrada como credencial {credencial_id}.")
     if args.command == "enrich-processos":
-        datajud = DatajudClient()
         session = SessionLocal()
-        enriquecidos = 0
-        sem_dados = 0
-        sem_tribunal = 0
-        falhas = 0
         try:
-            stmt = select(models.Processo).where(models.Processo.sistema.is_(None))
-            if args.escritorio:
-                stmt = stmt.where(models.Processo.escritorio_id == args.escritorio)
-            processos = session.scalars(stmt).all()
-            print(f"{len(processos)} processo(s) sem sistema identificado.")
-            for i, processo in enumerate(processos):
-                if not processo.tribunal:
-                    sem_tribunal += 1
-                    continue
-                if i > 0 and args.delay_seconds:
-                    time.sleep(args.delay_seconds)
-                try:
-                    dto = datajud.consultar_processo(processo.numero, tribunal=processo.tribunal)
-                except httpx.HTTPError as exc:
-                    falhas += 1
-                    print(f"  processo {processo.id} ({processo.numero}): falha HTTP - {exc}")
-                    continue
-                if dto is None:
-                    sem_dados += 1
-                    continue
-                enrich_processo(session, dto, escritorio_id=processo.escritorio_id)
-                enriquecidos += 1
+            result = backfill_enrichment(
+                session,
+                datajud=DatajudClient(),
+                escritorio_id=args.escritorio,
+                delay_seconds=args.delay_seconds,
+            )
             session.commit()
         except Exception:
             session.rollback()
@@ -363,9 +340,9 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             session.close()
         print(
-            f"Enriquecimento concluído: {enriquecidos} processo(s) enriquecido(s), "
-            f"{sem_dados} sem dados no DataJud, {sem_tribunal} sem tribunal cadastrado, "
-            f"{falhas} falha(s) HTTP."
+            f"Enriquecimento concluído: {result.total} processo(s) sem sistema, "
+            f"{result.enriquecidos} enriquecido(s), {result.sem_dados} sem dados no DataJud, "
+            f"{result.sem_tribunal} sem tribunal cadastrado, {result.falhas} falha(s) HTTP."
         )
         return 0
     if args.command == "pje-simulator":

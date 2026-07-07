@@ -3,6 +3,8 @@
 from datetime import date, datetime, timezone
 from unittest.mock import patch
 
+import httpx
+
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
 from app.agent.service import _historico_processo, draft_from_intimacao
@@ -274,6 +276,78 @@ def test_draft_enriches_process_on_demand_via_datajud(db_session):
     # o historico repassado ao drafter inclui a movimentacao
     historico = draft_mock.call_args.kwargs["historico"]
     assert "Sentenca publicada" in historico
+
+
+def _shell_intimacao(db_session, *, nome, fonte_id):
+    """Cria escritório + processo "shell" (sem metadados/andamentos) + intimação."""
+    esc = models.Escritorio(nome=nome)
+    db_session.add(esc)
+    db_session.flush()
+    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP")
+    db_session.add(proc)
+    db_session.flush()
+    intimacao = models.Intimacao(
+        processo_id=proc.id, fonte="DJEN", fonte_id=fonte_id,
+        numero_processo=proc.numero, tipo_comunicacao="Intimacao",
+        teor="Apresente contestacao em 15 dias uteis.",
+        data_publicacao=date(2024, 9, 9),
+    )
+    db_session.add(intimacao)
+    db_session.flush()
+    return intimacao
+
+
+_CLASSIFICACAO = ClassificacaoIntimacao(
+    tipo="Intimacao para contestar", peticao_sugerida="Contestacao",
+    prazo_dias=15, dias_uteis=True, confianca=0.9, resumo=".",
+)
+
+
+def test_draft_alerts_when_datajud_unavailable(db_session):
+    """Se o DataJud está indisponível na hora da minuta, o processo não enriquece.
+    Em vez de seguir em silêncio (a dor original), a minuta é gerada mas com um
+    alerta no dossiê avisando que o contexto do processo está incompleto."""
+    intimacao = _shell_intimacao(db_session, nome="Escritorio Indisponivel", fonte_id="indispo-1")
+
+    class TimeoutDatajud:
+        def consultar_processo(self, numero, *, tribunal):
+            raise httpx.ReadTimeout("timed out")
+
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=_CLASSIFICACAO),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA),
+    ):
+        _, peticao, _ = draft_from_intimacao(
+            db_session, intimacao,
+            calendar=build_calendar([2024, 2025]),
+            datajud=TimeoutDatajud(),
+        )
+
+    alertas = peticao.dossie["alertas"]
+    assert "revisar qualificacao" in alertas  # alertas do drafter preservados
+    assert any("DataJud" in a for a in alertas), alertas
+
+
+def test_draft_no_enrichment_alert_when_process_not_found(db_session):
+    """Processo simplesmente não existe no DataJud (retorna vazio) não é erro:
+    nenhum alerta de indisponibilidade é adicionado."""
+    intimacao = _shell_intimacao(db_session, nome="Escritorio NaoAchado", fonte_id="naoachado-1")
+
+    class EmptyDatajud:
+        def consultar_processo(self, numero, *, tribunal):
+            return None
+
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=_CLASSIFICACAO),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA),
+    ):
+        _, peticao, _ = draft_from_intimacao(
+            db_session, intimacao,
+            calendar=build_calendar([2024, 2025]),
+            datajud=EmptyDatajud(),
+        )
+
+    assert peticao.dossie["alertas"] == ["revisar qualificacao"]  # nenhum alerta extra
 
 
 def test_draft_does_not_reenrich_when_process_already_has_andamentos(db_session):

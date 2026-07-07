@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -54,6 +54,7 @@ from app.api.schemas import (
 )
 from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
+from app.capture.enrich import backfill_sistema, run_enrichment_backfill
 from app.capture.poll import poll_oab
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import (
@@ -871,6 +872,7 @@ def create_app() -> FastAPI:
     @app.post("/capture/oab", response_model=CaptureResultOut)
     def capturar_oab(
         payload: CaptureOabRequest,
+        background_tasks: BackgroundTasks,
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
         response: Response = None,
@@ -893,6 +895,12 @@ def create_app() -> FastAPI:
                 dias_default=payload.dias_default,
                 data_inicio=data_inicio,
                 data_fim=data_fim,
+                # Captura manual roda em modo rápido: só intimações + prazos, sem
+                # o loop sequencial de DataJud (rate-limitado pelo CNJ em volume,
+                # trava a UI). O processo fica "shell" e é enriquecido on-demand
+                # na geração da minuta (draft_from_intimacao). A captura agendada
+                # (background/batched) continua enriquecendo.
+                enrich=False,
             )
         except Exception as exc:
             session.rollback()
@@ -903,6 +911,11 @@ def create_app() -> FastAPI:
         # chamador pode retentar depois para pegar o restante das paginas.
         if result.djen_indisponivel and response is not None:
             response.status_code = 206
+
+        # Deduz o sistema (PJe/e-SAJ/...) do tribunal para todo processo do tenant
+        # que ainda estava sem — inclui os capturados antes da inferência. Rápido
+        # e offline; popula o filtro e o roteamento de protocolo já nesta captura.
+        backfill_sistema(session, escritorio_id=current.escritorio_id)
         _audit(
             session,
             acao="captura_oab_executada",
@@ -918,6 +931,14 @@ def create_app() -> FastAPI:
             },
         )
         session.commit()
+
+        # Enriquecimento roda FORA do request: a captura devolve rápido (só
+        # intimações + prazos) e o backfill preenche sistema/classe/órgão dos
+        # processos shell em background, no mesmo processo (sem worker separado).
+        # Sem DataJud configurado não há o que enriquecer.
+        if settings.datajud_api_key:
+            background_tasks.add_task(run_enrichment_backfill, current.escritorio_id)
+
         return CaptureResultOut(**result.__dict__)
 
     @app.get("/intimacoes", response_model=list[IntimacaoOut])
