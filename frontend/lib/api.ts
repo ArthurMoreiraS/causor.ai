@@ -260,6 +260,12 @@ export type DashboardData = {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").replace(/\/+$/, "");
 
+// A página de Processos monta a lista a partir de `/processos` (unida ao
+// reviewQueue). Com o default de 100, a página não alcançava a base inteira e
+// contava menos que o dashboard (200 vs 195), deixando processos fora da tabela.
+// 500 é o teto do endpoint (`le=500`); acima disso é preciso paginação real.
+const PROCESSOS_PAGE_LIMIT = 500;
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -312,7 +318,7 @@ export async function loadDashboard(): Promise<DashboardData> {
   // - uma falha rejeitava tudo e a tela inteira parecia vazia).
   const [intimacoes, processos, prazos, peticoes] = await Promise.all([
     requestList<Intimacao>("/intimacoes"),
-    requestList<Processo>("/processos"),
+    requestList<Processo>(`/processos?limit=${PROCESSOS_PAGE_LIMIT}`),
     requestList<Prazo>("/prazos"),
     requestList<Peticao>("/peticoes")
   ]);

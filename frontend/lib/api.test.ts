@@ -66,6 +66,30 @@ describe("API client critical workflows", () => {
     }
   });
 
+  it("requests processos above the 100 default so the list matches the dashboard count", async () => {
+    // /processos default limit is 100; deriving the Processos page from that
+    // capped list under-reported (dashboard said 200, page showed 195). The
+    // page must load the full population, so loadDashboard asks for limit=500.
+    const fetchMock = mockFetch({
+      "GET /intimacoes": { body: [] },
+      "GET /processos": { body: [] },
+      "GET /prazos": { body: [] },
+      "GET /peticoes": { body: [] },
+      "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
+      "GET /review/queue": { body: [] }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadDashboard } = await import("./api");
+
+    await loadDashboard();
+
+    const processosCall = fetchMock.mock.calls.find(
+      ([url]) => new URL(String(url)).pathname === "/processos"
+    );
+    expect(processosCall).toBeDefined();
+    expect(new URL(String(processosCall![0])).searchParams.get("limit")).toBe("500");
+  });
+
   it("normalizes a trailing slash in NEXT_PUBLIC_API_BASE before requesting core endpoints", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE", "http://localhost:8000/");
     const fetchMock = mockFetch({
