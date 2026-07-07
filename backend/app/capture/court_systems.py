@@ -15,12 +15,7 @@ human approval gate before any filing, never acted on silently.
 
 from __future__ import annotations
 
-# Softplan e-SAJ.
-_ESAJ = {"TJSP", "TJMS", "TJAL", "TJAC"}
-# EPROC (TRF4 e tribunais que adotaram o sistema gaúcho/catarinense).
-_EPROC = {"TJRS", "TJSC", "TJTO", "TRF4"}
-# Projudi.
-_PROJUDI = {"TJPR"}
+from app.capture.court_routing import resolve_route
 
 
 def sistema_para_tribunal(tribunal: str | None) -> str | None:
@@ -28,15 +23,7 @@ def sistema_para_tribunal(tribunal: str | None) -> str | None:
 
     Retorna ``None`` quando não há tribunal para inferir. Caso contrário devolve
     um dos rótulos canônicos: ``"PJe"`` (default), ``"e-SAJ"``, ``"EPROC"`` ou
-    ``"Projudi"``.
+    ``"Projudi"``. A fonte da verdade é o registro em ``court_routing``.
     """
-    if not tribunal or not tribunal.strip():
-        return None
-    sigla = tribunal.strip().upper()
-    if sigla in _ESAJ:
-        return "e-SAJ"
-    if sigla in _EPROC:
-        return "EPROC"
-    if sigla in _PROJUDI:
-        return "Projudi"
-    return "PJe"
+    route = resolve_route(tribunal)
+    return route.sistema if route is not None else None
