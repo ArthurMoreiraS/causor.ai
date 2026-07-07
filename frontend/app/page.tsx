@@ -86,7 +86,9 @@ import {
   riskLabel
 } from "@/lib/format";
 import {
+  buildIntimacaoRows,
   CONNECTORS_FALLBACK,
+  mergeById,
   STATUS_MATCH,
   StatusKey,
   VIEW_LABEL,
@@ -233,7 +235,7 @@ export default function Home() {
       toast({
         kind: "success",
         title: "Captura concluída",
-        description: `${result.intimacoes_novas} intimações novas, ${result.processos_enriquecidos} processos enriquecidos.`
+        description: `${result.intimacoes_novas} intimações novas, ${result.prazos_registrados} prazos registrados. Processos são enriquecidos ao gerar a minuta.`
       });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Captura por OAB não concluída";
@@ -445,10 +447,24 @@ export default function Home() {
     [scopedQueue]
   );
 
+  // Pools completados com as entidades já cruzadas pelo servidor (reviewQueue):
+  // /prazos e /processos são paginados por chaves diferentes (fatal mais antiga
+  // vs. id mais recente), então o join client-side operava em subconjuntos
+  // disjuntos. Mesclar o que o reviewQueue já resolveu reconcilia os joins das
+  // views de Prazos e Processos sem depender de qual página carregou.
+  const prazosPool = useMemo(
+    () => mergeById(data.prazos, reviewQueue.map((item) => item.prazo)),
+    [data.prazos, reviewQueue]
+  );
+  const processosPool = useMemo(
+    () => mergeById(data.processos, reviewQueue.map((item) => item.processo)),
+    [data.processos, reviewQueue]
+  );
+
   const processoRows = useMemo(() => {
-    return data.processos
+    return processosPool
       .map((processo) => {
-        const prazos = data.prazos.filter((prazo) => prazo.processo_id === processo.id);
+        const prazos = prazosPool.filter((prazo) => prazo.processo_id === processo.id);
         const intimacoes = data.intimacoes.filter(
           (intimacao) => intimacao.processo_id === processo.id
         );
@@ -486,19 +502,13 @@ export default function Home() {
           query
         )
       );
-  }, [data, query, filters]);
+  }, [processosPool, prazosPool, data.intimacoes, data.peticoes, query, filters]);
 
   const intimacaoRows = useMemo(() => {
-    return data.intimacoes
-      .map((intimacao) => {
-        const processo = data.processos.find((item) => item.id === intimacao.processo_id) ?? null;
-        const prazo = data.prazos.find((item) => item.intimacao_id === intimacao.id) ?? null;
-        const peticao =
-          data.peticoes.find((item) => item.prazo_id === prazo?.id) ??
-          data.peticoes.find((item) => item.processo_id === processo?.id) ??
-          null;
-        return { intimacao, processo, prazo, peticao };
-      })
+    // Deriva da fila de revisão do servidor (join intimação↔prazo já correto),
+    // em vez de re-cruzar contra /prazos paginado — que fazia intimações com
+    // prazo aparecerem como "Pendente".
+    return buildIntimacaoRows(reviewQueue)
       .filter(({ intimacao, processo, prazo }) =>
         passesFilters(filters, {
           tribunal: intimacao.tribunal ?? processo?.tribunal,
@@ -520,12 +530,12 @@ export default function Home() {
           query
         )
       );
-  }, [data, query, filters]);
+  }, [reviewQueue, query, filters]);
 
   const prazoRows = useMemo(() => {
-    return data.prazos
+    return prazosPool
       .map((prazo) => {
-        const processo = data.processos.find((item) => item.id === prazo.processo_id) ?? null;
+        const processo = processosPool.find((item) => item.id === prazo.processo_id) ?? null;
         const intimacao = data.intimacoes.find((item) => item.id === prazo.intimacao_id) ?? null;
         const peticao = data.peticoes.find((item) => item.prazo_id === prazo.id) ?? null;
         const dias = daysUntil(prazo.data_fatal);
@@ -552,7 +562,7 @@ export default function Home() {
           query
         )
       );
-  }, [data, query, filters]);
+  }, [prazosPool, processosPool, data.intimacoes, data.peticoes, query, filters]);
 
   const peticaoRows = useMemo(() => {
     return data.peticoes
@@ -873,9 +883,9 @@ export default function Home() {
             <span>
               Captura concluída
               {captureContext ? ` para OAB ${captureContext.oab}/${captureContext.uf}` : ""}:{" "}
-              {captureResult.intimacoes_novas} intimações novas,{" "}
-              {captureResult.processos_enriquecidos} processos enriquecidos e{" "}
-              {captureResult.prazos_registrados} prazos registrados.
+              {captureResult.intimacoes_novas} intimações novas e{" "}
+              {captureResult.prazos_registrados} prazos registrados. Os dados
+              completos do processo são carregados ao gerar a minuta.
             </span>
             <button
               className="dismiss-notice"
@@ -1300,9 +1310,9 @@ export default function Home() {
         {detail ? (
           <DetailDrawer
             selection={detail}
-            processos={data.processos}
+            processos={processosPool}
             intimacoes={data.intimacoes}
-            prazos={data.prazos}
+            prazos={prazosPool}
             peticoes={data.peticoes}
             busy={busy}
             offline={offline}

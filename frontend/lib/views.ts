@@ -1,4 +1,4 @@
-import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
+import type { Intimacao, Peticao, Prazo, Processo, ReviewQueueItem } from "@/lib/api";
 
 export type ViewKey =
   | "dashboard"
@@ -74,3 +74,38 @@ export type PeticaoRow = {
   processo: Processo | null;
   prazo: Prazo | null;
 };
+
+/**
+ * Linhas de intimação a partir da fila de revisão do servidor (`/review/queue`),
+ * que já cruza intimação → prazo → processo → petição corretamente. Antes o
+ * cliente re-cruzava contra `/prazos` (paginado por fatal mais antiga), então
+ * intimações recentes não achavam seu prazo e apareciam como "Pendente" mesmo
+ * tendo prazo. Derivar do reviewQueue elimina esse descasamento de paginação.
+ */
+export function buildIntimacaoRows(queue: ReviewQueueItem[]): IntimacaoRow[] {
+  return queue.map((item) => ({
+    intimacao: item.intimacao,
+    processo: item.processo,
+    prazo: item.prazo,
+    peticao: item.peticao
+  }));
+}
+
+/**
+ * União por `id` de duas listas de entidades, mantendo a base em conflito e
+ * ignorando nulos. Usada para completar os pools de prazos/processos com as
+ * entidades já cruzadas pelo reviewQueue — que podem estar fora da página
+ * separadamente limitada de `/prazos` e `/processos` — antes dos joins das
+ * views de Prazos e Processos.
+ */
+export function mergeById<T extends { id: number }>(
+  base: T[],
+  extra: Array<T | null | undefined>
+): T[] {
+  const byId = new Map<number, T>();
+  for (const item of base) byId.set(item.id, item);
+  for (const item of extra) {
+    if (item && !byId.has(item.id)) byId.set(item.id, item);
+  }
+  return Array.from(byId.values());
+}

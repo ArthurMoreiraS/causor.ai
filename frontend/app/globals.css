@@ -1525,7 +1525,13 @@ h2 {
 
 .inboxTable .dataHead,
 .inboxTable .dataRow {
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 132px 96px 130px auto;
+  /* Cabeçalho e linhas são grids SEPARADOS que só compartilham este template.
+     A última coluna precisa de um piso que caiba o botão de ação (~93px): com
+     `auto` puro ela resolveria para a largura do texto "Ação" no cabeçalho e
+     para a do botão nas linhas — larguras diferentes encolhem as colunas `fr`
+     de forma distinta e desalinham Sistema/Prazo/Minuta. `minmax(120px, auto)`
+     mantém a coluna idêntica nos dois (mesma convenção das outras tabelas). */
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 132px 96px 130px minmax(120px, auto);
 }
 
 .dataRow > .pill,
@@ -4634,7 +4640,6 @@ h2 {
 .authBrand img {
   height: 26px;
   width: auto;
-  display: block;
 }
 .authSub {
   margin: 0 0 10px;
