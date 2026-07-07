@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from hashlib import sha256
 import json
+import os
+from pathlib import Path
 
 from sqlalchemy import text
 from sqlalchemy import select
@@ -34,7 +36,38 @@ class VaultProviderError(VaultError):
     """Raised when the configured vault provider cannot store a secret."""
 
 
-_LOCALDEV_SECRETS: dict[str, str] = {}
+# Provider localdev: in-memory por padrao (testes isolados). Quando
+# CAUSOR_VAULT_LOCALDEV_PATH aponta para um arquivo, os segredos passam a ser
+# file-backed e sobrevivem a um reinicio do backend (demo/dev), sem depender de
+# um vault gerenciado. O arquivo fica fora do git.
+_LOCALDEV_MEM: dict[str, str] = {}
+
+
+def _localdev_path() -> Path | None:
+    raw = os.getenv("CAUSOR_VAULT_LOCALDEV_PATH")
+    return Path(raw) if raw else None
+
+
+def _localdev_load() -> dict[str, str]:
+    path = _localdev_path()
+    if path is None:
+        return dict(_LOCALDEV_MEM)  # cópia: save() faz clear()+update() sem apagar a fonte
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            return {}
+    return {}
+
+
+def _localdev_save(data: dict[str, str]) -> None:
+    path = _localdev_path()
+    if path is None:
+        _LOCALDEV_MEM.clear()
+        _LOCALDEV_MEM.update(data)
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
 
 
 def _audit(
@@ -75,7 +108,9 @@ def _store_secret_reference(
     provider = settings.vault_provider.strip().lower()
     if provider == "localdev":
         reference = _reference_for(usuario_id, provedor, secret)
-        _LOCALDEV_SECRETS[reference] = secret
+        data = _localdev_load()
+        data[reference] = secret
+        _localdev_save(data)
         return reference
     if provider == "supabase":
         try:
@@ -100,11 +135,12 @@ def _store_secret_reference(
 
 def _load_secret_from_reference(session: Session, reference: str) -> str:
     if reference.startswith("localdev://"):
+        data = _localdev_load()
         try:
-            return _LOCALDEV_SECRETS[reference]
+            return data[reference]
         except KeyError as exc:
             raise VaultProviderError(
-                "segredo localdev nao esta em memoria; recadastre a sessao assistida"
+                "segredo localdev nao encontrado; recadastre a sessao assistida"
             ) from exc
     if reference.startswith("supabase-vault://"):
         secret_id = reference.removeprefix("supabase-vault://")

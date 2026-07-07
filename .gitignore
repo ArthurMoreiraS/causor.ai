@@ -16,3 +16,5 @@ logs/
 *.tsbuildinfo
 backend/shots/
 .claude/
+# Cofre localdev file-backed (segredos de sessao; nunca versionar)
+*causor-vault-localdev*.json
