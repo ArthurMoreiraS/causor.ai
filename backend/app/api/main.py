@@ -446,6 +446,7 @@ def create_app() -> FastAPI:
         high_risk = [
             prazo for prazo in pending_deadlines if (prazo.data_fatal - today).days <= 3
         ]
+        overdue = [prazo for prazo in pending_deadlines if prazo.data_fatal < today]
 
         return OperationalDashboard(
             metrics=[
@@ -453,10 +454,16 @@ def create_app() -> FastAPI:
                 {"key": "intimacoes", "label": "Intimações capturadas", "value": intimacoes},
                 {"key": "prazos", "label": "Prazos pendentes", "value": len(pending_deadlines)},
                 {"key": "risco", "label": "Alto risco", "value": len(high_risk)},
+                {"key": "vencidos", "label": "Prazos vencidos", "value": len(overdue)},
                 {
                     "key": "minutas",
                     "label": "Minutas em revisao",
                     "value": len([p for p in peticoes if p.status == "rascunho"]),
+                },
+                {
+                    "key": "aprovadas",
+                    "label": "Minutas aprovadas",
+                    "value": len([p for p in peticoes if p.status == "aprovada"]),
                 },
             ],
             workflow=[

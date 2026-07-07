@@ -77,6 +77,7 @@ import { useRequireAuth } from "./AuthProvider";
 import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
+import { computeDashboardMetrics } from "@/lib/metrics";
 import {
   daysUntil,
   matchesQuery,
@@ -319,32 +320,7 @@ export default function Home() {
     void refresh();
   }, []);
 
-  const metrics = useMemo(() => {
-    const openDeadlines = data.prazos.filter((p) => !p.cumprido);
-    const highRisk = openDeadlines.filter((p) => daysUntil(p.data_fatal) <= 3).length;
-    const overdue = openDeadlines.filter((p) => daysUntil(p.data_fatal) < 0).length;
-    const drafts = data.peticoes.filter((p) => p.status === "rascunho").length;
-    const approved = data.peticoes.filter((p) => p.status === "aprovada").length;
-    const handledProcessos = new Set(data.peticoes.map((p) => p.processo_id));
-    const withoutDraft = data.intimacoes.filter(
-      (i) => !i.processo_id || !handledProcessos.has(i.processo_id)
-    ).length;
-    // Real compliance: share of pending deadlines that are not overdue.
-    const compliance = openDeadlines.length
-      ? Math.round(((openDeadlines.length - overdue) / openDeadlines.length) * 100)
-      : 100;
-    return {
-      monitored: data.processos.length,
-      captured: data.intimacoes.length,
-      pending: openDeadlines.length,
-      highRisk,
-      overdue,
-      drafts,
-      approved,
-      withoutDraft,
-      compliance
-    };
-  }, [data]);
+  const metrics = useMemo(() => computeDashboardMetrics(data), [data]);
 
   const reviewQueue = useMemo<ReviewQueueItem[]>(() => {
     if (data.reviewQueue?.length) return data.reviewQueue;

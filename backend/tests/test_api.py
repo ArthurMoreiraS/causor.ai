@@ -283,6 +283,24 @@ def test_dashboard_operacional(client, seeded):
     assert {connector["key"] for connector in body["connectors"]} >= {"djen", "datajud", "pje"}
 
 
+def test_dashboard_operacional_expoe_vencidos_e_aprovadas(client, db_session, seeded):
+    # Fixture já traz o prazo "A" pendente com data_fatal em 2024 (vencido hoje).
+    db_session.add_all(
+        [
+            models.Peticao(processo_id=seeded.id, escritorio_id=seeded.escritorio_id, status="aprovada"),
+            models.Peticao(processo_id=seeded.id, escritorio_id=seeded.escritorio_id, status="rascunho"),
+        ]
+    )
+    db_session.flush()
+
+    body = client.get("/dashboard/operational").json()
+    metric_by_key = {item["key"]: item["value"] for item in body["metrics"]}
+
+    assert metric_by_key["vencidos"] == 1  # prazo "A" está pendente e com data_fatal no passado
+    assert metric_by_key["aprovadas"] == 1
+    assert metric_by_key["minutas"] == 1  # rascunho
+
+
 def test_listar_intimacoes(client, seeded):
     resp = client.get("/intimacoes")
     assert resp.status_code == 200
