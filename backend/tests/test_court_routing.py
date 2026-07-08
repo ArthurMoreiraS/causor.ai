@@ -24,6 +24,59 @@ def test_unknown_tribunal_falls_back_to_pje_without_url():
     assert route.verificado is False
 
 
+def test_trf3_routes_to_pje_with_login_url_per_grau():
+    r1 = resolve_route("TRF3", "1")
+    r2 = resolve_route("TRF3", "2")
+    assert r1.sistema == "PJe"
+    assert "pje1g.trf3.jus.br" in (r1.url_login or "")
+    assert "pje2g.trf3.jus.br" in (r2.url_login or "")
+    assert r1.verificado is True
+    # PJe peticiona a partir do painel: peticionamento cai para o login.
+    assert r1.url_peticionamento == r1.url_login
+
+
+def test_trfs_pje_seguem_padrao_pje1g_pje2g():
+    for trf in ("TRF1", "TRF5", "TRF6"):
+        r1 = resolve_route(trf, "1")
+        r2 = resolve_route(trf, "2")
+        assert r1.sistema == "PJe", trf
+        assert f"pje1g.{trf.lower()}.jus.br" in (r1.url_login or ""), trf
+        assert f"pje2g.{trf.lower()}.jus.br" in (r2.url_login or ""), trf
+        assert r1.verificado is True, trf
+
+
+def test_tjdft_routes_to_pje_with_urls_verificadas():
+    r1 = resolve_route("TJDFT", "1")
+    r2 = resolve_route("TJDFT", "2")
+    assert r1.sistema == "PJe"
+    assert "pje.tjdft.jus.br" in (r1.url_login or "")
+    assert "pje2i.tjdft.jus.br" in (r2.url_login or "")
+    assert r1.verificado is True
+
+
+def test_principais_tjs_pje_tem_url_nos_dois_graus():
+    for tj in ("TJBA", "TJPE", "TJPA", "TJMA", "TJMT"):
+        r1 = resolve_route(tj, "1")
+        r2 = resolve_route(tj, "2")
+        assert r1.sistema == "PJe", tj
+        assert r1.url_login, tj
+        assert r2.url_login, tj
+        assert r1.url_login != r2.url_login, tj
+        assert r1.verificado is True, tj
+
+
+def test_todos_os_trts_seguem_padrao_csjt():
+    for n in range(1, 25):
+        r1 = resolve_route(f"TRT{n}", "1")
+        r2 = resolve_route(f"TRT{n}", "2")
+        assert r1.sistema == "PJe", n
+        assert f"pje.trt{n}.jus.br/primeirograu" in (r1.url_login or ""), n
+        assert f"pje.trt{n}.jus.br/segundograu" in (r2.url_login or ""), n
+    # Conferidos individualmente contra os portais; demais sao padrao CSJT.
+    assert resolve_route("TRT15", "1").verificado is True
+    assert resolve_route("TRT7", "1").verificado is False
+
+
 def test_none_tribunal_returns_none():
     assert resolve_route(None) is None
 

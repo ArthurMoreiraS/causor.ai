@@ -59,11 +59,88 @@ _ROUTES: dict[str, dict] = {
         "verificado": True,
         "obs": "2o grau na instancia pje2g",
     },
-    "TRT2": {
+    "TJDFT": {
         "sistema": "PJe",
         "login": {
-            "1": "https://pje.trt2.jus.br/primeirograu/login.seam",
-            "2": "https://pje.trt2.jus.br/segundograu/login.seam",
+            "1": "https://pje.tjdft.jus.br/pje/login.seam",
+            "2": "https://pje2i.tjdft.jus.br/pje/login.seam",
+        },
+        "verificado": True,
+        "obs": "2o grau na instancia pje2i (segunda instancia)",
+    },
+    "TJBA": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje.tjba.jus.br/pje/login.seam",
+            "2": "https://pje2g.tjba.jus.br/pje/login.seam",
+        },
+        "verificado": True,
+    },
+    "TJPE": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje.tjpe.jus.br/1g/login.seam",
+            "2": "https://pje.tjpe.jus.br/2g/login.seam",
+        },
+        "verificado": True,
+    },
+    "TJPA": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje.tjpa.jus.br/pje/login.seam",
+            "2": "https://pje.tjpa.jus.br/pje-2g/login.seam",
+        },
+        "verificado": True,
+        "obs": "pje-2g cobre 2o grau e turmas recursais",
+    },
+    "TJMA": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje.tjma.jus.br/pje/login.seam",
+            "2": "https://pje2.tjma.jus.br/pje2g/login.seam",
+        },
+        "verificado": True,
+    },
+    "TJMT": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje.tjmt.jus.br/pje/login.seam",
+            "2": "https://pje2.tjmt.jus.br/pje2/login.seam",
+        },
+        "verificado": True,
+    },
+    # TRFs em PJe seguem o padrao pje1g/pje2g.<trf>.jus.br (TRF2 usa eproc;
+    # TRF4 esta na secao EPROC). Conferidos contra os portais oficiais.
+    "TRF1": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje1g.trf1.jus.br/pje/login.seam",
+            "2": "https://pje2g.trf1.jus.br/pje/login.seam",
+        },
+        "verificado": True,
+    },
+    "TRF3": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje1g.trf3.jus.br/pje/login.seam",
+            "2": "https://pje2g.trf3.jus.br/pje/login.seam",
+        },
+        "verificado": True,
+    },
+    "TRF5": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje1g.trf5.jus.br/pje/login.seam",
+            "2": "https://pje2g.trf5.jus.br/pje/login.seam",
+        },
+        "verificado": True,
+        "obs": "PJe 2.x; legado 1.x em pje.trf5.jus.br para processos antigos",
+    },
+    "TRF6": {
+        "sistema": "PJe",
+        "login": {
+            "1": "https://pje1g.trf6.jus.br/pje/login.seam",
+            "2": "https://pje2g.trf6.jus.br/pje/login.seam",
         },
         "verificado": True,
     },
@@ -92,6 +169,21 @@ _ROUTES: dict[str, dict] = {
     },
     "TJGO": {"sistema": "Projudi", "verificado": False},
 }
+
+# Justica do Trabalho: os 24 TRTs usam PJe no padrao CSJT
+# pje.trt<N>.jus.br/{primeirograu,segundograu}/login.seam. Conferidos contra o
+# portal oficial: TRT1, TRT2, TRT3 e TRT15; os demais seguem o padrao (palpite
+# forte a confirmar no primeiro uso).
+_TRT_CONFERIDOS = {1, 2, 3, 15}
+for _n in range(1, 25):
+    _ROUTES[f"TRT{_n}"] = {
+        "sistema": "PJe",
+        "login": {
+            "1": f"https://pje.trt{_n}.jus.br/primeirograu/login.seam",
+            "2": f"https://pje.trt{_n}.jus.br/segundograu/login.seam",
+        },
+        "verificado": _n in _TRT_CONFERIDOS,
+    }
 
 
 def resolve_route(tribunal: str | None, grau: str = "1") -> CourtRoute | None:
