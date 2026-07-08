@@ -1,4 +1,12 @@
-import type { Intimacao, Peticao, Prazo, Processo, ReviewQueueItem } from "@/lib/api";
+import type {
+  Intimacao,
+  Peticao,
+  Prazo,
+  Processo,
+  ProcessoResumoLista,
+  ProximoPrazo,
+  ReviewQueueItem
+} from "@/lib/api";
 
 export type ViewKey =
   | "dashboard"
@@ -45,14 +53,68 @@ export const CONNECTORS_FALLBACK = [
   { key: "esaj", name: "e-SAJ", detail: "próximo conector", status: "planned" }
 ];
 
-/** Linhas agregadas usadas pelas views (SOR cruzado no cliente). */
+/** Linha da view de Processos: processo + próximo prazo + contagens + tipos
+ * representativos. Vem cruzada do servidor (`/processos/resumo`); o fallback
+ * client-side produz o mesmo formato quando o endpoint está indisponível. */
 export type ProcessoRow = {
   processo: Processo;
-  prazos: Prazo[];
-  intimacoes: Intimacao[];
-  peticoes: Peticao[];
-  proximoPrazo: Prazo | null;
+  proximoPrazo: ProximoPrazo | null;
+  intimacoesCount: number;
+  peticoesCount: number;
+  intimacaoTipo: string | null;
+  peticaoTipo: string | null;
 };
+
+/** Linhas da view de Processos a partir do endpoint enriquecido — sem re-cruzar
+ * listas paginadas no cliente (a origem do descasamento 200 vs 195). */
+export function buildProcessoRows(resumo: ProcessoResumoLista): ProcessoRow[] {
+  return resumo.items.map((item) => ({
+    processo: {
+      id: item.id,
+      numero: item.numero,
+      classe: item.classe,
+      tribunal: item.tribunal,
+      orgao_julgador: item.orgao_julgador,
+      sistema: item.sistema
+    },
+    proximoPrazo: item.proximo_prazo,
+    intimacoesCount: item.intimacoes_count,
+    peticoesCount: item.peticoes_count,
+    intimacaoTipo: item.intimacao_tipo,
+    peticaoTipo: item.peticao_tipo
+  }));
+}
+
+/** Fallback: monta as mesmas linhas cruzando as listas no cliente, usado só
+ * quando `/processos/resumo` não responde (backend antigo/offline). Sujeito ao
+ * teto de paginação das listas — por isso é fallback, não o caminho principal. */
+export function buildProcessoRowsFromLists(
+  processos: Processo[],
+  prazos: Prazo[],
+  intimacoes: Intimacao[],
+  peticoes: Peticao[]
+): ProcessoRow[] {
+  return processos.map((processo) => {
+    const procIntimacoes = intimacoes.filter((i) => i.processo_id === processo.id);
+    const procPeticoes = peticoes.filter((p) => p.processo_id === processo.id);
+    const proximo =
+      prazos
+        .filter((p) => p.processo_id === processo.id && !p.cumprido)
+        .sort(
+          (a, b) => new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime()
+        )[0] ?? null;
+    return {
+      processo,
+      proximoPrazo: proximo
+        ? { data_fatal: proximo.data_fatal, cumprido: proximo.cumprido, descricao: proximo.descricao }
+        : null,
+      intimacoesCount: procIntimacoes.length,
+      peticoesCount: procPeticoes.length,
+      intimacaoTipo: procIntimacoes[0]?.tipo_comunicacao ?? null,
+      peticaoTipo: procPeticoes[0]?.tipo ?? null
+    };
+  });
+}
 
 export type IntimacaoRow = {
   intimacao: Intimacao;

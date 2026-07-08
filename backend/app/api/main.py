@@ -11,7 +11,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
@@ -44,6 +44,9 @@ from app.api.schemas import (
     PeticaoOut,
     PrazoOut,
     ProcessoOut,
+    ProcessoResumoLista,
+    ProcessoResumoOut,
+    ProximoPrazoOut,
     ProtocolarAsyncRequest,
     RevisarPrazoRequest,
     ReviewQueueItem,
@@ -1028,6 +1031,97 @@ def create_app() -> FastAPI:
             models.Processo.id.desc()
         ).limit(limit)
         return list(session.scalars(stmt))
+
+    @app.get("/processos/resumo", response_model=ProcessoResumoLista)
+    def listar_processos_resumo(
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+        limit: int = Query(default=5000, le=5000),
+    ) -> ProcessoResumoLista:
+        """Lista de processos já cruzada no servidor (próximo prazo + contagens +
+        campos de busca) + `total` real. A página de Processos consome isso em vez
+        de cruzar 4 listas paginadas no cliente — que subcontava (200 no dashboard
+        vs 195 na página, com processos sumindo da tabela). Custo fixo de ~5
+        queries agrupadas, sem N+1, independente do número de processos."""
+        processos = list(
+            session.scalars(
+                tenant_select(models.Processo, current)
+                .order_by(models.Processo.id.desc())
+                .limit(limit)
+            )
+        )
+        total = (
+            session.scalar(
+                select(func.count())
+                .select_from(models.Processo)
+                .where(models.Processo.escritorio_id == current.escritorio_id)
+            )
+            or 0
+        )
+
+        # Um scan por tabela relacionada (tenant-scoped), na ordem que define o
+        # "mais recente": contagem e tipo representativo saem do mesmo passo.
+        intimacoes_count: dict[int, int] = {}
+        intimacao_tipo: dict[int, str | None] = {}
+        for processo_id, tipo in session.execute(
+            select(models.Intimacao.processo_id, models.Intimacao.tipo_comunicacao)
+            .where(models.Intimacao.escritorio_id == current.escritorio_id)
+            .order_by(models.Intimacao.data_disponibilizacao.desc())
+        ).all():
+            if processo_id is None:
+                continue
+            intimacoes_count[processo_id] = intimacoes_count.get(processo_id, 0) + 1
+            intimacao_tipo.setdefault(processo_id, tipo)  # 1º na ordem desc = mais recente
+
+        peticoes_count: dict[int, int] = {}
+        peticao_tipo: dict[int, str | None] = {}
+        for processo_id, tipo in session.execute(
+            select(models.Peticao.processo_id, models.Peticao.tipo)
+            .where(models.Peticao.escritorio_id == current.escritorio_id)
+            .order_by(models.Peticao.id.desc())
+        ).all():
+            if processo_id is None:
+                continue
+            peticoes_count[processo_id] = peticoes_count.get(processo_id, 0) + 1
+            peticao_tipo.setdefault(processo_id, tipo)
+
+        # Próximo prazo = menor data_fatal entre os pendentes (cumpridos ignorados).
+        proximo_prazo: dict[int, models.Prazo] = {}
+        for prazo in session.scalars(
+            tenant_select(models.Prazo, current)
+            .where(models.Prazo.cumprido.is_(False))
+            .order_by(models.Prazo.data_fatal.asc())
+        ):
+            if prazo.processo_id is not None:
+                proximo_prazo.setdefault(prazo.processo_id, prazo)
+
+        items = []
+        for p in processos:
+            prazo = proximo_prazo.get(p.id)
+            items.append(
+                ProcessoResumoOut(
+                    id=p.id,
+                    numero=p.numero,
+                    classe=p.classe,
+                    tribunal=p.tribunal,
+                    orgao_julgador=p.orgao_julgador,
+                    sistema=p.sistema,
+                    intimacoes_count=intimacoes_count.get(p.id, 0),
+                    peticoes_count=peticoes_count.get(p.id, 0),
+                    proximo_prazo=(
+                        ProximoPrazoOut(
+                            data_fatal=prazo.data_fatal,
+                            cumprido=prazo.cumprido,
+                            descricao=prazo.descricao,
+                        )
+                        if prazo is not None
+                        else None
+                    ),
+                    intimacao_tipo=intimacao_tipo.get(p.id),
+                    peticao_tipo=peticao_tipo.get(p.id),
+                )
+            )
+        return ProcessoResumoLista(total=total, items=items)
 
     @app.get("/prazos", response_model=list[PrazoOut])
     def listar_prazos(

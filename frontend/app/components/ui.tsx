@@ -388,7 +388,13 @@ export function FeatureTile({
   );
 }
 
-export function DeadlineBadge({ prazo }: { prazo: Prazo | null | undefined }) {
+// Aceita tanto o Prazo completo quanto o ProximoPrazo enxuto de /processos/resumo:
+// só precisa de data_fatal + cumprido.
+export function DeadlineBadge({
+  prazo
+}: {
+  prazo: Pick<Prazo, "data_fatal" | "cumprido"> | null | undefined;
+}) {
   if (!prazo) return <span className="dayBadge neutral">Pendente</span>;
   const remaining = daysUntil(prazo.data_fatal);
   if (prazo.cumprido) return <span className="dayBadge done">Concluído</span>;

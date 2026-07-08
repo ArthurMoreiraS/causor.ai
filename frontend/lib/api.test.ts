@@ -52,7 +52,8 @@ describe("API client critical workflows", () => {
       "GET /prazos": { body: [] },
       "GET /peticoes": { body: [] },
       "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
-      "GET /review/queue": { body: [] }
+      "GET /review/queue": { body: [] },
+      "GET /processos/resumo": { body: { total: 0, items: [] } }
     });
     vi.stubGlobal("fetch", fetchMock);
     const { loadDashboard } = await import("./api");
@@ -60,7 +61,7 @@ describe("API client critical workflows", () => {
     const result = await loadDashboard();
 
     expect(result.backendOffline).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(6);
+    expect(fetchMock).toHaveBeenCalledTimes(7);
     for (const [, init] of fetchMock.mock.calls) {
       expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
     }
@@ -76,7 +77,8 @@ describe("API client critical workflows", () => {
       "GET /prazos": { body: [] },
       "GET /peticoes": { body: [] },
       "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
-      "GET /review/queue": { body: [] }
+      "GET /review/queue": { body: [] },
+      "GET /processos/resumo": { body: { total: 0, items: [] } }
     });
     vi.stubGlobal("fetch", fetchMock);
     const { loadDashboard } = await import("./api");
@@ -90,6 +92,25 @@ describe("API client critical workflows", () => {
     expect(new URL(String(processosCall![0])).searchParams.get("limit")).toBe("500");
   });
 
+  it("loads the enriched /processos/resumo so the page can match the dashboard count", async () => {
+    const fetchMock = mockFetch({
+      "GET /intimacoes": { body: [] },
+      "GET /processos": { body: [] },
+      "GET /prazos": { body: [] },
+      "GET /peticoes": { body: [] },
+      "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
+      "GET /review/queue": { body: [] },
+      "GET /processos/resumo": { body: { total: 2, items: [{ id: 1 }, { id: 2 }] } }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { loadDashboard } = await import("./api");
+
+    const result = await loadDashboard();
+
+    expect(result.processosResumo?.total).toBe(2);
+    expect(result.processosResumo?.items).toHaveLength(2);
+  });
+
   it("normalizes a trailing slash in NEXT_PUBLIC_API_BASE before requesting core endpoints", async () => {
     vi.stubEnv("NEXT_PUBLIC_API_BASE", "http://localhost:8000/");
     const fetchMock = mockFetch({
@@ -98,7 +119,8 @@ describe("API client critical workflows", () => {
       "GET /prazos": { body: [] },
       "GET /peticoes": { body: [] },
       "GET /dashboard/operational": { body: { metrics: [], workflow: [], connectors: [], audit_signals: [] } },
-      "GET /review/queue": { body: [] }
+      "GET /review/queue": { body: [] },
+      "GET /processos/resumo": { body: { total: 0, items: [] } }
     });
     vi.stubGlobal("fetch", fetchMock);
     const { loadDashboard } = await import("./api");
@@ -111,7 +133,8 @@ describe("API client critical workflows", () => {
       "/prazos",
       "/peticoes",
       "/dashboard/operational",
-      "/review/queue"
+      "/review/queue",
+      "/processos/resumo"
     ]);
   });
 

@@ -47,6 +47,35 @@ class ProcessoOut(BaseModel):
     sistema: str | None
 
 
+class ProximoPrazoOut(BaseModel):
+    data_fatal: date
+    cumprido: bool
+    descricao: str | None
+
+
+class ProcessoResumoOut(BaseModel):
+    """Processo já cruzado no servidor para a lista da página de Processos:
+    próximo prazo + contagens + campos de busca. Substitui o join client-side de
+    4 listas paginadas, que subcontava (dashboard 200 vs página 195)."""
+
+    id: int
+    numero: str
+    classe: str | None
+    tribunal: str | None
+    orgao_julgador: str | None
+    sistema: str | None
+    intimacoes_count: int
+    peticoes_count: int
+    proximo_prazo: ProximoPrazoOut | None
+    intimacao_tipo: str | None
+    peticao_tipo: str | None
+
+
+class ProcessoResumoLista(BaseModel):
+    total: int  # COUNT real do tenant; fonte de verdade do número do cabeçalho
+    items: list[ProcessoResumoOut]
+
+
 class PeticaoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

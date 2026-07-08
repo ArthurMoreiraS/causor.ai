@@ -301,6 +301,77 @@ def test_dashboard_operacional_expoe_vencidos_e_aprovadas(client, db_session, se
     assert metric_by_key["minutas"] == 1  # rascunho
 
 
+def test_processos_resumo_conta_e_enriquece(client, db_session, seeded):
+    # seeded: 1 processo, 1 intimação (tipo "Intimação"), prazo "A" pendente
+    # (data_fatal 2024-09-30) e prazo "B" cumprido (2024-09-16).
+    db_session.add_all(
+        [
+            models.Peticao(
+                processo_id=seeded.id, escritorio_id=seeded.escritorio_id,
+                tipo="Contestacao", status="rascunho",
+            ),
+            models.Peticao(
+                processo_id=seeded.id, escritorio_id=seeded.escritorio_id,
+                tipo="Embargos", status="aprovada",
+            ),
+        ]
+    )
+    db_session.flush()
+
+    resp = client.get("/processos/resumo")
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["total"] == 1
+    assert len(body["items"]) == 1
+    item = body["items"][0]
+    assert item["id"] == seeded.id
+    assert item["numero"] == "00000010020248260100"
+    assert item["intimacoes_count"] == 1
+    assert item["peticoes_count"] == 2
+    # próximo prazo = menor data_fatal pendente; o cumprido "B" é ignorado.
+    assert item["proximo_prazo"]["data_fatal"] == "2024-09-30"
+    assert item["proximo_prazo"]["cumprido"] is False
+    assert item["intimacao_tipo"] == "Intimação"
+    # peticao_tipo = a de maior id (Embargos, adicionada por último).
+    assert item["peticao_tipo"] == "Embargos"
+
+
+def test_processos_resumo_sem_prazo_pendente_retorna_none(client, db_session, seeded):
+    proc = models.Processo(escritorio_id=seeded.escritorio_id, numero="00000020020248260100")
+    db_session.add(proc)
+    db_session.flush()
+    db_session.add(
+        models.Prazo(
+            processo_id=proc.id, escritorio_id=seeded.escritorio_id, descricao="C",
+            data_inicio=date(2024, 9, 9), dias=5, dias_uteis=True,
+            data_fatal=date(2024, 9, 20), cumprido=True,
+        )
+    )
+    db_session.flush()
+
+    body = client.get("/processos/resumo").json()
+    item = next(i for i in body["items"] if i["id"] == proc.id)
+    assert item["proximo_prazo"] is None
+    assert item["intimacoes_count"] == 0
+    assert item["peticoes_count"] == 0
+    assert item["intimacao_tipo"] is None
+    assert item["peticao_tipo"] is None
+
+
+def test_processos_resumo_respeita_tenant(client, db_session, seeded):
+    other = models.Escritorio(nome="Outro Escritório")
+    db_session.add(other)
+    db_session.flush()
+    outro_proc = models.Processo(escritorio_id=other.id, numero="00000099020248260100")
+    db_session.add(outro_proc)
+    db_session.flush()
+
+    body = client.get("/processos/resumo").json()
+    assert body["total"] == 1
+    assert [i["id"] for i in body["items"]] == [seeded.id]
+
+
 def test_listar_intimacoes(client, seeded):
     resp = client.get("/intimacoes")
     assert resp.status_code == 200

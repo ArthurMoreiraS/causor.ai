@@ -1513,6 +1513,28 @@ h2 {
   font-variant-numeric: tabular-nums;
 }
 
+.tablePager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 14px 8px 4px;
+}
+
+.pagerStatus {
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tableNote {
+  padding: 10px 8px 2px;
+  color: var(--muted);
+  font-size: 12.5px;
+  text-align: center;
+}
+
 @media (max-width: 1080px) {
   .processTable .dataHead {
     display: none;

@@ -88,6 +88,8 @@ import {
 } from "@/lib/format";
 import {
   buildIntimacaoRows,
+  buildProcessoRows,
+  buildProcessoRowsFromLists,
   CONNECTORS_FALLBACK,
   mergeById,
   STATUS_MATCH,
@@ -403,7 +405,9 @@ export default function Home() {
     const tribunais = new Set<string>();
     const sistemas = new Set<string>();
     data.intimacoes.forEach((i) => i.tribunal && tribunais.add(i.tribunal));
-    data.processos.forEach((p) => {
+    // Prefere o conjunto completo do resumo; cai para /processos capado se ausente.
+    const processosSource = data.processosResumo?.items ?? data.processos;
+    processosSource.forEach((p) => {
       if (p.tribunal) tribunais.add(p.tribunal);
       if (p.sistema) sistemas.add(p.sistema);
     });
@@ -438,22 +442,13 @@ export default function Home() {
   );
 
   const processoRows = useMemo(() => {
-    return processosPool
-      .map((processo) => {
-        const prazos = prazosPool.filter((prazo) => prazo.processo_id === processo.id);
-        const intimacoes = data.intimacoes.filter(
-          (intimacao) => intimacao.processo_id === processo.id
-        );
-        const peticoes = data.peticoes.filter((peticao) => peticao.processo_id === processo.id);
-        const proximoPrazo =
-          prazos
-            .filter((prazo) => !prazo.cumprido)
-            .sort(
-              (a, b) =>
-                new Date(a.data_fatal).getTime() - new Date(b.data_fatal).getTime()
-            )[0] ?? null;
-        return { processo, prazos, intimacoes, peticoes, proximoPrazo };
-      })
+    // Fonte de verdade: `/processos/resumo` (já cruzado no servidor, sem teto de
+    // paginação — era o que fazia a página contar 195 e o dashboard 200). O join
+    // client-side vira só fallback quando o endpoint não responde.
+    const base = data.processosResumo
+      ? buildProcessoRows(data.processosResumo)
+      : buildProcessoRowsFromLists(processosPool, prazosPool, data.intimacoes, data.peticoes);
+    return base
       .filter(({ processo, proximoPrazo }) =>
         passesFilters(filters, {
           tribunal: processo.tribunal,
@@ -463,7 +458,7 @@ export default function Home() {
             : "sem_prazo"
         })
       )
-      .filter(({ processo, intimacoes, peticoes, proximoPrazo }) =>
+      .filter(({ processo, proximoPrazo, intimacaoTipo, peticaoTipo }) =>
         matchesQuery(
           [
             processo.numero,
@@ -472,13 +467,13 @@ export default function Home() {
             processo.orgao_julgador,
             processo.sistema,
             proximoPrazo?.descricao,
-            intimacoes[0]?.tipo_comunicacao,
-            peticoes[0]?.tipo
+            intimacaoTipo,
+            peticaoTipo
           ],
           query
         )
       );
-  }, [processosPool, prazosPool, data.intimacoes, data.peticoes, query, filters]);
+  }, [data.processosResumo, processosPool, prazosPool, data.intimacoes, data.peticoes, query, filters]);
 
   const intimacaoRows = useMemo(() => {
     // Deriva da fila de revisão do servidor (join intimação↔prazo já correto),
@@ -585,8 +580,8 @@ export default function Home() {
           r.processo.tribunal,
           r.processo.sistema,
           r.proximoPrazo?.data_fatal ?? "",
-          r.intimacoes.length,
-          r.peticoes.length
+          r.intimacoesCount,
+          r.peticoesCount
         ])
       );
     } else if (view === "intimacoes") {
@@ -1079,6 +1074,8 @@ export default function Home() {
           {view === "processos" ? (
             <ProcessosView
               rows={processoRows}
+              total={data.processosResumo?.total}
+              loaded={data.processosResumo?.items.length}
               onOpen={(id) => setDetail({ kind: "processo", id })}
             />
           ) : null}

@@ -22,6 +22,34 @@ export type Processo = {
   sistema: string | null;
 };
 
+export type ProximoPrazo = {
+  data_fatal: string;
+  cumprido: boolean;
+  descricao: string | null;
+};
+
+/** Processo já cruzado no servidor (`/processos/resumo`): próximo prazo +
+ * contagens + campos de busca. A página de Processos monta as linhas a partir
+ * disso, sem re-cruzar listas paginadas no cliente. */
+export type ProcessoResumo = {
+  id: number;
+  numero: string;
+  classe: string | null;
+  tribunal: string | null;
+  orgao_julgador: string | null;
+  sistema: string | null;
+  intimacoes_count: number;
+  peticoes_count: number;
+  proximo_prazo: ProximoPrazo | null;
+  intimacao_tipo: string | null;
+  peticao_tipo: string | null;
+};
+
+export type ProcessoResumoLista = {
+  total: number;
+  items: ProcessoResumo[];
+};
+
 export type Prazo = {
   id: number;
   processo_id: number | null;
@@ -253,6 +281,7 @@ export type DashboardData = {
   processos: Processo[];
   prazos: Prazo[];
   peticoes: Peticao[];
+  processosResumo?: ProcessoResumoLista;
   reviewQueue?: ReviewQueueItem[];
   operational?: OperationalDashboard;
   backendOffline?: boolean;
@@ -322,9 +351,10 @@ export async function loadDashboard(): Promise<DashboardData> {
     requestList<Prazo>("/prazos"),
     requestList<Peticao>("/peticoes")
   ]);
-  const [operational, reviewQueue] = await Promise.all([
+  const [operational, reviewQueue, processosResumo] = await Promise.all([
     requestOptional<OperationalDashboard>("/dashboard/operational"),
-    requestOptional<ReviewQueueItem[]>("/review/queue")
+    requestOptional<ReviewQueueItem[]>("/review/queue"),
+    requestOptional<ProcessoResumoLista>("/processos/resumo")
   ]);
   // So sinaliza "backend indisponivel" quando as quatro listas nucleares
   // falharam juntas -- sintoma real de backend fora do ar, nao um erro isolado.
@@ -334,6 +364,7 @@ export async function loadDashboard(): Promise<DashboardData> {
     processos: processos.data,
     prazos: prazos.data,
     peticoes: peticoes.data,
+    processosResumo,
     operational,
     reviewQueue,
     backendOffline
