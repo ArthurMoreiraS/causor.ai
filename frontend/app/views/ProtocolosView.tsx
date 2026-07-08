@@ -13,6 +13,16 @@ import {
 import { formatDate } from "@/lib/format";
 import { EmptyState, Skeleton } from "../components/ui";
 
+/** Rótulos legíveis dos passos que o agente executa (evidence.states). */
+const STEP_LABELS: Record<string, string> = {
+  session_ok: "Sessão validada",
+  processo_localizado: "Processo localizado",
+  peticionamento_aberto: "Peticionamento aberto",
+  minuta_anexada: "Minuta anexada",
+  assinado: "Assinado",
+  protocolado: "Protocolado"
+};
+
 /** Pull the (secret-free) signing handoff the job attached at ready_to_sign. */
 function extrairHandoff(job: JobExecucao): SignatureHandoff | null {
   const evidence = (job.resultado?.evidence ?? null) as Record<string, unknown> | null;
@@ -195,6 +205,12 @@ export default function ProtocolosView({
             job.payload?.credencial_id != null ? Number(job.payload.credencial_id) : undefined;
           const aguardandoAssinatura =
             handoff != null && peticao != null && peticao.status !== "protocolada";
+          const evidence = (job.resultado?.evidence ?? null) as Record<string, unknown> | null;
+          const states = Array.isArray(evidence?.states) ? (evidence!.states as string[]) : [];
+          const sistema = typeof evidence?.sistema === "string" ? (evidence!.sistema as string) : null;
+          const isSandbox = evidence?.sandbox === true;
+          const comprovanteUrl =
+            typeof evidence?.comprovante_url === "string" ? (evidence!.comprovante_url as string) : null;
           return (
             <article className={`protocolCard ${job.status}`} key={job.id}>
               <header>
@@ -227,6 +243,37 @@ export default function ProtocolosView({
                   </dd>
                 </div>
               </dl>
+              {sistema ? (
+                <div className="protocolSistema">
+                  <span className="badge mono">
+                    {sistema}
+                    {isSandbox ? " · homologação" : ""}
+                  </span>
+                </div>
+              ) : null}
+              {states.length ? (
+                <ol className="agentSteps">
+                  {states.map((s, i) => (
+                    <li key={i} className={s === "protocolado" ? "done" : undefined}>
+                      {STEP_LABELS[s] ?? s}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
+              {comprovanteUrl ? (
+                comprovanteUrl.startsWith("http") ? (
+                  <a
+                    className="toolbarButton compact"
+                    href={comprovanteUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <ExternalLink size={14} /> Ver comprovante
+                  </a>
+                ) : (
+                  <p className="protocolHint mono">comprovante: {comprovanteUrl}</p>
+                )
+              ) : null}
               {checkpoint ? <p className="protocolCheckpoint">{checkpoint}</p> : null}
               {handoff ? (
                 <div className="protocolHandoff">

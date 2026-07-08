@@ -289,11 +289,11 @@ export default function Home() {
     setProtocolarTarget(peticao);
   }
 
-  async function confirmarProtocolo(credencialId: number | null) {
+  async function confirmarProtocolo() {
     const peticao = protocolarTarget;
     if (!peticao) return;
     await runAction(`file-${peticao.id}`, async () => {
-      const job = await protocolarPeticaoAsync(peticao.id, credencialId ?? undefined);
+      const job = await protocolarPeticaoAsync(peticao.id);
       const protocolo = job.resultado?.protocolo;
       setLastProtocolo({
         tipo: peticao.tipo,
@@ -1316,7 +1316,7 @@ export default function Home() {
               data.processos.find((p) => p.id === protocolarTarget.processo_id) ?? null
             }
             busy={busy === `file-${protocolarTarget.id}`}
-            onConfirm={(credencialId) => void confirmarProtocolo(credencialId)}
+            onConfirm={() => void confirmarProtocolo()}
             onClose={() => setProtocolarTarget(null)}
           />
         ) : null}
