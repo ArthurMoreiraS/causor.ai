@@ -13,15 +13,25 @@ from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.connectors.pje.connector import PjeAssistedConnector, PjeConnectorError
+from app.connectors.pje.connector import PjeConnectorError
+from app.connectors.drivers import (
+    UnsupportedFilingSystemError as FilingDriverUnsupported,
+)
+from app.connectors.drivers import get_filing_driver
 from app.agent.service import ensure_processo_enriched
+from app.capture.court_routing import resolve_route
 from app.capture.datajud import DatajudClient
 from app.capture.poll import PollResult, poll_oab
 from app.filing.package import build_pje_package
 from app.filing.render import render_minuta_pdf
+from app.settings import settings
 from app.signing.providers import get_signature_provider
 from app.sor import models
-from app.vault.service import VaultError, load_pje_session_payload
+from app.vault.service import (
+    VaultError,
+    find_active_session,
+    load_court_session_payload,
+)
 
 
 class JobError(RuntimeError):
@@ -372,11 +382,19 @@ def run_pje_protocol_job(
     peticao_id: int,
     *,
     credencial_id: int | None = None,
-    connector: PjeAssistedConnector | None = None,
+    usuario_id: int | None = None,
+    connector: object | None = None,
     datajud: DatajudClient | None = None,
     submit: bool = True,
+    filing_mode: str | None = None,
 ) -> models.JobExecucao:
-    """Protocola uma peticao no PJe via conector Playwright assistido.
+    """Protocola uma peticao roteando pelo sistema do tribunal (PJe/e-SAJ/...).
+
+    Resolve ``processo -> (tribunal, grau) -> sistema`` e despacha o driver do
+    sistema (``get_filing_driver``). Quando ``credencial_id`` nao vem, resolve a
+    sessao do cofre por ``usuario_id`` + ``(sistema, tribunal, grau)``; sem
+    sessao conectada, o job falha com uma mensagem clara ("conecte o tribunal").
+    ``filing_mode`` sobrepoe ``settings.filing_mode`` (sandbox na demo).
 
     ``submit=True`` (default) clica em Assinar/Protocolar no PJe, aguarda o
     comprovante, captura o numero do protocolo e marca a peticao como
@@ -399,8 +417,6 @@ def run_pje_protocol_job(
         raise AlreadyFiledError("peticao ja protocolada")
     if peticao.status != "aprovada":
         raise ApprovalRequiredError("aprovacao obrigatoria antes do protocolo")
-    if (peticao.processo.sistema or "").strip().lower() != "pje":
-        raise UnsupportedFilingSystemError("processo nao esta marcado como PJe")
 
     processo = peticao.processo
     if not processo.tribunal:
@@ -410,10 +426,20 @@ def run_pje_protocol_job(
     if not processo.orgao_julgador and datajud is not None:
         ensure_processo_enriched(session, processo, datajud=datajud)
 
+    # Roteamento: processo -> (tribunal, grau) -> sistema -> driver.
+    grau = (getattr(processo, "grau", None) or "1")
+    route = resolve_route(processo.tribunal, grau)
+    sistema = processo.sistema or (route.sistema if route is not None else None) or "PJe"
+    mode = filing_mode or settings.filing_mode
+    try:
+        driver = connector or get_filing_driver(sistema, mode=mode)
+    except FilingDriverUnsupported as exc:
+        raise UnsupportedFilingSystemError(str(exc)) from exc
+
     _validate_signature_credential(session, credencial_id)
     payload: dict = {
         "peticao_id": peticao.id,
-        "sistema": "PJe",
+        "sistema": sistema,
         "modo": "pje_playwright_submit" if submit else "pje_assistido_playwright",
     }
     if credencial_id is not None:
@@ -433,7 +459,32 @@ def run_pje_protocol_job(
         session.flush()
 
     try:
-        session_payload = load_pje_session_payload(session, credencial_id=credencial_id)
+        # Sem credencial explicita, resolve a sessao do cofre pelo tribunal.
+        if credencial_id is None and usuario_id is not None:
+            sessao = find_active_session(
+                session,
+                usuario_id=usuario_id,
+                sistema=sistema,
+                tribunal=processo.tribunal,
+                grau=grau,
+            )
+            if sessao is not None:
+                credencial_id = sessao.id
+                payload = {**job.payload, "credencial_id": credencial_id}
+                job.payload = payload
+                session.flush()
+        if credencial_id is None:
+            raise PjeConnectorError(
+                f"conecte a sessao do {processo.tribunal} ({sistema} - {grau}o grau) "
+                "no cofre antes de protocolar"
+            )
+
+        session_payload = load_court_session_payload(session, credencial_id=credencial_id)
+        if submit and not session_payload:
+            raise PjeConnectorError(
+                "sessao do tribunal obrigatoria para protocolar; "
+                "conecte o tribunal no cofre"
+            )
         package = build_pje_package(peticao, credencial_id=credencial_id)
         package = replace(
             package,
@@ -448,9 +499,7 @@ def run_pje_protocol_job(
             pje_base_url=session_payload.get("url_base") if session_payload else None,
             storage_state=session_payload.get("storage_state") if session_payload else None,
         )
-        checkpoint = (connector or PjeAssistedConnector()).prepare_filing(
-            package, submit=submit
-        )
+        checkpoint = driver.prepare_filing(package, submit=submit)
     except (PjeConnectorError, VaultError) as exc:
         mark_failed(session, job, str(exc))
         if submit:
@@ -462,9 +511,10 @@ def run_pje_protocol_job(
         protocolo = checkpoint.evidence.get("protocolo")
         peticao.status = "protocolada"
         peticao.protocolada_em = _utcnow()
+        session.flush()
         resultado = {
             "peticao_id": peticao.id,
-            "sistema": "PJe",
+            "sistema": sistema,
             "modo": checkpoint.modo,
             "checkpoint": "protocolado",
             "estado": "protocolada",
@@ -482,9 +532,9 @@ def run_pje_protocol_job(
             escritorio_id=peticao.escritorio_id,
             detalhe={
                 "job_id": job.id,
-                "sistema": "PJe",
+                "sistema": sistema,
                 "protocolo": protocolo,
-                "origem": "pje_playwright_submit",
+                "origem": checkpoint.modo,
                 "credencial_id": credencial_id,
             },
         )
@@ -527,7 +577,7 @@ def run_pje_protocol_job(
         escritorio_id=peticao.escritorio_id,
         detalhe={
             "job_id": job.id,
-            "sistema": "PJe",
+            "sistema": sistema,
             "checkpoint": checkpoint.checkpoint,
             "assinatura_provedor": handoff.provedor,
             "assinatura_modo": handoff.modo,
