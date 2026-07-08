@@ -248,11 +248,22 @@ export type CredencialAssinatura = {
   usuario_id: number;
   provedor: string;
   tribunal: string | null;
+  sistema: string | null;
+  grau: string | null;
+  tipo: string | null;
   modo: string;
   referencia_vault: string;
   ativo: boolean;
   created_at: string;
   updated_at: string;
+};
+
+/** Sistema + URLs resolvidos para um tribunal/grau (registro do backend). */
+export type CourtRouting = {
+  sistema: string;
+  url_login: string | null;
+  url_peticionamento: string | null;
+  verificado: boolean;
 };
 
 /** How the lawyer signs after the robot stops at ready_to_sign. Carries no secret. */
@@ -503,6 +514,23 @@ export async function cadastrarCredencial(
 export async function desativarCredencial(credencialId: number): Promise<CredencialAssinatura> {
   return request<CredencialAssinatura>(`/credenciais-assinatura/${credencialId}/desativar`, {
     method: "PATCH"
+  });
+}
+
+export async function resolverRota(tribunal: string, grau: string): Promise<CourtRouting> {
+  const qs = new URLSearchParams({ tribunal, grau }).toString();
+  return request<CourtRouting>(`/court-routing?${qs}`);
+}
+
+export async function capturarSessaoTribunal(
+  tribunal: string,
+  grau: string,
+  usuarioId?: number
+): Promise<CredencialAssinatura> {
+  const id = usuarioId ?? (await resolverUsuarioAtual());
+  return request<CredencialAssinatura>(`/usuarios/${id}/sessoes-tribunal/capturar`, {
+    method: "POST",
+    body: JSON.stringify({ tribunal, grau })
   });
 }
 

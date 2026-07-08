@@ -204,6 +204,52 @@ describe("API client critical workflows", () => {
     expect(JSON.parse(String(fetchMock.mock.calls[2][1]?.body))).toEqual({ credencial_id: 5 });
   });
 
+  it("resolves the court routing for a tribunal and grau", async () => {
+    const fetchMock = mockFetch({
+      "GET /court-routing": {
+        body: {
+          sistema: "e-SAJ",
+          url_login: "https://esaj.tjsp.jus.br/esaj/portal.do?servico=740000",
+          url_peticionamento: "https://esaj.tjsp.jus.br/esaj?servico=820100",
+          verificado: true
+        }
+      }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolverRota } = await import("./api");
+
+    const rota = await resolverRota("TJSP", "1");
+
+    expect(rota.sistema).toBe("e-SAJ");
+    expect(rota.verificado).toBe(true);
+    const url = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(url.pathname).toBe("/court-routing");
+    expect(url.searchParams.get("tribunal")).toBe("TJSP");
+    expect(url.searchParams.get("grau")).toBe("1");
+  });
+
+  it("captures a court session for the current user", async () => {
+    const fetchMock = mockFetch({
+      "GET /me": { body: { usuario_id: 7, escritorio_id: 2, email: "adv@example.com" } },
+      "POST /usuarios/7/sessoes-tribunal/capturar": {
+        body: { id: 1, sistema: "e-SAJ", tribunal: "TJSP", grau: "1", tipo: "session" }
+      }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { capturarSessaoTribunal } = await import("./api");
+
+    const cred = await capturarSessaoTribunal("TJSP", "1");
+
+    expect(cred.sistema).toBe("e-SAJ");
+    expect(new URL(String(fetchMock.mock.calls[1][0])).pathname).toBe(
+      "/usuarios/7/sessoes-tribunal/capturar"
+    );
+    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
+      tribunal: "TJSP",
+      grau: "1"
+    });
+  });
+
   it("flags the dashboard offline only when every core list fails together", async () => {
     const fetchMock = mockFetch({
       "GET /intimacoes": { status: 503, body: "temporarily unavailable" },

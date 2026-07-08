@@ -1,20 +1,26 @@
 "use client";
 
-import { ExternalLink, KeyRound, LockKeyhole, Terminal } from "lucide-react";
+import { ExternalLink, KeyRound, LockKeyhole, MonitorSmartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
+  capturarSessaoTribunal,
+  CourtRouting,
   CredencialAssinatura,
   desativarCredencial,
-  listarCredenciais
+  listarCredenciais,
+  resolverRota
 } from "@/lib/api";
 import { LoadingButton, Modal, Skeleton } from "./ui";
 import { useToast } from "./Toast";
 
 const PJE_HELP_URL = "https://www.cnj.jus.br/pje/";
 
-function pjeSessionLabel(credencial: CredencialAssinatura): string {
-  if (credencial.provedor !== "PJeSession") return credencial.provedor;
-  return credencial.tribunal ? `PJe · ${credencial.tribunal}` : "PJe";
+// Tribunais oferecidos no seletor (verificados no registro aparecem primeiro).
+const TRIBUNAIS = ["TJSP", "TJMG", "TRT2", "TJRS", "TRF4", "TJBA", "TJDFT", "TRF3", "TJPR"];
+
+function courtSessionLabel(credencial: CredencialAssinatura): string {
+  const sistema = credencial.sistema ?? "Tribunal";
+  return credencial.tribunal ? `${sistema} · ${credencial.tribunal}` : sistema;
 }
 
 export default function VaultSection({ offline }: { offline: boolean }) {
@@ -57,8 +63,8 @@ export default function VaultSection({ offline }: { offline: boolean }) {
     }
   }
 
-  const sessions = credenciais.filter((c) => c.provedor === "PJeSession" && c.ativo);
-  const outras = credenciais.filter((c) => c.provedor !== "PJeSession");
+  const sessions = credenciais.filter((c) => c.tipo === "session" && c.ativo);
+  const outras = credenciais.filter((c) => c.tipo !== "session");
 
   return (
     <div className="settingsGroup">
@@ -76,7 +82,7 @@ export default function VaultSection({ offline }: { offline: boolean }) {
         icon={<KeyRound size={14} />}
         onClick={() => setShowConnect(true)}
       >
-        Conectar PJe
+        Conectar tribunal
       </LoadingButton>
 
       {error ? <small className="settingsHint vaultError">{error}</small> : null}
@@ -91,7 +97,7 @@ export default function VaultSection({ offline }: { offline: boolean }) {
           sessions.map((credencial) => (
             <article className="vaultItem" key={credencial.id}>
               <div>
-                <strong>{pjeSessionLabel(credencial)}</strong>
+                <strong>{courtSessionLabel(credencial)}</strong>
                 <div className="pill ativa">Conectado</div>
               </div>
               <LoadingButton
@@ -106,7 +112,7 @@ export default function VaultSection({ offline }: { offline: boolean }) {
           ))
         ) : (
           <small className="settingsHint">
-            Nenhum tribunal conectado ainda. Use “Conectar PJe” acima.
+            Nenhum tribunal conectado ainda. Use “Conectar tribunal” acima.
           </small>
         )}
       </div>
@@ -120,67 +126,145 @@ export default function VaultSection({ offline }: { offline: boolean }) {
       ) : null}
 
       {showConnect ? (
-        <ConectarPjeModal offline={offline} onClose={() => setShowConnect(false)} />
+        <ConectarTribunalModal
+          offline={offline}
+          onClose={() => setShowConnect(false)}
+          onConnected={async () => {
+            await reload();
+            setShowConnect(false);
+          }}
+        />
       ) : null}
     </div>
   );
 }
 
-function ConectarPjeModal({ offline, onClose }: { offline: boolean; onClose: () => void }) {
+function ConectarTribunalModal({
+  offline,
+  onClose,
+  onConnected
+}: {
+  offline: boolean;
+  onClose: () => void;
+  onConnected: () => void | Promise<void>;
+}) {
+  const toast = useToast();
   const [tribunal, setTribunal] = useState("TJSP");
-  const [urlBase, setUrlBase] = useState("https://pje.tjsp.jus.br/pje");
+  const [grau, setGrau] = useState("1");
+  const [rota, setRota] = useState<CourtRouting | null>(null);
+  const [resolvendo, setResolvendo] = useState(false);
+  const [busy, setBusy] = useState(false);
 
-  const comando = `python -m app.cli pje-capture-session \\
-  --usuario <seu-id> \\
-  --tribunal ${tribunal} \\
-  --url-base ${urlBase}`;
+  useEffect(() => {
+    let ok = true;
+    setResolvendo(true);
+    setRota(null);
+    resolverRota(tribunal, grau)
+      .then((r) => {
+        if (ok) setRota(r);
+      })
+      .catch(() => {
+        if (ok) setRota(null);
+      })
+      .finally(() => {
+        if (ok) setResolvendo(false);
+      });
+    return () => {
+      ok = false;
+    };
+  }, [tribunal, grau]);
+
+  const semUrl = !resolvendo && (!rota || !rota.url_login);
+
+  async function conectar() {
+    setBusy(true);
+    try {
+      await capturarSessaoTribunal(tribunal, grau);
+      toast({ kind: "success", title: "Tribunal conectado" });
+      await onConnected();
+    } catch (e) {
+      toast({
+        kind: "error",
+        title: e instanceof Error ? e.message : "Falha ao conectar o tribunal"
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
-    <Modal onClose={onClose} labelledBy="conectarPjeTitle">
-      <h3 id="conectarPjeTitle">Conectar PJe</h3>
+    <Modal onClose={onClose} labelledBy="conectarTribunalTitle">
+      <h3 id="conectarTribunalTitle">Conectar tribunal</h3>
       <p className="protocolarResumo">
-        A captura da sessão abre o PJe no seu computador para você logar uma vez com
+        Abre o portal do tribunal no seu computador para você logar uma vez com
         certificado digital. O Causor guarda só o cookie de sessão — o certificado e o PIN
-        ficam no seu PJeOffice, nunca entram no sistema.
+        ficam no seu PJeOffice/Web Signer, nunca entram no sistema.
       </p>
 
       <div className="protocolarAviso">
-        <Terminal size={16} />
+        <MonitorSmartphone size={16} />
         <span>
-          No piloto, esta etapa roda no terminal da sua máquina (o backend não consegue
-          abrir janela na sua tela). Copie o comando abaixo e execute localmente.
+          Ao clicar em <strong>Conectar</strong>, uma janela do navegador abre na sua tela
+          apontando para o portal certo. Faça o login e o painel do advogado carregar; a
+          sessão aparece aqui como conectada.
         </span>
       </div>
 
       <label className="protocolarCredencial">
         Tribunal
-        <input value={tribunal} onChange={(e) => setTribunal(e.target.value)} />
+        <select value={tribunal} onChange={(e) => setTribunal(e.target.value)}>
+          {TRIBUNAIS.map((t) => (
+            <option key={t} value={t}>
+              {t}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="protocolarCredencial">
-        URL base do PJe
-        <input value={urlBase} onChange={(e) => setUrlBase(e.target.value)} />
+        Grau
+        <select value={grau} onChange={(e) => setGrau(e.target.value)}>
+          <option value="1">1º grau</option>
+          <option value="2">2º grau</option>
+        </select>
       </label>
 
-      <pre className="vaultComando">{comando}</pre>
-
       <div className="protocolarHint">
-        <ExternalLink size={13} /> Após logar no PJe e o painel carregar, volte ao terminal
-        e pressione <strong>Enter</strong>. A sessão aparece aqui como “PJe · {tribunal}”.
+        {resolvendo ? (
+          "Resolvendo o sistema do tribunal…"
+        ) : rota ? (
+          <>
+            Destino: <strong>{rota.sistema}</strong>
+            {rota.url_login ? (
+              <>
+                {" · "}
+                <span className="mono">{rota.url_login}</span>
+              </>
+            ) : (
+              " · URL não cadastrada no registro (não é possível conectar automaticamente ainda)"
+            )}
+          </>
+        ) : (
+          "Tribunal sem rota no registro."
+        )}
       </div>
 
       <div className="modalActions">
-        <button className="toolbarButton" onClick={onClose} disabled={offline}>
+        <button className="toolbarButton" onClick={onClose} disabled={busy}>
           Fechar
         </button>
-        <a
-          className="toolbarButton"
-          href={PJE_HELP_URL}
-          target="_blank"
-          rel="noreferrer"
-        >
-          <ExternalLink size={14} /> Ajuda do PJe
+        <a className="toolbarButton" href={PJE_HELP_URL} target="_blank" rel="noreferrer">
+          <ExternalLink size={14} /> Ajuda
         </a>
+        <LoadingButton
+          className="toolbarButton primary"
+          loading={busy}
+          disabled={offline || busy || semUrl}
+          icon={<KeyRound size={14} />}
+          onClick={() => void conectar()}
+        >
+          Conectar
+        </LoadingButton>
       </div>
     </Modal>
   );
