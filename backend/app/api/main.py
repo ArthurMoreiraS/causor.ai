@@ -1013,7 +1013,7 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
         processo_id: int | None = Query(default=None),
-        limit: int = Query(default=100, le=500),
+        limit: int = Query(default=100, le=5000),
     ) -> list[models.Intimacao]:
         stmt = tenant_select(models.Intimacao, current)
         if processo_id is not None:
@@ -1025,7 +1025,7 @@ def create_app() -> FastAPI:
     def fila_revisao(
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
-        limit: int = Query(default=100, le=500),
+        limit: int = Query(default=100, le=5000),
     ) -> list[ReviewQueueItem]:
         intimacoes = list(
             session.scalars(
@@ -1082,7 +1082,7 @@ def create_app() -> FastAPI:
     def listar_processos(
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
-        limit: int = Query(default=100, le=500),
+        limit: int = Query(default=100, le=5000),
     ) -> list[models.Processo]:
         stmt = tenant_select(models.Processo, current).order_by(
             models.Processo.id.desc()
@@ -1185,7 +1185,7 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
         cumprido: bool | None = Query(default=None),
-        limit: int = Query(default=100, le=500),
+        limit: int = Query(default=100, le=5000),
     ) -> list[models.Prazo]:
         stmt = tenant_select(models.Prazo, current)
         if cumprido is not None:
@@ -1281,7 +1281,7 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
         status: str | None = Query(default=None),
-        limit: int = Query(default=100, le=500),
+        limit: int = Query(default=100, le=5000),
     ) -> list[models.Peticao]:
         stmt = tenant_select(models.Peticao, current)
         if status is not None:
@@ -1401,28 +1401,20 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
-        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
+        get_owned_or_404(session, models.Peticao, peticao_id, current)
         credencial_id = payload.credencial_id if payload is not None else None
         try:
-            if (peticao.processo.sistema or "").strip().lower() == "pje":
-                datajud_client = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
-                job = run_pje_protocol_job(
-                    session,
-                    peticao_id,
-                    credencial_id=credencial_id,
-                    datajud=datajud_client,
-                    submit=True,
-                )
-            else:
-                # Sistemas nao-PJe: o conector dedicado nao existe; o advogado
-                # registra o protocolo manualmente via /confirmar.
-                raise HTTPException(
-                    status_code=409,
-                    detail=(
-                        "sistema nao-PJe sem conector dedicado; "
-                        "protocole manualmente e use /confirmar"
-                    ),
-                )
+            # Roteia qualquer sistema pelo driver (sandbox na demo; PJe real no
+            # piloto). A sessao do tribunal e resolvida no cofre por usuario_id.
+            datajud_client = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
+            job = run_pje_protocol_job(
+                session,
+                peticao_id,
+                credencial_id=credencial_id,
+                usuario_id=current.usuario_id,
+                datajud=datajud_client,
+                submit=True,
+            )
         except (PeticaoNotFoundError, CredencialNaoEncontradaError) as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except ProcessoSemOrgaoError as exc:

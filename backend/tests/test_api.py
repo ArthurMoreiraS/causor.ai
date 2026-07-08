@@ -726,8 +726,9 @@ def test_protocolar_async_exige_aprovacao(client, db_session, seeded):
     assert db_session.query(models.JobExecucao).count() == 0
 
 
-def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded):
-    """Processo nao-PJe sem conector dedicado: 409 + mensagem p/ confirmar manual."""
+def test_protocolar_async_sem_sessao_conectada_job_falha_pedindo_conexao(client, db_session, seeded):
+    """Qualquer sistema roteia pelo driver; sem sessao no cofre o job falha
+    pedindo pra conectar o tribunal (nao mais 409 de 'sistema sem conector')."""
     peticao = models.Peticao(
         processo_id=seeded.id,
         escritorio_id=seeded.escritorio_id,
@@ -741,8 +742,12 @@ def test_protocolar_async_cria_job_concluido_e_audita(client, db_session, seeded
 
     resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
 
-    assert resp.status_code == 409
-    assert "confirmar" in resp.json()["detail"]
+    assert resp.status_code == 200
+    job = resp.json()
+    assert job["status"] == "failed"
+    assert "conecte" in (job["erro"] or "").lower()
+    db_session.refresh(peticao)
+    assert peticao.status == "aprovada"  # nao protocolada
 
 
 def test_listar_usuarios_por_escritorio(client, db_session, seeded):
