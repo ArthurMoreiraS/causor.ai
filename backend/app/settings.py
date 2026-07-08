@@ -93,5 +93,10 @@ class Settings(BaseSettings):
     # into the Supabase Vault extension instead of the SOR tables.
     vault_provider: str = "localdev"  # "localdev" | "supabase"
 
+    # Modo de execução do protocolo. "sandbox" roteia todo sistema para o
+    # SandboxDriver determinístico (demo à prova de falhas); "real" usa o
+    # conector real de cada sistema (PJe existe; e-SAJ/EPROC/Projudi incrementais).
+    filing_mode: str = "sandbox"  # "sandbox" | "real"  (env CAUSOR_FILING_MODE)
+
 
 settings = Settings()
