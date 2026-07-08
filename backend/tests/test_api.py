@@ -4,91 +4,11 @@ from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
-from app.api.main import create_app
-from app.auth.jwt_auth import CurrentUser, get_current_user
-from app.sor.db import get_session
 from app.sor import models
 from sqlalchemy import select
-
-
-@pytest.fixture
-def client(db_session):
-    app = create_app()
-    app.dependency_overrides[get_session] = lambda: db_session
-
-    def _current_user() -> CurrentUser:
-        # Resolve a identidade da fixture `seeded` (primeiro escritório/usuário do
-        # tenant semeado) em tempo de request, evitando JWT real nos testes de API.
-        esc = db_session.scalars(
-            select(models.Escritorio).order_by(models.Escritorio.id)
-        ).first()
-        usuario = (
-            db_session.scalars(
-                select(models.Usuario)
-                .where(models.Usuario.escritorio_id == esc.id)
-                .order_by(models.Usuario.id)
-            ).first()
-            if esc is not None
-            else None
-        )
-        return CurrentUser(
-            usuario_id=usuario.id if usuario is not None else 0,
-            escritorio_id=esc.id if esc is not None else 0,
-            email=usuario.email if usuario is not None else "test@x.com",
-        )
-
-    app.dependency_overrides[get_current_user] = _current_user
-    return TestClient(app)
-
-
-@pytest.fixture
-def seeded(db_session):
-    esc = models.Escritorio(nome="Escritório Teste")
-    db_session.add(esc)
-    db_session.flush()
-    usuario = models.Usuario(
-        escritorio_id=esc.id, nome="Adv Seed", email="seed@example.com",
-        supabase_user_id="seed-sub",
-    )
-    db_session.add(usuario)
-    db_session.flush()
-    proc = models.Processo(escritorio_id=esc.id, numero="00000010020248260100", tribunal="TJSP")
-    db_session.add(proc)
-    db_session.flush()
-    intimacao = models.Intimacao(
-        processo_id=proc.id,
-        escritorio_id=esc.id,
-        fonte="DJEN",
-        fonte_id="111",
-        numero_processo="00000010020248260100",
-        tipo_comunicacao="Intimação",
-        data_disponibilizacao=date(2024, 9, 6),
-        teor="Apresente contestacao em 15 dias uteis.",
-    )
-    db_session.add(intimacao)
-    db_session.flush()
-    db_session.add_all(
-        [
-            models.Prazo(
-                processo_id=proc.id, intimacao_id=intimacao.id, escritorio_id=esc.id,
-                descricao="A",
-                data_inicio=date(2024, 9, 9), dias=15, dias_uteis=True,
-                data_fatal=date(2024, 9, 30), cumprido=False,
-            ),
-            models.Prazo(
-                processo_id=proc.id, intimacao_id=intimacao.id, escritorio_id=esc.id,
-                descricao="B",
-                data_inicio=date(2024, 9, 9), dias=5, dias_uteis=True,
-                data_fatal=date(2024, 9, 16), cumprido=True,
-            ),
-        ]
-    )
-    db_session.flush()
-    return proc
 
 
 @pytest.fixture(autouse=True)

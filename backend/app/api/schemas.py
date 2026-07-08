@@ -229,6 +229,20 @@ class CreatePjeSessionRequest(BaseModel):
         return value
 
 
+class CourtRoutingOut(BaseModel):
+    sistema: str
+    url_login: str | None
+    url_peticionamento: str | None
+    verificado: bool
+
+
+class CapturarSessaoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tribunal: str = Field(min_length=2, max_length=50)
+    grau: str = Field(default="1", pattern="^[12]$")
+
+
 class CredencialAssinaturaOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
