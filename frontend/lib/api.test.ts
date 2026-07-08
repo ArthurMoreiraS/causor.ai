@@ -67,10 +67,10 @@ describe("API client critical workflows", () => {
     }
   });
 
-  it("requests processos above the 100 default so the list matches the dashboard count", async () => {
-    // /processos default limit is 100; deriving the Processos page from that
-    // capped list under-reported (dashboard said 200, page showed 195). The
-    // page must load the full population, so loadDashboard asks for limit=500.
+  it("requests every core list well above the 100 default so all pages match the dashboard counts", async () => {
+    // Deriving pages from lists capped at 100 under-reported (Processos 195 vs
+    // dashboard 200; Intimações travava em 100; Prazos em 200). Every list loads
+    // the full population (limit=5000) so page counts match the server counts.
     const fetchMock = mockFetch({
       "GET /intimacoes": { body: [] },
       "GET /processos": { body: [] },
@@ -85,11 +85,14 @@ describe("API client critical workflows", () => {
 
     await loadDashboard();
 
-    const processosCall = fetchMock.mock.calls.find(
-      ([url]) => new URL(String(url)).pathname === "/processos"
-    );
-    expect(processosCall).toBeDefined();
-    expect(new URL(String(processosCall![0])).searchParams.get("limit")).toBe("500");
+    const limitOf = (path: string) => {
+      const call = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === path);
+      expect(call).toBeDefined();
+      return new URL(String(call![0])).searchParams.get("limit");
+    };
+    for (const path of ["/intimacoes", "/processos", "/prazos", "/peticoes", "/review/queue"]) {
+      expect(limitOf(path)).toBe("5000");
+    }
   });
 
   it("loads the enriched /processos/resumo so the page can match the dashboard count", async () => {

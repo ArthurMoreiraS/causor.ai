@@ -289,11 +289,12 @@ export type DashboardData = {
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").replace(/\/+$/, "");
 
-// A página de Processos monta a lista a partir de `/processos` (unida ao
-// reviewQueue). Com o default de 100, a página não alcançava a base inteira e
-// contava menos que o dashboard (200 vs 195), deixando processos fora da tabela.
-// 500 é o teto do endpoint (`le=500`); acima disso é preciso paginação real.
-const PROCESSOS_PAGE_LIMIT = 500;
+// As páginas (Processos, Intimações, Prazos, Petições) montam as listas do lado
+// do cliente. Com o default de 100 elas subcontavam vs. o dashboard (que conta no
+// servidor) — Processos 195 vs 200, Intimações travava em 100, Prazos em 200.
+// Carregamos a base inteira até este teto (alvo ~3k/conta; `le=5000` no backend).
+// Acima disso é preciso paginação server-side de verdade.
+const LIST_PAGE_LIMIT = 5000;
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
@@ -346,14 +347,14 @@ export async function loadDashboard(): Promise<DashboardData> {
   // endpoint nao deve zerar os outros tres (era o que Promise.all fazia antes
   // - uma falha rejeitava tudo e a tela inteira parecia vazia).
   const [intimacoes, processos, prazos, peticoes] = await Promise.all([
-    requestList<Intimacao>("/intimacoes"),
-    requestList<Processo>(`/processos?limit=${PROCESSOS_PAGE_LIMIT}`),
-    requestList<Prazo>("/prazos"),
-    requestList<Peticao>("/peticoes")
+    requestList<Intimacao>(`/intimacoes?limit=${LIST_PAGE_LIMIT}`),
+    requestList<Processo>(`/processos?limit=${LIST_PAGE_LIMIT}`),
+    requestList<Prazo>(`/prazos?limit=${LIST_PAGE_LIMIT}`),
+    requestList<Peticao>(`/peticoes?limit=${LIST_PAGE_LIMIT}`)
   ]);
   const [operational, reviewQueue, processosResumo] = await Promise.all([
     requestOptional<OperationalDashboard>("/dashboard/operational"),
-    requestOptional<ReviewQueueItem[]>("/review/queue"),
+    requestOptional<ReviewQueueItem[]>(`/review/queue?limit=${LIST_PAGE_LIMIT}`),
     requestOptional<ProcessoResumoLista>("/processos/resumo")
   ]);
   // So sinaliza "backend indisponivel" quando as quatro listas nucleares
