@@ -17,6 +17,7 @@
 | [`../../RODAR-LOCAL.md`](../../RODAR-LOCAL.md) | Quickstart para subir backend + frontend | Toda vez que for rodar localmente pela primeira vez no dia |
 | [`operacao/local-dev.md`](operacao/local-dev.md) | Setup completo, troubleshooting e captura agendada local | Primeira instalação ou quando algo quebrar |
 | [`operacao/deploy.md`](operacao/deploy.md) | Runbook de produção (envs, cron, provisionamento) | Ao publicar ou configurar ambiente definitivo |
+| [`operacao/go-live.md`](operacao/go-live.md) | Estrutura pós-hospedagem: topologia, funil de vendas→conta, checklist de corte | Antes de hospedar e ao planejar o onboarding de produção |
 | [`operacao/onboarding-piloto.md`](operacao/onboarding-piloto.md) | Fluxo de cadastrar o primeiro escritório/advogado | Ao onboardar um piloto |
 
 ## Áreas funcionais

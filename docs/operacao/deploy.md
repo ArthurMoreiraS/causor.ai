@@ -1,9 +1,9 @@
 # Deploy - runbook
 
-Arquitetura de producao: Supabase (Postgres/Auth/Vault), backend FastAPI em um
-provedor ainda a definir e frontend Next.js. O backend pode rodar em PaaS,
-container gerenciado ou VM, desde que suporte processo web, migrations,
-variaveis secretas, health check e um executor agendado separado.
+Arquitetura de producao: Supabase (Postgres/Auth/Vault), backend FastAPI no
+Render e frontend Next.js na Vercel. A topologia completa, o funil de
+vendas -> conta e o checklist de corte estao em [`go-live.md`](go-live.md);
+este arquivo cobre o passo a passo de subir cada peca.
 
 ## 1. Backend
 
@@ -18,7 +18,7 @@ Prerequisito: repo conectado ao provedor e root directory `backend`.
    - `ANTHROPIC_API_KEY` = chave Claude.
    - `CAUSOR_CLAUDE_CHAT_MODEL` = `claude-haiku-4-5`.
    - `CAUSOR_CLAUDE_CLASSIFICATION_MODEL` = `claude-haiku-4-5`.
-   - `CAUSOR_CLAUDE_DRAFT_MODEL` = `claude-sonnet-4-6`.
+   - `CAUSOR_CLAUDE_DRAFT_MODEL` = `claude-sonnet-5`.
    - `CAUSOR_SUPABASE_JWT_SECRET` = segredo HS256 legado ou chave PEM ES256.
    - `CAUSOR_CORS_ORIGINS` = URL final do frontend.
    - `CAUSOR_VAULT_PROVIDER` = `supabase` em producao.
