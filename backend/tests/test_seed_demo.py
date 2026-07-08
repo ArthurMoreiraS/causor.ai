@@ -107,6 +107,20 @@ def test_seed_creates_intimacoes_vault_credential_and_audit(db_session):
     assert "credencial_assinatura_cadastrada" in acoes
 
 
+def test_seed_has_approved_petition_on_esaj_process_for_demo(db_session):
+    """A demo mostra a correção TJSP->e-SAJ: precisa de uma minuta aprovada,
+    pronta pra protocolar (via cofre + sandbox), num processo e-SAJ."""
+    _seed(db_session)
+
+    aprovadas = db_session.scalars(
+        select(models.Peticao).where(models.Peticao.status == "aprovada")
+    ).all()
+    sistemas = {
+        db_session.get(models.Processo, p.processo_id).sistema for p in aprovadas
+    }
+    assert "e-SAJ" in sistemas, "esperava uma minuta aprovada num processo e-SAJ"
+
+
 def test_seed_is_idempotent(db_session):
     _seed(db_session)
     counts_first = {
