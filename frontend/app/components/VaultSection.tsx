@@ -10,7 +10,7 @@ import {
   listarCredenciais,
   resolverRota
 } from "@/lib/api";
-import { LoadingButton, Modal, Skeleton } from "./ui";
+import { ErrorState, LoadingButton, Modal, Skeleton } from "./ui";
 import { useToast } from "./Toast";
 
 const PJE_HELP_URL = "https://www.cnj.jus.br/pje/";
@@ -29,6 +29,7 @@ export default function VaultSection({ offline }: { offline: boolean }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [showConnect, setShowConnect] = useState(false);
 
   async function reload() {
@@ -85,7 +86,17 @@ export default function VaultSection({ offline }: { offline: boolean }) {
         Conectar tribunal
       </LoadingButton>
 
-      {error ? <small className="settingsHint vaultError">{error}</small> : null}
+      {error ? (
+        <ErrorState
+          title="Falha ao carregar as conexões"
+          description={error}
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true);
+            void reload().finally(() => setRetrying(false));
+          }}
+        />
+      ) : null}
 
       <div className="vaultList">
         {loading ? (
