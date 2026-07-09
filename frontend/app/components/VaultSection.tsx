@@ -10,7 +10,7 @@ import {
   listarCredenciais,
   resolverRota
 } from "@/lib/api";
-import { ErrorState, LoadingButton, Modal, Skeleton } from "./ui";
+import { AsyncState, LoadingButton, Modal, Skeleton } from "./ui";
 import { useToast } from "./Toast";
 
 const PJE_HELP_URL = "https://www.cnj.jus.br/pje/";
@@ -86,26 +86,29 @@ export default function VaultSection({ offline }: { offline: boolean }) {
         Conectar tribunal
       </LoadingButton>
 
-      {error ? (
-        <ErrorState
-          title="Falha ao carregar as conexões"
-          description={error}
+      <div className="vaultList">
+        <AsyncState
+          loading={loading}
+          error={error}
+          empty={!sessions.length}
+          skeleton={
+            <>
+              <Skeleton height={50} radius={8} />
+              <Skeleton height={50} radius={8} />
+            </>
+          }
+          emptyState={
+            <small className="settingsHint">
+              Nenhum tribunal conectado ainda. Use “Conectar tribunal” acima.
+            </small>
+          }
           retrying={retrying}
           onRetry={() => {
             setRetrying(true);
             void reload().finally(() => setRetrying(false));
           }}
-        />
-      ) : null}
-
-      <div className="vaultList">
-        {loading ? (
-          <>
-            <Skeleton height={50} radius={8} />
-            <Skeleton height={50} radius={8} />
-          </>
-        ) : sessions.length ? (
-          sessions.map((credencial) => (
+        >
+          {sessions.map((credencial) => (
             <article className="vaultItem" key={credencial.id}>
               <div>
                 <strong>{courtSessionLabel(credencial)}</strong>
@@ -120,12 +123,8 @@ export default function VaultSection({ offline }: { offline: boolean }) {
                 Desativar
               </LoadingButton>
             </article>
-          ))
-        ) : (
-          <small className="settingsHint">
-            Nenhum tribunal conectado ainda. Use “Conectar tribunal” acima.
-          </small>
-        )}
+          ))}
+        </AsyncState>
       </div>
 
       {outras.length > 0 ? (
