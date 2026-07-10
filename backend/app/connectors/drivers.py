@@ -8,8 +8,7 @@ manda todos os sistemas para o ``SandboxDriver`` determinístico; no piloto real
 
 from __future__ import annotations
 
-from typing import Protocol
-
+from app.connectors.contracts import FilingDriver
 from app.connectors.pje.connector import (
     PjeAssistedConnector,
     PjeFilingCheckpoint,
@@ -17,17 +16,16 @@ from app.connectors.pje.connector import (
 )
 from app.connectors.sandbox_driver import SandboxDriver
 
+__all__ = [
+    "FilingDriver",
+    "PjeDriver",
+    "UnsupportedFilingSystemError",
+    "get_filing_driver",
+]
+
 
 class UnsupportedFilingSystemError(RuntimeError):
     """Sistema sem conector real (fora do modo sandbox)."""
-
-
-class FilingDriver(Protocol):
-    sistema: str
-
-    def prepare_filing(
-        self, package: PjeFilingPackage, *, submit: bool
-    ) -> PjeFilingCheckpoint: ...
 
 
 class PjeDriver:
