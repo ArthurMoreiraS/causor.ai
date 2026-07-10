@@ -288,7 +288,7 @@ export default function SettingsModal({
                 </label>
               </div>
               {timbrado.logoPreview ? (
-                <div className="settingsRow single">
+                <div className="modalListRow">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={timbrado.logoPreview}
