@@ -184,11 +184,15 @@ def downgrade() -> None:
     op.drop_column("escritorio", "timbrado_logo")
 ```
 
-- [ ] **Step 7: Validar a migração contra o Postgres local (se disponível)**
+- [ ] **Step 7: Validar a migração contra o Supabase (banco de produção)**
 
-Run (da raiz do repo): `docker compose -f infra/docker-compose.yml up -d postgres`
-Run (em `backend/`, PowerShell): `$env:CAUSOR_DATABASE_URL = 'postgresql+psycopg://causor:causor@localhost:5432/causor'; ./.venv/Scripts/alembic.exe upgrade head`
-Expected: `Running upgrade e9a3c1f52b8d -> f0a1b2c3d4e5`. Se o Docker não estiver disponível na máquina, registrar no resumo da task que a migração precisa rodar no deploy (o teste do Step 4 já valida o metadata via `create_all`).
+Não usamos Postgres local para validar o timbrado: o teste manual roda contra
+o Supabase de produção com a conta de teste. No deploy do Render a migração é
+aplicada automaticamente (`alembic upgrade head` no release). Para aplicar ou
+conferir manualmente antes do deploy:
+
+Run (em `backend/`, PowerShell): `$env:CAUSOR_DATABASE_URL = '<string do Supabase Postgres (pooler, porta 6543)>'; ./.venv/Scripts/alembic.exe upgrade head`
+Expected: `Running upgrade e9a3c1f52b8d -> f0a1b2c3d4e5` — ou nenhuma ação, se o release do Render já aplicou. A string de produção entra só como variável de ambiente da sessão; nunca em arquivo commitado (o teste do Step 4 já valida o metadata via `create_all`).
 
 - [ ] **Step 8: Rodar a suíte inteira e commitar**
 

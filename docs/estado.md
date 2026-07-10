@@ -58,7 +58,7 @@
 - IA roda em Claude:
   - chat operacional: `claude-haiku-4-5`;
   - classificacao de intimacao: `claude-haiku-4-5`;
-  - redacao de minuta: `claude-sonnet-4-6`.
+  - redacao de minuta: `claude-sonnet-5`.
 - PJe assistido iniciado: protocolo prepara ate `ready_to_sign`; assinatura/envio
   final ainda fica com o advogado no PJe/PJeOffice.
 - Captura agendada possui retry exponencial limitado, recuperacao de jobs
