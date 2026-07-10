@@ -203,6 +203,10 @@ export type Escritorio = {
   id: number;
   nome: string;
   cnpj: string | null;
+  timbrado_cabecalho: string | null;
+  timbrado_rodape: string | null;
+  /** PNG em base64, já normalizado pelo backend. */
+  timbrado_logo: string | null;
 };
 
 export type OperationalProfile = {
@@ -216,6 +220,10 @@ export type OperationalProfilePatch = Partial<{
   cnpj: string | null;
   oab: string | null;
   oab_uf: string | null;
+  timbrado_cabecalho: string;
+  timbrado_rodape: string;
+  /** Base64 de PNG/JPEG; string vazia remove o logo. */
+  timbrado_logo: string;
 }>;
 
 export type CurrentUser = {
@@ -476,6 +484,19 @@ export async function atualizarPerfilOperacional(
     method: "PATCH",
     body: JSON.stringify(patch)
   });
+}
+
+export async function baixarPeticaoPdf(peticaoId: number): Promise<Blob> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const response = await fetch(`${API_BASE}/peticoes/${peticaoId}/pdf`, {
+    headers: withAuthHeaders({}, token),
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    throw new Error(`Falha ao baixar PDF: ${response.status}`);
+  }
+  return response.blob();
 }
 
 let currentUserCache: CurrentUser | null = null;

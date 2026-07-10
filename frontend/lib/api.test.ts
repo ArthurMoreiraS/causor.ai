@@ -291,4 +291,25 @@ describe("API client critical workflows", () => {
     expect(result.intimacoes).toEqual([]);
     expect(result.processos).toEqual([{ id: 1 }]);
   });
+
+  it("baixa o PDF da petição com o bearer token", async () => {
+    const blob = new Blob(["%PDF-1.4"], { type: "application/pdf" });
+    const fetchMock = vi.fn(
+      async () =>
+        ({
+          ok: true,
+          status: 200,
+          blob: async () => blob
+        }) as unknown as Response
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const { baixarPeticaoPdf } = await import("./api");
+
+    const result = await baixarPeticaoPdf(11);
+
+    expect(result).toBe(blob);
+    const [url, init] = (fetchMock.mock.calls[0] || []) as [string | URL, RequestInit | undefined];
+    expect(String(url)).toContain("/peticoes/11/pdf");
+    expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
+  });
 });
