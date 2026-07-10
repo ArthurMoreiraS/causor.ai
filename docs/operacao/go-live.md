@@ -114,6 +114,19 @@ online (`python -m app.local_agent run`).
 Paliativo anterior (captura assistida em reuniao com backend local) permanece
 documentado no historico, mas nao e mais o caminho principal.
 
+### Documentos dos autos: acesso privado e descarte
+
+- Storage e privado, sem URL publica. O advogado baixa documento por ticket
+  assinado de **300 segundos** (`POST /documentos/{id}/download-ticket`);
+  cada emissao gera auditoria e a URL assinada nunca e persistida.
+- Chaves de objeto sao imutaveis
+  (`tenant/{esc}/process/{proc}/instance/{inst}/document/{doc}/{sha256}.bin`);
+  versao nova nunca sobrescreve a anterior (Supabase S3 nao tem versioning).
+- Nao ha expiracao automatica por idade. Descarte e **explicito**: a exclusao
+  de processo/tenant enfileira `purge_process_objects`, que apaga em lotes de
+  100 com contagens/hashes na auditoria. O worker
+  `python -m app.cli process-autos-due` drena extracao e purge.
+
 ## 6. Checklist de corte (dia da hospedagem)
 
 Em ordem; nao pule a verificacao de cada passo.

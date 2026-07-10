@@ -182,14 +182,15 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.command == "process-autos-due":
-        from app.autos.worker import process_due_documents
+        from app.autos.worker import process_due_documents, process_due_purges
 
         processed = process_due_documents(
             SessionLocal,
             max_attempts=args.max_attempts,
             backoff_seconds=args.backoff_seconds,
         )
-        print(f"process-autos-due: {processed} job(s) processados.")
+        purged = process_due_purges(SessionLocal)
+        print(f"process-autos-due: {processed} extração(ões), {purged} purge(s).")
         return 0
 
     if args.command == "seed-demo":

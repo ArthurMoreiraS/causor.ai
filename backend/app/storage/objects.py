@@ -39,6 +39,13 @@ class UploadTicket:
     expires_in: int
 
 
+@dataclass(frozen=True)
+class DownloadTicket:
+    key: str
+    url: str
+    expires_in: int
+
+
 class ObjectStore(Protocol):
     def put_bytes(self, key: str, data: bytes, content_type: str) -> StoredObject: ...
 
@@ -46,9 +53,13 @@ class ObjectStore(Protocol):
 
     def download_to(self, key: str, destination: Path) -> None: ...
 
+    def delete(self, key: str) -> None: ...
+
     def create_upload_ticket(
         self, key: str, content_type: str, sha256: str, size_bytes: int
     ) -> UploadTicket: ...
+
+    def create_download_ticket(self, key: str, *, expires_in: int = 300) -> DownloadTicket: ...
 
 
 def _safe_key(key: str) -> str:
@@ -79,6 +90,16 @@ class LocalObjectStore:
     def download_to(self, key: str, destination: Path) -> None:
         safe = _safe_key(key)
         destination.write_bytes((self.root / safe).read_bytes())
+
+    def delete(self, key: str) -> None:
+        safe = _safe_key(key)
+        (self.root / safe).unlink(missing_ok=True)
+
+    def create_download_ticket(self, key: str, *, expires_in: int = 300) -> DownloadTicket:
+        # Nunca expõe caminho de filesystem: a rota da API troca este marcador
+        # por uma URL autenticada de conteúdo.
+        safe = _safe_key(key)
+        return DownloadTicket(key=safe, url=f"local-object://{safe}", expires_in=expires_in)
 
     def create_upload_ticket(
         self, key: str, content_type: str, sha256: str, size_bytes: int
@@ -128,6 +149,20 @@ class S3ObjectStore:
     def download_to(self, key: str, destination: Path) -> None:
         safe = _safe_key(key)
         self.client.download_file(self.bucket, safe, str(destination))
+
+    def delete(self, key: str) -> None:
+        safe = _safe_key(key)
+        self.client.delete_object(Bucket=self.bucket, Key=safe)
+
+    def create_download_ticket(self, key: str, *, expires_in: int = 300) -> DownloadTicket:
+        safe = _safe_key(key)
+        url = self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": safe},
+            ExpiresIn=expires_in,
+            HttpMethod="GET",
+        )
+        return DownloadTicket(key=safe, url=url, expires_in=expires_in)
 
     def create_upload_ticket(
         self, key: str, content_type: str, sha256: str, size_bytes: int

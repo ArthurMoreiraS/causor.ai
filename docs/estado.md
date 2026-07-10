@@ -2,8 +2,8 @@
 
 ## Onde estamos
 
-- **2026-07-10 — Plano 2 (autos integrais e contexto citado): Tasks 1–9 de 10
-  concluidas** (branch `feat/autos-contexto-integral`):
+- **2026-07-10 — Plano 2 (autos integrais e contexto citado): COMPLETO
+  (Tasks 1–10)** (branch `feat/autos-contexto-integral`):
   - Captura integral com prova de completude: enumeracao inicial/final com
     fingerprint SHA-256, versoes imutaveis por hash, HTML disfarcado de PDF
     rejeitado por magic bytes; `complete` so com enumeracoes identicas e todo
@@ -22,8 +22,12 @@
     justificativa 20–1000 chars e gera auditoria.
   - UI: painel "Autos" por processo (captura, contagens, motivo do bloqueio,
     liberacao excepcional com aviso).
-  - Falta a Task 10 (download privado por ticket assinado + purge auditado)
-    para fechar o gate de aceite do Plano 2.
+  - Download privado por ticket assinado de 300s (auditado, URL nunca
+    persistida; localdev usa rota autenticada da API) e descarte explicito:
+    `purge_process_objects` apaga em lotes de 100 com hashes na auditoria;
+    sem expiracao automatica por idade. Chaves de objeto imutaveis por SHA-256.
+  - O que resta do Plano 2 e homologacao com dados reais (Marco B: primeiro
+    processo PJe integral), que depende do acesso do advisor.
 
 - **2026-07-10 — Marco A (Fundacao do agente local) concluido.** Plano 1 do
   roadmap de autos/conectores executado integralmente

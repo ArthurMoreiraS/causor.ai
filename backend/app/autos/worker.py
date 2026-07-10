@@ -106,6 +106,106 @@ def _persist_pages(session: Session, version: models.DocumentoArquivo, result) -
     chunks_module.persist_chunks(session, version=version, pages=result.pages)
 
 
+def enqueue_process_purge(
+    session: Session, *, processo: models.Processo, actor: str
+) -> models.JobExecucao:
+    """Descarte é explícito e assíncrono: nunca apaga milhares de objetos
+    dentro de um request. Não existe expiração automática por idade."""
+    from app.queue.jobs import create_job
+
+    return create_job(
+        session,
+        tipo="purge_process_objects",
+        entidade="processo",
+        entidade_id=processo.id,
+        payload={"processo_id": processo.id},
+        ator=actor,
+    )
+
+
+def run_purge_process_objects_job(
+    session: Session,
+    *,
+    processo_id: int,
+    object_store: ObjectStore | None = None,
+    batch_size: int = 100,
+) -> dict:
+    """Apaga do storage os objetos de um processo, em lotes, com auditoria.
+
+    Lista as chaves pelo banco (fonte da verdade), apaga em lotes limitados e
+    registra contagens/hashes no audit log antes de qualquer remoção de
+    metadados (que segue a ordem de limpeza de tenant existente).
+    """
+    store = object_store or get_object_store()
+    versions = list(
+        session.scalars(
+            select(models.DocumentoArquivo)
+            .join(models.Documento, models.Documento.id == models.DocumentoArquivo.documento_id)
+            .where(models.Documento.processo_id == processo_id)
+        )
+    )
+    deleted = 0
+    hashes: list[str] = []
+    for start in range(0, len(versions), batch_size):
+        for version in versions[start : start + batch_size]:
+            store.delete(version.storage_key)
+            hashes.append(version.sha256)
+            deleted += 1
+
+    processo = session.get(models.Processo, processo_id)
+    session.add(
+        models.AuditLog(
+            escritorio_id=processo.escritorio_id if processo else None,
+            ator="system",
+            acao="process_objects_purged",
+            entidade="processo",
+            entidade_id=processo_id,
+            detalhe={"deleted": deleted, "sha256": hashes},
+        )
+    )
+    session.flush()
+    return {"deleted": deleted}
+
+
+def claim_due_purge_jobs(session: Session, *, limit: int = 10) -> list[models.JobExecucao]:
+    stmt = (
+        select(models.JobExecucao)
+        .where(
+            models.JobExecucao.tipo == "purge_process_objects",
+            models.JobExecucao.status == "queued",
+        )
+        .order_by(models.JobExecucao.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    jobs = list(session.scalars(stmt))
+    for job in jobs:
+        job.status = "running"
+    session.flush()
+    return jobs
+
+
+def process_due_purges(session_factory) -> int:
+    """Drena jobs `purge_process_objects`. Retorna a contagem processada."""
+    processed = 0
+    while True:
+        with session_factory() as session:
+            jobs = claim_due_purge_jobs(session, limit=1)
+            if not jobs:
+                return processed
+            job = jobs[0]
+            processo_id = (job.payload or {}).get("processo_id")
+            try:
+                result = run_purge_process_objects_job(session, processo_id=processo_id)
+                job.status = "completed"
+                job.resultado = result
+            except Exception as exc:  # noqa: BLE001 - falha vira estado observável
+                job.status = "failed"
+                job.erro = str(exc)[:500]
+            session.commit()
+        processed += 1
+
+
 def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[models.JobExecucao]:
     stmt = (
         select(models.JobExecucao)

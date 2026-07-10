@@ -285,6 +285,99 @@ def confirmar_documento(
     return item
 
 
+class DownloadTicketOut(BaseModel):
+    url: str
+    expires_in: int
+    nome: str
+    mime_type: str
+
+
+def _current_version_for_documento(
+    session: Session, documento: models.Documento
+) -> models.DocumentoArquivo | None:
+    return session.scalars(
+        select(models.DocumentoArquivo)
+        .where(
+            models.DocumentoArquivo.documento_id == documento.id,
+            models.DocumentoArquivo.atual.is_(True),
+        )
+        .order_by(models.DocumentoArquivo.id.desc())
+        .limit(1)
+    ).first()
+
+
+def _get_owned_documento(
+    session: Session, documento_id: int, current: CurrentUser
+) -> models.Documento:
+    documento = session.get(models.Documento, documento_id)
+    if documento is None:
+        raise HTTPException(status_code=404, detail="documento nao encontrado")
+    escritorio_id = documento.escritorio_id
+    if escritorio_id is None and documento.processo_id is not None:
+        processo = session.get(models.Processo, documento.processo_id)
+        escritorio_id = processo.escritorio_id if processo else None
+    if escritorio_id != current.escritorio_id:
+        # 404 (não 403): não revela existência de documento de outro tenant.
+        raise HTTPException(status_code=404, detail="documento nao encontrado")
+    return documento
+
+
+@router.post("/documentos/{documento_id}/download-ticket", response_model=DownloadTicketOut)
+def criar_ticket_download(
+    documento_id: int,
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+) -> DownloadTicketOut:
+    documento = _get_owned_documento(session, documento_id, current)
+    version = _current_version_for_documento(session, documento)
+    if version is None:
+        raise HTTPException(status_code=404, detail="documento sem arquivo verificado")
+
+    ticket = get_object_store().create_download_ticket(version.storage_key, expires_in=300)
+    url = ticket.url
+    if url.startswith("local-object://"):
+        # Localdev: URL autenticada da API, nunca caminho de filesystem.
+        url = f"/documentos/{documento.id}/conteudo"
+
+    session.add(
+        models.AuditLog(
+            escritorio_id=current.escritorio_id,
+            ator=f"usuario:{current.usuario_id}",
+            acao="document_download_ticket_created",
+            entidade="documento",
+            entidade_id=documento.id,
+            # A URL assinada nunca é persistida.
+            detalhe={"documento_arquivo_id": version.id, "expires_in": ticket.expires_in},
+        )
+    )
+    session.commit()
+    return DownloadTicketOut(
+        url=url,
+        expires_in=ticket.expires_in,
+        nome=documento.nome,
+        mime_type=version.mime_type,
+    )
+
+
+@router.get("/documentos/{documento_id}/conteudo")
+def conteudo_documento(
+    documento_id: int,
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+
+    documento = _get_owned_documento(session, documento_id, current)
+    version = _current_version_for_documento(session, documento)
+    if version is None:
+        raise HTTPException(status_code=404, detail="documento sem arquivo verificado")
+    try:
+        data = get_object_store().get_bytes(version.storage_key)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="arquivo nao encontrado") from exc
+    return Response(content=data, media_type=version.mime_type)
+
+
 class OverrideIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
