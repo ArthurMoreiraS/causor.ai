@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
+from pypdf import PdfReader
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
@@ -1418,3 +1419,57 @@ def test_settings_profile_rejeita_logo_invalido(client, db_session, seeded):
 
     base64_quebrado = client.patch("/settings/profile", json={"timbrado_logo": "###"})
     assert base64_quebrado.status_code == 422
+
+
+def _cria_peticao(db_session, seeded, escritorio_id=None, processo_id=None):
+    pet = models.Peticao(
+        escritorio_id=escritorio_id if escritorio_id is not None else seeded.escritorio_id,
+        processo_id=processo_id if processo_id is not None else seeded.id,
+        tipo="Manifestacao",
+        conteudo="Excelentíssimo Juízo, requer a juntada.",
+        status="rascunho",
+    )
+    db_session.add(pet)
+    db_session.flush()
+    return pet
+
+
+def test_peticao_pdf_download(client, db_session, seeded):
+    pet = _cria_peticao(db_session, seeded)
+
+    resp = client.get(f"/peticoes/{pet.id}/pdf")
+
+    assert resp.status_code == 200
+    assert resp.headers["content-type"].startswith("application/pdf")
+    assert resp.content.startswith(b"%PDF")
+    assert "minuta-" in resp.headers["content-disposition"]
+
+
+def test_peticao_pdf_usa_timbrado_do_escritorio(client, db_session, seeded):
+    esc = db_session.get(models.Escritorio, seeded.escritorio_id)
+    esc.timbrado_rodape = "OAB/SP 123.456"
+    db_session.flush()
+    pet = _cria_peticao(db_session, seeded)
+
+    resp = client.get(f"/peticoes/{pet.id}/pdf")
+
+    paginas = PdfReader(io.BytesIO(resp.content)).pages
+    texto = "\n".join(p.extract_text() or "" for p in paginas)
+    assert "Escritório Teste" in texto
+    assert "OAB/SP 123.456" in texto
+
+
+def test_peticao_pdf_de_outro_tenant_retorna_404(client, db_session, seeded):
+    outro = models.Escritorio(nome="Outro Escritório")
+    db_session.add(outro)
+    db_session.flush()
+    proc2 = models.Processo(
+        escritorio_id=outro.id, numero="0000002-00.2024.8.26.0100", tribunal="TJSP"
+    )
+    db_session.add(proc2)
+    db_session.flush()
+    pet2 = _cria_peticao(db_session, seeded, escritorio_id=outro.id, processo_id=proc2.id)
+
+    resp = client.get(f"/peticoes/{pet2.id}/pdf")
+
+    assert resp.status_code == 404

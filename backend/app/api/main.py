@@ -63,7 +63,8 @@ from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
 from app.capture.enrich import backfill_sistema, run_enrichment_backfill
 from app.capture.poll import poll_oab
-from app.filing.timbrado import LogoInvalidoError, normalize_logo
+from app.filing.render import render_minuta_pdf
+from app.filing.timbrado import LogoInvalidoError, load_timbrado, normalize_logo
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import (
     AlreadyFiledError,
@@ -1481,6 +1482,32 @@ def create_app() -> FastAPI:
         session.commit()
         session.refresh(peticao)
         return peticao
+
+    @app.get("/peticoes/{peticao_id}/pdf")
+    def baixar_peticao_pdf(
+        peticao_id: int,
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> Response:
+        """Preview da peça final: o mesmo PDF (timbrado incluso) que o job de
+        protocolo anexa, renderizado sob demanda para o gate humano."""
+        peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
+        processo = session.get(models.Processo, peticao.processo_id)
+        pdf = render_minuta_pdf(
+            peticao.conteudo or "",
+            meta={
+                "processo": processo.numero if processo else None,
+                "tipo": peticao.tipo,
+                "tribunal": processo.tribunal if processo else None,
+            },
+            timbrado=load_timbrado(session, current.escritorio_id),
+        )
+        nome_arquivo = f"minuta-{processo.numero if processo else peticao.id}.pdf"
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'},
+        )
 
     @app.post("/chat", response_model=ChatResponse)
     def chat(
