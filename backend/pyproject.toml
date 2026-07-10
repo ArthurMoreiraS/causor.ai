@@ -18,12 +18,14 @@ dependencies = [
     "pyjwt>=2.8",
     "cryptography>=42",
     "playwright>=1.45",
+    "fpdf2>=2.8",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=8.2",
     "pytest-httpx>=0.30",
+    "pypdf>=5.0",
     "ruff>=0.5",
 ]
 
