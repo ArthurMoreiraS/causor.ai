@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { FileSearch } from "lucide-react";
+import { Fragment, useEffect, useState } from "react";
 import { formatDate, sistemaBadge } from "@/lib/format";
 import type { ProcessoRow } from "@/lib/views";
+import ProcessContextStatus from "../components/ProcessContextStatus";
 import { DeadlineBadge, Empty } from "../components/ui";
 
 const PAGE_SIZE = 50;
@@ -22,6 +24,9 @@ export default function ProcessosView({
   // Paginação só de renderização: milhares de linhas não vão todas ao DOM.
   const [page, setPage] = useState(0);
   useEffect(() => setPage(0), [rows.length]);
+
+  // Painel de contexto dos autos (captura/extração/gate) expandido por linha.
+  const [contextoAberto, setContextoAberto] = useState<number | null>(null);
 
   const pageCount = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
   const safePage = Math.min(page, pageCount - 1);
@@ -43,34 +48,45 @@ export default function ProcessosView({
         <span>Próximo prazo</span>
       </div>
       {visible.map(({ processo, intimacoesCount, peticoesCount, proximoPrazo }) => (
-        <article
-          className="dataRow clickable"
-          key={processo.id}
-          onClick={() => onOpen(processo.id)}
-        >
-          <div className="dataRowMain">
-            <strong className="mono">{processo.numero}</strong>
-            <span>{processo.classe ?? "Classe não informada"}</span>
-          </div>
-          <div className="dataRowMain">
-            <strong>{processo.tribunal ?? "-"}</strong>
-            <span>{processo.orgao_julgador ?? "Órgão não informado"}</span>
-          </div>
-          <span
-            className={`pill ${sistemaBadge(processo.sistema).className}`}
-            title={sistemaBadge(processo.sistema).title}
-          >
-            {sistemaBadge(processo.sistema).label}
-          </span>
-          <span className="cellCount">{intimacoesCount}</span>
-          <span className="cellCount">{peticoesCount}</span>
-          <div className="dataRowEnd">
-            <span className="cellDate">
-              {proximoPrazo ? formatDate(proximoPrazo.data_fatal) : "—"}
+        <Fragment key={processo.id}>
+          <article className="dataRow clickable" onClick={() => onOpen(processo.id)}>
+            <div className="dataRowMain">
+              <strong className="mono">{processo.numero}</strong>
+              <span>{processo.classe ?? "Classe não informada"}</span>
+            </div>
+            <div className="dataRowMain">
+              <strong>{processo.tribunal ?? "-"}</strong>
+              <span>{processo.orgao_julgador ?? "Órgão não informado"}</span>
+            </div>
+            <span
+              className={`pill ${sistemaBadge(processo.sistema).className}`}
+              title={sistemaBadge(processo.sistema).title}
+            >
+              {sistemaBadge(processo.sistema).label}
             </span>
-            <DeadlineBadge prazo={proximoPrazo} />
-          </div>
-        </article>
+            <span className="cellCount">{intimacoesCount}</span>
+            <span className="cellCount">{peticoesCount}</span>
+            <div className="dataRowEnd">
+              <span className="cellDate">
+                {proximoPrazo ? formatDate(proximoPrazo.data_fatal) : "—"}
+              </span>
+              <DeadlineBadge prazo={proximoPrazo} />
+              <button
+                className="toolbarButton compact"
+                title="Contexto dos autos (captura, extração e gate)"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setContextoAberto((atual) => (atual === processo.id ? null : processo.id));
+                }}
+              >
+                <FileSearch size={13} /> Autos
+              </button>
+            </div>
+          </article>
+          {contextoAberto === processo.id ? (
+            <ProcessContextStatus processoId={processo.id} />
+          ) : null}
+        </Fragment>
       ))}
       {!rows.length ? <Empty label="Nenhum processo encontrado" /> : null}
       {capped ? (

@@ -543,6 +543,57 @@ export async function resolverRota(tribunal: string, grau: string): Promise<Cour
   return request<CourtRouting>(`/court-routing?${qs}`);
 }
 
+export type CapturaAutos = {
+  id: number;
+  processo_instancia_id: number;
+  generation: number;
+  status: string;
+  expected_count: number;
+  captured_count: number;
+  missing_count: number;
+  error_code: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+};
+
+export type AutosInstanciaStatus = {
+  processo_instancia_id: number;
+  sistema: string;
+  tribunal: string;
+  grau: string;
+  captura: CapturaAutos | null;
+};
+
+export type AutosStatus = {
+  processo_id: number;
+  instancias: AutosInstanciaStatus[];
+};
+
+export async function capturarAutos(
+  processoId: number,
+  graus: string[] = ["1", "2"]
+): Promise<CapturaAutos[]> {
+  return request<CapturaAutos[]>(`/processos/${processoId}/autos/capturar`, {
+    method: "POST",
+    body: JSON.stringify({ graus })
+  });
+}
+
+export async function statusAutos(processoId: number): Promise<AutosStatus> {
+  return request<AutosStatus>(`/processos/${processoId}/autos/status`);
+}
+
+export async function criarOverrideContexto(
+  processoId: number,
+  action: "draft" | "file",
+  justification: string
+): Promise<{ id: number; action: string; expires_at: string }> {
+  return request(`/processos/${processoId}/contexto/override`, {
+    method: "POST",
+    body: JSON.stringify({ action, justification })
+  });
+}
+
 export type AgentInstallation = {
   id: number;
   nome: string;

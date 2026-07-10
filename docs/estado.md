@@ -2,6 +2,29 @@
 
 ## Onde estamos
 
+- **2026-07-10 — Plano 2 (autos integrais e contexto citado): Tasks 1–9 de 10
+  concluidas** (branch `feat/autos-contexto-integral`):
+  - Captura integral com prova de completude: enumeracao inicial/final com
+    fingerprint SHA-256, versoes imutaveis por hash, HTML disfarcado de PDF
+    rejeitado por magic bytes; `complete` so com enumeracoes identicas e todo
+    item verificado.
+  - Extracao de texto por pagina com OCR (Tesseract `por`) apenas em pagina
+    sem camada textual; worker persistente `process-autos-due` fora do request.
+  - Trechos citaveis (chunks por pagina) com busca lexical (FTS portugues no
+    Postgres; migracao `c8e6f0a4b3d2`).
+  - Resumo estruturado por documento com citacoes verificadas contra os
+    chunks — quote inventado marca o resumo `failed`.
+  - `ContextoProcesso` ready exige 1o e 2o grau completos (ou not_applicable
+    com evidencia) + 100% dos arquivos extraidos e resumidos; o drafter passa
+    a receber inventario + excertos citados com rotulos [DOC-N p.M].
+  - **Gate fail-closed**: minuta e protocolo bloqueiam (HTTP 409) sem contexto
+    ready/atual; override do advogado e de uso unico, expira em 30 min, exige
+    justificativa 20–1000 chars e gera auditoria.
+  - UI: painel "Autos" por processo (captura, contagens, motivo do bloqueio,
+    liberacao excepcional com aviso).
+  - Falta a Task 10 (download privado por ticket assinado + purge auditado)
+    para fechar o gate de aceite do Plano 2.
+
 - **2026-07-10 — Marco A (Fundacao do agente local) concluido.** Plano 1 do
   roadmap de autos/conectores executado integralmente
   (`docs/superpowers/plans/2026-07-10-fundacao-automacao-judicial-agente-local.md`):
