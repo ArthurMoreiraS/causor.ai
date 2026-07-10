@@ -326,14 +326,197 @@ class Andamento(TimestampMixin, Base):
 
 
 class Documento(TimestampMixin, Base):
+    """Documento lógico dos autos (identidade estável no portal).
+
+    O conteúdo/versões ficam em `DocumentoArquivo` (imutáveis por SHA-256).
+    Colunas de identidade são nullable para documentos legados/demo.
+    """
+
     __tablename__ = "documento"
+    __table_args__ = (
+        UniqueConstraint("processo_instancia_id", "external_id", name="uq_documento_external"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id"))
     peticao_id: Mapped[int | None] = mapped_column(ForeignKey("peticao.id"))
+    escritorio_id: Mapped[int | None] = mapped_column(ForeignKey("escritorio.id"), index=True)
+    processo_instancia_id: Mapped[int | None] = mapped_column(
+        ForeignKey("processo_instancia.id"), index=True
+    )
+    external_id: Mapped[str | None] = mapped_column(String(255))
+    parent_external_id: Mapped[str | None] = mapped_column(String(255))
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     tipo: Mapped[str | None] = mapped_column(String(50))
     uri: Mapped[str | None] = mapped_column(String(1024))  # storage reference, not contents
+    ordem: Mapped[int | None] = mapped_column(Integer)
+    data_documento: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sigiloso: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    metadados: Mapped[dict | None] = mapped_column(JSON)
+
+
+class CapturaAutos(TimestampMixin, Base):
+    """Uma geração de captura integral dos autos de uma instância.
+
+    `status=complete` significa integridade binária provada: enumeração
+    inicial == enumeração final e todo item com versão verificada.
+    """
+
+    __tablename__ = "captura_autos"
+    __table_args__ = (
+        UniqueConstraint(
+            "processo_instancia_id", "generation", name="uq_captura_autos_generation"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    processo_instancia_id: Mapped[int] = mapped_column(
+        ForeignKey("processo_instancia.id"), nullable=False, index=True
+    )
+    agent_command_id: Mapped[int | None] = mapped_column(ForeignKey("agent_command.id"))
+    generation: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued", index=True)
+    initial_fingerprint: Mapped[str | None] = mapped_column(String(71))
+    final_fingerprint: Mapped[str | None] = mapped_column(String(71))
+    expected_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    captured_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    missing_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    cursor_complete: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    evidence: Mapped[dict | None] = mapped_column(JSON)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DocumentoArquivo(TimestampMixin, Base):
+    """Versão imutável (por SHA-256) de um documento lógico."""
+
+    __tablename__ = "documento_arquivo"
+    __table_args__ = (
+        UniqueConstraint("documento_id", "sha256", name="uq_documento_arquivo_hash"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    documento_id: Mapped[int] = mapped_column(
+        ForeignKey("documento.id"), nullable=False, index=True
+    )
+    captura_id: Mapped[int] = mapped_column(
+        ForeignKey("captura_autos.id"), nullable=False, index=True
+    )
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    uri: Mapped[str] = mapped_column(String(1024), nullable=False)
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    page_count: Mapped[int | None] = mapped_column(Integer)
+    text_sha256: Mapped[str | None] = mapped_column(String(64))
+    extraction_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    extraction_error: Mapped[str | None] = mapped_column(Text)
+    atual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+
+
+class ManifestoItem(TimestampMixin, Base):
+    """Item da enumeração de uma captura; liga documento lógico à versão baixada."""
+
+    __tablename__ = "manifesto_item"
+    __table_args__ = (
+        UniqueConstraint("captura_id", "external_id", name="uq_manifesto_item_external"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    captura_id: Mapped[int] = mapped_column(
+        ForeignKey("captura_autos.id"), nullable=False, index=True
+    )
+    documento_id: Mapped[int] = mapped_column(ForeignKey("documento.id"), nullable=False)
+    documento_arquivo_id: Mapped[int | None] = mapped_column(ForeignKey("documento_arquivo.id"))
+    external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    ordem: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    error_code: Mapped[str | None] = mapped_column(String(80))
+
+
+class DocumentoTrecho(TimestampMixin, Base):
+    """Trecho citável de uma página; unidade canônica de citação."""
+
+    __tablename__ = "documento_trecho"
+    __table_args__ = (
+        UniqueConstraint(
+            "documento_arquivo_id", "pagina", "indice", name="uq_documento_trecho_posicao"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    documento_arquivo_id: Mapped[int] = mapped_column(
+        ForeignKey("documento_arquivo.id"), nullable=False, index=True
+    )
+    pagina: Mapped[int] = mapped_column(Integer, nullable=False)
+    indice: Mapped[int] = mapped_column(Integer, nullable=False)
+    texto: Mapped[str] = mapped_column(Text, nullable=False)
+    texto_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    char_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    ocr: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class DocumentoResumo(TimestampMixin, Base):
+    """Resumo estruturado (com citações validadas) de uma versão de documento."""
+
+    __tablename__ = "documento_resumo"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    documento_arquivo_id: Mapped[int] = mapped_column(
+        ForeignKey("documento_arquivo.id"), nullable=False, unique=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    resumo: Mapped[str | None] = mapped_column(Text)
+    dados: Mapped[dict | None] = mapped_column(JSON)
+    citations: Mapped[list | None] = mapped_column(JSON)
+    model: Mapped[str | None] = mapped_column(String(100))
+    error: Mapped[str | None] = mapped_column(Text)
+
+
+class ContextoProcesso(TimestampMixin, Base):
+    """Contexto integral e citado do processo; `ready` exige cobertura total."""
+
+    __tablename__ = "contexto_processo"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    processo_id: Mapped[int] = mapped_column(
+        ForeignKey("processo.id"), nullable=False, index=True
+    )
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="building")
+    source_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    inventario: Mapped[list] = mapped_column(JSON, nullable=False)
+    cobertura: Mapped[dict] = mapped_column(JSON, nullable=False)
+    contexto_consolidado: Mapped[str | None] = mapped_column(Text)
+    citations: Mapped[list | None] = mapped_column(JSON)
+    ready_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ContextOverride(TimestampMixin, Base):
+    """Liberação excepcional (uso único, 30 min) de contexto incompleto."""
+
+    __tablename__ = "context_override"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    processo_id: Mapped[int] = mapped_column(
+        ForeignKey("processo.id"), nullable=False, index=True
+    )
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"), nullable=False)
+    action: Mapped[str] = mapped_column(String(30), nullable=False)
+    justification: Mapped[str] = mapped_column(Text, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class CredencialAssinatura(TimestampMixin, Base):
