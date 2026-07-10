@@ -2,6 +2,7 @@
 
 from app.sor import models
 from app.vault.service import store_court_session
+from tests.conftest import seed_filing_ready
 
 
 def _peticao_aprovada(db_session, seeded):
@@ -16,6 +17,7 @@ def _peticao_aprovada(db_session, seeded):
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
     return usuario, peticao
 
 
