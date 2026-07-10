@@ -392,6 +392,10 @@ class CapturaAutos(TimestampMixin, Base):
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
+    items: Mapped[list[ManifestoItem]] = relationship(
+        back_populates="captura", cascade="all, delete-orphan"
+    )
+
 
 class DocumentoArquivo(TimestampMixin, Base):
     """Versão imutável (por SHA-256) de um documento lógico."""
@@ -438,6 +442,8 @@ class ManifestoItem(TimestampMixin, Base):
     ordem: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     error_code: Mapped[str | None] = mapped_column(String(80))
+
+    captura: Mapped[CapturaAutos] = relationship(back_populates="items")
 
 
 class DocumentoTrecho(TimestampMixin, Base):

@@ -380,8 +380,10 @@ def create_app() -> FastAPI:
     )
 
     from app.api.agent_routes import router as agent_router
+    from app.api.autos_routes import router as autos_router
 
     app.include_router(agent_router)
+    app.include_router(autos_router)
 
     @app.get("/health")
     def health() -> dict[str, str]:
