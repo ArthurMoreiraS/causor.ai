@@ -379,6 +379,10 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    from app.api.agent_routes import router as agent_router
+
+    app.include_router(agent_router)
+
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}
