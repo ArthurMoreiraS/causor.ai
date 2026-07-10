@@ -295,13 +295,40 @@ def draft_from_intimacao(
         processo=intimacao.processo,
         tipo_peticao=classificacao.peticao_sugerida,
     )
+
+    # Fonte principal do histórico: o contexto integral e citado dos autos
+    # (quando ready e com fingerprint atual). DataJud/DJEN viram cronologia
+    # suplementar. Sem contexto pronto, cai no histórico limitado do SOR.
+    bundle = None
+    if intimacao.processo is not None:
+        from app.autos.context import get_ready_context
+
+        bundle = get_ready_context(session, processo=intimacao.processo)
+    if bundle is not None:
+        historico = "\n\n".join(
+            parte
+            for parte in (
+                bundle.consolidated_text,
+                bundle.inventory_text,
+                f"Excertos citáveis dos autos:\n{bundle.cited_excerpts}"
+                if bundle.cited_excerpts
+                else None,
+                _historico_processo(
+                    session, intimacao.processo, intimacao_atual_id=intimacao.id
+                ),
+            )
+            if parte
+        )
+    else:
+        historico = _historico_processo(
+            session, intimacao.processo, intimacao_atual_id=intimacao.id
+        )
+
     resultado = draft_peticao(
         intimacao_texto=intimacao.teor,
         classificacao=classificacao,
         contexto_processo=_contexto_processo(intimacao.processo),
-        historico=_historico_processo(
-            session, intimacao.processo, intimacao_atual_id=intimacao.id
-        ),
+        historico=historico,
         prazo_fatal=prazo.data_fatal.isoformat() if prazo.data_fatal else None,
         template_conteudo=template.conteudo if template is not None else None,
     )
@@ -312,18 +339,32 @@ def draft_from_intimacao(
             "ao gerar esta minuta, então movimentações e dados do processo podem "
             "estar faltando. Rode a captura novamente mais tarde para completar."
         )
+    dossie = {
+        "contexto_consolidado": resultado.contexto_consolidado,
+        "analise_providencia": resultado.analise_providencia,
+        "alertas": alertas,
+        "confianca": resultado.confianca,
+    }
+    if bundle is not None:
+        from app.autos.context import latest_context
+
+        contexto_row = latest_context(session, processo=intimacao.processo)
+        dossie.update(
+            {
+                "contexto_id": bundle.contexto_id,
+                "source_fingerprint": bundle.source_fingerprint,
+                "inventario": contexto_row.inventario if contexto_row else [],
+                "citations": list(bundle.citations),
+                "cobertura": contexto_row.cobertura if contexto_row else {},
+            }
+        )
     peticao = models.Peticao(
         processo_id=intimacao.processo_id,
         prazo_id=prazo.id,
         escritorio_id=intimacao.escritorio_id,
         tipo=classificacao.peticao_sugerida,
         conteudo=resultado.minuta,
-        dossie={
-            "contexto_consolidado": resultado.contexto_consolidado,
-            "analise_providencia": resultado.analise_providencia,
-            "alertas": alertas,
-            "confianca": resultado.confianca,
-        },
+        dossie=dossie,
         status="rascunho",
     )
     session.add(peticao)
