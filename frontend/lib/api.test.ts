@@ -308,7 +308,10 @@ describe("API client critical workflows", () => {
     const result = await baixarPeticaoPdf(11);
 
     expect(result).toBe(blob);
-    const [url, init] = (fetchMock.mock.calls[0] || []) as [string | URL, RequestInit | undefined];
+    const [url, init] = (fetchMock.mock.calls[0] || []) as unknown as [
+      string | URL,
+      RequestInit | undefined
+    ];
     expect(String(url)).toContain("/peticoes/11/pdf");
     expect((init?.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
   });
