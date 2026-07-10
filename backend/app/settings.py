@@ -98,5 +98,19 @@ class Settings(BaseSettings):
     # conector real de cada sistema (PJe existe; e-SAJ/EPROC/Projudi incrementais).
     filing_mode: str = "sandbox"  # "sandbox" | "real"  (env CAUSOR_FILING_MODE)
 
+    # Storage privado de documentos dos autos. "localdev" grava em disco local;
+    # "s3" usa bucket privado (S3/Supabase Storage compat) com URL pré-assinada.
+    # Chaves de acesso são backend-only; o agente local só recebe a URL assinada.
+    object_store_provider: str = "localdev"  # "localdev" | "s3"
+    object_store_local_path: str = "./artifacts/objects"
+    object_store_endpoint: str = ""
+    object_store_region: str = "sa-east-1"
+    object_store_bucket: str = "causor-process-documents"
+    object_store_access_key: str = ""
+    object_store_secret_key: str = ""
+
+    # Limite de upload aceito do agente local (rota PUT /agent/uploads/local).
+    agent_max_upload_bytes: int = 100 * 1024 * 1024
+
 
 settings = Settings()
