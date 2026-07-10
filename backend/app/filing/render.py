@@ -1,82 +1,103 @@
-"""Render petition drafts into simple PDF bytes for court filing."""
+"""Render petition drafts into PDF bytes for court filing."""
 
 from __future__ import annotations
 
+import io
 from datetime import datetime, timezone
-import textwrap
+from pathlib import Path
+
+from fpdf import FPDF
+from fpdf.enums import XPos, YPos
+from PIL import Image
+
+from app.filing.timbrado import TimbradoEscritorio
+
+_FONT_DIR = Path(__file__).parent / "fonts"
+_PAGE_WIDTH_MM = 210.0
 
 
-def _pdf_escape(value: str) -> str:
-    return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+class _MinutaPDF(FPDF):
+    """A4 com cabeçalho/rodapé repetidos por página quando há timbrado."""
+
+    def __init__(self, timbrado: TimbradoEscritorio | None) -> None:
+        super().__init__(orientation="P", unit="mm", format="A4")
+        self.timbrado = timbrado
+        self.add_font("DejaVu", "", str(_FONT_DIR / "DejaVuSans.ttf"))
+        self.add_font("DejaVu", "B", str(_FONT_DIR / "DejaVuSans-Bold.ttf"))
+        self.set_auto_page_break(auto=True, margin=30)
+
+    def header(self) -> None:
+        t = self.timbrado
+        if t is None:
+            return
+        y = 10.0
+        if t.logo:
+            # Centraliza o logo com 14mm de altura preservando a proporção.
+            with Image.open(io.BytesIO(t.logo)) as img:
+                largura_mm = min(14.0 * img.width / img.height, 60.0)
+            self.image(io.BytesIO(t.logo), x=(_PAGE_WIDTH_MM - largura_mm) / 2, y=y, h=14.0)
+            y += 16.0
+        self.set_y(y)
+        self.set_font("DejaVu", "B", 11)
+        self.cell(0, 5.5, t.nome, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        if t.cabecalho:
+            self.set_font("DejaVu", "", 8)
+            self.set_text_color(90)
+            for linha in t.cabecalho.splitlines():
+                self.cell(0, 4, linha, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+            self.set_text_color(0)
+        self.ln(2)
+        self.set_draw_color(170)
+        self.line(self.l_margin, self.get_y(), _PAGE_WIDTH_MM - self.r_margin, self.get_y())
+        self.ln(6)
+
+    def footer(self) -> None:
+        self.set_y(-24)
+        self.set_font("DejaVu", "", 7.5)
+        self.set_text_color(120)
+        t = self.timbrado
+        if t is not None:
+            self.set_draw_color(170)
+            self.line(self.l_margin, self.get_y(), _PAGE_WIDTH_MM - self.r_margin, self.get_y())
+            self.ln(2)
+            if t.rodape:
+                for linha in t.rodape.splitlines():
+                    self.cell(0, 3.8, linha, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        self.cell(0, 3.8, f"página {self.page_no()} de {{nb}}", align="R")
+        self.set_text_color(0)
 
 
-def _lines(text: str, *, width: int = 92) -> list[str]:
-    rendered: list[str] = []
-    for raw_line in (text or "").splitlines() or [""]:
-        if raw_line.strip() == "":
-            rendered.append("")
-            continue
-        rendered.extend(textwrap.wrap(raw_line, width=width) or [""])
-    return rendered
-
-
-def render_minuta_pdf(texto: str, *, meta: dict | None = None) -> bytes:
-    """Return a minimal, deterministic PDF for a plain-text petition draft.
-
-    The MVP filing package only needs readable text. Keeping this renderer pure
-    avoids adding a browser/PDF service to the critical path before the PJe
-    connector has real homologation fixtures.
-    """
+def render_minuta_pdf(
+    texto: str,
+    *,
+    meta: dict | None = None,
+    timbrado: TimbradoEscritorio | None = None,
+) -> bytes:
+    """PDF da minuta: neutro sem timbrado; com timbrado, identidade do
+    escritório em toda página. Função pura — o timbrado chega pronto de
+    load_timbrado, sem acesso a banco aqui."""
 
     meta = meta or {}
-    header = [
-        "Causor - Minuta para protocolo",
-        f"Gerado em: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}",
-    ]
-    if meta.get("processo"):
-        header.append(f"Processo: {meta['processo']}")
-    if meta.get("tipo"):
-        header.append(f"Tipo: {meta['tipo']}")
-    if meta.get("tribunal"):
-        header.append(f"Tribunal: {meta['tribunal']}")
+    pdf = _MinutaPDF(timbrado)
+    pdf.alias_nb_pages()
+    pdf.add_page()
 
-    body_lines = header + [""] + _lines(texto or "")
-    stream_parts = ["BT", "/F1 10 Tf", "50 792 Td", "14 TL"]
-    for index, line in enumerate(body_lines):
-        if index:
-            stream_parts.append("T*")
-        stream_parts.append(f"({_pdf_escape(line)}) Tj")
-    stream_parts.append("ET")
-    stream = "\n".join(stream_parts).encode("latin-1", errors="replace")
+    pdf.set_font("DejaVu", "", 9)
+    pdf.set_text_color(90)
+    if timbrado is None:
+        pdf.set_font("DejaVu", "B", 11)
+        pdf.set_text_color(0)
+        pdf.cell(0, 6, "Causor - Minuta para protocolo", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+        pdf.set_font("DejaVu", "", 9)
+        pdf.set_text_color(90)
+        gerado = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        pdf.cell(0, 5, f"Gerado em: {gerado}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    for rotulo, chave in (("Processo", "processo"), ("Tipo", "tipo"), ("Tribunal", "tribunal")):
+        if meta.get(chave):
+            pdf.cell(0, 5, f"{rotulo}: {meta[chave]}", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    pdf.set_text_color(0)
+    pdf.ln(4)
 
-    objects = [
-        b"<< /Type /Catalog /Pages 2 0 R >>",
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
-        (
-            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 842] "
-            b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>"
-        ),
-        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        b"<< /Length " + str(len(stream)).encode("ascii") + b" >>\nstream\n" + stream + b"\nendstream",
-    ]
-
-    pdf = bytearray(b"%PDF-1.4\n")
-    offsets = [0]
-    for number, obj in enumerate(objects, start=1):
-        offsets.append(len(pdf))
-        pdf.extend(f"{number} 0 obj\n".encode("ascii"))
-        pdf.extend(obj)
-        pdf.extend(b"\nendobj\n")
-
-    xref_offset = len(pdf)
-    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
-    pdf.extend(b"0000000000 65535 f \n")
-    for offset in offsets[1:]:
-        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
-    pdf.extend(
-        (
-            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
-            f"startxref\n{xref_offset}\n%%EOF\n"
-        ).encode("ascii")
-    )
-    return bytes(pdf)
+    pdf.set_font("DejaVu", "", 10.5)
+    pdf.multi_cell(0, 5.5, texto or "", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
+    return bytes(pdf.output())
