@@ -24,6 +24,7 @@ from app.capture.datajud import DatajudClient
 from app.capture.poll import PollResult, poll_oab
 from app.filing.package import build_pje_package
 from app.filing.render import render_minuta_pdf
+from app.filing.timbrado import load_timbrado
 from app.settings import settings
 from app.signing.providers import get_signature_provider
 from app.sor import models
@@ -495,6 +496,7 @@ def run_pje_protocol_job(
                     "tipo": package.tipo_peticao,
                     "tribunal": package.tribunal,
                 },
+                timbrado=load_timbrado(session, peticao.escritorio_id),
             ),
             pje_base_url=session_payload.get("url_base") if session_payload else None,
             storage_state=session_payload.get("storage_state") if session_payload else None,

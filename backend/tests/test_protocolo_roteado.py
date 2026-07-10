@@ -54,3 +54,34 @@ def test_missing_session_fails_clearly(db_session):
     )
     assert job.status == "failed"
     assert "conecte" in (job.erro or "").lower()
+
+
+def test_protocolo_renderiza_pdf_com_timbrado_do_escritorio(db_session, monkeypatch):
+    u, pet = _seed(db_session, tribunal="TJSP", sistema="e-SAJ")
+    esc = db_session.get(models.Escritorio, pet.escritorio_id)
+    esc.timbrado_rodape = "OAB/SP 123.456"
+    db_session.flush()
+    store_court_session(
+        db_session, usuario_id=u.id, sistema="e-SAJ", tribunal="TJSP", grau="1",
+        url_base="https://esaj-treino.tjsp.jus.br",
+        storage_state={"cookies": [{"name": "x", "value": "secret-cookie"}]},
+    )
+
+    import app.queue.jobs as jobs_mod
+
+    original = jobs_mod.render_minuta_pdf
+    capturado = {}
+
+    def espiao(texto, *, meta=None, timbrado=None):
+        capturado["timbrado"] = timbrado
+        return original(texto, meta=meta, timbrado=timbrado)
+
+    monkeypatch.setattr(jobs_mod, "render_minuta_pdf", espiao)
+
+    job = run_pje_protocol_job(
+        db_session, pet.id, usuario_id=u.id, submit=True, filing_mode="sandbox"
+    )
+
+    assert job.status == "completed"
+    assert capturado["timbrado"] is not None
+    assert capturado["timbrado"].rodape == "OAB/SP 123.456"
