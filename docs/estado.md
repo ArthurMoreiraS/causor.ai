@@ -17,6 +17,9 @@
 - CI valida Ruff, pytest, Vitest e build do Next.js.
 - Testes do frontend cobrem autenticacao HTTP e os principais contratos do
   fluxo de captura, prazo, aprovacao e protocolo assistido.
+- PDF de protocolo com papel timbrado por escritorio: logo + cabecalho +
+  rodape configuraveis em Configuracoes; preview via "Baixar PDF" na minuta;
+  o job de protocolo anexa esse mesmo PDF.
 
 ## Chaves/servicos
 
