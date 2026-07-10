@@ -10,6 +10,15 @@ from app.agent.drafter import MinutaGerada
 from app.agent.service import _historico_processo, draft_from_intimacao
 from app.prazo_engine.factory import build_calendar
 from app.sor import models
+from tests.conftest import seed_ready_context
+
+
+def _draft_ready(db_session, intimacao, **kwargs):
+    """Semeia contexto ready (gate fail-closed) e redige — este arquivo testa a
+    lógica de drafting, não o gate (coberto em test_draft_context_gate)."""
+    if intimacao.processo is not None:
+        seed_ready_context(db_session, intimacao.processo)
+    return draft_from_intimacao(db_session, intimacao, **kwargs)
 
 _MINUTA = MinutaGerada(
     contexto_consolidado="contexto",
@@ -52,7 +61,7 @@ def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA),
     ):
-        prazo, peticao, result = draft_from_intimacao(
+        prazo, peticao, result = _draft_ready(
             db_session, intimacao, calendar=build_calendar([2024, 2025])
         )
 
@@ -109,7 +118,7 @@ def test_draft_from_intimacao_uses_active_office_template(db_session):
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA) as draft_mock,
     ):
-        draft_from_intimacao(db_session, intimacao, calendar=build_calendar([2024, 2025]))
+        _draft_ready(db_session, intimacao, calendar=build_calendar([2024, 2025]))
 
     assert draft_mock.call_args.kwargs["template_conteudo"] == "ESTRUTURA DO ESCRITORIO"
 
@@ -168,7 +177,7 @@ def test_draft_from_intimacao_feeds_process_history_to_drafter(db_session):
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA) as draft_mock,
     ):
-        draft_from_intimacao(db_session, intimacao, calendar=build_calendar([2024, 2025]))
+        _draft_ready(db_session, intimacao, calendar=build_calendar([2024, 2025]))
 
     historico = draft_mock.call_args.kwargs["historico"]
     assert "Sentenca publicada" in historico
@@ -261,7 +270,7 @@ def test_draft_enriches_process_on_demand_via_datajud(db_session):
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA) as draft_mock,
     ):
-        draft_from_intimacao(
+        _draft_ready(
             db_session, intimacao,
             calendar=build_calendar([2024, 2025]),
             datajud=datajud,
@@ -317,7 +326,7 @@ def test_draft_alerts_when_datajud_unavailable(db_session):
         patch("app.agent.service.classify_intimacao", return_value=_CLASSIFICACAO),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA),
     ):
-        _, peticao, _ = draft_from_intimacao(
+        _, peticao, _ = _draft_ready(
             db_session, intimacao,
             calendar=build_calendar([2024, 2025]),
             datajud=TimeoutDatajud(),
@@ -341,7 +350,7 @@ def test_draft_no_enrichment_alert_when_process_not_found(db_session):
         patch("app.agent.service.classify_intimacao", return_value=_CLASSIFICACAO),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA),
     ):
-        _, peticao, _ = draft_from_intimacao(
+        _, peticao, _ = _draft_ready(
             db_session, intimacao,
             calendar=build_calendar([2024, 2025]),
             datajud=EmptyDatajud(),
@@ -392,7 +401,7 @@ def test_draft_does_not_reenrich_when_process_already_has_andamentos(db_session)
         patch("app.agent.service.classify_intimacao", return_value=classificacao),
         patch("app.agent.service.draft_peticao", return_value=_MINUTA),
     ):
-        draft_from_intimacao(
+        _draft_ready(
             db_session, intimacao,
             calendar=build_calendar([2024, 2025]),
             datajud=datajud,

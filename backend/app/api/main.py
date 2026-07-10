@@ -93,6 +93,7 @@ from app.vault.service import (
     store_pje_session_reference,
     store_signature_reference,
 )
+from app.autos.context import ContextNotReadyError
 from app.capture.court_routing import resolve_route
 from app.connectors.pje.session import PjeSessionError
 from app.connectors.pje.session_capture import capture_pje_storage_state
@@ -384,6 +385,21 @@ def create_app() -> FastAPI:
 
     app.include_router(agent_router)
     app.include_router(autos_router)
+
+    @app.exception_handler(ContextNotReadyError)
+    def _context_not_ready(_request, exc: ContextNotReadyError):
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(
+            status_code=409,
+            content={
+                "detail": {
+                    "code": exc.code,
+                    "processo_id": exc.processo_id,
+                    "missing": exc.missing,
+                }
+            },
+        )
 
     @app.get("/health")
     def health() -> dict[str, str]:
@@ -1338,10 +1354,18 @@ def create_app() -> FastAPI:
         datajud_client = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
         try:
             prazo, peticao, classificacao = draft_from_intimacao(
-                session, intimacao, calendar=calendar, datajud=datajud_client
+                session,
+                intimacao,
+                calendar=calendar,
+                datajud=datajud_client,
+                usuario_id=current.usuario_id,
             )
         except MissingIntimationTextError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except ContextNotReadyError:
+            # Gate fail-closed do contexto: vira 409 estruturado no handler.
+            session.rollback()
+            raise
         except Exception as exc:  # noqa: BLE001 - classificação/redação via IA pode falhar
             session.rollback()
             raise HTTPException(

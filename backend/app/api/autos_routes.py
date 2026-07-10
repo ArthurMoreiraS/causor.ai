@@ -285,6 +285,47 @@ def confirmar_documento(
     return item
 
 
+class OverrideIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    justification: str
+
+
+class OverrideOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    action: str
+    expires_at: datetime
+
+
+@router.post("/processos/{processo_id}/contexto/override", response_model=OverrideOut)
+def criar_override_contexto(
+    processo_id: int,
+    payload: OverrideIn,
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+) -> models.ContextOverride:
+    from app.autos.context import create_context_override
+
+    processo = _get_owned_processo(session, processo_id, current)
+    if payload.action not in {"draft", "file"}:
+        raise HTTPException(status_code=422, detail="action deve ser draft ou file")
+    try:
+        override = create_context_override(
+            session,
+            processo=processo,
+            usuario_id=current.usuario_id,
+            action=payload.action,
+            justification=payload.justification,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    session.commit()
+    return override
+
+
 @router.put("/agent/captures/{capture_id}/manifest/final", response_model=CapturaOut)
 def manifesto_final(
     capture_id: int,

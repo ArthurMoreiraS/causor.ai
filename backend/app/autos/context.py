@@ -10,15 +10,26 @@ sempre integral.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from hashlib import sha256
 
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
+from app.settings import settings
 from app.sor import models
 
 EXPECTED_DEGREES: tuple[str, ...] = ("1", "2")
+
+
+class ContextNotReadyError(RuntimeError):
+    """Contexto do processo incompleto/obsoleto: redação e protocolo bloqueiam."""
+
+    def __init__(self, *, processo_id: int, missing: list[str]):
+        super().__init__(f"process_context_incomplete: {missing}")
+        self.code = "process_context_incomplete"
+        self.processo_id = processo_id
+        self.missing = missing
 
 
 @dataclass(frozen=True)
@@ -255,3 +266,174 @@ def get_ready_context(
     if contexto.source_fingerprint != current_fingerprint(session, processo=processo):
         return None
     return _bundle_from_row(contexto)
+
+
+def _audit(
+    session: Session,
+    *,
+    escritorio_id: int | None,
+    ator: str,
+    acao: str,
+    entidade: str,
+    entidade_id: int,
+    detalhe: dict | None = None,
+) -> None:
+    session.add(
+        models.AuditLog(
+            escritorio_id=escritorio_id,
+            ator=ator,
+            acao=acao,
+            entidade=entidade,
+            entidade_id=entidade_id,
+            detalhe=detalhe or {},
+        )
+    )
+
+
+def _court_update_after(
+    session: Session, processo: models.Processo, moment: datetime
+) -> bool:
+    """Houve novidade do tribunal (intimação/andamento) depois de `moment`?"""
+    newer_intimacao = session.scalars(
+        select(models.Intimacao.id)
+        .where(
+            models.Intimacao.processo_id == processo.id,
+            models.Intimacao.created_at > moment,
+        )
+        .limit(1)
+    ).first()
+    if newer_intimacao is not None:
+        return True
+    newer_andamento = session.scalars(
+        select(models.Andamento.id)
+        .where(
+            models.Andamento.processo_id == processo.id,
+            models.Andamento.created_at > moment,
+        )
+        .limit(1)
+    ).first()
+    return newer_andamento is not None
+
+
+def _missing_reasons(session: Session, processo: models.Processo) -> list[str]:
+    contexto = latest_context(session, processo=processo)
+    if contexto is None:
+        return ["contexto:inexistente"]
+    if contexto.status != "ready":
+        missing = list((contexto.cobertura or {}).get("missing", []))
+        return missing or [f"contexto:{contexto.status}"]
+    if contexto.source_fingerprint != current_fingerprint(session, processo=processo):
+        return ["contexto:fingerprint_obsoleto"]
+
+    ready_at = contexto.ready_at
+    if ready_at is not None:
+        if ready_at.tzinfo is None:
+            ready_at = ready_at.replace(tzinfo=timezone.utc)
+        age_limit = timedelta(hours=settings.context_freshness_hours)
+        if datetime.now(timezone.utc) - ready_at > age_limit and _court_update_after(
+            session, processo, contexto.ready_at
+        ):
+            return ["contexto:stale"]
+    return []
+
+
+def create_context_override(
+    session: Session,
+    *,
+    processo: models.Processo,
+    usuario_id: int,
+    action: str,
+    justification: str,
+) -> models.ContextOverride:
+    """Liberação excepcional: uso único, expira em 30 min, sempre auditada."""
+    if not 20 <= len(justification) <= 1000:
+        raise ValueError("justificativa deve ter entre 20 e 1000 caracteres")
+    override = models.ContextOverride(
+        escritorio_id=processo.escritorio_id,
+        processo_id=processo.id,
+        usuario_id=usuario_id,
+        action=action,
+        justification=justification,
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+    )
+    session.add(override)
+    session.flush()
+    _audit(
+        session,
+        escritorio_id=processo.escritorio_id,
+        ator=f"usuario:{usuario_id}",
+        acao="process_context_override_created",
+        entidade="context_override",
+        entidade_id=override.id,
+        detalhe={"processo_id": processo.id, "action": action},
+    )
+    return override
+
+
+def consume_context_override(
+    session: Session,
+    *,
+    processo: models.Processo,
+    usuario_id: int,
+    action: str,
+) -> models.ContextOverride | None:
+    now = datetime.now(timezone.utc)
+    override = session.scalars(
+        select(models.ContextOverride)
+        .where(
+            models.ContextOverride.processo_id == processo.id,
+            models.ContextOverride.usuario_id == usuario_id,
+            models.ContextOverride.action == action,
+            models.ContextOverride.consumed_at.is_(None),
+        )
+        .order_by(desc(models.ContextOverride.id))
+    ).first()
+    if override is None:
+        return None
+    expires_at = override.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at <= now:
+        return None
+    override.consumed_at = now
+    _audit(
+        session,
+        escritorio_id=processo.escritorio_id,
+        ator=f"usuario:{usuario_id}",
+        acao="process_context_override_consumed",
+        entidade="context_override",
+        entidade_id=override.id,
+        detalhe={
+            "processo_id": processo.id,
+            "action": action,
+            "missing": _missing_reasons(session, processo),
+        },
+    )
+    session.flush()
+    return override
+
+
+def require_ready_context(
+    session: Session,
+    *,
+    processo: models.Processo | None,
+    usuario_id: int | None,
+    action: str,
+) -> str:
+    """Gate fail-closed: retorna "ready" ou "override"; senão levanta.
+
+    Contexto incompleto/obsoleto bloqueia a ação, a menos que exista um
+    override válido (uso único, 30 min) do advogado para esta exata ação.
+    """
+    if processo is None:
+        raise ContextNotReadyError(processo_id=0, missing=["processo:inexistente"])
+    missing = _missing_reasons(session, processo)
+    if not missing:
+        return "ready"
+    if usuario_id is not None:
+        override = consume_context_override(
+            session, processo=processo, usuario_id=usuario_id, action=action
+        )
+        if override is not None:
+            return "override"
+    raise ContextNotReadyError(processo_id=processo.id, missing=missing)

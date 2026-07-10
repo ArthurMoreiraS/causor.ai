@@ -8,6 +8,7 @@ from app.vault.service import (
     store_pje_session_reference,
     store_signature_reference,
 )
+from tests.conftest import seed_filing_ready
 
 
 def _seed_approved_pje_petition(db_session):
@@ -39,6 +40,7 @@ def _seed_approved_pje_petition(db_session):
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
     return usuario, peticao
 
 

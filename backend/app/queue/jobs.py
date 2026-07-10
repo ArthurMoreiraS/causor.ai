@@ -420,6 +420,27 @@ def run_pje_protocol_job(
         raise ApprovalRequiredError("aprovacao obrigatoria antes do protocolo")
 
     processo = peticao.processo
+
+    # Gate fail-closed: protocolo exige contexto ready/atual (ou override do
+    # advogado) e que a minuta tenha sido redigida sobre o mesmo estado dos
+    # autos (fingerprint da peticao == fingerprint atual do contexto).
+    from app.autos.context import (
+        ContextNotReadyError,
+        current_fingerprint,
+        require_ready_context,
+    )
+
+    gate = require_ready_context(
+        session, processo=processo, usuario_id=usuario_id, action="file"
+    )
+    if gate == "ready":
+        dossie = peticao.dossie if isinstance(peticao.dossie, dict) else {}
+        stored_fingerprint = dossie.get("source_fingerprint")
+        if stored_fingerprint != current_fingerprint(session, processo=processo):
+            raise ContextNotReadyError(
+                processo_id=processo.id, missing=["peticao:fingerprint_divergente"]
+            )
+
     if not processo.tribunal:
         raise ProcessoSemOrgaoError(
             "processo sem tribunal: nao e possivel protocolar sem saber o tribunal."

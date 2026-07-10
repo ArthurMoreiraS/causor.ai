@@ -13,6 +13,7 @@ from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
 from app.sor import models
 from sqlalchemy import select
+from tests.conftest import seed_filing_ready, seed_ready_context
 
 
 @pytest.fixture(autouse=True)
@@ -442,6 +443,7 @@ def test_listar_peticoes_and_filter_status(client, db_session, seeded):
 
 
 def test_gerar_minuta_creates_prazo_and_draft(client, db_session, seeded):
+    seed_ready_context(db_session, seeded)
     intimacao = db_session.query(models.Intimacao).one()
     classificacao = ClassificacaoIntimacao(
         tipo="Intimacao para contestar",
@@ -479,6 +481,7 @@ def test_gerar_minuta_creates_prazo_and_draft(client, db_session, seeded):
 
 
 def test_gerar_minuta_audita(client, db_session, seeded):
+    seed_ready_context(db_session, seeded)
     intimacao = db_session.query(models.Intimacao).one()
     classificacao = ClassificacaoIntimacao(
         tipo="Intimacao para contestar",
@@ -743,6 +746,7 @@ def test_protocolar_async_sem_sessao_conectada_job_falha_pedindo_conexao(client,
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
 
     resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
 
@@ -875,6 +879,7 @@ def test_protocolar_async_com_credencial_registra_payload_e_audita(client, db_se
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
 
     resp = client.post(
         f"/peticoes/{peticao.id}/protocolar/async",
@@ -910,6 +915,7 @@ def test_protocolar_async_com_credencial_inexistente_retorna_404(client, db_sess
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
 
     resp = client.post(
         f"/peticoes/{peticao.id}/protocolar/async",
@@ -934,6 +940,7 @@ def test_protocolar_async_com_credencial_inativa_retorna_409(client, db_session,
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
 
     resp = client.post(
         f"/peticoes/{peticao.id}/protocolar/async",
@@ -960,6 +967,7 @@ def test_protocolar_async_pje_sem_sessao_falha_e_nao_protocola(client, db_sessio
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
 
     resp = client.post(f"/peticoes/{peticao.id}/protocolar/async")
 
@@ -991,6 +999,7 @@ def test_protocolar_async_pje_sem_orgao_enriquece_on_demand(client, db_session, 
     )
     db_session.add(peticao)
     db_session.flush()
+    seed_filing_ready(db_session, peticao)
 
     processo_dto = ProcessoDTO.from_source(
         {

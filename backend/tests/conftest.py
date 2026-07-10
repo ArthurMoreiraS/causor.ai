@@ -72,6 +72,45 @@ def client(db_session) -> TestClient:
     return TestClient(app)
 
 
+def seed_ready_context(db_session, processo):
+    """Deixa o processo com ContextoProcesso ready/atual para testes que
+    legitimamente redigem/protocolam (o gate fail-closed exige isso)."""
+    from datetime import datetime, timezone
+
+    from app.autos.context import current_fingerprint
+
+    contexto = models.ContextoProcesso(
+        escritorio_id=processo.escritorio_id,
+        processo_id=processo.id,
+        status="ready",
+        source_fingerprint=current_fingerprint(db_session, processo=processo),
+        inventario=[],
+        cobertura={
+            "documents_total": 0,
+            "documents_extracted": 0,
+            "documents_summarized": 0,
+            "missing": [],
+        },
+        contexto_consolidado=None,
+        citations=[],
+        ready_at=datetime.now(timezone.utc),
+    )
+    db_session.add(contexto)
+    db_session.flush()
+    return contexto
+
+
+def seed_filing_ready(db_session, peticao):
+    """Contexto ready + fingerprint carimbado no dossiê da petição (gate de
+    protocolo compara o fingerprint da minuta com o estado atual dos autos)."""
+    contexto = seed_ready_context(db_session, peticao.processo)
+    dossie = dict(peticao.dossie or {})
+    dossie["source_fingerprint"] = contexto.source_fingerprint
+    peticao.dossie = dossie
+    db_session.flush()
+    return contexto
+
+
 @pytest.fixture
 def seeded(db_session):
     esc = models.Escritorio(nome="Escritório Teste")

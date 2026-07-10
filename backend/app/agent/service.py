@@ -266,9 +266,19 @@ def draft_from_intimacao(
     *,
     calendar: ForensicCalendar,
     datajud: DatajudClient | None = None,
+    usuario_id: int | None = None,
 ) -> tuple[models.Prazo, models.Peticao, ClassificacaoIntimacao]:
     if not intimacao.teor:
         raise MissingIntimationTextError("intimacao has no text to classify")
+
+    # Gate fail-closed: nenhuma chamada de LLM antes de provar que o contexto
+    # do processo está completo e atual (ou de consumir um override do
+    # advogado — uso único, 30 min, auditado).
+    from app.autos.context import require_ready_context
+
+    require_ready_context(
+        session, processo=intimacao.processo, usuario_id=usuario_id, action="draft"
+    )
 
     # Enriquecimento on-demand: garante o contexto completo do processo
     # (andamentos do DataJud) antes de redigir a minuta. So busca quando o
