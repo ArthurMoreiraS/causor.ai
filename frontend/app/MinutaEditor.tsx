@@ -1,8 +1,8 @@
 "use client";
 
-import { Check, Copy, Loader2, RotateCcw, Save, X } from "lucide-react";
+import { Check, Copy, Download, Loader2, RotateCcw, Save, X } from "lucide-react";
 import { useState } from "react";
-import type { Peticao, Prazo, Processo } from "@/lib/api";
+import { baixarPeticaoPdf, type Peticao, type Prazo, type Processo } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 
 export default function MinutaEditor({
@@ -23,8 +23,30 @@ export default function MinutaEditor({
   const serverContent = peticao.conteudo ?? "";
   const [text, setText] = useState(serverContent);
   const [copied, setCopied] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const dirty = text !== serverContent;
+
+  async function baixarPdf() {
+    setDownloading(true);
+    try {
+      const blob = await baixarPeticaoPdf(peticao.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `minuta-${processo?.numero ?? peticao.id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setDownloadError(null);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : "Falha ao baixar PDF");
+    } finally {
+      setDownloading(false);
+    }
+  }
   const locked = peticao.status === "protocolada";
   const dossie = peticao.dossie;
   const hasDossie =
@@ -115,6 +137,15 @@ export default function MinutaEditor({
                 {copied ? <Check size={14} /> : <Copy size={14} />}
                 {copied ? "Copiado" : "Copiar"}
               </button>
+              <button
+                className="toolbarButton compact"
+                disabled={downloading || dirty}
+                title={dirty ? "Salve a minuta antes de baixar o PDF" : undefined}
+                onClick={() => void baixarPdf()}
+              >
+                {downloading ? <Loader2 className="spin" size={14} /> : <Download size={14} />}
+                Baixar PDF
+              </button>
               {dirty ? (
                 <button
                   className="toolbarButton compact"
@@ -134,6 +165,11 @@ export default function MinutaEditor({
               Salvar minuta
             </button>
           </div>
+          {downloadError ? (
+            <small className="settingsHint vaultError" role="alert">
+              {downloadError}
+            </small>
+          ) : null}
         </div>
       </aside>
     </div>
