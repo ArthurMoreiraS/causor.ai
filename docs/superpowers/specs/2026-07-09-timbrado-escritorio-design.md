@@ -21,8 +21,9 @@ externa.
 
 ## Decisões tomadas (com o usuário, 2026-07-09)
 
-1. **Configuração via UI completa** no ProfileModal existente (upload de logo
-   + campos de texto), persistida no `escritorio`.
+1. **Configuração via UI completa** no SettingsModal (seção Perfil do
+   software) existente (upload de logo + campos de texto), persistida no
+   `escritorio`.
 2. **Preview:** botão "Baixar PDF" na petição, servido por endpoint novo que
    renderiza sob demanda.
 3. **Conjunto visual padrão:** logo + cabeçalho em texto + rodapé em texto,
@@ -100,9 +101,10 @@ Detalhes técnicos:
 
 ## Frontend
 
-- **ProfileModal:** nova seção "Papel timbrado" — upload de imagem com
-  thumbnail de preview, textareas de cabeçalho e rodapé, salvando pelo PATCH
-  existente. Validação client-side de tipo e tamanho antes do envio.
+- **SettingsModal (seção Perfil do software):** nova seção "Papel timbrado" —
+  upload de imagem com thumbnail de preview, textareas de cabeçalho e rodapé,
+  salvando pelo PATCH existente. Validação client-side de tipo e tamanho
+  antes do envio.
 - **Tela da petição:** botão "Baixar PDF" que chama o endpoint novo com auth
   e dispara o download do blob.
 
@@ -129,5 +131,6 @@ Detalhes técnicos:
 - **Limite de tamanho por tribunal:** a normalização do logo mantém a peça
   típica bem abaixo dos limites usuais do PJe; validar no tribunal do piloto.
 - **Dependência nova:** `fpdf2` (traz Pillow). Sem dependência de sistema.
-- **Determinismo:** o renderer atual é determinístico; o fpdf2 embute data de
-  criação — fixar metadados no render para manter saída estável em teste.
+- **Determinismo:** os testes validam por texto extraído (pypdf), não por
+  bytes; a data de criação real do fpdf2 é mantida como evidência de
+  protocolo.

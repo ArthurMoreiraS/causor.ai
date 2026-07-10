@@ -46,6 +46,13 @@ export default function SettingsModal({
     oab: "",
     oabUf: "SP"
   });
+  const [timbrado, setTimbrado] = useState({
+    cabecalho: "",
+    rodape: "",
+    logo: "", // base64 enviado no PATCH ("" remove)
+    logoPreview: "", // data URL para o <img>
+    logoChanged: false
+  });
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
@@ -66,6 +73,15 @@ export default function SettingsModal({
         oab: nextProfile.usuario.oab ?? "",
         oabUf: nextProfile.usuario.oab_uf ?? "SP"
       });
+      setTimbrado({
+        cabecalho: nextProfile.escritorio.timbrado_cabecalho ?? "",
+        rodape: nextProfile.escritorio.timbrado_rodape ?? "",
+        logo: nextProfile.escritorio.timbrado_logo ?? "",
+        logoPreview: nextProfile.escritorio.timbrado_logo
+          ? `data:image/png;base64,${nextProfile.escritorio.timbrado_logo}`
+          : "",
+        logoChanged: false
+      });
       setProfileError(null);
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : "Falha ao carregar perfil");
@@ -82,7 +98,10 @@ export default function SettingsModal({
         nome_escritorio: profileForm.nomeEscritorio.trim(),
         cnpj: profileForm.cnpj.trim() || null,
         oab: profileForm.oab.trim() || null,
-        oab_uf: profileForm.oabUf.trim().toUpperCase() || null
+        oab_uf: profileForm.oabUf.trim().toUpperCase() || null,
+        timbrado_cabecalho: timbrado.cabecalho.trim(),
+        timbrado_rodape: timbrado.rodape.trim(),
+        ...(timbrado.logoChanged ? { timbrado_logo: timbrado.logo } : {})
       });
       setProfile(updated);
       setProfileForm({
@@ -92,6 +111,15 @@ export default function SettingsModal({
         oab: updated.usuario.oab ?? "",
         oabUf: updated.usuario.oab_uf ?? "SP"
       });
+      setTimbrado({
+        cabecalho: updated.escritorio.timbrado_cabecalho ?? "",
+        rodape: updated.escritorio.timbrado_rodape ?? "",
+        logo: updated.escritorio.timbrado_logo ?? "",
+        logoPreview: updated.escritorio.timbrado_logo
+          ? `data:image/png;base64,${updated.escritorio.timbrado_logo}`
+          : "",
+        logoChanged: false
+      });
       setProfileError(null);
       await onOabChanged();
       toast({ kind: "success", title: "Perfil salvo" });
@@ -100,6 +128,26 @@ export default function SettingsModal({
     } finally {
       setSavingProfile(false);
     }
+  }
+
+  function onLogoSelected(file: File | null) {
+    if (!file) return;
+    if (!["image/png", "image/jpeg"].includes(file.type)) {
+      setProfileError("Logo deve ser PNG ou JPEG");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setProfileError("Logo deve ter no máximo 2MB");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = String(reader.result);
+      const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+      setTimbrado((t) => ({ ...t, logo: base64, logoPreview: dataUrl, logoChanged: true }));
+      setProfileError(null);
+    };
+    reader.readAsDataURL(file);
   }
 
   const loadOabs = useCallback(async () => {
@@ -223,6 +271,60 @@ export default function SettingsModal({
                         oabUf: uf
                       }))
                     }
+                  />
+                </label>
+              </div>
+              <span className="settingsLabel">Papel timbrado</span>
+              <div className="settingsRow single">
+                <label>
+                  Logo (PNG/JPEG até 2MB)
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg"
+                    disabled={offline}
+                    onChange={(e) => onLogoSelected(e.target.files?.[0] ?? null)}
+                  />
+                </label>
+              </div>
+              {timbrado.logoPreview ? (
+                <div className="settingsRow single">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={timbrado.logoPreview}
+                    alt="Logo do escritório"
+                    style={{ maxHeight: 48, maxWidth: 180, objectFit: "contain" }}
+                  />
+                  <button
+                    type="button"
+                    className="toolbarButton compact"
+                    disabled={offline}
+                    onClick={() =>
+                      setTimbrado((t) => ({ ...t, logo: "", logoPreview: "", logoChanged: true }))
+                    }
+                  >
+                    Remover logo
+                  </button>
+                </div>
+              ) : null}
+              <div className="settingsRow single">
+                <label>
+                  Cabeçalho do timbrado (endereço, contato — uma linha por linha do papel)
+                  <textarea
+                    rows={3}
+                    value={timbrado.cabecalho}
+                    disabled={offline}
+                    onChange={(e) => setTimbrado((t) => ({ ...t, cabecalho: e.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="settingsRow single">
+                <label>
+                  Rodapé do timbrado (OABs, site)
+                  <textarea
+                    rows={2}
+                    value={timbrado.rodape}
+                    disabled={offline}
+                    onChange={(e) => setTimbrado((t) => ({ ...t, rodape: e.target.value }))}
                   />
                 </label>
               </div>
