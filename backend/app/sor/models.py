@@ -21,6 +21,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -49,6 +50,12 @@ class Escritorio(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     cnpj: Mapped[str | None] = mapped_column(String(20), unique=True)
+
+    # Papel timbrado do escritório aplicado no PDF de protocolo (spec 2026-07-09).
+    timbrado_logo: Mapped[bytes | None] = mapped_column(LargeBinary)
+    timbrado_logo_mime: Mapped[str | None] = mapped_column(String(30))
+    timbrado_cabecalho: Mapped[str | None] = mapped_column(Text)
+    timbrado_rodape: Mapped[str | None] = mapped_column(Text)
 
     usuarios: Mapped[list[Usuario]] = relationship(back_populates="escritorio")
     clientes: Mapped[list[Cliente]] = relationship(back_populates="escritorio")
