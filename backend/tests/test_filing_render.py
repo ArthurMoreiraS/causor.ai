@@ -111,3 +111,10 @@ def test_render_timbrado_com_cabecalho_e_rodape_longos_nao_estoura_pagina():
     reader = PdfReader(io.BytesIO(pdf))
     texto_pagina_1 = reader.pages[0].extract_text() or ""
     assert "página 1 de" in texto_pagina_1
+    # Truncagem efetiva: só as primeiras MAX_*_LINHAS são desenhadas — texto
+    # fora da página ainda é extraível pelo pypdf, então o assert acima não
+    # bastaria sem o clamp.
+    assert "Linha de cabeçalho 7" in texto_pagina_1
+    assert "Linha de cabeçalho 8" not in texto_pagina_1
+    assert "Linha de rodapé 3" in texto_pagina_1
+    assert "Linha de rodapé 4" not in texto_pagina_1
