@@ -543,6 +543,43 @@ export async function resolverRota(tribunal: string, grau: string): Promise<Cour
   return request<CourtRouting>(`/court-routing?${qs}`);
 }
 
+export type AgentInstallation = {
+  id: number;
+  nome: string;
+  ativo: boolean;
+  last_seen_at: string | null;
+  version: string | null;
+};
+
+export type AgentPairingCode = {
+  code: string;
+  expires_at: string;
+};
+
+export async function listarAgentes(): Promise<AgentInstallation[]> {
+  return request<AgentInstallation[]>("/agent/installations");
+}
+
+export async function criarCodigoPareamento(): Promise<AgentPairingCode> {
+  return request<AgentPairingCode>("/agent/pairing-codes", { method: "POST" });
+}
+
+export async function revogarAgente(installationId: number): Promise<void> {
+  // 204 sem corpo: não usa request() porque ele sempre faz response.json().
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const headers = withAuthHeaders({ "Content-Type": "application/json" }, token);
+  const response = await fetch(`${API_BASE}/agent/installations/${installationId}`, {
+    method: "DELETE",
+    headers,
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Request failed: ${response.status}`);
+  }
+}
+
 export async function capturarSessaoTribunal(
   tribunal: string,
   grau: string,
