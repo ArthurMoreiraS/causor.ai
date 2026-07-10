@@ -54,6 +54,8 @@ class Settings(BaseSettings):
     claude_chat_model: str = "claude-haiku-4-5"
     claude_classification_model: str = "claude-haiku-4-5"
     claude_draft_model: str = "claude-sonnet-5"
+    # Resumo por documento dos autos (volume alto, tarefa extrativa): Haiku.
+    claude_context_model: str = "claude-haiku-4-5"
 
     # Provedor de LLM para testes sem gastar creditos Claude. "claude" (default,
     # producao) usa o SDK Anthropic; "openai_compat" aponta para qualquer endpoint
