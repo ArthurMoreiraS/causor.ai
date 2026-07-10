@@ -126,6 +126,107 @@ class Processo(TimestampMixin, Base):
     prazos: Mapped[list[Prazo]] = relationship(back_populates="processo")
     andamentos: Mapped[list[Andamento]] = relationship(back_populates="processo")
     peticoes: Mapped[list[Peticao]] = relationship(back_populates="processo")
+    instancias: Mapped[list[ProcessoInstancia]] = relationship(
+        back_populates="processo", cascade="all, delete-orphan"
+    )
+
+
+class ProcessoInstancia(TimestampMixin, Base):
+    """One degree (1º/2º grau) of a processo in a specific court system.
+
+    A processo can live in more than one system/degree at once (e.g. 1º grau
+    in PJe and 2º grau in e-SAJ); never assume a single grau on Processo.
+    """
+
+    __tablename__ = "processo_instancia"
+    __table_args__ = (
+        UniqueConstraint(
+            "processo_id", "sistema", "tribunal", "grau",
+            name="uq_processo_instancia_route",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    processo_id: Mapped[int] = mapped_column(ForeignKey("processo.id"), nullable=False)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    sistema: Mapped[str] = mapped_column(String(20), nullable=False)
+    tribunal: Mapped[str] = mapped_column(String(50), nullable=False)
+    grau: Mapped[str] = mapped_column(String(4), nullable=False)
+    url_base: Mapped[str | None] = mapped_column(String(1024))
+    external_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="active")
+
+    processo: Mapped[Processo] = relationship(back_populates="instancias")
+
+
+class AgentInstallation(TimestampMixin, Base):
+    """A paired local agent (lawyer's machine). Token stored as SHA-256 only."""
+
+    __tablename__ = "agent_installation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"), nullable=False)
+    nome: Mapped[str] = mapped_column(String(120), nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    version: Mapped[str | None] = mapped_column(String(40))
+
+
+class AgentPairingCode(TimestampMixin, Base):
+    """One-time pairing code (10 min expiry). Stored hashed, never raw."""
+
+    __tablename__ = "agent_pairing_code"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    usuario_id: Mapped[int] = mapped_column(ForeignKey("usuario.id"), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AgentCommand(TimestampMixin, Base):
+    """Idempotent command published by the backend for a local agent.
+
+    Payload/resultado never contain secrets (sessions, cookies, certificates);
+    the authenticated session lives only on the agent machine.
+    """
+
+    __tablename__ = "agent_command"
+    __table_args__ = (
+        UniqueConstraint(
+            "escritorio_id", "idempotency_key", name="uq_agent_command_idempotency"
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
+    installation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_installation.id"), index=True
+    )
+    tipo: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="queued", index=True
+    )
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    resultado: Mapped[dict | None] = mapped_column(JSON)
+    erro_codigo: Mapped[str | None] = mapped_column(String(80))
+    erro_detalhe: Mapped[str | None] = mapped_column(Text)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    heartbeat_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class Intimacao(TimestampMixin, Base):
