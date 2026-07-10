@@ -18,3 +18,7 @@ backend/shots/
 .claude/
 # Cofre localdev file-backed (segredos de sessao; nunca versionar)
 *causor-vault-localdev*.json
+# Agente local: evidencias, objetos e perfis de navegador (sessao de tribunal)
+backend/artifacts/
+playwright/.auth/
+*.zip.trace
