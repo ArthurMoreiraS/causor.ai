@@ -87,20 +87,32 @@ funciona. No Render, o navegador abriria no servidor - o advogado nunca ve a
 tela de login do tribunal. O botao "Conectar" do app nao funciona de ponta a
 ponta com backend hospedado.
 
-Paliativo aceito para o piloto: **captura assistida em reuniao** - voce, com
-o backend local na sua maquina (com `CAUSOR_PJE_ALLOW_PROD=1` local) e o
-advogado presente, faz o login e a sessao vai para o cofre de producao
-(mesma `CAUSOR_DATABASE_URL`).
+Saida definitiva (implementada): **agente local Causor**. O advogado pareia o
+computador dele uma vez e o agente executa navegador/sessao localmente; o
+backend hospedado **nunca** abre navegador de tribunal - ele apenas publica
+comandos, e o agente online os reivindica e devolve resultado/evidencia.
 
-Saidas definitivas (decisao aberta, nesta ordem de preferencia):
+Pareamento (uma vez por computador do advogado):
 
-1. **Helper local** (recomendada): executavel/CLI pequeno que o advogado roda
-   uma vez; abre o navegador na maquina dele, captura o `storage_state` e
-   envia para a API autenticado. Reusa o codigo de captura existente.
-2. **Extensao de navegador**: captura os cookies do portal logado; menos
-   instalacao, mais atrito de publicacao (Chrome Web Store).
-3. **Navegador remoto embutido**: browser em nuvem transmitido no app
-   (noVNC/Browserbase); zero instalacao, custo e complexidade maiores.
+```powershell
+cd backend
+$PAIRING_CODE = "copie-o-codigo-exibido-no-Causor"
+.\.venv\Scripts\python.exe -m app.local_agent pair `
+  --api http://127.0.0.1:8000 `
+  --code $PAIRING_CODE `
+  --name "Notebook jurídico"
+
+.\.venv\Scripts\python.exe -m app.local_agent run
+```
+
+O codigo de pareamento e gerado em Configuracoes → "Agente local" e expira em
+10 minutos. O token do agente fica no keyring do Windows (nunca em arquivo);
+a sessao do tribunal fica no perfil Playwright em `%LOCALAPPDATA%\Causor\profiles`.
+Para leitura/protocolo autenticados funcionarem, o agente precisa estar
+online (`python -m app.local_agent run`).
+
+Paliativo anterior (captura assistida em reuniao com backend local) permanece
+documentado no historico, mas nao e mais o caminho principal.
 
 ## 6. Checklist de corte (dia da hospedagem)
 

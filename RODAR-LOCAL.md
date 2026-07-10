@@ -51,6 +51,30 @@ Abra http://localhost:3000 → você cai na tela de login (`/login`).
 
 ---
 
+## 3. Agente local (leitura/protocolo autenticados no tribunal)
+
+O backend hospedado **nunca** abre navegador de tribunal. Quem executa
+Playwright com a sessão do advogado é o **agente local**, pareado uma vez por
+computador. Gere o código em Configurações → "Agente local" (expira em 10
+minutos) e rode:
+
+```powershell
+cd backend
+$PAIRING_CODE = "copie-o-codigo-exibido-no-Causor"
+.\.venv\Scripts\python.exe -m app.local_agent pair `
+  --api http://127.0.0.1:8000 `
+  --code $PAIRING_CODE `
+  --name "Notebook jurídico"
+
+.\.venv\Scripts\python.exe -m app.local_agent run
+```
+
+O token fica no keyring do Windows; a sessão do tribunal fica no perfil
+Playwright em `%LOCALAPPDATA%\Causor\profiles` (fora do Git). Comandos de
+leitura/protocolo autenticados só executam com o agente online (`run`).
+
+---
+
 ## Observação importante sobre a porta / CORS
 
 O backend só aceita chamadas do frontend rodando em **`localhost:3000`** (é o padrão do
