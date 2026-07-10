@@ -1421,6 +1421,34 @@ def test_settings_profile_rejeita_logo_invalido(client, db_session, seeded):
     assert base64_quebrado.status_code == 422
 
 
+def test_settings_profile_rejeita_timbrado_cabecalho_com_muitas_linhas(client, db_session, seeded):
+    nove_linhas = "\n".join(f"linha {i}" for i in range(9))
+
+    resp = client.patch("/settings/profile", json={"timbrado_cabecalho": nove_linhas})
+
+    assert resp.status_code == 422
+
+
+def test_settings_profile_rejeita_timbrado_rodape_com_muitas_linhas(client, db_session, seeded):
+    cinco_linhas = "\n".join(f"linha {i}" for i in range(5))
+
+    resp = client.patch("/settings/profile", json={"timbrado_rodape": cinco_linhas})
+
+    assert resp.status_code == 422
+
+
+def test_settings_profile_aceita_timbrado_no_limite_de_linhas(client, db_session, seeded):
+    oito_linhas = "\n".join(f"linha {i}" for i in range(8))
+    quatro_linhas = "\n".join(f"linha {i}" for i in range(4))
+
+    resp = client.patch(
+        "/settings/profile",
+        json={"timbrado_cabecalho": oito_linhas, "timbrado_rodape": quatro_linhas},
+    )
+
+    assert resp.status_code == 200
+
+
 def _cria_peticao(db_session, seeded, escritorio_id=None, processo_id=None):
     pet = models.Peticao(
         escritorio_id=escritorio_id if escritorio_id is not None else seeded.escritorio_id,

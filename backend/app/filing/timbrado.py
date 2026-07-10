@@ -18,6 +18,13 @@ from app.sor import models
 
 MAX_LOGO_UPLOAD_BYTES = 2 * 1024 * 1024
 MAX_LOGO_LARGURA_PX = 1000
+# Limites de linhas do timbrado: fonte única usada pelo validador de entrada
+# (app.api.schemas) e pelo clamp defensivo do renderer (app.filing.render).
+# Sem cap, fpdf2 não tem guarda contra recursão em header()/footer() quando o
+# conteúdo não cabe na página (RecursionError) e o rodapé pode ser empurrado
+# para fora da área visível.
+MAX_CABECALHO_LINHAS = 8
+MAX_RODAPE_LINHAS = 4
 
 
 class LogoInvalidoError(ValueError):

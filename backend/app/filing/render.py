@@ -10,7 +10,7 @@ from fpdf import FPDF
 from fpdf.enums import XPos, YPos
 from PIL import Image
 
-from app.filing.timbrado import TimbradoEscritorio
+from app.filing.timbrado import MAX_CABECALHO_LINHAS, MAX_RODAPE_LINHAS, TimbradoEscritorio
 
 _FONT_DIR = Path(__file__).parent / "fonts"
 _PAGE_WIDTH_MM = 210.0
@@ -32,7 +32,9 @@ class _MinutaPDF(FPDF):
             return
         y = 10.0
         if t.logo:
-            # Centraliza o logo com 14mm de altura preservando a proporção.
+            # Centraliza o logo; altura de 14mm só quando o cap de largura de
+            # 60mm não entra em ação — logos largos renderizam proporcionalmente
+            # mais baixos que 14mm para respeitar o cap.
             with Image.open(io.BytesIO(t.logo)) as img:
                 largura_mm = min(14.0 * img.width / img.height, 60.0)
             self.image(io.BytesIO(t.logo), x=(_PAGE_WIDTH_MM - largura_mm) / 2, y=y, w=largura_mm)
@@ -43,7 +45,7 @@ class _MinutaPDF(FPDF):
         if t.cabecalho:
             self.set_font("DejaVu", "", 8)
             self.set_text_color(90)
-            for linha in t.cabecalho.splitlines():
+            for linha in t.cabecalho.splitlines()[:MAX_CABECALHO_LINHAS]:
                 self.cell(0, 4, linha, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
             self.set_text_color(0)
         self.ln(2)
@@ -61,7 +63,7 @@ class _MinutaPDF(FPDF):
             self.line(self.l_margin, self.get_y(), _PAGE_WIDTH_MM - self.r_margin, self.get_y())
             self.ln(2)
             if t.rodape:
-                for linha in t.rodape.splitlines():
+                for linha in t.rodape.splitlines()[:MAX_RODAPE_LINHAS]:
                     self.cell(0, 3.8, linha, align="C", new_x=XPos.LMARGIN, new_y=YPos.NEXT)
         self.cell(0, 3.8, f"página {self.page_no()} de {{nb}}", align="R")
         self.set_text_color(0)

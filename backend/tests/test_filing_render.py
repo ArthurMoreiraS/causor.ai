@@ -93,3 +93,21 @@ def test_render_logo_largo_respeita_cap_de_60mm():
     assert matrizes, "nenhuma imagem encontrada no content stream"
     largura_pt = max(float(m[0]) for m in matrizes)
     assert largura_pt <= 60 / 25.4 * 72 + 0.5
+
+
+def test_render_timbrado_com_cabecalho_e_rodape_longos_nao_estoura_pagina():
+    """Cabeçalho/rodapé com muitas linhas antes causavam RecursionError
+    (header -> add_page -> header ...) ou empurravam o rodapé para fora
+    da página. O renderer deve truncar e continuar produzindo um PDF válido
+    com o rodapé (e o número de página) visível na página 1."""
+    cabecalho_longo = "\n".join(f"Linha de cabeçalho {i}" for i in range(100))
+    rodape_longo = "\n".join(f"Linha de rodapé {i}" for i in range(30))
+    pdf = render_minuta_pdf(
+        "Corpo da peça.",
+        timbrado=_timbrado(cabecalho=cabecalho_longo, rodape=rodape_longo),
+    )
+
+    assert pdf.startswith(b"%PDF")
+    reader = PdfReader(io.BytesIO(pdf))
+    texto_pagina_1 = reader.pages[0].extract_text() or ""
+    assert "página 1 de" in texto_pagina_1

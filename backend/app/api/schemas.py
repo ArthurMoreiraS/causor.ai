@@ -8,6 +8,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.filing.timbrado import MAX_CABECALHO_LINHAS, MAX_RODAPE_LINHAS
+
 
 class IntimacaoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -195,8 +197,28 @@ class OperationalProfileUpdate(BaseModel):
     oab_uf: str | None = Field(default=None, max_length=2)
     timbrado_cabecalho: str | None = Field(default=None, max_length=2000)
     timbrado_rodape: str | None = Field(default=None, max_length=2000)
-    # Base64 de PNG/JPEG; string vazia remove o logo.
-    timbrado_logo: str | None = None
+    # Base64 de PNG/JPEG; string vazia remove o logo. max_length limita o
+    # payload bruto antes do b64decode (2MB pós-decode * 4/3 + margem) —
+    # o cap de tamanho da imagem em si é reforçado depois por normalize_logo.
+    timbrado_logo: str | None = Field(default=None, max_length=3_000_000)
+
+    @field_validator("timbrado_cabecalho")
+    @classmethod
+    def _limita_linhas_cabecalho(cls, valor: str | None) -> str | None:
+        if valor is not None and len(valor.splitlines()) > MAX_CABECALHO_LINHAS:
+            raise ValueError(
+                f"cabeçalho do timbrado deve ter no máximo {MAX_CABECALHO_LINHAS} linhas"
+            )
+        return valor
+
+    @field_validator("timbrado_rodape")
+    @classmethod
+    def _limita_linhas_rodape(cls, valor: str | None) -> str | None:
+        if valor is not None and len(valor.splitlines()) > MAX_RODAPE_LINHAS:
+            raise ValueError(
+                f"rodapé do timbrado deve ter no máximo {MAX_RODAPE_LINHAS} linhas"
+            )
+        return valor
 
 
 class ProtocolarAsyncRequest(BaseModel):

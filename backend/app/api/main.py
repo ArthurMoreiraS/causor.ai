@@ -443,12 +443,14 @@ def create_app() -> FastAPI:
             else:
                 try:
                     bruto = base64.b64decode(payload.timbrado_logo, validate=True)
-                except binascii.Error:
-                    raise HTTPException(status_code=422, detail="logo deve ser base64 válido")
+                except binascii.Error as exc:
+                    raise HTTPException(
+                        status_code=422, detail="logo deve ser base64 válido"
+                    ) from exc
                 try:
                     escritorio.timbrado_logo = normalize_logo(bruto)
                 except LogoInvalidoError as exc:
-                    raise HTTPException(status_code=422, detail=str(exc))
+                    raise HTTPException(status_code=422, detail=str(exc)) from exc
                 escritorio.timbrado_logo_mime = "image/png"
                 # Bytes ficam fora do audit log; registra só a ação.
                 changes["timbrado_logo"] = "atualizado"
