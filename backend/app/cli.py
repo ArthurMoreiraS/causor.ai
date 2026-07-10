@@ -110,6 +110,23 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Pause between DataJud calls to avoid tripping its rate limit on bulk backfills",
     )
 
+    autos_due = sub.add_parser(
+        "process-autos-due",
+        help="Drain queued process_document jobs (extraction/OCR of captured autos)",
+    )
+    autos_due.add_argument(
+        "--max-attempts",
+        type=int,
+        default=settings.document_processing_attempts,
+        help="Maximum attempts for transient failures per job",
+    )
+    autos_due.add_argument(
+        "--backoff-seconds",
+        type=float,
+        default=1.0,
+        help="Initial exponential retry delay",
+    )
+
     worker = sub.add_parser(
         "worker",
         help="Run the background job worker (drains queued captura_oab jobs)",
@@ -163,6 +180,17 @@ def main(argv: list[str] | None = None) -> int:
             f"{result.processos_enriquecidos} processos enriquecidos, "
             f"{result.prazos_registrados} prazos registrados."
         )
+
+    if args.command == "process-autos-due":
+        from app.autos.worker import process_due_documents
+
+        processed = process_due_documents(
+            SessionLocal,
+            max_attempts=args.max_attempts,
+            backoff_seconds=args.backoff_seconds,
+        )
+        print(f"process-autos-due: {processed} job(s) processados.")
+        return 0
 
     if args.command == "seed-demo":
         from app.sor.seed_demo import seed_demo

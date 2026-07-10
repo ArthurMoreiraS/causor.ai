@@ -112,5 +112,15 @@ class Settings(BaseSettings):
     # Limite de upload aceito do agente local (rota PUT /agent/uploads/local).
     agent_max_upload_bytes: int = 100 * 1024 * 1024
 
+    # Extração de texto/OCR dos autos. OCR roda apenas em página sem camada
+    # textual útil (menos de ocr_min_text_chars caracteres nativos).
+    ocr_min_text_chars: int = 30
+    ocr_dpi: int = 200
+    tesseract_language: str = "por"
+    tesseract_cmd: str = ""  # caminho do tesseract.exe se fora do PATH
+    document_max_bytes: int = 262144000  # 250 MiB por arquivo de autos
+    document_processing_attempts: int = 3
+    document_processing_concurrency: int = 1
+
 
 settings = Settings()

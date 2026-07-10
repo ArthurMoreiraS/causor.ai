@@ -252,6 +252,20 @@ def confirm_document_upload(
     item.documento_arquivo_id = version.id
     item.status = "verified"
     item.error_code = None
+
+    # OCR/extração nunca roda no request: fica num job persistente.
+    if version.extraction_status == "pending":
+        from app.queue.jobs import create_job
+
+        create_job(
+            session,
+            tipo="process_document",
+            entidade="documento_arquivo",
+            entidade_id=version.id,
+            payload={"documento_arquivo_id": version.id},
+            ator="agent",
+        )
+
     capture.captured_count = session.scalar(
         select(func.count(models.ManifestoItem.id)).where(
             models.ManifestoItem.captura_id == capture.id,
