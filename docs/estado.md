@@ -2,6 +2,28 @@
 
 ## Onde estamos
 
+- **2026-07-10 — Marco A (Fundacao do agente local) concluido.** Plano 1 do
+  roadmap de autos/conectores executado integralmente
+  (`docs/superpowers/plans/2026-07-10-fundacao-automacao-judicial-agente-local.md`):
+  - Contratos neutros de sistema (`app/connectors/contracts.py`):
+    `CourtReaderDriver`/`FilingDriver` sem dependencia de PJe.
+  - `ProcessoInstancia` modela 1o/2o grau por processo; migracao Alembic
+    `a6c4d8e2f1b0` aplicada.
+  - Agente Windows local (`python -m app.local_agent pair|login|run`):
+    pareamento one-time (10 min), token no keyring (hash-only no banco,
+    revogavel), perfil Playwright persistente por (sistema, tribunal, grau)
+    em `%LOCALAPPDATA%\Causor\profiles`.
+  - Protocolo de comandos idempotente (claim unico via SKIP LOCKED,
+    heartbeat, complete/fail com auditoria) + API `/agent/*`.
+  - Storage privado de documentos (localdev/S3) com URL pre-assinada de
+    15 min; backend recomputa SHA-256 na ingestao.
+  - UI: secao "Agente local" em Configuracoes (parear, status
+    Online/Offline, revogar).
+  - O backend hospedado nao abre mais navegador de tribunal; quem executa
+    Playwright e o agente na maquina do advogado.
+  - Proximo: Plano 2 (autos integrais com driver fake) e infra do Plano 3;
+    conectores reais PJe/eproc/e-SAJ/Projudi dependem dos acessos do advisor.
+
 - SOR + prazo engine deterministico implementados.
 - Captura real via DJEN/Comunica + DataJud funcionando.
 - Supabase Postgres e Supabase Auth funcionando com `causorai@gmail.com`.
