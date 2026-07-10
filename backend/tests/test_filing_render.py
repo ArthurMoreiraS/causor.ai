@@ -1,6 +1,7 @@
 """Tests for rendering petition drafts into a filing PDF."""
 
 import io
+import re
 
 from PIL import Image
 from pypdf import PdfReader
@@ -81,3 +82,14 @@ def test_render_timbrado_sem_logo_nao_quebra():
 
     assert pdf.startswith(b"%PDF")
     assert "Moura & Santos Advogados" in _texto_do_pdf(pdf)
+
+
+def test_render_logo_largo_respeita_cap_de_60mm():
+    pdf = render_minuta_pdf("Texto.", timbrado=_timbrado(logo=_png_bytes(largura=500, altura=50)))
+
+    reader = PdfReader(io.BytesIO(pdf))
+    conteudo = reader.pages[0].get_contents().get_data().decode("latin-1")
+    matrizes = re.findall(r"([\d.]+) 0 0 ([\d.]+) [\d.]+ [\d.]+ cm", conteudo)
+    assert matrizes, "nenhuma imagem encontrada no content stream"
+    largura_pt = max(float(m[0]) for m in matrizes)
+    assert largura_pt <= 60 / 25.4 * 72 + 0.5

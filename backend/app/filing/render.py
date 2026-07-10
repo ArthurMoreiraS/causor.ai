@@ -35,7 +35,7 @@ class _MinutaPDF(FPDF):
             # Centraliza o logo com 14mm de altura preservando a proporção.
             with Image.open(io.BytesIO(t.logo)) as img:
                 largura_mm = min(14.0 * img.width / img.height, 60.0)
-            self.image(io.BytesIO(t.logo), x=(_PAGE_WIDTH_MM - largura_mm) / 2, y=y, h=14.0)
+            self.image(io.BytesIO(t.logo), x=(_PAGE_WIDTH_MM - largura_mm) / 2, y=y, w=largura_mm)
             y += 16.0
         self.set_y(y)
         self.set_font("DejaVu", "B", 11)
