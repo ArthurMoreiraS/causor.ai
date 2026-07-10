@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import date, datetime
 from typing import Literal
 
@@ -162,6 +163,17 @@ class EscritorioOut(BaseModel):
     id: int
     nome: str
     cnpj: str | None = None
+    timbrado_cabecalho: str | None = None
+    timbrado_rodape: str | None = None
+    # Logo armazenado como bytes no SOR; trafega como base64 na API.
+    timbrado_logo: str | None = None
+
+    @field_validator("timbrado_logo", mode="before")
+    @classmethod
+    def _logo_em_base64(cls, valor: object) -> object:
+        if isinstance(valor, (bytes, bytearray, memoryview)):
+            return base64.b64encode(bytes(valor)).decode("ascii")
+        return valor
 
 
 class MeOut(BaseModel):
@@ -181,6 +193,10 @@ class OperationalProfileUpdate(BaseModel):
     cnpj: str | None = Field(default=None, max_length=20)
     oab: str | None = Field(default=None, max_length=20)
     oab_uf: str | None = Field(default=None, max_length=2)
+    timbrado_cabecalho: str | None = Field(default=None, max_length=2000)
+    timbrado_rodape: str | None = Field(default=None, max_length=2000)
+    # Base64 de PNG/JPEG; string vazia remove o logo.
+    timbrado_logo: str | None = None
 
 
 class ProtocolarAsyncRequest(BaseModel):

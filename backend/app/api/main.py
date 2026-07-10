@@ -7,6 +7,8 @@ REST write here.
 
 from __future__ import annotations
 
+import base64
+import binascii
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
@@ -61,6 +63,7 @@ from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
 from app.capture.enrich import backfill_sistema, run_enrichment_backfill
 from app.capture.poll import poll_oab
+from app.filing.timbrado import LogoInvalidoError, normalize_logo
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import (
     AlreadyFiledError,
@@ -425,6 +428,29 @@ def create_app() -> FastAPI:
         if payload.oab_uf is not None:
             usuario.oab_uf = payload.oab_uf.strip().upper() or None
             changes["oab_uf"] = usuario.oab_uf
+        if payload.timbrado_cabecalho is not None:
+            escritorio.timbrado_cabecalho = payload.timbrado_cabecalho.strip() or None
+            changes["timbrado_cabecalho"] = escritorio.timbrado_cabecalho
+        if payload.timbrado_rodape is not None:
+            escritorio.timbrado_rodape = payload.timbrado_rodape.strip() or None
+            changes["timbrado_rodape"] = escritorio.timbrado_rodape
+        if payload.timbrado_logo is not None:
+            if payload.timbrado_logo == "":
+                escritorio.timbrado_logo = None
+                escritorio.timbrado_logo_mime = None
+                changes["timbrado_logo"] = "removido"
+            else:
+                try:
+                    bruto = base64.b64decode(payload.timbrado_logo, validate=True)
+                except binascii.Error:
+                    raise HTTPException(status_code=422, detail="logo deve ser base64 válido")
+                try:
+                    escritorio.timbrado_logo = normalize_logo(bruto)
+                except LogoInvalidoError as exc:
+                    raise HTTPException(status_code=422, detail=str(exc))
+                escritorio.timbrado_logo_mime = "image/png"
+                # Bytes ficam fora do audit log; registra só a ação.
+                changes["timbrado_logo"] = "atualizado"
 
         if changes:
             _audit(

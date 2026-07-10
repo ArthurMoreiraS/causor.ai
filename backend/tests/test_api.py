@@ -1,9 +1,12 @@
 """TestClient TDD for the read-only API."""
 
+import base64
+import io
 from datetime import date, timedelta
 from unittest.mock import patch
 
 import pytest
+from PIL import Image
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
@@ -1364,3 +1367,54 @@ def test_remover_oab_monitorada_apaga_dados_capturados(client, db_session, seede
     assert db_session.get(models.Peticao, peticao.id) is None
     assert db_session.get(models.Processo, processo.id) is None
     assert db_session.get(models.Intimacao, outra_intimacao.id) is not None
+
+
+def _png_para_upload(largura: int = 10, altura: int = 10) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (largura, altura), "red").save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def test_settings_profile_atualiza_timbrado(client, db_session, seeded):
+    resp = client.patch(
+        "/settings/profile",
+        json={
+            "timbrado_cabecalho": "Rua X, 100 - São Paulo/SP",
+            "timbrado_rodape": "OAB/SP 123.456 · causor.com",
+            "timbrado_logo": base64.b64encode(_png_para_upload()).decode("ascii"),
+        },
+    )
+
+    assert resp.status_code == 200
+    esc = resp.json()["escritorio"]
+    assert esc["timbrado_cabecalho"] == "Rua X, 100 - São Paulo/SP"
+    assert esc["timbrado_rodape"] == "OAB/SP 123.456 · causor.com"
+    armazenado = base64.b64decode(esc["timbrado_logo"])
+    assert armazenado.startswith(b"\x89PNG")
+
+    lido = client.get("/settings/profile").json()["escritorio"]
+    assert lido["timbrado_cabecalho"] == "Rua X, 100 - São Paulo/SP"
+    assert lido["timbrado_logo"] == esc["timbrado_logo"]
+
+
+def test_settings_profile_remove_logo_com_string_vazia(client, db_session, seeded):
+    client.patch(
+        "/settings/profile",
+        json={"timbrado_logo": base64.b64encode(_png_para_upload()).decode("ascii")},
+    )
+
+    resp = client.patch("/settings/profile", json={"timbrado_logo": ""})
+
+    assert resp.status_code == 200
+    assert resp.json()["escritorio"]["timbrado_logo"] is None
+
+
+def test_settings_profile_rejeita_logo_invalido(client, db_session, seeded):
+    nao_imagem = client.patch(
+        "/settings/profile",
+        json={"timbrado_logo": base64.b64encode(b"nao-e-imagem").decode("ascii")},
+    )
+    assert nao_imagem.status_code == 422
+
+    base64_quebrado = client.patch("/settings/profile", json={"timbrado_logo": "###"})
+    assert base64_quebrado.status_code == 422
