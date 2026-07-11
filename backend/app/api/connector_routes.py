@@ -17,10 +17,65 @@ from sqlalchemy.orm import Session
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.capture.court_routing import resolve_route
 from app.connectors import sessions as court_sessions
+from app.connectors.coverage import coverage_status, known_profiles
 from app.sor import models
 from app.sor.db import get_session
 
 router = APIRouter(tags=["connectors"])
+
+
+class CoverageRowOut(BaseModel):
+    profile_key: str
+    sistema: str
+    tribunal: str
+    grau: str
+    state: str
+    reasons: list[str]
+    read_autos: bool
+    prepare_filing: bool
+    submit_filing: bool
+    last_validation_at: datetime | None
+
+
+def _coverage_rows(session: Session) -> list[CoverageRowOut]:
+    rows: list[CoverageRowOut] = []
+    for profile in known_profiles():
+        status = coverage_status(session, profile=profile)
+        rows.append(
+            CoverageRowOut(
+                profile_key=profile.key,
+                sistema=profile.sistema,
+                tribunal=profile.tribunal,
+                grau=profile.grau,
+                state=status.state,
+                reasons=status.reasons,
+                read_autos=profile.capabilities.read_autos,
+                prepare_filing=profile.capabilities.prepare_filing,
+                submit_filing=profile.capabilities.submit_filing,
+                last_validation_at=status.last_validation_at,
+            )
+        )
+    return rows
+
+
+@router.get("/connectors/coverage", response_model=list[CoverageRowOut])
+def listar_cobertura(
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),  # noqa: ARG001 - exige auth
+) -> list[CoverageRowOut]:
+    return _coverage_rows(session)
+
+
+@router.get("/connectors/coverage/{profile_key}", response_model=CoverageRowOut)
+def detalhar_cobertura(
+    profile_key: str,
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),  # noqa: ARG001 - exige auth
+) -> CoverageRowOut:
+    for row in _coverage_rows(session):
+        if row.profile_key == profile_key:
+            return row
+    raise HTTPException(status_code=404, detail="perfil de conector nao encontrado")
 
 
 class CourtLoginIn(BaseModel):

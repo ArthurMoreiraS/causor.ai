@@ -186,6 +186,21 @@ for _n in range(1, 25):
     }
 
 
+def known_routes() -> list[CourtRoute]:
+    """Todas as rotas conhecidas (tribunal x grau) do registro.
+
+    Base para a matriz de cobertura: cada rota vira um perfil candidato que
+    nasce ``experimental`` e só a validação live promove."""
+    routes: list[CourtRoute] = []
+    for sigla, cfg in _ROUTES.items():
+        graus = sorted(set(cfg.get("login", {}).keys()) | {"1"})
+        for grau in graus:
+            route = resolve_route(sigla, grau)
+            if route is not None:
+                routes.append(route)
+    return routes
+
+
 def resolve_route(tribunal: str | None, grau: str = "1") -> CourtRoute | None:
     """Resolve ``(tribunal, grau)`` para sistema + URLs; ``None`` sem tribunal.
 

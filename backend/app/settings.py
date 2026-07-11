@@ -114,6 +114,11 @@ class Settings(BaseSettings):
     # Limite de upload aceito do agente local (rota PUT /agent/uploads/local).
     agent_max_upload_bytes: int = 100 * 1024 * 1024
 
+    # Cobertura de conectores: validação live vale por N dias; health-check
+    # read-only reexecuta a cada M horas.
+    connector_validation_max_age_days: int = 30
+    connector_health_interval_hours: int = 24
+
     # Extração de texto/OCR dos autos. OCR roda apenas em página sem camada
     # textual útil (menos de ocr_min_text_chars caracteres nativos).
     ocr_min_text_chars: int = 30

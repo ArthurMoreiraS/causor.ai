@@ -261,6 +261,31 @@ class CourtSessionState(TimestampMixin, Base):
     last_error_code: Mapped[str | None] = mapped_column(String(80))
 
 
+class ConnectorValidation(TimestampMixin, Base):
+    """A live read-only validation of a connector profile. Evidence stays here;
+    only public-safe status is exported to the coverage matrix."""
+
+    __tablename__ = "connector_validation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    installation_id: Mapped[int] = mapped_column(
+        ForeignKey("agent_installation.id"), nullable=False
+    )
+    profile_key: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
+    capability: Mapped[str] = mapped_column(String(50), nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    documents_count: Mapped[int | None] = mapped_column(Integer)
+    manifest_fingerprint: Mapped[str | None] = mapped_column(String(71))
+    error_code: Mapped[str | None] = mapped_column(String(80))
+    evidence: Mapped[dict | None] = mapped_column(JSON)
+    agent_version: Mapped[str | None] = mapped_column(String(40))
+    app_revision: Mapped[str] = mapped_column(String(64), nullable=False)
+    tested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class Intimacao(TimestampMixin, Base):
     """A captured court communication (intimação/comunicação) from DJEN/Comunica."""
 

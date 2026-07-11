@@ -28,6 +28,33 @@ from app.sor import models
 from app.sor.db import SessionLocal
 
 
+def _yaml_scalar(value) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return str(value)
+
+
+def _write_coverage_yaml(path: str, rows: list[dict]) -> None:
+    """Escreve a matriz de cobertura em YAML determinístico (sem dependência).
+
+    Apenas status público-seguro; evidência de validação fica no banco."""
+    from pathlib import Path
+
+    lines = ["# Matriz de cobertura de conectores (gerada por export-connector-coverage).", ""]
+    for row in rows:
+        first = True
+        for key, value in row.items():
+            prefix = "- " if first else "  "
+            lines.append(f"{prefix}{key}: {_yaml_scalar(value)}")
+            first = False
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def default_calendar(today: date | None = None) -> ForensicCalendar:
     """Calendar spanning the previous, current and next year for safe counting."""
     year = (today or date.today()).year
@@ -113,6 +140,14 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
         default=1.0,
         help="Initial exponential retry delay",
+    )
+
+    export_coverage = sub.add_parser(
+        "export-connector-coverage",
+        help="Export the connector coverage matrix (public-safe status) to YAML",
+    )
+    export_coverage.add_argument(
+        "--output", required=True, help="Path to write the coverage YAML"
     )
 
     worker = sub.add_parser(
@@ -317,6 +352,36 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             session.close()
         return 1 if failures else 0
+    if args.command == "export-connector-coverage":
+        from app.connectors.coverage import coverage_status, known_profiles
+
+        session = SessionLocal()
+        try:
+            rows = []
+            for profile in known_profiles():
+                status = coverage_status(session, profile=profile)
+                rows.append(
+                    {
+                        "profile_key": profile.key,
+                        "sistema": profile.sistema,
+                        "tribunal": profile.tribunal,
+                        "degree": profile.grau,
+                        "read_autos": profile.capabilities.read_autos,
+                        "prepare_filing": profile.capabilities.prepare_filing,
+                        "submit_filing": profile.capabilities.submit_filing,
+                        "state": status.state,
+                        "last_live_validation": (
+                            status.last_validation_at.isoformat()
+                            if status.last_validation_at
+                            else None
+                        ),
+                    }
+                )
+        finally:
+            session.close()
+        rows.sort(key=lambda item: item["profile_key"])
+        _write_coverage_yaml(args.output, rows)
+        print(f"Cobertura exportada: {len(rows)} perfil(is) -> {args.output}")
     if args.command == "enrich-processos":
         session = SessionLocal()
         try:
