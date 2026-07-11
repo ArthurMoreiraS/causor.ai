@@ -20,5 +20,7 @@ backend/shots/
 *causor-vault-localdev*.json
 # Agente local: evidencias, objetos e perfis de navegador (sessao de tribunal)
 backend/artifacts/
+# Object store localdev quando os testes rodam a partir da raiz do repo
+/artifacts/
 playwright/.auth/
 *.zip.trace
