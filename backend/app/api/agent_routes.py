@@ -31,6 +31,7 @@ from app.agent_runtime.service import (
 )
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.agent_runtime import service
+from app.connectors import sessions as court_sessions
 from app.settings import settings
 from app.sor import models
 from app.sor.db import get_session
@@ -253,6 +254,10 @@ def concluir_comando(
         raise HTTPException(status_code=404, detail="comando nao encontrado") from exc
     except AgentCommandTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not already_completed and command.tipo == "open_court_login":
+        court_sessions.apply_login_result(
+            session, command=command, installation=installation, resultado=payload.resultado
+        )
     if not already_completed:
         _audit(
             session,
@@ -288,6 +293,10 @@ def falhar_comando(
         raise HTTPException(status_code=404, detail="comando nao encontrado") from exc
     except AgentCommandTransitionError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not already_failed and command.tipo == "open_court_login":
+        court_sessions.apply_login_failure(
+            session, command=command, installation=installation, erro_codigo=payload.erro_codigo
+        )
     if not already_failed:
         _audit(
             session,

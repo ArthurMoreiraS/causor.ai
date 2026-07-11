@@ -229,6 +229,38 @@ class AgentCommand(TimestampMixin, Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class CourtSessionState(TimestampMixin, Base):
+    """Derived login state per (sistema, tribunal, grau) — never the session.
+
+    The authenticated session (cookie/profile) lives only on the paired agent
+    machine; this row records whether that profile is logged in so the UI and
+    the filing/capture jobs can act on it.
+    """
+
+    __tablename__ = "court_session_state"
+    __table_args__ = (
+        UniqueConstraint(
+            "escritorio_id", "sistema", "tribunal", "grau",
+            name="uq_court_session_route",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    installation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("agent_installation.id")
+    )
+    sistema: Mapped[str] = mapped_column(String(20), nullable=False)
+    tribunal: Mapped[str] = mapped_column(String(50), nullable=False)
+    grau: Mapped[str] = mapped_column(String(4), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="desconectado")
+    version_marker: Mapped[str | None] = mapped_column(String(80))
+    last_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(80))
+
+
 class Intimacao(TimestampMixin, Base):
     """A captured court communication (intimação/comunicação) from DJEN/Comunica."""
 

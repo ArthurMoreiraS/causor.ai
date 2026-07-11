@@ -73,8 +73,10 @@ def _cmd_run(_args: argparse.Namespace) -> int:
     if not token:
         print("token nao encontrado no keyring; refaça o pareamento", file=sys.stderr)
         return 1
+    from app.local_agent.handlers import default_handlers
+
     client = AgentApiClient(config.api_url, token)
-    worker = AgentWorker(client)
+    worker = AgentWorker(client, handlers=default_handlers())
     print(f"agente #{config.installation_id} ({config.installation_name}) aguardando comandos…")
     try:
         worker.run_forever()
