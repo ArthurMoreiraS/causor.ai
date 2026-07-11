@@ -20,14 +20,12 @@ from app.capture.enrich import backfill_enrichment
 from app.capture.poll import PollResult, poll_oab
 from app.capture.scheduler import run_capture_for_oab_resilient, select_due
 from app.connectors.pje.simulator import serve as serve_pje_simulator
-from app.connectors.pje.session_capture import capture_pje_storage_state
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import fail_stale_running_jobs
 from app.settings import settings
 from app.sor import models
 from app.sor.db import SessionLocal
-from app.vault.service import store_pje_session_reference
 
 
 def default_calendar(today: date | None = None) -> ForensicCalendar:
@@ -77,16 +75,6 @@ def _build_parser() -> argparse.ArgumentParser:
         default=settings.capture_retry_backoff_seconds,
         help="Initial exponential retry delay",
     )
-
-    pje_session = sub.add_parser(
-        "pje-capture-session",
-        help="Open PJe for human login and store the Playwright session in the vault",
-    )
-    pje_session.add_argument("--usuario", required=True, type=int)
-    pje_session.add_argument("--tribunal", required=True)
-    pje_session.add_argument("--url-base", required=True)
-    pje_session.add_argument("--timeout-seconds", type=int, default=300)
-    pje_session.add_argument("--headless", action="store_true")
 
     pje_simulator = sub.add_parser(
         "pje-simulator",
@@ -329,30 +317,6 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             session.close()
         return 1 if failures else 0
-    if args.command == "pje-capture-session":
-        storage_state = capture_pje_storage_state(
-            base_url=args.url_base,
-            timeout_seconds=args.timeout_seconds,
-            headless=args.headless,
-        )
-        session = SessionLocal()
-        try:
-            credencial = store_pje_session_reference(
-                session,
-                usuario_id=args.usuario,
-                tribunal=args.tribunal,
-                url_base=args.url_base,
-                storage_state=storage_state,
-            )
-            session.commit()
-            session.refresh(credencial)
-            credencial_id = credencial.id
-        except Exception:
-            session.rollback()
-            raise
-        finally:
-            session.close()
-        print(f"Sessao PJe cadastrada como credencial {credencial_id}.")
     if args.command == "enrich-processos":
         session = SessionLocal()
         try:

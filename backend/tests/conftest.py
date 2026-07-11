@@ -111,6 +111,26 @@ def seed_filing_ready(db_session, peticao):
     return contexto
 
 
+def seed_connected_court_session(db_session, *, escritorio_id, sistema, tribunal, grau="1"):
+    """Estado derivado 'conectado' — simula o login feito pelo agente local.
+
+    Nunca guarda cookie/storage_state; é só o fato "perfil logado" que o gate
+    de protocolo/captura verifica."""
+    from datetime import datetime, timezone
+
+    state = models.CourtSessionState(
+        escritorio_id=escritorio_id,
+        sistema=sistema,
+        tribunal=tribunal.upper(),
+        grau=grau,
+        status="conectado",
+        last_confirmed_at=datetime.now(timezone.utc),
+    )
+    db_session.add(state)
+    db_session.flush()
+    return state
+
+
 @pytest.fixture
 def seeded(db_session):
     esc = models.Escritorio(nome="Escritório Teste")

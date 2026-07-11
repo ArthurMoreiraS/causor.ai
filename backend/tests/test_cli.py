@@ -2,6 +2,8 @@
 
 from datetime import date
 
+import pytest
+
 from app.cli import _build_parser, default_calendar
 
 
@@ -148,60 +150,12 @@ def test_cli_capture_due_accepts_partial_when_djen_down(db_session, monkeypatch)
     assert job.resultado.get("djen_indisponivel") is True
 
 
-def test_parser_accepts_pje_capture_session():
+def test_parser_rejects_removed_pje_capture_session():
+    # A sessão de tribunal vive no agente local; o comando de captura via
+    # backend foi removido junto com o vault de sessão.
     parser = _build_parser()
-    args = parser.parse_args(
-        [
-            "pje-capture-session",
-            "--usuario",
-            "7",
-            "--tribunal",
-            "TJSP",
-            "--url-base",
-            "https://pje-treinamento.tjsp.jus.br/pje",
-        ]
-    )
-    assert args.command == "pje-capture-session"
-    assert args.usuario == 7
-
-
-def test_cli_pje_capture_session_stores_vault_reference(db_session, monkeypatch):
-    import app.cli as cli
-    from app.sor import models
-
-    esc = models.Escritorio(nome="Escritorio PJe")
-    db_session.add(esc)
-    db_session.flush()
-    usuario = models.Usuario(escritorio_id=esc.id, nome="Adv", email="adv@example.com")
-    db_session.add(usuario)
-    db_session.flush()
-
-    storage_state = {"cookies": [{"name": "JSESSIONID", "value": "secret-cookie"}]}
-    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
-    monkeypatch.setattr(db_session, "close", lambda: None)
-    monkeypatch.setattr(
-        cli,
-        "capture_pje_storage_state",
-        lambda **kwargs: storage_state,
-    )
-
-    rc = cli.main(
-        [
-            "pje-capture-session",
-            "--usuario",
-            str(usuario.id),
-            "--tribunal",
-            "TJSP",
-            "--url-base",
-            "https://pje-treinamento.tjsp.jus.br/pje",
-        ]
-    )
-
-    assert rc == 0
-    credencial = db_session.query(models.CredencialAssinatura).one()
-    assert credencial.provedor == "CourtSession"
-    assert credencial.sistema == "PJe"
-    assert "secret-cookie" not in credencial.referencia_vault
+    with pytest.raises(SystemExit):
+        parser.parse_args(["pje-capture-session", "--usuario", "7"])
 
 
 def test_cli_enrich_processos_backfills_only_unenriched(db_session, monkeypatch):

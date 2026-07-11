@@ -240,45 +240,11 @@ class CreateCredencialAssinaturaRequest(BaseModel):
     referencia_externa: str = Field(min_length=4, max_length=255)
 
 
-def _walk_keys(value):
-    if isinstance(value, dict):
-        for key, nested in value.items():
-            yield key
-            yield from _walk_keys(nested)
-    elif isinstance(value, list):
-        for item in value:
-            yield from _walk_keys(item)
-
-
-class CreatePjeSessionRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    tribunal: str = Field(min_length=2, max_length=50)
-    url_base: str = Field(min_length=10, max_length=255)
-    storage_state: dict = Field(min_length=1)
-
-    @field_validator("storage_state")
-    @classmethod
-    def reject_password_like_keys(cls, value: dict) -> dict:
-        blocked = ("senha", "password", "pfx", "private_key", "chave_privada", "certificado")
-        serialized_keys = " ".join(str(key).lower() for key in _walk_keys(value))
-        if any(token in serialized_keys for token in blocked):
-            raise ValueError("storage_state nao pode conter senha/certificado/chave privada")
-        return value
-
-
 class CourtRoutingOut(BaseModel):
     sistema: str
     url_login: str | None
     url_peticionamento: str | None
     verificado: bool
-
-
-class CapturarSessaoRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    tribunal: str = Field(min_length=2, max_length=50)
-    grau: str = Field(default="1", pattern="^[12]$")
 
 
 class CredencialAssinaturaOut(BaseModel):

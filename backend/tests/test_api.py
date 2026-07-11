@@ -953,9 +953,9 @@ def test_protocolar_async_com_credencial_inativa_retorna_409(client, db_session,
 
 
 def test_protocolar_async_pje_sem_sessao_falha_e_nao_protocola(client, db_session, seeded):
-    """Sem sessao PJe no vault, o submit real nao pode prosseguir: job failed,
-    peticao continua 'aprovada' (reverte de 'protocolando') e nada e marcado
-    como protocolada — o ato irreversivel nunca e simulado."""
+    """Sem sessao conectada no agente local, o submit real nao pode prosseguir:
+    job failed, peticao continua 'aprovada' (reverte de 'protocolando') e nada e
+    marcado como protocolada — o ato irreversivel nunca e simulado."""
     seeded.sistema = "PJe"
     peticao = models.Peticao(
         processo_id=seeded.id,
@@ -974,7 +974,7 @@ def test_protocolar_async_pje_sem_sessao_falha_e_nao_protocola(client, db_sessio
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "failed"
-    assert "sessao" in (body["erro"] or "").lower()
+    assert "conecte" in (body["erro"] or "").lower()
     db_session.refresh(peticao)
     assert peticao.status == "aprovada"  # revertido, NAO protocolada
     assert peticao.protocolada_em is None
@@ -1143,50 +1143,6 @@ def test_credencial_assinatura_rejeita_campo_de_segredo(client, db_session, seed
             "provedor": "A1",
             "referencia_externa": "provider-ref",
             "senha_pfx": "nao-pode-vazar",
-        },
-    )
-
-    assert resp.status_code == 422
-    assert db_session.query(models.CredencialAssinatura).count() == 0
-
-
-def test_cadastrar_sessao_pje_guarda_referencia_sem_vazar_storage_state(client, db_session, seeded):
-    usuario = db_session.query(models.Usuario).first()
-    storage_state = {
-        "cookies": [{"name": "JSESSIONID", "value": "cookie-super-sensivel"}],
-        "origins": [],
-    }
-
-    resp = client.post(
-        f"/usuarios/{usuario.id}/pje-sessoes",
-        json={
-            "tribunal": "TRF3",
-            "url_base": "https://pje1g.trf3.jus.br/pje",
-            "storage_state": storage_state,
-        },
-    )
-
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body["provedor"] == "CourtSession"
-    assert body["sistema"] == "PJe"
-    assert body["referencia_vault"].startswith("localdev://assinatura/")
-    assert "cookie-super-sensivel" not in str(body)
-
-    audit = db_session.query(models.AuditLog).filter_by(acao="sessao_tribunal_cadastrada").one()
-    assert audit.detalhe == {"sistema": "PJe", "tribunal": "TRF3", "grau": "1"}
-    assert "cookie-super-sensivel" not in str(audit.detalhe)
-
-
-def test_cadastrar_sessao_pje_rejeita_senha_ou_certificado(client, db_session, seeded):
-    usuario = db_session.query(models.Usuario).first()
-
-    resp = client.post(
-        f"/usuarios/{usuario.id}/pje-sessoes",
-        json={
-            "tribunal": "TRF3",
-            "url_base": "https://pje1g.trf3.jus.br/pje",
-            "storage_state": {"cookies": [], "senha_pje": "nao"},
         },
     )
 

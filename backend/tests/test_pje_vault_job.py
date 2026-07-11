@@ -1,14 +1,14 @@
-"""Tests for loading assisted PJe sessions into the filing job."""
+"""Job de protocolo sem cookie no backend: sessão vem do agente local.
+
+O vault guarda apenas referências de assinatura (``cloud_cert``); o gate de
+sessão do tribunal usa ``CourtSessionState`` alimentado pelo login no agente.
+"""
 
 from app.connectors.pje.connector import PjeFilingCheckpoint
 from app.queue.jobs import confirm_manual_protocol, run_pje_protocol_job
 from app.sor import models
-from app.vault.service import (
-    load_pje_session_payload,
-    store_pje_session_reference,
-    store_signature_reference,
-)
-from tests.conftest import seed_filing_ready
+from app.vault.service import store_signature_reference
+from tests.conftest import seed_connected_court_session, seed_filing_ready
 
 
 def _seed_approved_pje_petition(db_session):
@@ -58,50 +58,28 @@ class InspectingConnector:
         )
 
 
-def test_load_pje_session_payload_from_localdev_vault(db_session):
-    usuario, _peticao = _seed_approved_pje_petition(db_session)
-    storage_state = {"cookies": [{"name": "JSESSIONID", "value": "secret-cookie"}]}
-    credencial = store_pje_session_reference(
-        db_session,
-        usuario_id=usuario.id,
-        tribunal="TJSP",
-        url_base="https://pje-treinamento.tjsp.jus.br/pje",
-        storage_state=storage_state,
-    )
-
-    payload = load_pje_session_payload(db_session, credencial_id=credencial.id)
-
-    assert payload["url_base"] == "https://pje-treinamento.tjsp.jus.br/pje"
-    assert payload["storage_state"] == storage_state
-    assert "secret-cookie" not in credencial.referencia_vault
-
-
-def test_run_pje_assisted_job_passes_vault_session_to_connector(db_session):
+def test_job_runs_without_cookie_when_agent_session_connected(db_session):
     usuario, peticao = _seed_approved_pje_petition(db_session)
-    storage_state = {"cookies": [{"name": "JSESSIONID", "value": "secret-cookie"}]}
-    credencial = store_pje_session_reference(
-        db_session,
-        usuario_id=usuario.id,
-        tribunal="TJSP",
-        url_base="https://pje-treinamento.tjsp.jus.br/pje",
-        storage_state=storage_state,
+    seed_connected_court_session(
+        db_session, escritorio_id=peticao.escritorio_id, sistema="PJe",
+        tribunal="TJSP", grau="1",
     )
     connector = InspectingConnector()
 
     job = run_pje_protocol_job(
         db_session,
         peticao.id,
-        credencial_id=credencial.id,
+        usuario_id=usuario.id,
         connector=connector,
         submit=False,
     )
 
     assert job.status == "completed"
-    assert connector.package.pje_base_url == "https://pje-treinamento.tjsp.jus.br/pje"
-    assert connector.package.storage_state == storage_state
+    # O pacote não carrega mais cookie/sessão; o agente usa o perfil local.
+    assert connector.package.storage_state is None
     assert connector.package.pdf_bytes.startswith(b"%PDF")
-    assert "secret-cookie" not in str(job.payload)
-    assert "secret-cookie" not in str(job.resultado)
+    assert "storage_state" not in str(job.payload)
+    assert "cookie" not in str(job.resultado).lower()
 
 
 def _audit_rows(session, peticao_id):
@@ -114,19 +92,15 @@ def _audit_rows(session, peticao_id):
 
 def test_job_attaches_signature_handoff_and_leaks_no_secret(db_session):
     usuario, peticao = _seed_approved_pje_petition(db_session)
-    storage_state = {"cookies": [{"name": "JSESSIONID", "value": "secret-cookie"}]}
-    credencial = store_pje_session_reference(
-        db_session,
-        usuario_id=usuario.id,
-        tribunal="TJSP",
-        url_base="https://pje-treinamento.tjsp.jus.br/pje",
-        storage_state=storage_state,
+    seed_connected_court_session(
+        db_session, escritorio_id=peticao.escritorio_id, sistema="PJe",
+        tribunal="TJSP", grau="1",
     )
 
     job = run_pje_protocol_job(
         db_session,
         peticao.id,
-        credencial_id=credencial.id,
+        usuario_id=usuario.id,
         connector=InspectingConnector(),
         submit=False,
     )
@@ -134,15 +108,15 @@ def test_job_attaches_signature_handoff_and_leaks_no_secret(db_session):
     handoff = job.resultado["evidence"]["handoff"]
     assert handoff["acoes"] == ["abrir_pje", "ja_assinei", "cancelar"]
     assert handoff["mensagem"]
-    # PJeSession is not a signing provider -> generic handoff.
+    # Sem credencial de assinatura -> handoff generico.
     assert handoff["provedor"] == "generico"
-    # No vault secret leaks into result or audit.
-    assert "secret-cookie" not in str(job.resultado)
+    assert "storage_state" not in str(job.resultado)
     audits = _audit_rows(db_session, peticao.id)
-    assert "secret-cookie" not in str([a.detalhe for a in audits])
+    assert "storage_state" not in str([a.detalhe for a in audits])
 
 
 def test_job_birdid_manual_handoff_without_session(db_session):
+    # Handoff manual não abre o tribunal: funciona sem sessão conectada.
     usuario, peticao = _seed_approved_pje_petition(db_session)
     credencial = store_signature_reference(
         db_session,
@@ -151,8 +125,6 @@ def test_job_birdid_manual_handoff_without_session(db_session):
         external_ref="adv@birdid.example",
     )
 
-    # No PJe session stored -> connector takes the manual checkpoint path
-    # (no browser) and the job still produces a BirdID-tailored handoff.
     job = run_pje_protocol_job(
         db_session, peticao.id, credencial_id=credencial.id, submit=False
     )

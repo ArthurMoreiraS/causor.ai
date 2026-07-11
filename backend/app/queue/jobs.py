@@ -27,12 +27,9 @@ from app.filing.render import render_minuta_pdf
 from app.filing.timbrado import load_timbrado
 from app.settings import settings
 from app.signing.providers import get_signature_provider
+from app.connectors.sessions import session_state_for
 from app.sor import models
-from app.vault.service import (
-    VaultError,
-    find_active_session,
-    load_court_session_payload,
-)
+from app.vault.service import VaultError
 
 
 class JobError(RuntimeError):
@@ -392,9 +389,10 @@ def run_pje_protocol_job(
     """Protocola uma peticao roteando pelo sistema do tribunal (PJe/e-SAJ/...).
 
     Resolve ``processo -> (tribunal, grau) -> sistema`` e despacha o driver do
-    sistema (``get_filing_driver``). Quando ``credencial_id`` nao vem, resolve a
-    sessao do cofre por ``usuario_id`` + ``(sistema, tribunal, grau)``; sem
-    sessao conectada, o job falha com uma mensagem clara ("conecte o tribunal").
+    sistema (``get_filing_driver``). A sessao autenticada vive no agente local;
+    ``submit=True`` exige ``CourtSessionState`` "conectado" para a rota — sem
+    isso o job falha com mensagem clara ("conecte o tribunal"). ``credencial_id``
+    referencia apenas assinatura em nuvem (handoff), nunca sessao.
     ``filing_mode`` sobrepoe ``settings.filing_mode`` (sandbox na demo).
 
     ``submit=True`` (default) clica em Assinar/Protocolar no PJe, aguarda o
@@ -481,32 +479,23 @@ def run_pje_protocol_job(
         session.flush()
 
     try:
-        # Sem credencial explicita, resolve a sessao do cofre pelo tribunal.
-        if credencial_id is None and usuario_id is not None:
-            sessao = find_active_session(
+        # A sessão autenticada vive no agente local; aqui só o estado derivado.
+        # Fail-closed no ato irreversível: submit exige rota "conectado". O
+        # preparo/handoff manual (submit=False) não abre o tribunal.
+        if submit:
+            estado = session_state_for(
                 session,
-                usuario_id=usuario_id,
+                escritorio_id=peticao.escritorio_id,
                 sistema=sistema,
-                tribunal=processo.tribunal,
+                tribunal=(processo.tribunal or "").strip().upper(),
                 grau=grau,
             )
-            if sessao is not None:
-                credencial_id = sessao.id
-                payload = {**job.payload, "credencial_id": credencial_id}
-                job.payload = payload
-                session.flush()
-        if credencial_id is None:
-            raise PjeConnectorError(
-                f"conecte a sessao do {processo.tribunal} ({sistema} - {grau}o grau) "
-                "no cofre antes de protocolar"
-            )
+            if estado is None or estado.status != "conectado":
+                raise PjeConnectorError(
+                    f"conecte o tribunal {processo.tribunal} ({sistema} - {grau}o grau) "
+                    "pelo Causor antes de protocolar"
+                )
 
-        session_payload = load_court_session_payload(session, credencial_id=credencial_id)
-        if submit and not session_payload:
-            raise PjeConnectorError(
-                "sessao do tribunal obrigatoria para protocolar; "
-                "conecte o tribunal no cofre"
-            )
         package = build_pje_package(peticao, credencial_id=credencial_id)
         package = replace(
             package,
@@ -519,8 +508,7 @@ def run_pje_protocol_job(
                 },
                 timbrado=load_timbrado(session, peticao.escritorio_id),
             ),
-            pje_base_url=session_payload.get("url_base") if session_payload else None,
-            storage_state=session_payload.get("storage_state") if session_payload else None,
+            pje_base_url=route.url_login if route is not None else None,
         )
         checkpoint = driver.prepare_filing(package, submit=submit)
     except (PjeConnectorError, VaultError) as exc:

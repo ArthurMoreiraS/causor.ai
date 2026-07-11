@@ -25,13 +25,11 @@ from app.api.schemas import (
     AuditLogOut,
     CaptureOabRequest,
     CaptureResultOut,
-    CapturarSessaoRequest,
     ChatRequest,
     ChatResponse,
     ConfirmarProtocoloRequest,
     CourtRoutingOut,
     CreateCredencialAssinaturaRequest,
-    CreatePjeSessionRequest,
     CredencialAssinaturaOut,
     DraftRequest,
     DraftResponse,
@@ -86,17 +84,12 @@ from app.sor.db import get_session
 from app.vault.service import (
     CredencialNotFoundError,
     UsuarioNotFoundError,
-    VaultProviderError,
     deactivate_signature_credential,
     list_signature_credentials,
-    store_court_session,
-    store_pje_session_reference,
     store_signature_reference,
 )
 from app.autos.context import ContextNotReadyError
 from app.capture.court_routing import resolve_route
-from app.connectors.pje.session import PjeSessionError
-from app.connectors.pje.session_capture import capture_pje_storage_state
 
 
 def _default_calendar_years() -> list[int]:
@@ -830,33 +823,6 @@ def create_app() -> FastAPI:
         session.refresh(credencial)
         return credencial
 
-    @app.post(
-        "/usuarios/{usuario_id}/pje-sessoes",
-        response_model=CredencialAssinaturaOut,
-    )
-    def cadastrar_sessao_pje(
-        usuario_id: int,
-        payload: CreatePjeSessionRequest,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.CredencialAssinatura:
-        get_owned_or_404(session, models.Usuario, usuario_id, current)
-        try:
-            credencial = store_pje_session_reference(
-                session,
-                usuario_id=usuario_id,
-                tribunal=payload.tribunal,
-                url_base=payload.url_base,
-                storage_state=payload.storage_state,
-            )
-        except UsuarioNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except VaultProviderError as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        session.commit()
-        session.refresh(credencial)
-        return credencial
-
     @app.get("/court-routing", response_model=CourtRoutingOut)
     def consultar_rota(tribunal: str, grau: str = "1") -> CourtRoutingOut:
         route = resolve_route(tribunal, grau)
@@ -868,45 +834,6 @@ def create_app() -> FastAPI:
             url_peticionamento=route.url_peticionamento,
             verificado=route.verificado,
         )
-
-    @app.post(
-        "/usuarios/{usuario_id}/sessoes-tribunal/capturar",
-        response_model=CredencialAssinaturaOut,
-    )
-    def capturar_sessao_tribunal(
-        usuario_id: int,
-        payload: CapturarSessaoRequest,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.CredencialAssinatura:
-        # Captura a sessao autenticada do tribunal abrindo o navegador NA MAQUINA
-        # do advogado (backend local). Usa a URL de login do registro; nunca pede
-        # senha/certificado/PIN — o advogado loga direto no portal.
-        get_owned_or_404(session, models.Usuario, usuario_id, current)
-        route = resolve_route(payload.tribunal, payload.grau)
-        if route is None or not route.url_login:
-            raise HTTPException(
-                status_code=422,
-                detail="tribunal sem URL de login no registro; verifique o cadastro",
-            )
-        try:
-            storage_state = capture_pje_storage_state(base_url=route.url_login)
-            credencial = store_court_session(
-                session,
-                usuario_id=usuario_id,
-                sistema=route.sistema,
-                tribunal=route.tribunal,
-                grau=payload.grau,
-                url_base=route.url_login,
-                storage_state=storage_state,
-            )
-        except UsuarioNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except (VaultProviderError, PjeSessionError) as exc:
-            raise HTTPException(status_code=503, detail=str(exc)) from exc
-        session.commit()
-        session.refresh(credencial)
-        return credencial
 
     @app.post(
         "/escritorios/{escritorio_id}/templates-peticao",

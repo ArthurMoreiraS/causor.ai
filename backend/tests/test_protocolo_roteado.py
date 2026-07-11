@@ -1,9 +1,8 @@
-"""TDD: protocolo roteia por sistema e resolve a sessao do cofre sozinho."""
+"""Protocolo roteia por sistema e exige sessão conectada no agente local."""
 
 from app.queue.jobs import run_pje_protocol_job
 from app.sor import models
-from app.vault.service import store_court_session
-from tests.conftest import seed_filing_ready
+from tests.conftest import seed_connected_court_session, seed_filing_ready
 
 
 def _seed(db_session, *, tribunal, sistema):
@@ -31,10 +30,9 @@ def _seed(db_session, *, tribunal, sistema):
 
 def test_esaj_petition_protocols_via_sandbox(db_session):
     u, pet = _seed(db_session, tribunal="TJSP", sistema="e-SAJ")
-    store_court_session(
-        db_session, usuario_id=u.id, sistema="e-SAJ", tribunal="TJSP", grau="1",
-        url_base="https://esaj-treino.tjsp.jus.br",
-        storage_state={"cookies": [{"name": "x", "value": "secret-cookie"}]},
+    seed_connected_court_session(
+        db_session, escritorio_id=pet.escritorio_id, sistema="e-SAJ",
+        tribunal="TJSP", grau="1",
     )
 
     job = run_pje_protocol_job(
@@ -46,11 +44,28 @@ def test_esaj_petition_protocols_via_sandbox(db_session):
     assert job.resultado["protocolo"].startswith("SANDBOX-")
     db_session.refresh(pet)
     assert pet.status == "protocolada"
-    assert "secret-cookie" not in str(job.resultado)
+    assert "storage_state" not in str(job.payload)
+    assert "storage_state" not in str(job.resultado)
 
 
 def test_missing_session_fails_clearly(db_session):
     u, pet = _seed(db_session, tribunal="TJMG", sistema="PJe")
+    job = run_pje_protocol_job(
+        db_session, pet.id, usuario_id=u.id, submit=True, filing_mode="sandbox"
+    )
+    assert job.status == "failed"
+    assert "conecte" in (job.erro or "").lower()
+
+
+def test_expired_session_fails_clearly(db_session):
+    u, pet = _seed(db_session, tribunal="TJMG", sistema="PJe")
+    state = seed_connected_court_session(
+        db_session, escritorio_id=pet.escritorio_id, sistema="PJe",
+        tribunal="TJMG", grau="1",
+    )
+    state.status = "expirado"
+    db_session.flush()
+
     job = run_pje_protocol_job(
         db_session, pet.id, usuario_id=u.id, submit=True, filing_mode="sandbox"
     )
@@ -63,10 +78,9 @@ def test_protocolo_renderiza_pdf_com_timbrado_do_escritorio(db_session, monkeypa
     esc = db_session.get(models.Escritorio, pet.escritorio_id)
     esc.timbrado_rodape = "OAB/SP 123.456"
     db_session.flush()
-    store_court_session(
-        db_session, usuario_id=u.id, sistema="e-SAJ", tribunal="TJSP", grau="1",
-        url_base="https://esaj-treino.tjsp.jus.br",
-        storage_state={"cookies": [{"name": "x", "value": "secret-cookie"}]},
+    seed_connected_court_session(
+        db_session, escritorio_id=pet.escritorio_id, sistema="e-SAJ",
+        tribunal="TJSP", grau="1",
     )
 
     import app.queue.jobs as jobs_mod
