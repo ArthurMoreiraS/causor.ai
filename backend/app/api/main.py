@@ -392,6 +392,8 @@ def create_app() -> FastAPI:
                     "code": exc.code,
                     "processo_id": exc.processo_id,
                     "missing": exc.missing,
+                    "next_step": exc.next_step,
+                    "rota": exc.rota,
                 }
             },
         )

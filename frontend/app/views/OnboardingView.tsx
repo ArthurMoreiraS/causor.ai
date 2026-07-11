@@ -168,8 +168,9 @@ export default function OnboardingView({
     },
     {
       icon: <Workflow size={16} />,
-      title: "PJe e vault",
-      detail: "Sessao PJe assistida ainda e capturada via CLI; credenciais ficam no vault.",
+      title: "Acesso aos tribunais",
+      detail:
+        "Pareie o computador do advogado; o login do tribunal abre pelo assistente ao gerar a minuta e serve leitura e protocolo.",
       done: false,
       action: "Conectores",
       onClick: () => onNavigate("conectores")

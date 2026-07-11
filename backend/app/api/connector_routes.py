@@ -15,13 +15,41 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.autos.context import latest_context
 from app.capture.court_routing import resolve_route
 from app.connectors import sessions as court_sessions
+from app.connectors.assistant import resolve_next_step
 from app.connectors.coverage import coverage_status, known_profiles
 from app.sor import models
 from app.sor.db import get_session
 
 router = APIRouter(tags=["connectors"])
+
+
+class ProximoPassoOut(BaseModel):
+    processo_id: int
+    ready: bool
+    next_step: str | None
+    rota: dict
+
+
+@router.get("/processos/{processo_id}/contexto/proximo-passo", response_model=ProximoPassoOut)
+def proximo_passo(
+    processo_id: int,
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+) -> ProximoPassoOut:
+    processo = session.get(models.Processo, processo_id)
+    if processo is None or processo.escritorio_id != current.escritorio_id:
+        raise HTTPException(status_code=404, detail="processo nao encontrado")
+    contexto = latest_context(session, processo=processo)
+    ready = contexto is not None and contexto.status == "ready"
+    next_step, rota = resolve_next_step(
+        session, processo=processo, context_ready=ready
+    )
+    return ProximoPassoOut(
+        processo_id=processo.id, ready=ready, next_step=next_step, rota=rota
+    )
 
 
 class CoverageRowOut(BaseModel):

@@ -5284,3 +5284,38 @@ textarea:focus {
   transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease,
     box-shadow 150ms ease;
 }
+
+/* Assistente JIT de acesso ao tribunal (AcessoTribunalWizard) */
+.acessoWizard {
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid var(--border, #cbd5e1);
+  border-radius: 10px;
+  background: var(--surface-muted, rgba(148, 163, 184, 0.08));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.acessoWizardHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.acessoWizardRota {
+  font-size: 0.8rem;
+  opacity: 0.75;
+}
+.acessoWizardStep {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.acessoWizardReady {
+  color: #15803d;
+}
+.acessoWizardActions {
+  display: flex;
+  justify-content: flex-end;
+}

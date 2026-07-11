@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, test, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import ProcessContextStatus, { deriveUiState } from "./ProcessContextStatus";
+import { ToastProvider } from "./Toast";
 
 vi.mock("@/lib/api", () => ({
   statusAutos: vi.fn().mockResolvedValue({
@@ -29,14 +30,31 @@ vi.mock("@/lib/api", () => ({
     ]
   }),
   capturarAutos: vi.fn(),
-  criarOverrideContexto: vi.fn()
+  criarOverrideContexto: vi.fn(),
+  proximoPassoContexto: vi.fn().mockResolvedValue({
+    processo_id: 7,
+    ready: false,
+    next_step: "court_login",
+    rota: { sistema: "PJe", tribunal: "TJMG", grau: "1" }
+  }),
+  loginTribunal: vi.fn(),
+  statusSessaoTribunal: vi.fn()
 }));
 
-test("shows missing documents and keeps drafting blocked", async () => {
-  render(<ProcessContextStatus processoId={7} />);
+test("shows missing documents and opens the access wizard from Gerar minuta", async () => {
+  render(
+    <ToastProvider>
+      <ProcessContextStatus processoId={7} />
+    </ToastProvider>
+  );
   expect(await screen.findByText("Contexto incompleto")).toBeInTheDocument();
   expect(screen.getByText(/2 documentos pendentes/)).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Gerar minuta" })).toBeDisabled();
+
+  // Bloqueado: "Gerar minuta" abre o assistente de acesso em vez de redigir direto.
+  fireEvent.click(screen.getByRole("button", { name: "Gerar minuta" }));
+  expect(
+    await screen.findByLabelText("Assistente de acesso ao tribunal")
+  ).toBeInTheDocument();
 });
 
 test("state derivation covers capture lifecycle", () => {

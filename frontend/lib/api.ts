@@ -631,16 +631,74 @@ export async function revogarAgente(installationId: number): Promise<void> {
   }
 }
 
-export async function capturarSessaoTribunal(
-  tribunal: string,
+/** Rota de sessão do tribunal por (sistema, tribunal, grau). Estado derivado do
+ * login feito no agente local — nunca carrega cookie/sessão. */
+export type CourtSessionRota = {
+  sistema: string;
+  tribunal: string;
+  grau: string;
+  status: "desconectado" | "conectando" | "conectado" | "expirado";
+  version_marker: string | null;
+  last_confirmed_at: string | null;
+  last_error_code: string | null;
+};
+
+export type CourtSessionState = {
+  processo_id: number;
+  rotas: CourtSessionRota[];
+};
+
+export type CourtLoginResult = {
+  sistema: string;
+  tribunal: string;
+  grau: string;
+  status: string;
+  command_id: number;
+};
+
+/** Passo acionável do assistente JIT quando o contexto não está pronto. */
+export type ProximoPasso = {
+  processo_id: number;
+  ready: boolean;
+  next_step: "pair_agent" | "court_login" | "capture_autos" | null;
+  rota: { sistema: string; tribunal: string; grau: string };
+};
+
+export type ConnectorCoverageRow = {
+  profile_key: string;
+  sistema: string;
+  tribunal: string;
+  grau: string;
+  state: "experimental" | "supported" | "degraded" | "blocked";
+  reasons: string[];
+  read_autos: boolean;
+  prepare_filing: boolean;
+  submit_filing: boolean;
+  last_validation_at: string | null;
+};
+
+/** Dispara o login do tribunal: o agente abre o portal na máquina do advogado. */
+export async function loginTribunal(
+  processoId: number,
   grau: string,
-  usuarioId?: number
-): Promise<CredencialAssinatura> {
-  const id = usuarioId ?? (await resolverUsuarioAtual());
-  return request<CredencialAssinatura>(`/usuarios/${id}/sessoes-tribunal/capturar`, {
+  sistema?: string
+): Promise<CourtLoginResult> {
+  return request<CourtLoginResult>(`/processos/${processoId}/tribunal/login`, {
     method: "POST",
-    body: JSON.stringify({ tribunal, grau })
+    body: JSON.stringify({ grau, sistema: sistema ?? null })
   });
+}
+
+export async function statusSessaoTribunal(processoId: number): Promise<CourtSessionState> {
+  return request<CourtSessionState>(`/processos/${processoId}/tribunal/sessao`);
+}
+
+export async function proximoPassoContexto(processoId: number): Promise<ProximoPasso> {
+  return request<ProximoPasso>(`/processos/${processoId}/contexto/proximo-passo`);
+}
+
+export async function listarCoberturaConectores(): Promise<ConnectorCoverageRow[]> {
+  return request<ConnectorCoverageRow[]>(`/connectors/coverage`);
 }
 
 export async function listarTemplates(escritorioId?: number): Promise<TemplatePeticao[]> {

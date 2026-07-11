@@ -124,12 +124,13 @@ export default function AgentSection({ offline }: { offline: boolean }) {
 
   return (
     <div className="settingsGroup">
-      <span className="settingsLabel">Agente local</span>
+      <span className="settingsLabel">Acesso aos tribunais</span>
       <small className="settingsHint vaultHint">
         <Laptop size={13} />
-        O agente roda no computador do advogado e executa leitura e protocolo com a
-        sessão local do tribunal. Nenhum token, cookie ou certificado sai daquela
-        máquina.
+        Pareie o computador do advogado: o agente abre o portal do tribunal na tela dele
+        para o login (uma vez por tribunal) e usa essa mesma sessão para baixar a íntegra
+        dos autos e protocolar. Nenhum token, cookie ou certificado sai daquela máquina —
+        o login de cada processo é aberto pelo assistente ao gerar a minuta.
       </small>
 
       <LoadingButton

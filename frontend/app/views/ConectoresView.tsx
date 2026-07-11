@@ -47,10 +47,11 @@ export default function ConectoresView({
         <article className="securityCard clickable" onClick={onOpenVault}>
           <LockKeyhole size={18} />
           <div>
-            <strong>Credenciais no vault</strong>
+            <strong>Acesso aos tribunais</strong>
             <span>
-              Certificados e senhas nunca entram em prompt ou log — o sistema guarda apenas a
-              referência do provedor em nuvem. Gerencie em Configurações → Vault.
+              O login do tribunal roda no computador do advogado (agente local) e nunca sai
+              dele; o Causor guarda só o estado “conectado”. Gerencie em Configurações →
+              Acesso aos tribunais.
             </span>
           </div>
         </article>

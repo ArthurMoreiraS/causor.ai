@@ -228,26 +228,45 @@ describe("API client critical workflows", () => {
     expect(url.searchParams.get("grau")).toBe("1");
   });
 
-  it("captures a court session for the current user", async () => {
+  it("triggers a court login command for a processo", async () => {
     const fetchMock = mockFetch({
-      "GET /me": { body: { usuario_id: 7, escritorio_id: 2, email: "adv@example.com" } },
-      "POST /usuarios/7/sessoes-tribunal/capturar": {
-        body: { id: 1, sistema: "e-SAJ", tribunal: "TJSP", grau: "1", tipo: "session" }
+      "POST /processos/9/tribunal/login": {
+        body: { sistema: "e-SAJ", tribunal: "TJSP", grau: "1", status: "conectando", command_id: 3 }
       }
     });
     vi.stubGlobal("fetch", fetchMock);
-    const { capturarSessaoTribunal } = await import("./api");
+    const { loginTribunal } = await import("./api");
 
-    const cred = await capturarSessaoTribunal("TJSP", "1");
+    const result = await loginTribunal(9, "1");
 
-    expect(cred.sistema).toBe("e-SAJ");
-    expect(new URL(String(fetchMock.mock.calls[1][0])).pathname).toBe(
-      "/usuarios/7/sessoes-tribunal/capturar"
+    expect(result.status).toBe("conectando");
+    expect(new URL(String(fetchMock.mock.calls[0][0])).pathname).toBe(
+      "/processos/9/tribunal/login"
     );
-    expect(JSON.parse(String(fetchMock.mock.calls[1][1]?.body))).toEqual({
-      tribunal: "TJSP",
-      grau: "1"
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      grau: "1",
+      sistema: null
     });
+  });
+
+  it("reads the actionable next step for a processo context", async () => {
+    const fetchMock = mockFetch({
+      "GET /processos/9/contexto/proximo-passo": {
+        body: {
+          processo_id: 9,
+          ready: false,
+          next_step: "court_login",
+          rota: { sistema: "PJe", tribunal: "TJMG", grau: "1" }
+        }
+      }
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { proximoPassoContexto } = await import("./api");
+
+    const passo = await proximoPassoContexto(9);
+
+    expect(passo.next_step).toBe("court_login");
+    expect(passo.rota.sistema).toBe("PJe");
   });
 
   it("flags the dashboard offline only when every core list fails together", async () => {

@@ -8,6 +8,7 @@ import {
   criarOverrideContexto,
   statusAutos
 } from "@/lib/api";
+import AcessoTribunalWizard from "./AcessoTribunalWizard";
 
 export type ContextUiState =
   | "not_captured"
@@ -50,6 +51,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
   const [showOverride, setShowOverride] = useState(false);
   const [justification, setJustification] = useState("");
   const [overrideOk, setOverrideOk] = useState(false);
+  const [showWizard, setShowWizard] = useState(false);
 
   async function reload() {
     try {
@@ -169,7 +171,12 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
         >
           {uiState === "not_captured" ? "Capturar autos" : "Retentar pendências"}
         </button>
-        <button className="primaryButton compact" disabled={blocked && !overrideOk}>
+        <button
+          className="primaryButton compact"
+          onClick={() => {
+            if (blocked && !overrideOk) setShowWizard(true);
+          }}
+        >
           Gerar minuta
         </button>
         {blocked && !overrideOk && (
@@ -185,6 +192,17 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
           comprovada (enumeração conferida, arquivos verificados por hash, texto
           extraído e resumos citados).
         </p>
+      )}
+
+      {showWizard && (
+        <AcessoTribunalWizard
+          processoId={processoId}
+          onReady={() => {
+            setShowWizard(false);
+            void reload();
+          }}
+          onClose={() => setShowWizard(false)}
+        />
       )}
 
       {showOverride && (

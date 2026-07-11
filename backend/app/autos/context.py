@@ -25,11 +25,21 @@ EXPECTED_DEGREES: tuple[str, ...] = ("1", "2")
 class ContextNotReadyError(RuntimeError):
     """Contexto do processo incompleto/obsoleto: redação e protocolo bloqueiam."""
 
-    def __init__(self, *, processo_id: int, missing: list[str]):
+    def __init__(
+        self,
+        *,
+        processo_id: int,
+        missing: list[str],
+        next_step: str | None = None,
+        rota: dict | None = None,
+    ):
         super().__init__(f"process_context_incomplete: {missing}")
         self.code = "process_context_incomplete"
         self.processo_id = processo_id
         self.missing = missing
+        # Passo acionável para o assistente JIT (pair_agent/court_login/capture_autos).
+        self.next_step = next_step
+        self.rota = rota
 
 
 @dataclass(frozen=True)
@@ -436,4 +446,10 @@ def require_ready_context(
         )
         if override is not None:
             return "override"
-    raise ContextNotReadyError(processo_id=processo.id, missing=missing)
+    # Enriquece o gate com o passo acionável para o assistente JIT.
+    from app.connectors.assistant import resolve_next_step
+
+    next_step, rota = resolve_next_step(session, processo=processo, context_ready=False)
+    raise ContextNotReadyError(
+        processo_id=processo.id, missing=missing, next_step=next_step, rota=rota
+    )
