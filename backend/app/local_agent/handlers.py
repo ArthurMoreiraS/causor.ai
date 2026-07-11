@@ -68,5 +68,42 @@ def _safe_host(url: str) -> str:
     return urlsplit(url).netloc
 
 
+def handle_read_process(payload: dict) -> dict:
+    """Leitura integral dos autos: resolvida pelos drivers reais das Tasks 6–9.
+
+    Enquanto o perfil real não estiver registrado, falha fechado — nunca
+    presume sucesso nem devolve manifesto vazio."""
+    from app.connectors.registry import (
+        UnsupportedConnectorProfile,
+        get_connector_registry,
+    )
+
+    registry = get_connector_registry()
+    try:
+        registry.reader(payload["sistema"], tribunal=payload["tribunal"], grau=payload["grau"])
+    except UnsupportedConnectorProfile as exc:
+        raise RuntimeError(str(exc)) from exc
+    raise NotImplementedError("read_process driver ainda não implementado para este perfil")
+
+
+def handle_prepare_filing(payload: dict) -> dict:
+    """Preparo/protocolo: resolvido pelos drivers reais das Tasks 6–9."""
+    from app.connectors.registry import (
+        UnsupportedConnectorProfile,
+        get_connector_registry,
+    )
+
+    registry = get_connector_registry()
+    try:
+        registry.filing(payload["sistema"], tribunal=payload["tribunal"], grau=payload["grau"])
+    except UnsupportedConnectorProfile as exc:
+        raise RuntimeError(str(exc)) from exc
+    raise NotImplementedError("prepare_filing driver ainda não implementado para este perfil")
+
+
 def default_handlers() -> dict:
-    return {"open_court_login": handle_open_court_login}
+    return {
+        "open_court_login": handle_open_court_login,
+        "read_process": handle_read_process,
+        "prepare_filing": handle_prepare_filing,
+    }

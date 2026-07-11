@@ -9,6 +9,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta, timezone
+from hashlib import sha256
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -27,8 +28,10 @@ from app.filing.render import render_minuta_pdf
 from app.filing.timbrado import load_timbrado
 from app.settings import settings
 from app.signing.providers import get_signature_provider
+from app.agent_runtime.service import enqueue_command
 from app.connectors.sessions import session_state_for
 from app.sor import models
+from app.storage.objects import get_object_store
 from app.vault.service import VaultError
 
 
@@ -375,6 +378,141 @@ def _validate_signature_credential(
         raise CredencialInativaError("credencial de assinatura desativada")
 
 
+def _resolve_or_create_instancia(
+    session: Session,
+    *,
+    processo: models.Processo,
+    sistema: str,
+    tribunal: str,
+    grau: str,
+    url_base: str | None,
+) -> models.ProcessoInstancia:
+    instancia = session.scalars(
+        select(models.ProcessoInstancia).where(
+            models.ProcessoInstancia.processo_id == processo.id,
+            models.ProcessoInstancia.sistema == sistema,
+            models.ProcessoInstancia.tribunal == tribunal,
+            models.ProcessoInstancia.grau == grau,
+        )
+    ).first()
+    if instancia is None:
+        instancia = models.ProcessoInstancia(
+            processo_id=processo.id,
+            escritorio_id=processo.escritorio_id,
+            sistema=sistema,
+            tribunal=tribunal,
+            grau=grau,
+            url_base=url_base,
+            status="active",
+        )
+        session.add(instancia)
+        session.flush()
+    return instancia
+
+
+def _dispatch_real_filing_to_agent(
+    session: Session,
+    *,
+    peticao: models.Peticao,
+    processo: models.Processo,
+    sistema: str,
+    tribunal: str,
+    grau: str,
+    submit: bool,
+) -> models.JobExecucao:
+    """Prepara o pacote, sobe o PDF ao storage privado e enfileira o comando.
+
+    Fail-closed: o agente precisa da sessão do tribunal para preparar/protocolar,
+    então a rota tem de estar ``conectado`` antes de enfileirar. O PDF vai por
+    storage privado (o agente baixa por URL curta); nenhum cookie no payload.
+    """
+    estado = session_state_for(
+        session,
+        escritorio_id=peticao.escritorio_id,
+        sistema=sistema,
+        tribunal=tribunal,
+        grau=grau,
+    )
+    if estado is None or estado.status != "conectado":
+        job = create_job(
+            session,
+            tipo="protocolo_peticao",
+            entidade="peticao",
+            entidade_id=peticao.id,
+            payload={"peticao_id": peticao.id, "sistema": sistema, "modo": "local_agent"},
+            ator=f"usuario:{peticao.aprovada_por}"
+            if peticao.aprovada_por is not None
+            else "system",
+        )
+        mark_failed(
+            session,
+            job,
+            f"conecte o tribunal {processo.tribunal} ({sistema} - {grau}o grau) "
+            "pelo Causor antes de protocolar",
+        )
+        return job
+
+    route = resolve_route(processo.tribunal, grau)
+    instancia = _resolve_or_create_instancia(
+        session,
+        processo=processo,
+        sistema=sistema,
+        tribunal=tribunal,
+        grau=grau,
+        url_base=route.url_login if route is not None else None,
+    )
+
+    pdf_bytes = render_minuta_pdf(
+        peticao.conteudo or "",
+        meta={
+            "processo": processo.numero,
+            "tipo": peticao.tipo,
+            "tribunal": processo.tribunal,
+        },
+        timbrado=load_timbrado(session, peticao.escritorio_id),
+    )
+    digest = sha256(pdf_bytes).hexdigest()
+    pdf_object_key = (
+        f"tenant/{peticao.escritorio_id}/filing/{peticao.id}/{digest}.pdf"
+    )
+    get_object_store().put_bytes(pdf_object_key, pdf_bytes, "application/pdf")
+
+    job = create_job(
+        session,
+        tipo="protocolo_peticao",
+        entidade="peticao",
+        entidade_id=peticao.id,
+        payload={
+            "peticao_id": peticao.id,
+            "sistema": sistema,
+            "modo": "local_agent",
+            "submit": submit,
+        },
+        ator=f"usuario:{peticao.aprovada_por}"
+        if peticao.aprovada_por is not None
+        else "system",
+    )
+    enqueue_command(
+        session,
+        escritorio_id=peticao.escritorio_id,
+        usuario_id=peticao.aprovada_por,
+        tipo="prepare_filing",
+        idempotency_key=f"filing:peticao:{peticao.id}:{digest[:16]}",
+        payload={
+            "peticao_id": peticao.id,
+            "processo_instancia_id": instancia.id,
+            "sistema": sistema,
+            "tribunal": tribunal,
+            "grau": grau,
+            "numero_processo": processo.numero,
+            "pdf_object_key": pdf_object_key,
+            "submit": submit,
+        },
+    )
+    mark_running(session, job)
+    return job
+
+
 def run_pje_protocol_job(
     session: Session,
     peticao_id: int,
@@ -451,6 +589,22 @@ def run_pje_protocol_job(
     route = resolve_route(processo.tribunal, grau)
     sistema = processo.sistema or (route.sistema if route is not None else None) or "PJe"
     mode = filing_mode or settings.filing_mode
+    tribunal = (processo.tribunal or "").strip().upper()
+
+    # Modo real (sem conector injetado em teste): a ação roda no agente local,
+    # não no backend hospedado. Enfileira prepare_filing e devolve o job
+    # pendente; o backend nunca abre Playwright.
+    if connector is None and mode == "real":
+        return _dispatch_real_filing_to_agent(
+            session,
+            peticao=peticao,
+            processo=processo,
+            sistema=sistema,
+            tribunal=tribunal,
+            grau=grau,
+            submit=submit,
+        )
+
     try:
         driver = connector or get_filing_driver(sistema, mode=mode)
     except FilingDriverUnsupported as exc:
