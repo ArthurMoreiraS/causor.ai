@@ -119,7 +119,7 @@ def test_dispatch_captura_oab_executes_and_marks_completed(db_session, escritori
 def test_run_once_drains_all_queued_jobs(session_factory, db_session, escritorio, calendar):
     for i in range(3):
         create_job(
-            session_factory(),
+            db_session,
             tipo="captura_oab",
             entidade="escritorio",
             entidade_id=escritorio.id,
@@ -131,7 +131,7 @@ def test_run_once_drains_all_queued_jobs(session_factory, db_session, escritorio
                 "data_fim": "2024-09-10",
             },
         )
-    # commit each via session.commit
+    db_session.commit()  # torna os jobs visíveis às sessões próprias de run_once
     processed = run_once(
         session_factory,
         clients=_clients(),
@@ -150,20 +150,24 @@ def test_run_once_drains_all_queued_jobs(session_factory, db_session, escritorio
 
 
 def test_run_once_continues_after_job_failure(session_factory, db_session, escritorio, calendar):
+    # Cria e COMMITA os jobs na conexão compartilhada antes de drenar: run_once
+    # abre sessões próprias, então jobs só flushed (não commitados) podem ficar
+    # invisíveis conforme o estado da conexão — daí commitar aqui.
     good = create_job(
-        session_factory(),
+        db_session,
         tipo="captura_oab",
         entidade="escritorio",
         entidade_id=escritorio.id,
         payload={"oab": "1", "uf": "SP", "escritorio_id": escritorio.id},
     )
     bad = create_job(
-        session_factory(),
+        db_session,
         tipo="tipo_desconhecido",
         entidade="escritorio",
         entidade_id=escritorio.id,
         payload={"foo": "bar"},
     )
+    db_session.commit()
 
     processed = run_once(
         session_factory,
