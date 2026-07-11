@@ -101,8 +101,8 @@ Critérios cumulativos:
 ## Ordem de execução
 
 - [x] **Passo 1:** Executar integralmente o Plano 1 e aprovar o Marco A. ✅ 2026-07-10 (merged em `main`; backend 334 passed, frontend 32 passed, typecheck/build verdes)
-- [ ] **Passo 2:** Executar as tarefas genéricas do Plano 2 usando `FakeCourtReaderDriver`.
-- [ ] **Passo 3:** Com a conta PJe do advisor, executar o perfil PJe read-only do Plano 3.
+- [x] **Passo 2:** Executar as tarefas genéricas do Plano 2 usando `FakeCourtReaderDriver`. ✅ 2026-07-10 (Tasks 1–10 em `main`; backend 385 passed, ruff ok, frontend 37 passed, typecheck/build verdes)
+- [ ] **Passo 3:** Executar as Tasks 1–5 do Plano 3 (perfis/registry, login unificado no agente, remoção do vault de sessão, simuladores, split servidor/agente) e, com a conta PJe do advisor, o perfil PJe read-only (Task 6).
 - [ ] **Passo 4:** Voltar ao Plano 2 e homologar o primeiro processo PJe integral (Marco B).
 - [ ] **Passo 5:** Corrigir e homologar o protocolo PJe até `ready_to_sign`; manter `submit=False` no primeiro live.
 - [ ] **Passo 6:** Repetir leitura e protocolo, nesta ordem, para eproc, e-SAJ e Projudi.
@@ -111,9 +111,9 @@ Critérios cumulativos:
 
 ## O que pode começar agora e o que depende do advisor
 
-**Executável imediatamente:** Plano 1 completo; Tasks 1–9 genéricas do Plano 2 usando driver fake; Tasks 1–3 e 8–9 do Plano 3 com simuladores e registry.
+**Executável imediatamente:** Plano 1 completo; Tasks 1–9 genéricas do Plano 2 usando driver fake; Tasks 1–5 e 10–11 do Plano 3 com simuladores, registry, login unificado no agente, remoção do vault de sessão e assistente JIT.
 
-**Bloqueado por acesso real:** Tasks PJe/eproc/e-SAJ/Projudi do Plano 3, homologação do Marco B e promoção de qualquer perfil a `supported`.
+**Bloqueado por acesso real:** Tasks 6–9 (PJe/eproc/e-SAJ/Projudi) do Plano 3, homologação do Marco B e promoção de qualquer perfil a `supported`.
 
 **Faixa de calendário, assumindo acesso sem interrupções:** fundação em 1–2 semanas; pipeline genérico de autos/contexto em 2–3 semanas; primeiro PJe integral em mais 1–2 semanas; cada nova família de referência em 1–3 semanas. A certificação nacional permanece trabalho de meses porque o gargalo é acesso e variação de portal, não escrita de código.
 

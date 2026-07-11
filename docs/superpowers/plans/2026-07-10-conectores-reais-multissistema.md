@@ -2,16 +2,21 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Implementar e homologar leitura integral e protocolo assistido reais nas quatro famílias de sistemas, com perfis por tribunal/grau/versão e cobertura publicável baseada em testes live.
+**Goal:** Implementar e homologar leitura integral e protocolo assistido reais nas quatro famílias de sistemas com **um único acesso por tribunal** — o advogado loga uma vez, no computador dele, e a mesma sessão serve para baixar a íntegra dos autos (contexto da minuta) e para protocolar. Cobertura publicável baseada em testes live.
 
-**Architecture:** Drivers rodam exclusivamente no agente local e implementam contratos separados de leitura e protocolo. Fluxos de navegação ficam em page objects por família; variações de URL/marker ficam em `ConnectorProfile` versionado. Testes unitários usam simuladores sanitizados; testes live read-only criam `ConnectorValidation` e são o único caminho para promover um perfil a `supported`.
+**Architecture:** O acesso ao tribunal deixa de ser dois conceitos (agente local + vault de cookie no backend) e passa a ser **um só**: um perfil de navegador persistente no agente da máquina do advogado, indexado por `(sistema, tribunal, grau)`. Esse perfil serve leitura (`read_process`) e protocolo (`prepare_filing`). O login também roda no agente, disparado pela UI: um comando enfileirado `open_court_login` abre a janela headed do portal na tela do advogado, ele loga uma vez e o agente reporta apenas `session_ready` — nenhum cookie, token ou certificado chega ao backend. O backend mantém um **estado de sessão derivado** por `(sistema, tribunal, grau)` (`desconectado | conectando | conectado | expirado`), alimentado pela conclusão do login e por health-checks read-only. Ao gerar minuta sem contexto completo, a UI abre um **assistente JIT** que encadeia pareamento → login → captura → geração automática, e reusa a mesma sessão no protocolo.
+
+Drivers rodam exclusivamente no agente e implementam contratos separados de leitura e protocolo. Fluxos de navegação ficam em page objects por família; variações de URL/marker ficam em `ConnectorProfile` versionado. Testes unitários usam simuladores sanitizados; testes live read-only criam `ConnectorValidation` e são o único caminho para promover um perfil a `supported`.
 
 **Tech Stack:** Python/Playwright, agentes/comandos do Plano 1, autos/manifests do Plano 2, YAML profiles, pytest opt-in live, FastAPI, PostgreSQL, Next.js.
 
 ## Global Constraints
 
 - Depende do Plano 1; capacidades de leitura dependem também das Tasks 1–5 do Plano 2.
+- **Um acesso serve tudo:** a mesma sessão autenticada de `(sistema, tribunal, grau)` no agente atende leitura e protocolo; não existem dois logins nem dois cofres para o mesmo tribunal.
+- **Nenhuma sessão de tribunal vive no backend:** cookie, `storage_state`, perfil Playwright, certificado, senha, PIN ou OTP nunca entram em banco, job, log ou prompt do backend. O backend guarda apenas estado derivado (`conectado`/`expirado`), metadados e evidência.
 - O agente usa browser headed e perfil persistente; o backend hospedado nunca abre Playwright.
+- O login é um comando enfileirado (`open_court_login`) executado pelo agente e disparável pela UI; a CLI `login` continua existindo como caminho manual de fallback.
 - Um perfil é identificado por `(sistema, tribunal, grau, version_marker)`.
 - Perfil novo inicia `experimental`; `supported` exige teste live recente e critérios completos.
 - Uma conta por família valida apenas aquele perfil/tribunal/grau, não a família nacional inteira.
@@ -32,10 +37,13 @@
 **Create**
 
 - `backend/alembic/versions/c9f7a1b5d4e3_connector_validation.py`
+- `backend/alembic/versions/d1a8b2c6e5f4_court_session_state.py`
 - `backend/app/connectors/profiles.py`
 - `backend/app/connectors/registry.py`
 - `backend/app/connectors/errors.py`
+- `backend/app/connectors/sessions.py` — estado de sessão derivado + comando de login.
 - `backend/app/connectors/live_validation.py`
+- `backend/app/connectors/health.py`
 - `backend/app/connectors/pje/reader.py`
 - `backend/app/connectors/pje/filing.py`
 - `backend/app/connectors/eproc/__init__.py`
@@ -58,35 +66,50 @@
 - `backend/app/api/connector_routes.py`
 - `backend/tests/test_connector_profiles.py`
 - `backend/tests/test_connector_registry.py`
+- `backend/tests/test_court_session_state.py`
+- `backend/tests/test_court_login_command.py`
+- `backend/tests/test_vault_session_removed.py`
 - `backend/tests/test_pje_reader.py`
 - `backend/tests/test_pje_filing_real.py`
 - `backend/tests/test_eproc_connector.py`
 - `backend/tests/test_esaj_connector.py`
 - `backend/tests/test_projudi_connector.py`
 - `backend/tests/test_connector_coverage.py`
+- `backend/tests/test_minuta_assistant_flow.py`
 - `backend/tests/live/test_court_reader_live.py`
 - `backend/tests/live/test_court_filing_live.py`
 - `docs/cobertura/tribunais.yaml`
 - `docs/operacao/homologacao-conectores.md`
+- `frontend/app/components/AcessoTribunalWizard.tsx`
+- `frontend/app/components/AcessoTribunalWizard.test.tsx`
 - `frontend/app/views/ConnectorCoverageView.tsx`
 - `frontend/app/views/ConnectorCoverageView.test.tsx`
 
 **Modify**
 
-- `backend/app/sor/models.py` — `ConnectorValidation`.
-- `backend/app/capture/court_routing.py` — rota por instância e coexistência/migração.
+- `backend/app/sor/models.py` — `ConnectorValidation`, `CourtSessionState`; remover uso de `CredencialAssinatura(tipo="session")`.
+- `backend/app/vault/service.py` — remover `store_court_session`, `find_active_session`, `load_court_session_payload`, `store_pje_session_reference`, `load_pje_session_payload`; manter `cloud_cert`.
+- `backend/app/api/main.py` — remover `capturar_sessao_tribunal` e `cadastrar_sessao_pje`; incluir connector router; expor login/estado de sessão; `submit=False` seguro.
+- `backend/app/capture/court_routing.py` — rota por instância, coexistência/migração e confirmação.
+- `backend/app/capture/poll.py` — parar de depender de sessão do cofre.
 - `backend/app/connectors/drivers.py` — usar registry genérico.
 - `backend/app/connectors/pje/connector.py` — adapter temporário ou remoção após migração.
+- `backend/app/connectors/pje/pages/login.py` — reaproveitar no comando `open_court_login`.
 - `backend/app/connectors/pje/pages/peticionar.py` — retirar caminho quebrado.
-- `backend/app/filing/package.py` — `FilingPackage` neutro com `ProcessoInstancia`.
-- `backend/app/queue/jobs.py` — enviar comando ao agente em vez de Playwright servidor.
-- `backend/app/api/main.py` — incluir connector router e `submit=False` seguro.
-- `backend/app/local_agent/worker.py` — registrar handlers `read_process`/`prepare_filing`.
-- `backend/app/settings.py` — live flags e validade da cobertura.
-- `backend/app/cli.py` — comandos de validação/cobertura.
-- `frontend/lib/api.ts` — cobertura e status de sessão/perfil.
-- `frontend/app/components/VaultSection.tsx` — remover captura de sessão no backend.
+- `backend/app/filing/package.py` — `FilingPackage` neutro com `ProcessoInstancia`, sem `storage_state`.
+- `backend/app/queue/jobs.py` — enviar comando ao agente; parar de carregar sessão do cofre.
+- `backend/app/local_agent/worker.py` — registrar handlers `open_court_login`, `read_process`, `prepare_filing`, `health_check`.
+- `backend/app/local_agent/__main__.py` — manter `login` manual; handlers no `run`.
+- `backend/app/settings.py` — live flags, validade da cobertura e freshness de sessão.
+- `backend/app/cli.py` — comandos de validação/cobertura/health.
+- `frontend/lib/api.ts` — login/estado de sessão, cobertura, assistente.
+- `frontend/app/SettingsModal.tsx` — uma seção única “Acesso aos tribunais”.
+- `frontend/app/components/AgentSection.tsx` — renomear/absorver em “Acesso aos tribunais”.
+- `frontend/app/components/VaultSection.tsx` — remover captura de sessão; manter só assinatura em nuvem.
+- `frontend/app/components/ProcessContextStatus.tsx` — abrir o assistente JIT ao gerar minuta.
 - `frontend/app/views/ProtocolosView.tsx` — estados reais por driver.
+- `frontend/app/views/OnboardingView.tsx` — texto do acesso unificado.
+- `frontend/app/views/ConectoresView.tsx` — apontar para “Acesso aos tribunais”.
 - `docs/estado.md`
 - `docs/areas/pje-assistido.md`
 
@@ -194,7 +217,213 @@ git commit -m "feat(connectors): add versioned profiles and fail-closed registry
 
 ---
 
-### Task 2: Harness de simulador sanitizado e validação live
+### Task 2: Login do tribunal como comando enfileirado e estado de sessão derivado
+
+Unifica os dois acessos: o login passa a ser um comando que a UI dispara e o agente executa na máquina do advogado; o backend guarda apenas o estado derivado da sessão, nunca o cookie.
+
+**Files:**
+
+- Modify: `backend/app/sor/models.py`
+- Create: `backend/alembic/versions/d1a8b2c6e5f4_court_session_state.py`
+- Create: `backend/app/connectors/sessions.py`
+- Modify: `backend/app/local_agent/worker.py`
+- Modify: `backend/app/api/main.py`
+- Create: `backend/tests/test_court_session_state.py`
+- Create: `backend/tests/test_court_login_command.py`
+
+**Interfaces:**
+
+- Produces model `CourtSessionState(escritorio_id, installation_id, sistema, tribunal, grau, status, version_marker, last_confirmed_at, last_error_code)`; `status ∈ {desconectado, conectando, conectado, expirado}`.
+- Produces: `request_court_login`, `apply_login_result`, `session_state_for`, `mark_session_expired`.
+- Agent handler `open_court_login(payload)`; payload traz `sistema, tribunal, grau, url_login, processo_instancia_id`; resultado traz `session_ready: bool`, `version_marker`, `evidence`, **nunca** `storage_state`/cookie.
+- User API: `POST /processos/{id}/tribunal/login` (enfileira `open_court_login` para a instância roteada); `GET /processos/{id}/tribunal/sessao` (estado derivado por instância).
+
+- [ ] **Step 1: Write failing state + command tests**
+
+```python
+# backend/tests/test_court_session_state.py
+from app.connectors.sessions import (
+    apply_login_result,
+    request_court_login,
+    session_state_for,
+)
+from app.sor import models
+
+
+def test_login_request_creates_connecting_state_and_command(db_session, seeded, agent_installation):
+    state, command = request_court_login(
+        db_session,
+        escritorio_id=seeded.escritorio_id,
+        sistema="PJe",
+        tribunal="TJMG",
+        grau="1",
+        url_login="https://pje.tjmg.jus.br/pje/login.seam",
+        processo_instancia_id=1,
+    )
+    assert state.status == "conectando"
+    assert command.tipo == "open_court_login"
+    assert "storage_state" not in command.payload
+    assert command.payload["url_login"].endswith("login.seam")
+
+
+def test_successful_login_marks_connected_without_storing_cookie(db_session, seeded, agent_installation):
+    state, command = request_court_login(
+        db_session, escritorio_id=seeded.escritorio_id, sistema="PJe",
+        tribunal="TJMG", grau="1", url_login="https://x/login.seam", processo_instancia_id=1,
+    )
+    apply_login_result(
+        db_session,
+        command=command,
+        installation=agent_installation,
+        resultado={"session_ready": True, "version_marker": "pje-2.5", "evidence": {"marker": "painel"}},
+    )
+    refreshed = session_state_for(
+        db_session, escritorio_id=seeded.escritorio_id, sistema="PJe", tribunal="TJMG", grau="1"
+    )
+    assert refreshed.status == "conectado"
+    assert refreshed.last_confirmed_at is not None
+    # o estado nunca guarda cookie/sessão
+    assert not hasattr(refreshed, "storage_state")
+```
+
+- [ ] **Step 2: Run and verify missing session module**
+
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_court_session_state.py tests/test_court_login_command.py -v`
+
+Expected: FAIL on import.
+
+- [ ] **Step 3: Implement session state, login command and agent handler**
+
+`CourtSessionState` model (unique por `escritorio_id, sistema, tribunal, grau`):
+
+```python
+class CourtSessionState(TimestampMixin, Base):
+    __tablename__ = "court_session_state"
+    __table_args__ = (
+        UniqueConstraint("escritorio_id", "sistema", "tribunal", "grau", name="uq_court_session_route"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    installation_id: Mapped[int | None] = mapped_column(ForeignKey("agent_installation.id"))
+    sistema: Mapped[str] = mapped_column(String(20), nullable=False)
+    tribunal: Mapped[str] = mapped_column(String(50), nullable=False)
+    grau: Mapped[str] = mapped_column(String(4), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="desconectado")
+    version_marker: Mapped[str | None] = mapped_column(String(80))
+    last_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error_code: Mapped[str | None] = mapped_column(String(80))
+```
+
+`request_court_login` faz upsert do estado para `conectando` e enfileira `open_court_login` via `enqueue_command` (Plano 1) com `idempotency_key="court-login:{sistema}:{tribunal}:{grau}:{YYYY-MM-DDTHH}"`. Payload contém somente `sistema, tribunal, grau, url_login, processo_instancia_id`.
+
+`apply_login_result` transita `conectando → conectado` quando `session_ready is True`, grava `version_marker`, `last_confirmed_at`, `installation_id`; `session_ready is False` ou erro canônico marca `expirado`/`desconectado` com `last_error_code`. **Nunca** persiste cookie.
+
+Handler do agente `open_court_login`: reusa `persistent_court_context` (Plano 1) para abrir a `url_login` headed; aguarda o marcador autenticado via `Locator.wait_for` (não `wait_for_text`); em sucesso retorna `{"session_ready": True, "version_marker": ..., "evidence": {...}}`; CAPTCHA/negado retornam erro canônico. A sessão fica só no perfil local. Registre o handler em `AgentWorker` no `run`.
+
+`complete_command` (Plano 1) chama `apply_login_result` para comandos `open_court_login`. Rotas de usuário resolvem a instância pelo processo e delegam a `request_court_login`/`session_state_for`.
+
+- [ ] **Step 4: Run session/command tests + migration**
+
+```powershell
+.\.venv\Scripts\alembic.exe upgrade head
+.\.venv\Scripts\python.exe -m pytest tests/test_court_session_state.py tests/test_court_login_command.py -q
+```
+
+Expected: PASS; `court_session_state` criada; nenhum teste observa cookie no backend.
+
+- [ ] **Step 5: Commit**
+
+```powershell
+git add backend/app/sor/models.py backend/alembic/versions/d1a8b2c6e5f4_court_session_state.py backend/app/connectors/sessions.py backend/app/local_agent/worker.py backend/app/api/main.py backend/tests/test_court_session_state.py backend/tests/test_court_login_command.py
+git commit -m "feat(connectors): court login as queued agent command with derived session state"
+```
+
+---
+
+### Task 3: Remover a captura de sessão no backend (vault de cookie)
+
+Apaga o caminho legado que guardava o cookie do tribunal no backend. O acesso passa a ser exclusivamente o da Task 2.
+
+**Files:**
+
+- Modify: `backend/app/vault/service.py`
+- Modify: `backend/app/api/main.py`
+- Modify: `backend/app/queue/jobs.py`
+- Modify: `backend/app/capture/poll.py`
+- Create: `backend/alembic/versions/e2b9c3d7f6a5_deactivate_court_sessions.py` (migração de dados)
+- Create: `backend/tests/test_vault_session_removed.py`
+- Modify: `backend/tests/test_pje_vault_job.py`
+
+**Interfaces:**
+
+- Remove: `store_court_session`, `find_active_session`, `load_court_session_payload`, `store_pje_session_reference`, `load_pje_session_payload`.
+- Remove endpoints: `POST /usuarios/{id}/sessoes-tribunal/capturar`, `POST /usuarios/{id}/pje-sessoes`.
+- Keep: `store_signature_reference`, `list_signature_credentials`, `deactivate_signature_credential`, `_load_secret_from_reference` para `cloud_cert`.
+
+- [ ] **Step 1: Write a regression proving the session vault is gone**
+
+```python
+# backend/tests/test_vault_session_removed.py
+import pytest
+
+from app.vault import service
+
+
+def test_court_session_helpers_are_removed():
+    for name in (
+        "store_court_session",
+        "find_active_session",
+        "load_court_session_payload",
+        "store_pje_session_reference",
+    ):
+        assert not hasattr(service, name), f"{name} deveria ter sido removido"
+
+
+def test_session_capture_endpoints_return_404(client):
+    assert client.post("/usuarios/1/sessoes-tribunal/capturar", json={}).status_code in (404, 405)
+    assert client.post("/usuarios/1/pje-sessoes", json={}).status_code in (404, 405)
+
+
+def test_cloud_cert_credentials_still_work(db_session, seeded):
+    cred = service.store_signature_reference(
+        db_session, usuario_id=1, provedor="BirdID", external_ref="ref-123"
+    )
+    assert cred.tipo == "cloud_cert"
+```
+
+- [ ] **Step 2: Run and observe current pass on the removed symbols**
+
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_vault_session_removed.py -v`
+
+Expected: FAIL because the symbols/endpoints still exist.
+
+- [ ] **Step 3: Delete the session vault and migrate data**
+
+- Remove as funções de sessão de `vault/service.py` e os imports órfãos; mantenha `cloud_cert`.
+- Remove `capturar_sessao_tribunal` e `cadastrar_sessao_pje` de `api/main.py`, além dos schemas `CapturarSessaoRequest`/`CreatePjeSessionRequest` se não usados em outro lugar.
+- Em `queue/jobs.py`, `run_pje_protocol_job` deixa de chamar `load_court_session_payload`/`find_active_session`; a sessão vem do agente (Task 5), não do cofre. `package` não carrega mais `storage_state`.
+- Em `capture/poll.py`, remova a dependência da sessão do cofre.
+- Migração de dados (`e2b9c3d7f6a5`, `down_revision="d1a8b2c6e5f4"`): `update credencial_assinatura set ativo = false where tipo = 'session'` e apagar segredos localdev correspondentes; segredos em `vault.decrypted_secrets` do provedor supabase para sessões são revogados no runbook. `cloud_cert` intacto.
+
+- [ ] **Step 4: Run vault + job regressions**
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_vault_session_removed.py tests/test_pje_vault_job.py tests/test_protocolo_roteado.py -q
+```
+
+Expected: PASS; nenhuma rota/serviço grava sessão de tribunal.
+
+- [ ] **Step 5: Commit**
+
+```powershell
+git add backend/app/vault/service.py backend/app/api/main.py backend/app/queue/jobs.py backend/app/capture/poll.py backend/alembic/versions backend/tests/test_vault_session_removed.py backend/tests/test_pje_vault_job.py
+git commit -m "refactor(vault): remove backend court-session capture in favor of local agent"
+```
+
+---
+
+### Task 4: Harness de simulador sanitizado e validação live
 
 **Files:**
 
@@ -243,7 +472,7 @@ Expected: all live tests SKIPPED, exit `0`.
 
 - [ ] **Step 3: Implement simulators and live record format**
 
-Each simulator serves synthetic pages for: login marker, process search, autos with two pages, nested attachment, one secret label, filing form, signature gate and receipt. IDs are fixed `SIM-DOC-001..003`; PDF bytes contain no real data.
+Each simulator serves synthetic pages for: login marker, process search, autos with two pages, nested attachment, one secret label, filing form, signature gate and receipt. IDs are fixed `SIM-DOC-001..003`; PDF bytes contain no real data. O simulador de login expõe o marcador autenticado que o handler `open_court_login` (Task 2) usa.
 
 `LiveValidationResult`:
 
@@ -283,7 +512,9 @@ git commit -m "test(connectors): add sanitized simulators and live validation ha
 
 ---
 
-### Task 3: Migrar execução real para o agente local
+### Task 5: Migrar execução real para o agente local
+
+Leitura e protocolo passam a rodar no agente, usando a sessão já autenticada da Task 2; o backend nunca abre navegador.
 
 **Files:**
 
@@ -299,7 +530,7 @@ git commit -m "test(connectors): add sanitized simulators and live validation ha
 
 - Server no longer calls `PjeBrowserSession` in real mode.
 - `run_pje_protocol_job` enqueues `prepare_filing` and returns a queued/running job until agent result.
-- Agent handlers: `read_process`, `prepare_filing`.
+- Agent handlers: `open_court_login` (Task 2), `read_process`, `prepare_filing`, `health_check`.
 
 - [ ] **Step 1: Write a regression proving hosted backend never launches Playwright**
 
@@ -321,6 +552,7 @@ def test_real_filing_enqueues_local_agent_without_opening_browser(
     command = db_session.query(models.AgentCommand).filter_by(tipo="prepare_filing").one()
     assert job.status in {"queued", "running"}
     assert command.payload["peticao_id"] == approved_petition_with_ready_context.id
+    assert "storage_state" not in command.payload
 ```
 
 - [ ] **Step 2: Run and observe current browser-path failure**
@@ -331,13 +563,15 @@ Expected: FAIL because real mode still instantiates `PjeDriver` in the backend.
 
 - [ ] **Step 3: Implement server/agent split**
 
-`build_filing_package` uses `ProcessoInstancia`, produces generic `FilingPackage` and writes the rendered PDF to private storage. The command payload contains `peticao_id`, `processo_instancia_id`, `pdf_object_key`, `submit=False`; the agent obtains a short signed download URL from API.
+`build_filing_package` uses `ProcessoInstancia`, produces generic `FilingPackage` (sem `storage_state`, sem `pje_base_url`) e escreve o PDF renderizado no storage privado. O comando `prepare_filing` carrega `peticao_id`, `processo_instancia_id`, `sistema`, `tribunal`, `grau`, `pdf_object_key`, `submit=False`; o agente usa o perfil de sessão local e obtém o PDF por URL assinada curta.
+
+Antes de enfileirar `prepare_filing`, o job checa `session_state_for(...).status == "conectado"`; se `expirado/desconectado`, retorna estado acionável (`session_expired`) que a UI transforma em passo de login do assistente — não abre navegador no servidor.
 
 On agent completion:
 
 - `ready_to_sign` completes job but leaves petition `aprovada`;
 - `protocolado` requires verified `protocolo` and `receipt_object_key` before changing status;
-- any canonical connector error marks job failed/retryable and returns petition to `aprovada`.
+- any canonical connector error marks job failed/retryable and returns petition to `aprovada`; `session_expired` também marca `CourtSessionState` como `expirado`.
 
 Remove the frontend/API path that sends `submit=True` by default. `submit` is server-decided from supported profile + explicit Gate OAB action.
 
@@ -347,7 +581,7 @@ Remove the frontend/API path that sends `submit=True` by default. `submit` is se
 .\.venv\Scripts\python.exe -m pytest tests/test_local_agent_dispatch.py tests/test_pje_vault_job.py tests/test_protocolo_roteado.py -q
 ```
 
-Expected: PASS; no server browser creation.
+Expected: PASS; no server browser creation; nenhum `storage_state` em payload.
 
 - [ ] **Step 5: Commit**
 
@@ -358,7 +592,7 @@ git commit -m "refactor(connectors): execute real court actions in local agent"
 
 ---
 
-### Task 4: PJe real — leitura integral antes do protocolo
+### Task 6: PJe real — leitura integral antes do protocolo
 
 **External gate:** conta PJe autorizada com tribunal, grau, URL e processo read-only seguro.
 
@@ -391,7 +625,7 @@ assert [item.external_id for item in snapshot.documentos] == [
 assert driver.download_document(target, snapshot.documentos[0]).startswith(b"%PDF-")
 ```
 
-Add tests for secret label, attachment parent ID, expired session, CAPTCHA and missing next-page terminator.
+Add tests for secret label, attachment parent ID, expired session, CAPTCHA and missing next-page terminator. A sessão vem do perfil autenticado pelo `open_court_login`; sessão expirada levanta `SessionExpired` (não tenta relogar sozinho).
 
 - [ ] **Step 2: Run and verify missing reader**
 
@@ -404,7 +638,7 @@ Expected: FAIL because `PjeReaderDriver` does not exist.
 Reader workflow:
 
 ```text
-ensure authenticated marker
+ensure authenticated marker (perfil da sessão local; senão SessionExpired)
 → Processo > Pesquisar > Processo
 → normalize CNJ number and open exact result
 → open Autos/Detalhes
@@ -447,7 +681,7 @@ git commit -m "feat(pje): read complete case files and harden filing gate"
 
 ---
 
-### Task 5: eproc real — eventos, documentos e movimentação
+### Task 7: eproc real — eventos, documentos e movimentação
 
 **External gate:** conta eproc autorizada, preferencialmente uma instância com processo em 1º grau e vínculo ao 2º.
 
@@ -489,7 +723,7 @@ Expected: FAIL on import.
 
 Reader enumerates the event table in chronological portal order; stable ID combines portal event ID + document ID from link parameters, never the visible description. Filing opens `Movimentar/Peticionar`, selects the event/type, associates the deadline when present, uploads PDF and stops before `Peticionar/Finalizar` unless submit capability is live-approved.
 
-The 2º-degree redirect creates/updates a separate `ProcessoInstancia`; it never mutates the 1º-degree instance.
+The 2º-degree redirect creates/updates a separate `ProcessoInstancia`; it never mutates the 1º-degree instance. Cada instância tem seu próprio `CourtSessionState`; logar no 1º grau não presume sessão no 2º.
 
 - [ ] **Step 4: Run simulator then live read-only**
 
@@ -514,7 +748,7 @@ git commit -m "feat(eproc): add event-based reader and filing preparation"
 
 ---
 
-### Task 6: e-SAJ real — autos, serviços por grau e comprovante
+### Task 8: e-SAJ real — autos, serviços por grau e comprovante
 
 **External gate:** conta e-SAJ autorizada e processo que ainda tramite no e-SAJ.
 
@@ -554,7 +788,7 @@ Expected: FAIL on import.
 
 Reader enters the authenticated process view, enumerates all document rows across the full digital case view and downloads by the portal document identifier. Filing uses the profile's degree-specific intermediate-petition service, fills destination/process/category/type, uploads PDF and stops before final send. Receipt verification requires the protocol-data screen plus downloadable receipt or authenticated receipt URL.
 
-If the portal says the forum/competence migrated to eproc, raise `SystemMigrated(target_system="EPROC")`; routing creates/selects an EPROC instance instead of retrying e-SAJ.
+If the portal says the forum/competence migrated to eproc, raise `SystemMigrated(target_system="EPROC")`; routing creates/selects an EPROC instance instead of retrying e-SAJ, e o assistente JIT (Task 11) pede o login no eproc.
 
 - [ ] **Step 4: Run simulator then live read-only**
 
@@ -579,7 +813,7 @@ git commit -m "feat(esaj): add degree-aware reader and filing preparation"
 
 ---
 
-### Task 7: Projudi real — autos legados e assinatura assistida
+### Task 9: Projudi real — autos legados e assinatura assistida
 
 **External gate:** conta Projudi autorizada com tribunal explicitamente identificado; não assumir que TJPR atual usa Projudi para o processo escolhido.
 
@@ -645,7 +879,7 @@ git commit -m "feat(projudi): add legacy-case reader and assisted filing"
 
 ---
 
-### Task 8: Validação persistida, matriz de cobertura e promoção segura
+### Task 10: Validação persistida, matriz de cobertura e promoção segura
 
 **Files:**
 
@@ -663,7 +897,7 @@ git commit -m "feat(projudi): add legacy-case reader and assisted filing"
 
 - Produces: `ConnectorValidation`, `coverage_status`, `promote_profile`.
 - API: `GET /connectors/coverage`, `GET /connectors/coverage/{profile_key}`.
-- Health: `enqueue_connector_health_checks` creates read-only `health_check` agent commands; it verifies login marker, version marker and profile URL without opening or downloading a real process.
+- Health: `enqueue_connector_health_checks` creates read-only `health_check` agent commands; it verifies login marker, version marker and profile URL without opening or downloading a real process. Um `health_check` que falha o marcador de login marca também `CourtSessionState` como `expirado`.
 
 - [ ] **Step 1: Write promotion tests**
 
@@ -709,7 +943,7 @@ class ConnectorValidation(TimestampMixin, Base):
     tested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 ```
 
-The migration uses `down_revision="c8e6f0a4b3d2"`, so connector validation is applied after the autos and FTS schema.
+The migration uses `down_revision="e2b9c3d7f6a5"` (a migração de dados da Task 3), so connector validation is applied after the session-state schema and the vault cleanup.
 
 Promotion requires, within 30 days and same app/profile revision:
 
@@ -742,45 +976,85 @@ git commit -m "feat(connectors): persist live validation and coverage status"
 
 ---
 
-### Task 9: UI de cobertura, saúde e retomada humana
+### Task 11: Assistente JIT de minuta e tela única de acesso aos tribunais
+
+Ao clicar em “Gerar minuta” sem o contexto pronto, um assistente único encadeia pareamento → login → captura → geração automática, reusando a mesma sessão no protocolo. As Configurações passam a ter uma seção só: “Acesso aos tribunais”.
 
 **Files:**
 
 - Modify: `frontend/lib/api.ts`
+- Create: `frontend/app/components/AcessoTribunalWizard.tsx`
+- Create: `frontend/app/components/AcessoTribunalWizard.test.tsx`
+- Modify: `frontend/app/components/ProcessContextStatus.tsx`
 - Create: `frontend/app/views/ConnectorCoverageView.tsx`
 - Create: `frontend/app/views/ConnectorCoverageView.test.tsx`
+- Modify: `frontend/app/SettingsModal.tsx`
+- Modify: `frontend/app/components/AgentSection.tsx`
 - Modify: `frontend/app/components/VaultSection.tsx`
 - Modify: `frontend/app/views/ProtocolosView.tsx`
+- Modify: `frontend/app/views/OnboardingView.tsx`
+- Modify: `frontend/app/views/ConectoresView.tsx`
+- Create: `backend/tests/test_minuta_assistant_flow.py`
 - Modify: `docs/estado.md`
 - Modify: `docs/areas/pje-assistido.md`
 
 **Interfaces:**
 
-- States: `experimental`, `supported`, `degraded`, `blocked`.
-- Human actions: `Abrir agente`, `Refazer login`, `Retomar leitura`, `Assumir protocolo`, `Ver evidência`.
+- Wizard steps: `agent_offline`, `route_confirm`, `login`, `capturing`, `processing`, `ready`, `error`.
+- Session/coverage states surfaced: `desconectado`, `conectando`, `conectado`, `expirado`; `experimental`, `supported`, `degraded`, `blocked`.
+- Human actions: `Instalar/parear agente`, `Confirmar tribunal`, `Abrir portal para login`, `Retomar captura`, `Assumir protocolo`, `Ver evidência`.
 
-- [ ] **Step 1: Write UI coverage test**
+- [ ] **Step 1: Write the assistant flow test (backend orchestration)**
 
-```tsx
-test("does not label an experimental profile as supported", async () => {
-  render(<ConnectorCoverageView />);
-  expect(await screen.findByText("TJMG · PJe · 1º grau")).toBeInTheDocument();
-  expect(screen.getByText("Experimental")).toBeInTheDocument();
-  expect(screen.queryByText("Cobertura completa")).not.toBeInTheDocument();
-});
+```python
+# backend/tests/test_minuta_assistant_flow.py
+def test_generate_minuta_without_context_returns_actionable_next_step(
+    client, processo_sem_contexto
+):
+    resp = client.post(f"/processos/{processo_sem_contexto.id}/minuta")
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body["code"] == "process_context_incomplete"
+    # o passo acionável diz à UI o que abrir no assistente
+    assert body["next_step"] in {"pair_agent", "court_login", "capture_autos"}
+    assert body["rota"]["sistema"] and body["rota"]["grau"]
+
+
+def test_after_login_and_capture_minuta_generates_without_new_click(
+    client, processo_pronto_para_capturar, fake_agent
+):
+    # login → captura completa (Plano 2) → contexto ready
+    fake_agent.complete_login(processo_pronto_para_capturar)
+    fake_agent.complete_capture(processo_pronto_para_capturar)
+    resp = client.post(f"/processos/{processo_pronto_para_capturar.id}/minuta")
+    assert resp.status_code == 200
+    assert resp.json()["peticao_id"]
 ```
 
-- [ ] **Step 2: Run and verify missing view**
+- [ ] **Step 2: Run and verify the actionable-step contract is missing**
 
-Run: `pnpm test -- ConnectorCoverageView.test.tsx`
+Run: `.\.venv\Scripts\python.exe -m pytest tests/test_minuta_assistant_flow.py -v`
 
-Expected: FAIL on import.
+Expected: FAIL because the 409 payload does not yet carry `next_step`/`rota`.
 
-- [ ] **Step 3: Implement truthful coverage and recovery UI**
+- [ ] **Step 3: Implement the actionable gate + wizard + unified settings**
 
-Coverage table columns: tribunal, system, degree, read autos, secret, prepare filing, submit, last live validation, state/reason. `degraded` and `blocked` show the canonical error and recovery action.
+Backend: `require_ready_context` (Plano 2) passa a devolver, no 409, `next_step` (`pair_agent` se não há agente online; `court_login` se `CourtSessionState != conectado`; `capture_autos` se conectado mas sem captura completa) e `rota` (sistema/tribunal/grau resolvidos por `resolve_route` a partir do CNJ, autoritativo pela instância). Nenhuma ação irreversível é disparada pelo gate.
 
-Remove “Conectar tribunal” server capture; replace with instructions/status from the paired local agent. `ProtocolosView` distinguishes `ready_to_sign`, `signature_required`, `protocolado`, `layout_unknown`, `session_expired`, `captcha_required` and `receipt_not_verified`.
+Frontend `AcessoTribunalWizard`:
+
+- **agent_offline:** se não há agente pareado/online, mostra o comando de pareamento (reusa `AgentSection`) e aguarda ficar online (polling do estado atual).
+- **route_confirm:** mostra a rota resolvida (`PJe · TJMG · 1º grau`); o advogado confirma ou corrige o sistema/grau (coexistência e-SAJ/eproc no TJSP). A confirmação alimenta a instância.
+- **login:** botão “Abrir portal para login” chama `POST /processos/{id}/tribunal/login`; a janela headed abre na máquina do advogado; o wizard faz polling de `GET /processos/{id}/tribunal/sessao` até `conectado`.
+- **capturing/processing:** reusa o status do Plano 2 (`statusAutos`) mostrando enumeração → downloads → OCR → resumos.
+- **ready:** dispara a geração da minuta automaticamente (sem novo clique) e fecha o assistente.
+- **error:** erros canônicos (`captcha_required`, `session_expired`, `layout_unknown`, `receipt_not_verified`) com ação de retomada humana.
+
+`ProcessContextStatus` deixa de ter o botão “Gerar minuta” desabilitado + “Capturar autos” separados: passa a ter um único “Gerar minuta” que, quando bloqueado, abre o `AcessoTribunalWizard` no passo certo. O override excepcional (Plano 2) permanece disponível.
+
+Configurações: `SettingsModal` passa a ter **uma** seção “Acesso aos tribunais” que combina o agente pareado e a lista de tribunais conectados (com estado de sessão por `(sistema, tribunal, grau)` e ação “Reconectar”). `VaultSection` perde a captura de sessão “Conectar tribunal” e fica só com as referências de assinatura em nuvem (`cloud_cert`). `OnboardingView` e `ConectoresView` passam a descrever o acesso único (sem menção a “CLI” ou “Vault” para sessão).
+
+`ConnectorCoverageView`: tabela tribunal/sistema/grau/ler autos/sigiloso/preparar/protocolar/última validação live/estado; `degraded`/`blocked` mostram erro canônico e ação. `ProtocolosView` distingue `ready_to_sign`, `signature_required`, `protocolado`, `layout_unknown`, `session_expired`, `captcha_required`, `receipt_not_verified`.
 
 - [ ] **Step 4: Run full product verification**
 
@@ -799,13 +1073,13 @@ Expected: all exit `0`; live tests remain skipped unless explicitly enabled.
 - [ ] **Step 5: Commit**
 
 ```powershell
-git add frontend/lib/api.ts frontend/app/views/ConnectorCoverageView.tsx frontend/app/views/ConnectorCoverageView.test.tsx frontend/app/components/VaultSection.tsx frontend/app/views/ProtocolosView.tsx docs/estado.md docs/areas/pje-assistido.md
-git commit -m "feat(frontend): show truthful connector coverage and recovery"
+git add frontend/lib/api.ts frontend/app/components/AcessoTribunalWizard.tsx frontend/app/components/AcessoTribunalWizard.test.tsx frontend/app/components/ProcessContextStatus.tsx frontend/app/views/ConnectorCoverageView.tsx frontend/app/views/ConnectorCoverageView.test.tsx frontend/app/SettingsModal.tsx frontend/app/components/AgentSection.tsx frontend/app/components/VaultSection.tsx frontend/app/views/ProtocolosView.tsx frontend/app/views/OnboardingView.tsx frontend/app/views/ConectoresView.tsx backend/tests/test_minuta_assistant_flow.py docs/estado.md docs/areas/pje-assistido.md
+git commit -m "feat(frontend): JIT minuta assistant and unified court access"
 ```
 
 ---
 
-### Task 10: Ondas nacionais por perfil de tribunal e grau
+### Task 12: Ondas nacionais por perfil de tribunal e grau
 
 **Files:**
 
@@ -868,7 +1142,10 @@ git commit -m "chore(coverage): certify connector profile wave"
 
 ## Plan 3 acceptance gate
 
-- [ ] Backend real mode never launches browser.
+- [ ] Um único acesso por tribunal serve leitura e protocolo; não há segundo login nem cofre de sessão.
+- [ ] Nenhum cookie/sessão de tribunal existe no backend; `CourtSessionState` guarda só estado derivado.
+- [ ] O login roda no agente, disparado pela UI (`open_court_login`), e o backend real nunca abre navegador.
+- [ ] Gerar minuta sem contexto abre o assistente no passo certo e, ao ficar pronto, gera a minuta sem novo clique.
 - [ ] PJe, eproc, e-SAJ and Projudi each pass simulator reader/filing tests.
 - [ ] Four advisor profiles pass live read twice with stable fingerprint.
 - [ ] Each downloaded live manifest reaches `CapturaAutos.complete` through Plan 2.
