@@ -154,6 +154,29 @@ def _load_secret_from_reference(session: Session, reference: str) -> str:
     raise VaultProviderError("referencia de vault desconhecida")
 
 
+def store_generic_secret(
+    session: Session,
+    *,
+    usuario_id: int,
+    provedor: str,
+    secret: str,
+    description: str,
+) -> str:
+    """Grava um segredo generico no provider configurado; devolve a referencia."""
+    return _store_secret_reference(
+        session,
+        usuario_id=usuario_id,
+        provedor=provedor,
+        secret=secret,
+        description=description,
+    )
+
+
+def load_secret(session: Session, reference: str) -> str:
+    """Recupera um segredo pela referencia (localdev/supabase)."""
+    return _load_secret_from_reference(session, reference)
+
+
 def store_signature_reference(
     session: Session,
     *,
