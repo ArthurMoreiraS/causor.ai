@@ -13,6 +13,7 @@ import {
 import type { Settings } from "@/lib/settings";
 import UfSearchSelect from "./components/UfSearchSelect";
 import AgentSection from "./components/AgentSection";
+import MniSection from "./components/MniSection";
 import VaultSection from "./components/VaultSection";
 import { useToast } from "./components/Toast";
 import { InfoHint, LoadingButton, Modal, Skeleton } from "./components/ui";
@@ -418,6 +419,7 @@ export default function SettingsModal({
 
           <div className="settingsColumn">
             <AgentSection offline={offline} />
+            <MniSection offline={offline} />
             <VaultSection offline={offline} />
 
             <div className="settingsGroup">

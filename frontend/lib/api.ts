@@ -554,7 +554,51 @@ export type CapturaAutos = {
   error_code: string | null;
   started_at: string | null;
   completed_at: string | null;
+  fonte?: string;
 };
+
+export type MniCredencial = {
+  id: number;
+  tribunal: string;
+  id_consultante_mask: string;
+  ativo: boolean;
+  last_validated_at: string | null;
+};
+
+export type MniTesteResultado = {
+  ok: boolean;
+  error_code: string | null;
+  documentos: number | null;
+};
+
+export async function listarMniCredenciais(): Promise<MniCredencial[]> {
+  return request<MniCredencial[]>("/mni/credenciais");
+}
+
+export async function cadastrarMniCredencial(payload: {
+  tribunal: string;
+  id_consultante: string;
+  senha: string;
+}): Promise<MniCredencial> {
+  return request<MniCredencial>("/mni/credenciais", {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function revogarMniCredencial(credencialId: number): Promise<void> {
+  await request<MniCredencial>(`/mni/credenciais/${credencialId}`, { method: "DELETE" });
+}
+
+export async function testarMniCredencial(
+  credencialId: number,
+  numeroProcesso: string
+): Promise<MniTesteResultado> {
+  return request<MniTesteResultado>(`/mni/credenciais/${credencialId}/testar`, {
+    method: "POST",
+    body: JSON.stringify({ numero_processo: numeroProcesso })
+  });
+}
 
 export type AutosInstanciaStatus = {
   processo_instancia_id: number;
