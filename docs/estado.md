@@ -2,6 +2,15 @@
 
 ## Onde estamos
 
+- **2026-07-21 — Leitura oficial dos autos via MNI implementada** (spec
+  `docs/superpowers/specs/2026-07-21-mni-leitura-autos-design.md`): cliente
+  SOAP no backend, credencial por tribunal no vault, captura roteada por
+  `CapturaAutos.fonte` ("mni" | "agente") pelo mesmo pipeline de integridade
+  do Plano 2, UI de credenciais em Configuracoes → Acesso aos tribunais.
+  Validacao live e a promocao dos perfis (`verificado=True`) dependem do
+  credenciamento MNI junto ao primeiro tribunal (oficio a DTI) — processo
+  administrativo, sem custo.
+
 - **2026-07-10 — Plano 2 (autos integrais e contexto citado): COMPLETO
   (Tasks 1–10)** (branch `feat/autos-contexto-integral`):
   - Captura integral com prova de completude: enumeracao inicial/final com
@@ -82,13 +91,17 @@
 1. Executar um piloto ponta a ponta com OAB e dados reais.
 2. Configurar em producao o cron que chama `capture-due` e alertar quando seu
    codigo de saida for diferente de zero.
-3. Validar o Vault Supabase para sessoes PJe/tokens no ambiente publicado.
+3. Validar o Vault Supabase no ambiente publicado (referencias de assinatura
+   `cloud_cert` e senhas MNI; o cofre de sessao de tribunal foi removido —
+   sessao vive so no agente local, Plano 3 Task 3).
 4. Fechar um unico conector PJe Playwright real ate a tela de assinatura,
    escolhendo tribunal, grau e tipo de peticao do piloto.
 5. Integracao futura com certificado em nuvem, se o piloto exigir envio final
    automatizado.
 6. Adicionar monitoramento externo do backend, cron e jobs `failed`.
 7. Alertas de prazo por e-mail ou WhatsApp.
+8. Solicitar o credenciamento MNI no tribunal do piloto e rodar
+   `RUN_MNI_LIVE=1` para promover o primeiro perfil.
 
 ## Ordem de execucao
 
