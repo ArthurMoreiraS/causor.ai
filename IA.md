@@ -9,7 +9,8 @@ nesa camada.
 > *interpreta/classifica/redige* sobre contexto que o sistema determinístico já
 > montou no SOR. O switch entre Claude e modelo gratuito é **uma variável de
 > ambiente** (`CAUSOR_LLM_PROVIDER`). Segredos (certificado, PIN, senha) nunca
-> entram em prompt ou log.
+> entram em prompt ou log — isso independe de onde a credencial mora (vault
+> do Causor ou vendor terceiro delegado).
 
 ---
 
@@ -30,8 +31,9 @@ O que a IA **não** faz:
   redator raciocina sobre o que já está no SOR, nunca "consulta" o tribunal.
 - **Assinatura/protocolo.** O ato irreversível passa por gate humano; o
   certificado fica no PJeOffice local, fora do Causor.
-- **Acesso a segredos.** Certificado, PIN, senha de assinatura vivem no vault;
-  nunca entram num prompt.
+- **Acesso a segredos.** Certificado, PIN, senha de assinatura nunca entram
+  num prompt — podem viver no vault do Causor ou num vendor terceiro
+  delegado (leitura ou assinatura); não há mais regra de custódia única.
 
 ---
 
@@ -221,8 +223,9 @@ tool-use adaptado para function-calling do endpoint).
 
 1. **Segredos nunca em prompt/log.** O `_ALLOWED_CONTEXT_KEYS` em
    `drafter.py:23` é uma whitelist — nunca faça dump de um `processo.__dict__`
-   ou de uma `CredencialAssinatura` no prompt. Certificado/PIN/senha ficam no
-   vault.
+   ou de uma `CredencialAssinatura` no prompt. Isso vale independente de
+   onde o certificado/PIN/senha estejam custodiados (vault do Causor ou
+   vendor terceiro delegado).
 
 2. **Prazo é determinístico.** O LLM só diz os dias; a data fatal vem do
    `prazo_engine`. O prompt do redator proíbe recalcular. Nunca peça ao LLM

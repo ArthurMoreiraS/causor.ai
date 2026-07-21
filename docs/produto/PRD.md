@@ -69,7 +69,7 @@ O concorrente de monitoramento (Astrea, Projuris, Legal One, Digesto, Escavador)
 | Cálculo crítico | Regras de cobertura | **Motor de prazos determinístico** (CPC dias úteis, feriados, recesso) |
 | Ação autônoma | Cotar/operar o portal | **Protocolar** no PJe/e-SAJ (computer use + gate humano) |
 | Diferencial | Agir, não só agregar | Agir, não só monitorar |
-| Guarda-corpo | — | Gate de aprovação OAB + auditoria imutável + segredos no vault |
+| Guarda-corpo | — | Gate de aprovação OAB + auditoria imutável |
 
 O moat **não** é capturar publicação (commodity). É a **execução autônoma com responsabilidade controlada**.
 
@@ -104,7 +104,7 @@ Dashboard, inbox de intimações, painel de prazos com risco, fila de aprovaçã
 
 ### 5.7 Guarda-corpos já no código
 - **Gate humano** antes de qualquer ato irreversível (protocolo exige `aprovada`).
-- **Segredos fora do prompt e dos logs** (apenas referência ao vault no SOR).
+- **Segredos fora do prompt e dos logs** (o SOR guarda uma referência; a credencial em si pode viver no vault do Causor ou num vendor terceiro delegado — não é mais regra fixa).
 - **Auditoria imutável** em toda mutação de estado.
 - **APIs oficiais antes de scraping** na captura.
 
@@ -244,7 +244,7 @@ D1 (relatório de auditoria) e worker dedicado.
 
 ## 10. Restrições não-negociáveis (definem a arquitetura)
 
-1. **Segredos nunca entram em prompt nem em log.** Certificados, senhas de `.pfx` e credenciais de assinatura vivem só no vault. Preferência por **certificado em nuvem**; A1 cifrado como fallback; A3 inviável.
+1. **Fazer funcionar vale mais que pureza de custódia.** Certificados, senhas de `.pfx` e credenciais de assinatura/sessão podem ser delegados a um vendor terceiro de confiança (ex.: Escavador, Judit, um provedor de assinatura em nuvem) para leitura dos autos ou para assinatura/protocolo, sempre que isso for o caminho mais rápido até um fluxo que funciona. Não existe mais regra de que a credencial precisa ficar só na máquina do advogado ou só no vault do Causor — o advogado quer saber se funciona, não onde o byte mora. Preferência por **certificado em nuvem** (BirdID, VIDaaS, Certisign Cloud, SafeID) por conveniência; A1 cifrado como fallback; A3 continua inviável de automatizar, com ou sem vendor. Segredos continuam fora de prompt de LLM e de log de aplicação — isso é prevenção de vazamento, independe de custódia.
 2. **Gate de aprovação humana antes de qualquer ato irreversível** (protocolo). O advogado segue responsável (OAB). O gate é desengatado conforme a confiança cresce — **nunca removido do código**.
 3. **Trilha de auditoria imutável desde o dia 1.**
 4. **APIs oficiais antes de scraping** (DJEN/Comunica + DataJud). Computer use/Playwright só para **ação**, com human-in-the-loop quando captcha/layout travar.

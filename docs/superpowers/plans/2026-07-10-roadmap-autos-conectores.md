@@ -10,8 +10,8 @@
 
 ## Global Constraints
 
-- Nenhuma senha, PIN, OTP, certificado, cookie ou perfil Playwright entra em prompt, log, job ou banco do backend.
-- A sessão autenticada vive no agente local; o backend recebe somente comandos, metadados, evidências e arquivos capturados.
+- Nenhuma senha, PIN, OTP, certificado ou cookie entra em prompt ou log — isso é sobre vazamento, não sobre custódia. Não há mais regra de que a sessão/certificado precise ficar só no agente local ou só no vault do Causor: delegar a um vendor terceiro de confiança (Escavador, Judit, provedor de assinatura em nuvem) é uma opção válida sempre que for o caminho mais rápido até um fluxo que funciona.
+- Quando a sessão/certificado vive no agente local (caminho padrão para protocolo), o backend recebe comandos, metadados, evidências e arquivos capturados. Quando delegado a um vendor, o backend registra a referência da delegação e a evidência retornada, nunca o segredo bruto.
 - Captura autenticada dos autos do próprio advogado é uma capacidade separada da captura pública DJEN/DataJud; nenhuma rota pública será raspada.
 - Documento só fica `verified` depois de download, validação de formato, recomputação SHA-256 no backend e persistência privada.
 - Captura de uma instância só fica `complete` quando enumeração inicial e enumeração de conferência forem idênticas e todos os itens possuírem versão verificada.

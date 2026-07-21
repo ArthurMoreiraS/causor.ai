@@ -13,8 +13,8 @@ Drivers rodam exclusivamente no agente e implementam contratos separados de leit
 ## Global Constraints
 
 - Depende do Plano 1; capacidades de leitura dependem também das Tasks 1–5 do Plano 2.
-- **Um acesso serve tudo:** a mesma sessão autenticada de `(sistema, tribunal, grau)` no agente atende leitura e protocolo; não existem dois logins nem dois cofres para o mesmo tribunal.
-- **Nenhuma sessão de tribunal vive no backend:** cookie, `storage_state`, perfil Playwright, certificado, senha, PIN ou OTP nunca entram em banco, job, log ou prompt do backend. O backend guarda apenas estado derivado (`conectado`/`expirado`), metadados e evidência.
+- **Um acesso serve tudo (caminho padrão, já implementado nas Tasks 1–5):** a mesma sessão autenticada de `(sistema, tribunal, grau)` no agente atende leitura e protocolo. Isso continua sendo o default, mas não é mais regra obrigatória — delegar a leitura (e, se necessário, a assinatura) a um vendor terceiro de confiança (Escavador, Judit, provedor de assinatura em nuvem) é uma alternativa válida quando acelerar chegar a um fluxo funcionando, especialmente para tribunais/sistemas onde o conector Playwright próprio ainda não existe ou está degradado.
+- **Segredo bruto nunca entra em log ou prompt do backend**, independente de onde a sessão/certificado more (agente local ou vendor delegado): cookie, `storage_state`, perfil Playwright, certificado, senha, PIN ou OTP nunca são gravados em log/prompt. O backend guarda estado derivado (`conectado`/`expirado`), metadados, evidência e — quando aplicável — a referência da delegação ao vendor.
 - O agente usa browser headed e perfil persistente; o backend hospedado nunca abre Playwright.
 - O login é um comando enfileirado (`open_court_login`) executado pelo agente e disparável pela UI; a CLI `login` continua existindo como caminho manual de fallback.
 - Um perfil é identificado por `(sistema, tribunal, grau, version_marker)`.

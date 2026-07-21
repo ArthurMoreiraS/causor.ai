@@ -2,11 +2,20 @@
 
 Decisão, fluxo, assinatura e como testar o conector PJe do Causor.
 
+> **Política de custódia (atualizada):** a restrição de que sessão/senha/
+> certificado só podem viver no vault do Causor ou na máquina do advogado
+> foi removida (ver `AGENTS.md`, restrição não-negociável #1). Delegar a
+> um vendor terceiro de confiança (Escavador, Judit, provedor de assinatura
+> em nuvem) para leitura dos autos ou assinatura é uma opção válida. O
+> fluxo abaixo descreve o caminho local/vault, que continua sendo válido,
+> mas não é mais a única forma permitida.
+
 ## Decisão
 
-O Causor não guarda senha do PJe. O advogado autentica no PJe em uma sessão
-assistida; o sistema guarda apenas o estado de sessão/cookies ou token de
-provedor em vault criptografado.
+O Causor não guarda senha do PJe em texto claro. O advogado autentica no PJe
+em uma sessão assistida; o sistema guarda o estado de sessão/cookies ou token
+de provedor em vault criptografado, ou delega a um vendor terceiro quando
+isso for o caminho mais rápido até um fluxo funcionando.
 
 Em produção, configure:
 
@@ -190,8 +199,8 @@ nosso software executa o fluxo de navegador esperado ate o gate seguro.
 
 ## O que nao fazer
 
-- Nao guardar login/senha do PJe no Causor.
-- Nao guardar certificado, `.pfx`, chave privada ou OTP.
+- Nao gravar senha/certificado/`.pfx`/chave privada/OTP em log ou prompt de
+  LLM, esteja a credencial no vault do Causor ou num vendor delegado.
 - Nao burlar captcha.
 - Nao assinar nem protocolar sem gate humano.
 - Nao implementar varios tribunais ao mesmo tempo.
