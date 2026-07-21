@@ -206,6 +206,47 @@ def process_due_purges(session_factory) -> int:
         processed += 1
 
 
+def claim_due_mni_captures(session: Session, *, limit: int = 10) -> list[models.JobExecucao]:
+    stmt = (
+        select(models.JobExecucao)
+        .where(
+            models.JobExecucao.tipo == "mni_capture",
+            models.JobExecucao.status == "queued",
+        )
+        .order_by(models.JobExecucao.id)
+        .limit(limit)
+        .with_for_update(skip_locked=True)
+    )
+    jobs = list(session.scalars(stmt))
+    for job in jobs:
+        job.status = "running"
+    session.flush()
+    return jobs
+
+
+def process_due_mni_captures(session_factory) -> int:
+    """Drena jobs `mni_capture`. Retorna a contagem processada."""
+    from app.connectors.mni.executor import run_mni_capture_job
+
+    processed = 0
+    while True:
+        with session_factory() as session:
+            jobs = claim_due_mni_captures(session, limit=1)
+            if not jobs:
+                return processed
+            job = jobs[0]
+            capture_id = (job.payload or {}).get("capture_id")
+            try:
+                capture = run_mni_capture_job(session, capture_id=capture_id)
+                job.status = "completed"
+                job.resultado = {"capture_id": capture_id, "status": capture.status}
+            except Exception as exc:  # noqa: BLE001 - falha vira estado observável
+                job.status = "failed"
+                job.erro = str(getattr(exc, "code", exc))[:500]
+            session.commit()
+        processed += 1
+
+
 def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[models.JobExecucao]:
     stmt = (
         select(models.JobExecucao)

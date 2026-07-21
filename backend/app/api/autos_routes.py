@@ -47,6 +47,7 @@ class CapturaOut(BaseModel):
     error_code: str | None
     started_at: datetime | None
     completed_at: datetime | None
+    fonte: str = "agente"
 
 
 class InstanciaStatusOut(BaseModel):

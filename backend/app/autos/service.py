@@ -57,14 +57,35 @@ def _transition(capture: models.CapturaAutos, new_status: str) -> None:
     capture.status = new_status
 
 
+def resolve_capture_fonte(
+    session: Session, instancia: models.ProcessoInstancia
+) -> str:
+    """MNI quando ha credencial ativa + perfil para a rota; senao agente."""
+    from app.connectors.mni.credentials import find_active_credencial
+    from app.connectors.mni.profiles import resolve_mni_profile
+
+    if resolve_mni_profile(instancia.tribunal, instancia.grau) is None:
+        return "agente"
+    credencial = find_active_credencial(
+        session, escritorio_id=instancia.escritorio_id, tribunal=instancia.tribunal
+    )
+    return "mni" if credencial is not None else "agente"
+
+
 def open_capture(
     session: Session,
     *,
     processo_instancia: models.ProcessoInstancia,
     usuario_id: int | None,
+    fonte: str | None = None,
 ) -> models.CapturaAutos:
-    """Abre uma nova geração de captura e publica o comando para o agente."""
+    """Abre uma nova geração de captura e publica o trabalho na fonte certa.
+
+    ``fonte="mni"`` roda in-backend num job persistente; ``"agente"`` mantém
+    o comando enfileirado para o agente local.
+    """
     processo = session.get(models.Processo, processo_instancia.processo_id)
+    resolved = fonte or resolve_capture_fonte(session, processo_instancia)
     latest = session.scalar(
         select(func.max(models.CapturaAutos.generation)).where(
             models.CapturaAutos.processo_instancia_id == processo_instancia.id
@@ -76,27 +97,40 @@ def open_capture(
         generation=(latest or 0) + 1,
         status="queued",
         started_at=_now(),
+        fonte=resolved,
     )
     session.add(capture)
     session.flush()
 
-    command = enqueue_command(
-        session,
-        escritorio_id=processo_instancia.escritorio_id,
-        usuario_id=usuario_id,
-        tipo="read_process",
-        idempotency_key=f"capture:{processo_instancia.id}:manifest:{capture.generation}",
-        payload={
-            "capture_id": capture.id,
-            "processo_instancia_id": processo_instancia.id,
-            "sistema": processo_instancia.sistema,
-            "tribunal": processo_instancia.tribunal,
-            "grau": processo_instancia.grau,
-            "numero_processo": processo.numero if processo else None,
-            "url_base": processo_instancia.url_base,
-        },
-    )
-    capture.agent_command_id = command.id
+    if resolved == "mni":
+        from app.queue.jobs import create_job
+
+        create_job(
+            session,
+            tipo="mni_capture",
+            entidade="captura_autos",
+            entidade_id=capture.id,
+            payload={"capture_id": capture.id, "escritorio_id": capture.escritorio_id},
+            ator=f"usuario:{usuario_id}" if usuario_id else "system",
+        )
+    else:
+        command = enqueue_command(
+            session,
+            escritorio_id=processo_instancia.escritorio_id,
+            usuario_id=usuario_id,
+            tipo="read_process",
+            idempotency_key=f"capture:{processo_instancia.id}:manifest:{capture.generation}",
+            payload={
+                "capture_id": capture.id,
+                "processo_instancia_id": processo_instancia.id,
+                "sistema": processo_instancia.sistema,
+                "tribunal": processo_instancia.tribunal,
+                "grau": processo_instancia.grau,
+                "numero_processo": processo.numero if processo else None,
+                "url_base": processo_instancia.url_base,
+            },
+        )
+        capture.agent_command_id = command.id
     session.flush()
     return capture
 

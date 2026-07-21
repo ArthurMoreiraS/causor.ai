@@ -205,15 +205,23 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.command == "process-autos-due":
-        from app.autos.worker import process_due_documents, process_due_purges
+        from app.autos.worker import (
+            process_due_documents,
+            process_due_mni_captures,
+            process_due_purges,
+        )
 
+        mni = process_due_mni_captures(SessionLocal)
         processed = process_due_documents(
             SessionLocal,
             max_attempts=args.max_attempts,
             backoff_seconds=args.backoff_seconds,
         )
         purged = process_due_purges(SessionLocal)
-        print(f"process-autos-due: {processed} extração(ões), {purged} purge(s).")
+        print(
+            f"process-autos-due: {mni} captura(s) MNI, {processed} extração(ões), "
+            f"{purged} purge(s)."
+        )
         return 0
 
     if args.command == "seed-demo":
