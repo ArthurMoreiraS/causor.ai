@@ -145,6 +145,8 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
                   {" "}
                   — {instancia.captura.status}
                   {" · "}
+                  {instancia.captura.fonte === "mni" ? "via MNI (oficial)" : "via agente local"}
+                  {" · "}
                   {instancia.captura.captured_count}/{instancia.captura.expected_count} documentos
                   {instancia.captura.error_code ? ` · motivo: ${instancia.captura.error_code}` : ""}
                   {instancia.captura.completed_at
