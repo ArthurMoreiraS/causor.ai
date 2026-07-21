@@ -214,6 +214,57 @@ Enquanto o ofício tramita, nada fica parado: o caminho do agente local
 continua funcionando como está, e o roadmap de conectores (Tasks 6–9) segue
 válido como fallback para tribunais onde o MNI não entregar.
 
+## 9. Rodada final: unificação dos fluxos e conserto do branding
+
+Depois do relatório inicial, duas perguntas do usuário geraram a última
+rodada de trabalho: *"é correto ter as duas partes (agente + MNI)? O MNI
+conversa com os fluxos Playwright?"* — e um screenshot mostrando que o
+painel de contexto não seguia o visual do software.
+
+### O MNI conversa com o Playwright? (auditoria dos 5 pontos de encontro)
+
+| Ponto | Conversam? | Detalhe |
+|---|---|---|
+| Contrato de leitura | ✅ | Ambos implementam o mesmo `CourtReaderDriver`; o pipeline de integridade não sabe qual fonte o alimentou |
+| Roteamento da captura | ✅ | Um decisor só (`resolve_capture_fonte`): MNI se há credencial+perfil, senão agente. Nunca captura duplicada |
+| Sessão | ✅ | Agente usa login no portal; MNI usa credencial do vault. Independentes |
+| Protocolo | ✅ | Hoje só o agente protocola; MNI não interfere |
+| Assistente JIT | ❌ **era o furo** | Pedia "parear computador → logar no portal" mesmo quando o MNI capturaria sozinho no servidor |
+
+### O que foi corrigido
+
+1. **Assistente JIT ciente do MNI** (`connectors/assistant.py`): com
+   credencial ativa para a rota, "Gerar minuta" vai direto ao passo de
+   captura — nunca mais pede pareamento ou login à toa. Essa era a única
+   repetição real entre os dois fluxos.
+2. **Configurações unificadas em um card só** ("Acesso aos tribunais"): uma
+   explicação de uma frase — o Causor escolhe o melhor caminho
+   automaticamente por processo — com dois sub-blocos: "Credencial oficial
+   do tribunal (recomendada)" e "Computador do advogado" (protocolo +
+   tribunais sem credencial). O formulário de cadastro (tribunal, id,
+   senha) ficou **colapsado** atrás de "Conectar novo tribunal": o advogado
+   vê só a lista de tribunais conectados.
+3. **Branding do painel de contexto**: a vistoria revelou que o painel
+   inteiro (de uma sessão anterior) havia sido commitado **sem CSS nenhum**
+   — `contextStatus`, `contextActions` e até o `primaryButton` do "Gerar
+   minuta" não existiam no stylesheet, por isso os botões crus do
+   screenshot. Escrito o bloco completo nos tokens do design system:
+   cabeçalho mono em caixa alta, cards com hairline, selos `pill`
+   "OFICIAL (MNI)" / "AGENTE LOCAL", botão primário preto.
+4. **Erros crus eliminados**: o `{}` vermelho era corpo de resposta HTTP
+   renderizado sem filtro; agora qualquer mensagem ilegível vira frase
+   humana ("Falha ao carregar status dos autos").
+
+### Verificação
+
+Backend **451 testes** + ruff limpo; frontend **45 testes** + typecheck +
+build; e **verificação visual no app real** (rede interceptada, sem tocar
+Supabase): card de Configurações e painel de contexto conferidos em
+screenshot, já no visual correto.
+
+Lição registrada: mudança de UI passa a exigir verificação visual no app
+real — teste unitário não pega classe CSS inexistente.
+
 ---
 
 ## Apêndice: commits desta sessão (todos na `main`, publicados)
@@ -232,5 +283,7 @@ válido como fallback para tribunais onde o MNI não entregar.
 | `618441b` | Simulador SOAP sanitizado + teste ponta a ponta |
 | `c01c5fe` | UI de credenciais MNI nas Configurações |
 | `76df384` | Teste live opt-in + docs de estado |
-| (badge) | Selo "via MNI / via agente" no painel de contexto |
-| (vistoria) | Fecha caminho morto de navegador no backend + consertos no protocolo |
+| `5561b06` | Selo de fonte da captura no painel de contexto |
+| `194f180` | Vistoria: fecha caminho morto de navegador no backend + consertos no protocolo |
+| `2c9b062` | Este relatório |
+| `0a62f1c` | Unificação dos fluxos de acesso + branding do painel de contexto |
