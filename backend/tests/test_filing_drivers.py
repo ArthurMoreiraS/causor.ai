@@ -42,6 +42,10 @@ def test_real_mode_rejects_system_without_driver():
         get_filing_driver("e-SAJ", mode="real")
 
 
-def test_real_mode_pje_returns_pje_driver():
-    driver = get_filing_driver("PJe", mode="real")
-    assert driver.sistema == "PJe"
+def test_real_mode_never_returns_in_backend_browser_driver():
+    # Modo real roda no agente local (jobs.py despacha prepare_filing antes de
+    # chegar aqui). O antigo PjeDriver in-process exigia storage_state, cuja
+    # única fonte (cofre de sessão) foi removida — devolvê-lo seria uma porta
+    # falsa. Fail-closed para todos os sistemas.
+    with pytest.raises(UnsupportedFilingSystemError):
+        get_filing_driver("PJe", mode="real")

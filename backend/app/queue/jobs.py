@@ -585,7 +585,9 @@ def run_pje_protocol_job(
         ensure_processo_enriched(session, processo, datajud=datajud)
 
     # Roteamento: processo -> (tribunal, grau) -> sistema -> driver.
-    grau = (getattr(processo, "grau", None) or "1")
+    # Protocolo intermediário entra no 1º grau; a escolha da instância (2º
+    # grau/recursal) é decisão de produto futura e virá do ProcessoInstancia.
+    grau = "1"
     route = resolve_route(processo.tribunal, grau)
     sistema = processo.sistema or (route.sistema if route is not None else None) or "PJe"
     mode = filing_mode or settings.filing_mode
@@ -719,14 +721,14 @@ def run_pje_protocol_job(
     evidence["handoff"] = asdict(handoff)
     resultado = {
         "peticao_id": peticao.id,
-        "sistema": "PJe",
+        "sistema": sistema,
         "modo": checkpoint.modo,
         "checkpoint": "ready_to_sign",
         "estado": "signature_required",
         "irreversible": False,
         "evidence": evidence,
     }
-    # No modo submit, ready_to_sign significa que o conectorNao conseguiu
+    # No modo submit, ready_to_sign significa que o conector não conseguiu
     # concluir o envio (ex.: assinatura_pendente_pjeoffice). A peticao volta
     # para aprovada — o advogado confirma a assinatura manual e registra.
     if submit:
