@@ -5319,3 +5319,115 @@ textarea:focus {
   display: flex;
   justify-content: flex-end;
 }
+
+/* ---- Painel de contexto dos autos (ProcessContextStatus) ---- */
+
+.contextStatus {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-top: 0;
+  border-radius: 0 0 10px 10px;
+  background: var(--panel-soft);
+  font-size: 12.5px;
+}
+
+.contextStatus > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.contextStatus > header strong {
+  display: inline-flex;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.contextInstances {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.contextInstances li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.contextInstances li strong {
+  font-size: 12px;
+}
+
+.contextMeta {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.contextPending {
+  margin: 0;
+  color: var(--risk);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.contextActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.contextBlockedReason {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.contextOverride {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.contextOverrideWarning {
+  margin: 0;
+  color: var(--risk);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.contextOverride textarea {
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background: var(--panel);
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+
+.contextOverride > div {
+  display: flex;
+  gap: 8px;
+}

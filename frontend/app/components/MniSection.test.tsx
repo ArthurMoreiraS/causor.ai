@@ -34,10 +34,13 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-test("lista credenciais mascaradas", async () => {
+test("lista credenciais mascaradas com o form de cadastro colapsado", async () => {
   render(<MniSection offline={false} />);
   expect(await screen.findByText("TJMG")).toBeInTheDocument();
   expect(screen.getByText("123***")).toBeInTheDocument();
+  // Simplicidade para o advogado: o form só aparece ao pedir para conectar.
+  expect(screen.queryByLabelText(/senha/i)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: /conectar novo tribunal/i }));
   expect(screen.getByLabelText(/senha/i)).toBeInTheDocument();
 });
 
@@ -51,7 +54,8 @@ test("cadastra credencial nova e recarrega a lista", async () => {
   });
   render(<MniSection offline={false} />);
   await screen.findByText("TJMG");
-  fireEvent.change(screen.getByLabelText(/tribunal/i), { target: { value: "TJBA" } });
+  fireEvent.click(screen.getByRole("button", { name: /conectar novo tribunal/i }));
+  fireEvent.change(screen.getByLabelText(/tribunal$/i), { target: { value: "TJBA" } });
   fireEvent.change(screen.getByLabelText(/consultante/i), {
     target: { value: "98765432100" }
   });

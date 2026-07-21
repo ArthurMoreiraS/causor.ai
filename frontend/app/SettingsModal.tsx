@@ -418,8 +418,17 @@ export default function SettingsModal({
           </div>
 
           <div className="settingsColumn">
-            <AgentSection offline={offline} />
-            <MniSection offline={offline} />
+            <div className="settingsGroup">
+              <span className="settingsLabel">Acesso aos tribunais</span>
+              <small className="settingsHint">
+                O Causor acessa cada tribunal pelo melhor caminho disponível,
+                escolhido automaticamente por processo: a credencial oficial
+                (roda sozinha no servidor) ou o computador pareado do advogado
+                (necessário para o protocolo e para tribunais sem credencial).
+              </small>
+              <MniSection offline={offline} />
+              <AgentSection offline={offline} />
+            </div>
             <VaultSection offline={offline} />
 
             <div className="settingsGroup">

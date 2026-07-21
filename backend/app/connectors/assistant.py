@@ -56,6 +56,16 @@ def resolve_next_step(
     rota = route_for(processo, grau)
     if context_ready:
         return None, rota
+    # Rota coberta por credencial MNI ativa: a captura roda no servidor, sem
+    # agente nem login de portal — pedir pareamento aqui seria trabalho à toa
+    # para o advogado. Vai direto ao passo de capturar.
+    from app.connectors.mni.credentials import find_active_credencial
+    from app.connectors.mni.profiles import resolve_mni_profile
+
+    if resolve_mni_profile(rota["tribunal"], grau) is not None and find_active_credencial(
+        session, escritorio_id=processo.escritorio_id, tribunal=rota["tribunal"]
+    ) is not None:
+        return "capture_autos", rota
     if not has_online_agent(session, processo.escritorio_id):
         return "pair_agent", rota
     state = court_sessions.session_state_for(

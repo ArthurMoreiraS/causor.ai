@@ -53,12 +53,20 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
   const [overrideOk, setOverrideOk] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
 
+  // Mensagens de erro cruas (corpo JSON, vazio ou "{}") não ajudam o
+  // advogado — cai numa frase humana e deixa o detalhe pro console.
+  function humanError(err: unknown, fallback: string): string {
+    const raw = err instanceof Error ? err.message.trim() : "";
+    if (!raw || raw.startsWith("{") || raw.startsWith("[")) return fallback;
+    return raw;
+  }
+
   async function reload() {
     try {
       setStatus(await statusAutos(processoId));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar status dos autos");
+      setError(humanError(err, "Falha ao carregar status dos autos"));
     } finally {
       setLoading(false);
     }
@@ -75,7 +83,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
       await capturarAutos(processoId);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao iniciar captura");
+      setError(humanError(err, "Falha ao iniciar captura"));
     } finally {
       setBusy(null);
     }
@@ -88,7 +96,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
       setOverrideOk(true);
       setShowOverride(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao registrar liberação");
+      setError(humanError(err, "Falha ao registrar liberação"));
     } finally {
       setBusy(null);
     }
@@ -141,20 +149,29 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
                 {instancia.sistema} · {instancia.tribunal} · {instancia.grau}º grau
               </strong>
               {instancia.captura ? (
-                <span className="contextMeta">
-                  {" "}
-                  — {instancia.captura.status}
-                  {" · "}
-                  {instancia.captura.fonte === "mni" ? "via MNI (oficial)" : "via agente local"}
-                  {" · "}
-                  {instancia.captura.captured_count}/{instancia.captura.expected_count} documentos
-                  {instancia.captura.error_code ? ` · motivo: ${instancia.captura.error_code}` : ""}
-                  {instancia.captura.completed_at
-                    ? ` · em ${new Date(instancia.captura.completed_at).toLocaleString("pt-BR")}`
-                    : ""}
-                </span>
+                <>
+                  <span
+                    className="pill"
+                    title={
+                      instancia.captura.fonte === "mni"
+                        ? "Capturado pelo webservice oficial do tribunal (MNI), direto no servidor"
+                        : "Capturado pelo computador pareado do advogado"
+                    }
+                  >
+                    {instancia.captura.fonte === "mni" ? "Oficial (MNI)" : "Agente local"}
+                  </span>
+                  <span className="contextMeta">
+                    {instancia.captura.status}
+                    {" · "}
+                    {instancia.captura.captured_count}/{instancia.captura.expected_count} documentos
+                    {instancia.captura.error_code ? ` · motivo: ${instancia.captura.error_code}` : ""}
+                    {instancia.captura.completed_at
+                      ? ` · em ${new Date(instancia.captura.completed_at).toLocaleString("pt-BR")}`
+                      : ""}
+                  </span>
+                </>
               ) : (
-                <span className="contextMeta"> — sem captura</span>
+                <span className="contextMeta">sem captura</span>
               )}
             </li>
           ))}
@@ -174,7 +191,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
           {uiState === "not_captured" ? "Capturar autos" : "Retentar pendências"}
         </button>
         <button
-          className="primaryButton compact"
+          className="toolbarButton primary compact"
           onClick={() => {
             if (blocked && !overrideOk) setShowWizard(true);
           }}
