@@ -98,3 +98,11 @@ class SystemMigrated(ConnectorError):
     def __init__(self, target_system: str, safe_detail: str | None = None):
         self.target_system = target_system
         super().__init__(safe_detail or f"processo migrou para {target_system}")
+
+
+class MniUnavailable(ConnectorError):
+    """Endpoint MNI fora do ar ou instável; retry automático é seguro."""
+
+    code = "mni_unavailable"
+    retryable = True
+    requires_human = False

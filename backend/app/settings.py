@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     document_processing_attempts: int = 3
     document_processing_concurrency: int = 1
 
+    # Consulta oficial MNI (SOAP consultarProcesso) rodando no backend.
+    mni_timeout_seconds: float = 60.0  # timeout por chamada SOAP ao MNI
+    mni_download_batch: int = 5  # documentos por chamada de conteudo
+
     # Gate fail-closed do contexto: minuta/protocolo exigem ContextoProcesso
     # ready com fingerprint atual e não mais velho que esta janela (a menos
     # que nada novo tenha chegado do tribunal desde então).
