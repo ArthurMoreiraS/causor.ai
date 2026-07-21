@@ -448,10 +448,38 @@ class CapturaAutos(TimestampMixin, Base):
     evidence: Mapped[dict | None] = mapped_column(JSON)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Quem executa a captura: "agente" (comando ao agente local) ou "mni"
+    # (executor in-backend via webservice oficial).
+    fonte: Mapped[str] = mapped_column(String(10), nullable=False, default="agente")
 
     items: Mapped[list[ManifestoItem]] = relationship(
         back_populates="captura", cascade="all, delete-orphan"
     )
+
+
+class MniCredencial(TimestampMixin, Base):
+    """Credencial de consulta MNI por (escritorio, tribunal).
+
+    A senha vive no vault; aqui fica somente a referência. O mesmo
+    credenciamento cobre 1º/2º grau — o endpoint por grau vem do perfil em
+    ``connectors/mni/profiles.py``.
+    """
+
+    __tablename__ = "mni_credencial"
+    __table_args__ = (
+        UniqueConstraint("escritorio_id", "tribunal", name="uq_mni_credencial_tribunal"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    tribunal: Mapped[str] = mapped_column(String(50), nullable=False)
+    id_consultante: Mapped[str] = mapped_column(String(120), nullable=False)
+    referencia_vault: Mapped[str] = mapped_column(String(255), nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_validated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_usuario_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id"))
 
 
 class DocumentoArquivo(TimestampMixin, Base):
