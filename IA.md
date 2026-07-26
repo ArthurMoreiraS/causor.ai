@@ -154,8 +154,8 @@ Modelos Claude por tarefa (afinados para custo/benefício):
 |---|---|---|
 | `claude_chat_model` | `claude-haiku-4-5` | Chat agentic (barato, rápido). |
 | `claude_classification_model` | `claude-haiku-4-5` | Classificar intimação (barato). |
-| `claude_draft_model` | `claude-sonnet-4-6` | Redigir minuta (qualidade jurídica). |
-| `claude_model` | `claude-sonnet-4-6` | Fallback geral. |
+| `claude_draft_model` | `claude-sonnet-5` | Redigir minuta (qualidade jurídica). |
+| `claude_model` | `claude-sonnet-5` | Fallback geral. |
 
 > Os modelos `claude_*` só são lidos pelo `ClaudeProvider`. No modo
 > `openai_compat`, todo o pipeline usa **um único** `CAUSOR_LLM_MODEL`

@@ -22,7 +22,7 @@ def instancia_tjmg(db_session, seeded):
     processo = models.Processo(
         escritorio_id=seeded.escritorio_id,
         numero="0000000-00.2026.8.13.0000",
-        tribunal="TJMG",
+        tribunal="TRF5",
         sistema="PJe",
     )
     db_session.add(processo)
@@ -31,7 +31,7 @@ def instancia_tjmg(db_session, seeded):
         processo_id=processo.id,
         escritorio_id=seeded.escritorio_id,
         sistema="PJe",
-        tribunal="TJMG",
+        tribunal="TRF5",
         grau="1",
         status="active",
     )
@@ -51,7 +51,7 @@ def test_open_capture_sem_credencial_usa_agente(db_session, seeded, instancia_tj
 def test_open_capture_com_credencial_enfileira_job_mni(db_session, seeded, instancia_tjmg):
     mni_credentials.store_mni_credencial(
         db_session, escritorio_id=seeded.escritorio_id, usuario_id=_usuario_id(db_session),
-        tribunal="TJMG", id_consultante="123", senha="s",
+        tribunal="TRF5", id_consultante="123", senha="s",
     )
     capture = autos_service.open_capture(
         db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)
@@ -102,7 +102,7 @@ def test_executor_completa_captura_com_prova_de_integridade(
 ):
     mni_credentials.store_mni_credencial(
         db_session, escritorio_id=seeded.escritorio_id, usuario_id=_usuario_id(db_session),
-        tribunal="TJMG", id_consultante="123", senha="s",
+        tribunal="TRF5", id_consultante="123", senha="s",
     )
     capture = autos_service.open_capture(
         db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)
@@ -127,7 +127,7 @@ def test_executor_marca_failed_em_erro_canonico(db_session, seeded, instancia_tj
 
     mni_credentials.store_mni_credencial(
         db_session, escritorio_id=seeded.escritorio_id, usuario_id=_usuario_id(db_session),
-        tribunal="TJMG", id_consultante="123", senha="s",
+        tribunal="TRF5", id_consultante="123", senha="s",
     )
     capture = autos_service.open_capture(
         db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)

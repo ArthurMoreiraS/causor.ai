@@ -12,3 +12,9 @@ A pasta `superpowers/` contém:
 
 - `plans/` — planos de implementação por data.
 - `specs/` — documentos de design por data.
+
+Registros de sessão (a narrativa e o **porquê** das decisões; o resultado
+técnico vive em `../areas/`):
+
+- [`2026-07-21-22-sessao-mni.md`](2026-07-21-22-sessao-mni.md) — adoção do
+  canal oficial MNI e a repriorização das Tasks 6–9 do Plano 3.

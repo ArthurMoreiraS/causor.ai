@@ -6,14 +6,34 @@
 **Produto:** Causor — Agente Operacional Jurídico
 **Categoria:** SaaS vertical de IA + automação ("computer use") para operação processual no Brasil
 **Análogo de referência:** [Handle.ai](https://usehandle.ai) (agentes que operam portais fragmentados e automatizam o back-office de seguros) — transposto para o jurídico brasileiro.
-**Documento:** PRD vivo. Versão 0.3 — 07/07/2026.
-**Status do produto:** MVP pronto para validação operacional local. A fatia
-*captura → prazo → minuta → aprovação → protocolo assistido* existe; o envio
-final ainda é realizado pelo advogado no PJe/PJeOffice. Desde a v0.2: reforma
-visual do frontend na linha do Handle.ai (paleta monocromática, tabelas
-hairline) — mudança de apresentação, sem alteração de escopo ou
-comportamento. O switch de provedor de LLM (`CAUSOR_LLM_PROVIDER`) existe no
-código, mas não é a prática de teste adotada — testes também rodam com
+**Documento:** PRD vivo. Versão 0.4 — 22/07/2026.
+**Status do produto:** MVP com a fatia *captura → prazo → minuta → aprovação →
+protocolo assistido* pronta e três avanços estruturais desde a v0.3:
+
+1. **Arquitetura de agente local** (Plano 1 concluído): o backend hospedado
+   **não abre mais navegador de tribunal**. Quem executa a automação
+   (Playwright) é um agente pareado na máquina Windows do advogado, com a
+   credencial dele e perfis persistentes por (sistema, tribunal, grau). Separa
+   o dado sensível da nuvem e alinha com a responsabilidade OAB.
+2. **Leitura íntegra dos autos + contexto citado + gate fail-closed** (Plano 2
+   concluído): captura do processo inteiro com **prova de completude**
+   (enumeração dupla + fingerprint SHA-256, versões imutáveis por hash),
+   OCR por página, trechos citáveis e resumo com **citações verificadas**. A
+   minuta e o protocolo **bloqueiam (HTTP 409)** sem um dossiê "ready"; o
+   override do advogado é de uso único, expira em 30 min, exige justificativa
+   e gera auditoria. O drafter passou a receber os autos com rótulos
+   `[DOC-N p.M]` — não só o teor da intimação.
+3. **Canal oficial MNI** (Modelo Nacional de Interoperabilidade do CNJ,
+   2026-07-21): cliente SOAP que lê os autos (`consultarProcesso`) e pode
+   **protocolar** (`entregarManifestacaoProcessual`) direto no tribunal usando
+   o cadastro do advogado como assinatura eletrônica válida (Lei 11.419/2006
+   art. 1º §2º III) — potencial atalho para dispensar PJeOffice/certificado.
+   14 perfis (tribunal, grau) verificados por varredura; falta só o credenciamento (ofício
+   gratuito à DTI do tribunal).
+
+O envio final em produção ainda é confirmado pelo advogado enquanto os
+conectores reais não são homologados. O switch de provedor de LLM
+(`CAUSOR_LLM_PROVIDER`) existe no código, mas testes e produção rodam com
 Claude (ver 5.4).
 
 > Este PRD descreve a direção estratégica. O estado implementado e a ordem de
@@ -65,13 +85,39 @@ O concorrente de monitoramento (Astrea, Projuris, Legal One, Digesto, Escavador)
 | Eixo | Handle.ai (seguros) | Causor (jurídico) |
 |---|---|---|
 | System of Record | Unifica apólices/sinistros de 100+ portais | Unifica processos/prazos/andamentos de múltiplos tribunais |
-| Captura | Portais de seguradoras | **APIs oficiais** DJEN/Comunica + DataJud (sem scraping) |
+| Captura | Portais de seguradoras | **APIs oficiais** DJEN/Comunica + DataJud + **MNI** (autos); agente local como fallback (sem scraping em massa) |
+| Completude | — | **Prova de integridade** dos autos (enumeração dupla + SHA-256 + gate fail-closed) |
 | Cálculo crítico | Regras de cobertura | **Motor de prazos determinístico** (CPC dias úteis, feriados, recesso) |
-| Ação autônoma | Cotar/operar o portal | **Protocolar** no PJe/e-SAJ (computer use + gate humano) |
+| Ação autônoma | Cotar/operar o portal | **Protocolar** via MNI ou agente local (computer use + gate humano) |
 | Diferencial | Agir, não só agregar | Agir, não só monitorar |
 | Guarda-corpo | — | Gate de aprovação OAB + auditoria imutável |
 
-O moat **não** é capturar publicação (commodity). É a **execução autônoma com responsabilidade controlada**.
+O moat **não** é capturar publicação (commodity). É a **execução autônoma com
+responsabilidade controlada** — e, no acesso aos autos, a **prova de que o
+conjunto veio inteiro**.
+
+### 4.1 Leitura competitiva: Enter / Judit (mercado brasileiro)
+
+A **Enter** virou o primeiro unicórnio de IA jurídica do Brasil (rodada de
+~R$ 500 mi, maio/2026) **comprando** a camada de dados da **Judit** e vendendo
+inteligência em cima. Isso confirma que o valor **não** está em capturar
+processo — é commodity. Mas a Enter atende contencioso de massa do **lado do
+réu** (Bradesco, Nubank, Itaú, Mercado Livre): clientes com ERP jurídico
+próprio, para quem os autos do tribunal **não são a única fonte**, e que
+toleram 2% de captura incompleta como ruído estatístico.
+
+O ICP do Causor é o oposto: o escritório pequeno **só tem** os autos do
+tribunal, **não tolera** captura incompleta (falta uma peça = minuta errada =
+prazo perdido = *malpractice*) e precisa que alguém **protocole**, não que
+avise. Dois buracos que nenhum vendor de dados (Judit, Escavador, Digesto)
+vende — **garantia de completude** e **protocolo** — são exatamente o Causor.
+Detalhe em [`docs/areas/acesso-aos-autos-mercado.md`](../areas/acesso-aos-autos-mercado.md).
+
+**Escada de acesso aos autos** (melhor → fallback): **(1) MNI** — oficial,
+gratuito, padronizado pelo CNJ, lê *e* protocola; custo é um ofício. **(2)
+Agente local** — máquina pareada do advogado, cobre tribunal sem MNI e
+protocola hoje. **(3) Vendor pago** — só se um tribunal falhar nos dois
+caminhos acima e o cliente justificar o custo; nunca como base da arquitetura.
 
 ---
 
@@ -89,6 +135,36 @@ Cálculo **determinístico** (`compute_deadline` sobre `ForensicCalendar`): cont
 
 ### 5.3 Captura (`backend/app/capture`) — ✅ pronto (APIs oficiais)
 Clientes **DJEN/Comunica** (intimações) e **DataJud** (metadados/andamentos), normalização e orquestração `poll_oab` (captura por OAB/UF, dedupe por `fonte/fonte_id`, vincula processo, dispara cálculo de prazo). Testes de integração ao vivo opt-in (`RUN_LIVE=1`).
+
+### 5.3.1 Leitura íntegra dos autos + contexto citado (`backend/app/autos`, `backend/app/context`) — ✅ pronto (Plano 2)
+Captura do **processo inteiro** com **prova de completude**: enumeração
+inicial/final com fingerprint SHA-256, versões imutáveis por hash, HTML
+disfarçado de PDF rejeitado por magic bytes; só marca `complete` com
+enumerações idênticas e todo item verificado. Extração de texto por página com
+OCR (Tesseract `por`) apenas onde não há camada textual; trechos citáveis
+(chunks por página) com busca lexical (FTS português no Postgres); resumo
+estruturado por documento com **citações verificadas** contra os chunks (quote
+inventado marca o resumo `failed`). O `ContextoProcesso` só fica `ready` com
+1º e 2º grau completos (ou `not_applicable` com evidência) + 100% dos arquivos
+extraídos e resumidos; o drafter recebe inventário + excertos rotulados
+`[DOC-N p.M]`. **Gate fail-closed:** minuta e protocolo retornam **HTTP 409**
+sem contexto `ready`/atual; override do advogado é de uso único, expira em
+30 min, exige justificativa (20–1000 chars) e gera auditoria.
+
+### 5.3.2 Canal oficial MNI (`backend/app/connectors/mni`) — ✅ pronto; ⛔ live bloqueado no credenciamento
+Cliente SOAP próprio (httpx + lxml, sem zeep) para o **Modelo Nacional de
+Interoperabilidade** do CNJ (v2.2.2), com perfis de endpoint por tribunal/grau
+**fail-closed** e segredos leak-safe. Lê os autos (`consultarProcesso`,
+`incluirDocumentos=true`) pelo mesmo pipeline de integridade da 5.3.1, roteado
+por `CapturaAutos.fonte` ("mni" | "agente"). A operação
+`entregarManifestacaoProcessual` permite **protocolar direto no tribunal**
+usando o cadastro do advogado como assinatura eletrônica válida
+(Lei 11.419/2006 art. 1º §2º III) — potencial atalho para dispensar
+PJeOffice/certificado, a confirmar por tribunal no credenciamento. Varredura de
+2026-07-22 confirmou **14 perfis (tribunal, grau)** em 9 tribunais (TJs estaduais + TRF5/TRF6). Falta só o
+**credenciamento** (ofício gratuito à DTI); com `RUN_MNI_LIVE=1` verde, o
+roteamento escolhe `fonte="mni"` sozinho. Detalhe em
+[`docs/areas/mni-credenciamento.md`](../areas/mni-credenciamento.md).
 
 ### 5.4 Camada de agente (`backend/app/agent`) — ✅ parcial
 - **Classificador** (`claude-haiku-4-5`, structured output): interpreta o teor da intimação → tipo do ato, peça cabível, prazo em dias, dias úteis vs. corridos, confiança. O **cálculo da data continua determinístico**.
@@ -108,14 +184,35 @@ Dashboard, inbox de intimações, painel de prazos com risco, fila de aprovaçã
 - **Auditoria imutável** em toda mutação de estado.
 - **APIs oficiais antes de scraping** na captura.
 
-### 5.8 O que ainda **não** existe
-- Conector PJe validado em um tribunal real até a tela de assinatura.
-- Assinatura e envio automáticos por certificado em nuvem.
-- Worker dedicado (Celery/RQ ou equivalente); os jobs persistem no SOR, mas o
-  executor atual roda no processo local/CLI.
+### 5.7.1 Agente local e framework de conectores (`backend/app/connectors`, `app/local_agent`) — ✅ base pronta (Planos 1 e 3)
+Contratos neutros de sistema (`CourtReaderDriver`/`FilingDriver`, sem dependência
+de PJe), `ProcessoInstancia` (1º/2º grau por processo), agente Windows local
+(`python -m app.local_agent pair|login|run`) com pareamento one-time, token no
+keyring (hash-only no banco, revogável) e perfil Playwright persistente por
+(sistema, tribunal, grau). Protocolo de comandos idempotente (claim único via
+`SKIP LOCKED`, heartbeat, complete/fail auditado). Do Plano 3: perfis de
+conector versionados + registry fail-closed, login de tribunal como comando na
+fila do agente com `CourtSessionState` derivado (o cofre de sessão do backend
+foi **removido** — sessão vive só no agente), simuladores sanitizados + harness
+de validação live, ações reais migradas para rodar no agente, status persistido
+de validação/cobertura e assistente de minuta JIT com UI unificada "Acesso aos
+tribunais".
+
+### 5.8 O que ainda **não** existe (e por que)
+- **Os quatro conectores reais** (PJe/eproc/e-SAJ/Projudi) validados até o ato
+  final. Todo o arcabouço acima foi construído e testado contra **simuladores**;
+  a homologação com tribunal real (Marco B/C) está **bloqueada no acesso de
+  credenciais/processo de teste que o advisor precisa fornecer** — é o caminho
+  crítico, não código faltando.
+- **Credenciamento MNI** deferido em ao menos um tribunal (ofício gratuito, em
+  andamento) — destrava leitura oficial *e*, possivelmente, protocolo sem
+  certificado.
+- Assinatura/envio automáticos por certificado em nuvem (fallback caso o MNI
+  não dispense assinatura no tribunal do piloto).
+- Worker dedicado de produção (Celery/RQ); hoje os jobs persistem no SOR e o
+  executor roda como processo/CLI agendado.
 - Billing.
-- Conectores adicionais (e-SAJ, Projudi, EPROC).
-- Deploy definitivo e monitoramento externo.
+- Deploy definitivo e monitoramento externo (cron `capture-due`, jobs `failed`).
 
 ### 5.9 Endpoints da API (FastAPI)
 - `GET /health`
@@ -164,10 +261,14 @@ Legenda de estado: ✅ pronto · 🟡 parcial · 🔭 nova ideia (proposta neste
 | F6 | Auditoria imutável | ✅ | Toda ação vira evento consultável. |
 | F7 | Assistente agêntico (chat) | ✅ | Lê o SOR e **propõe** ações (confirmação humana); nunca protocola. |
 | F8 | Painel de prazos com risco | ✅ | Vencido/alto/médio/baixo + dias para vencer. |
-| F9 | **Conector de protocolo PJe** | 🟡 | Base Playwright e fluxo assistido até `ready_to_sign`; falta validação real. |
-| F10 | **Cofre + assinatura em nuvem** | 🟡 | Vault existe; integração ICP-Brasil em nuvem ainda não. |
-| F11 | Jobs persistidos e captura agendada | 🟡 | Executor local/CLI pronto; falta worker dedicado de produção. |
-| F12 | Auth + multi-tenant + billing | 🟡 | Auth e isolamento prontos; billing não iniciado. |
+| F9 | **Leitura íntegra dos autos + prova de completude** | ✅ | Enumeração dupla + SHA-256 + OCR + gate fail-closed (409 sem contexto ready). |
+| F10 | **Contexto citado para a minuta** | ✅ | Resumos com citações verificadas; drafter recebe `[DOC-N p.M]`. |
+| F11 | **Agente local + framework de conectores** | ✅ | Agente pareado na máquina do advogado; perfis versionados, simuladores, harness live. |
+| F12 | **Canal oficial MNI** (leitura + protocolo) | 🟡 | Cliente SOAP pronto e 14 perfis verificados; live bloqueado no credenciamento. |
+| F13 | **Conectores reais** (PJe/eproc/e-SAJ/Projudi) | ⛔ | Arcabouço pronto; homologação bloqueada no acesso do advisor (Marco B/C). |
+| F14 | **Assinatura em nuvem** | 🟡 | Vault existe; ICP-Brasil em nuvem só se o MNI não dispensar assinatura no piloto. |
+| F15 | Jobs persistidos e captura agendada | 🟡 | Executor local/CLI pronto; falta worker dedicado de produção. |
+| F16 | Auth + multi-tenant + billing | 🟡 | Auth e isolamento (Supabase) prontos; billing não iniciado. |
 
 ### 7.2 Novas ideias de feature (propostas)
 
@@ -211,9 +312,13 @@ Agrupadas por tema. Cada uma indica o **porquê** (valor) e um **esboço** do co
 
 Mantém a ordem do plano: fatia vertical primeiro, depois expansão.
 
-**Fase 0 — Validar o MVP vertical (now):** escolher o ambiente definitivo,
-operar captura agendada, validar o Vault e concluir o primeiro protocolo PJe
-assistido real com gate.
+**Fase 0 — Destravar o acesso ao tribunal (caminho crítico, now):** obter o
+**credenciamento MNI** em um tribunal com processo ativo do piloto (ofício
+gratuito) e/ou as **credenciais reais do advisor** para PJe/eproc/e-SAJ/Projudi
++ um processo de teste seguro. Sem isso, os conectores (F12/F13) não saem do
+simulador — é o único gargalo real. Em paralelo: escolher o ambiente definitivo
+e operar a captura agendada. *Wizard-of-Oz aceitável:* rodar captura + prazo +
+minuta automáticos com protocolo manual enquanto o conector homologa.
 
 **Fase 1 — Confiança e operação:** A1 (radar de prazo), A2 (dupla checagem),
 D1 (relatório de auditoria) e worker dedicado.
@@ -266,7 +371,7 @@ D1 (relatório de auditoria) e worker dedicado.
 
 ## 12. Perguntas em aberto (para decisão)
 
-1. **Primeiro tribunal do conector:** PJe (padrão CNJ, mais difundido) vs. e-SAJ/TJSP (maior mercado). Decidir com base no piloto disponível.
+1. **Primeiro tribunal do conector:** priorizar tribunal com **MNI já verificado** (TJPE, TJPI, TJAP, TRF5/TRF6 têm 1º/2º grau confirmados) e processo ativo do piloto, já que o MNI lê *e* pode protocolar sem certificado. e-SAJ/TJSP (maior mercado) fica para o agente local. Decidir com base no piloto disponível.
 2. **Provedor de certificado em nuvem** a integrar primeiro (BirdID, VIDaaS, Certisign Cloud, SafeID).
 3. **Modelo de cobrança:** por advogado, por OAB monitorada, por volume de protocolos, ou híbrido.
 4. **Wizard-of-Oz:** rodar captura + prazo automáticos com protocolo manual nos primeiros pilotos enquanto o conector amadurece?

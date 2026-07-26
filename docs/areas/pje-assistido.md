@@ -1,228 +1,152 @@
-# Protocolo PJe assistido + vault
+# Protocolo assistido + assinatura
 
-Decisão, fluxo, assinatura e como testar o conector PJe do Causor.
+Como o Causor protocola hoje, onde o fluxo para e como testar sem acesso a
+tribunal real.
 
-> **Política de custódia (atualizada):** a restrição de que sessão/senha/
-> certificado só podem viver no vault do Causor ou na máquina do advogado
-> foi removida (ver `AGENTS.md`, restrição não-negociável #1). Delegar a
-> um vendor terceiro de confiança (Escavador, Judit, provedor de assinatura
-> em nuvem) para leitura dos autos ou assinatura é uma opção válida. O
-> fluxo abaixo descreve o caminho local/vault, que continua sendo válido,
-> mas não é mais a única forma permitida.
+> **Revisado em 2026-07-22.** Este arquivo documentava três caminhos que já
+> não existem no código (`POST /usuarios/{id}/pje-sessoes`, o CLI
+> `pje-capture-session` e o CLI `pje-simulator`), além de uma "tela desejada"
+> que nunca foi construída. Foram removidos. Se precisar do histórico dessas
+> decisões, veja `docs/historico/superpowers/`.
 
-## Decisão
+## Onde o protocolo se encaixa
 
-O Causor não guarda senha do PJe em texto claro. O advogado autentica no PJe
-em uma sessão assistida; o sistema guarda o estado de sessão/cookies ou token
-de provedor em vault criptografado, ou delega a um vendor terceiro quando
-isso for o caminho mais rápido até um fluxo funcionando.
+O Causor tem **duas fontes de acesso ao tribunal** e um só roteador
+(`resolve_capture_fonte`): o canal oficial **MNI** e o **agente local** na
+máquina do advogado. Para *leitura* dos autos, as duas servem. Para
+*protocolo*, **hoje só o agente local** — o `MniFilingDriver`
+(`entregarManifestacaoProcessual`) ainda não existe, embora a fundação esteja
+pronta.
 
-Em produção, configure:
+Escada do protocolo, da melhor opção ao fallback (sempre com o Gate OAB na
+frente):
 
-```env
-CAUSOR_VAULT_PROVIDER=supabase
-```
+1. **MNI `entregar`** — oficial, no servidor, comprovante na resposta.
+   *A construir; ver [`mni-credenciamento.md`](mni-credenciamento.md).*
+2. **Agente local até `ready_to_sign`** — construído; os drivers reais dos
+   tribunais são as Tasks 6–9 do Plano 3, repriorizadas.
+3. **Confirmação manual** — funciona hoje.
 
-e habilite a extensão Supabase Vault no projeto. O backend chama
-`vault.create_secret(...)` e grava no SOR apenas uma referencia
-`supabase-vault://...`.
+**O backend hospedado nunca abre Playwright.** Em modo real, o despacho vai
+para o agente (`queue/jobs.py`); o caminho in-backend foi fechado em `194f180`.
 
-Em desenvolvimento, `CAUSOR_VAULT_PROVIDER=localdev` cria somente uma
-referencia deterministica `localdev://...` sem persistir o segredo bruto.
+## Custódia de credenciais
 
-## Estado atual do software
+A restrição de que sessão/senha/certificado só podiam viver no vault do Causor
+ou na máquina do advogado **foi removida** — ver `AGENTS.md`, restrição não
+negociável #1, que é a fonte dessa regra. O que permanece intocável: **segredo
+nunca entra em log nem em prompt de LLM**, esteja onde estiver.
 
-- Claude-only:
-  - chat: `claude-haiku-4-5`;
-  - classificacao: `claude-haiku-4-5`;
-  - minuta: `claude-sonnet-4-6`.
-- Gemini removido do codigo e das docs.
-- Fluxo de protocolo PJe existe como base assistida:
-  - `POST /peticoes/{id}/protocolar/async` para processo `PJe` cria job e para em
-    `ready_to_sign`;
-  - nao marca a peticao como `protocolada` automaticamente;
-  - `POST /peticoes/{id}/protocolar/confirmar` registra o numero final do
-    protocolo depois do envio real.
-- Vault:
-  - `CAUSOR_VAULT_PROVIDER=localdev` em desenvolvimento;
-  - `CAUSOR_VAULT_PROVIDER=supabase` para gravar sessoes/tokens no Supabase Vault;
-  - nunca guardar senha do PJe, certificado, `.pfx`, chave privada ou OTP no SOR.
+Configuração do vault (`CAUSOR_VAULT_PROVIDER`) está em
+[`../operacao/deploy.md`](../operacao/deploy.md); não é repetida aqui.
 
 ## Endpoints
 
-- `POST /usuarios/{usuario_id}/pje-sessoes`
-  - Cadastra uma sessao PJe assistida como `CredencialAssinatura` de provedor
-    `PJeSession`.
-  - Aceita `storage_state` Playwright, mas rejeita campos com nome de senha,
-    certificado, `.pfx` ou chave privada.
-
 - `POST /peticoes/{peticao_id}/protocolar/async`
-  - Se o processo for `PJe`, prepara o protocolo assistido e para em
-    `ready_to_sign`.
-  - Se o processo ainda nao tiver conector real, preserva o fake local atual.
-
+  - Prepara o protocolo e para em `ready_to_sign`. Não marca a petição como
+    `protocolada`.
+  - Em modo real, enfileira `prepare_filing` para o agente local.
 - `POST /peticoes/{peticao_id}/protocolar/confirmar`
-  - Depois que o advogado assina/envia no PJe/PJeOffice, registra o numero do
-    protocolo e marca a peticao como `protocolada`.
+  - Depois que o advogado assina/envia, registra o número do protocolo e marca
+    a petição como `protocolada`.
 
-## Fluxo operacional alinhado ao PJe
+Protocolo sem número e comprovante verificados **nunca** marca
+`Peticao.status="protocolada"`.
 
-O PJe exige ambiente do advogado configurado para acesso e assinatura. Para
-advogados, o acesso com certificado digital e o assinador/PJeOffice sao o caminho
-que permite assinar documentos e protocolar; acesso sem certificado tem
-restricoes e nao deve ser tratado como caminho principal do produto.
+## Fluxo operacional
 
-1. O operador roda, em ambiente local/treino, o comando:
+O PJe exige o ambiente do advogado configurado para acesso e assinatura. O
+acesso com certificado digital + PJeOffice é o caminho que permite assinar e
+protocolar; acesso sem certificado tem restrições e não é o caminho principal.
 
-   ```bash
-   python -m app.cli pje-capture-session \
-     --usuario 1 \
-     --tribunal TJSP \
-     --url-base https://pje-treinamento.tjsp.jus.br/pje
-   ```
-
-2. O Playwright abre o PJe. O advogado faz login diretamente no PJe, usando o
-   mecanismo do proprio tribunal (certificado digital/gov.br, conforme o
-   ambiente).
-3. O Causor salva apenas o `storage_state` Playwright no vault como credencial
-   `PJeSession`.
-4. Advogado gera e revisa a minuta no Causor.
-5. Advogado aprova no Gate OAB.
-6. Advogado clica em `Preparar protocolo PJe` (`POST /peticoes/{id}/protocolar/async`
-   com a `credencial_id`). O backend renderiza a minuta em PDF, reabre a sessao
-   PJe, pesquisa o processo, entra nos autos e acessa a area de
-   `Anexar Peticoes/Documentos` ou `Peticionar`.
-7. O conector seleciona o tipo de peticao e anexa o PDF/minuta/documentos.
-8. O fluxo para em `ready_to_sign`.
-9. O advogado assina/envia no PJe/PJeOffice.
-10. O advogado registra o numero do protocolo no Causor via
-    `POST /peticoes/{id}/protocolar/confirmar`.
-11. O Causor marca a peticao como `protocolada` e registra auditoria.
-
-O conector nao possui metodo para clicar em `Assinar documento`, `Protocolar`,
-`Protocolar em lote` ou equivalentes.
-
-## Tela desejada
-
-Criar tela/modal `Protocolo PJe` com timeline:
-
-- Login no PJe
-- Processo localizado
-- Peticionamento aberto
-- Minuta anexada
-- Pronto para assinatura (`ready_to_sign`)
-- Protocolo confirmado
-
-Estados por etapa:
-
-- `pendente`
-- `executando`
-- `concluido`
-- `bloqueado`
-- `precisa_do_advogado`
-
-Botoes:
-
-- `Abrir sessao PJe`
-- `Continuar automacao`
-- `Assumir manualmente`
-- `Registrar protocolo final`
-- `Ver auditoria`
-- `Cancelar job`
+1. O advogado pareia o computador (Configurações → Acesso aos tribunais) e faz
+   login no portal quando o assistente pedir. A sessão vive **só** no perfil
+   Playwright persistente do agente — nenhum cookie ou token chega ao backend.
+2. Os autos são capturados (por MNI ou pelo agente, conforme a rota) e o
+   contexto precisa ficar `ready`.
+3. O advogado gera e revisa a minuta.
+4. Aprova no Gate OAB.
+5. Dispara `protocolar/async`: o backend renderiza o PDF e envia o comando ao
+   agente, que reusa a sessão, localiza o processo e abre o peticionamento.
+6. O fluxo para em `ready_to_sign`. O conector **não** tem método para clicar
+   em `Assinar`, `Protocolar` ou equivalentes.
+7. O advogado assina/envia no PJe/PJeOffice.
+8. Registra o número via `protocolar/confirmar`; o Causor audita.
 
 ## Assinatura
 
 A forma de assinar vem do provedor da credencial via o seam
-`app/signing/providers.py` (`SignatureProvider`). A coluna
+`app/signing/providers.py` (`SignatureProvider`); a coluna
 `credencial_assinatura.modo` define o caminho.
 
-Modo inicial: `manual_handoff` (BirdID/VIDaaS/PJeOffice/A3/A1).
+**Modo atual — `manual_handoff`** (BirdID/VIDaaS/PJeOffice/A3/A1): o conector
+produz um `SignatureHandoff` (mensagem + instruções por provedor, sem segredo)
+anexado ao resultado e à auditoria; o advogado assina fora do Causor e
+confirma o protocolo depois.
 
-1. Playwright prepara o protocolo.
-2. O fluxo para em `ready_to_sign`.
-3. O conector produz um `SignatureHandoff` (mensagem + instrucoes por provedor),
-   sem segredo, e o job o anexa ao resultado/auditoria.
-4. O advogado assina/envia fora do Causor (no app do provedor / PJe / PJeOffice).
-5. O Causor registra o protocolo por confirmacao manual; a auditoria grava o
-   provedor/modo da credencial usada.
+**Modo futuro — `api`** (assinatura em nuvem): o gancho existe em
+`SignatureProvider.request_signature()` e hoje levanta `NotImplementedError`.
+Token do provedor ICP-Brasil em nuvem ficaria no Supabase Vault (nunca
+PIN/senha), com confirmação por push/OTP.
 
-Modo futuro: `api` (assinatura em nuvem). O gancho ja existe em
-`SignatureProvider.request_signature()` (hoje levanta `NotImplementedError`):
+Fallback A1 cifrado só se o provedor em nuvem não atender o piloto; A3/token
+físico fica fora do escopo de automação de servidor.
 
-1. Token/credencial do provedor ICP-Brasil em nuvem fica no Supabase Vault
-   (nunca PIN/senha).
-2. O provedor e chamado via API; o advogado confirma via push/OTP quando exigido.
-3. O Causor conclui o envio e registra comprovante automaticamente.
+> **Atalho possível:** o credenciamento MNI pode dispensar esta seção inteira.
+> A Lei 11.419/2006 (art. 1º, §2º, III) reconhece o cadastro de usuário no
+> Judiciário como assinatura eletrônica válida. A confirmar por tribunal — a
+> pergunta está no checklist do ofício em
+> [`mni-credenciamento.md`](mni-credenciamento.md).
 
-Fallback A1 cifrado so se o provedor em nuvem nao atender o piloto; A3/token
-fisico fica fora do escopo de automacao de servidor.
+## Como testar sem acesso a tribunal real
 
-## Como testar sem acesso ao PJe real
+Três camadas, da mais barata à mais cara:
 
-Sem advogado, certificado ou ambiente de homologacao, o caminho correto e testar
-em tres camadas:
+1. **Testes unitários com fakes** — validam PDF, vault, job, auditoria e a
+   máquina de estados do conector. Rodam por padrão.
+2. **Simuladores sanitizados** (`app/connectors/simulators/`: `pje`, `eproc`,
+   `esaj`, `projudi`, `mni`) — servidores HTTP locais com páginas sintéticas.
+   São levantados pelos próprios testes, não por um CLI:
 
-1. Testes unitarios com fakes: validam PDF, vault, job, auditoria e a maquina de
-   estados do conector.
-2. Simulador local de PJe: valida Playwright real, upload de PDF, seletores e
-   checkpoint `ready_to_sign` sem acessar tribunal.
-3. Teste live opt-in futuro: quando houver URL de treino e processo descartavel,
-   rodar contra homologacao.
+   ```powershell
+   cd backend
+   $env:RUN_PJE_SIMULATOR='1'
+   .\.venv\Scripts\python.exe -m pytest tests/test_pje_simulator_integration.py -q
+   ```
 
-Para subir o simulador local:
+   O simulador MNI roda sem variável de ambiente:
 
-```bash
-python -m app.cli pje-simulator --port 8765
-```
+   ```powershell
+   .\.venv\Scripts\python.exe -m pytest tests/test_mni_simulator_integration.py -q
+   ```
 
-O endereco para testar e:
+3. **Testes live opt-in** — `RUN_MNI_LIVE=1` para o MNI (exige credencial de
+   credenciamento); para os portais, exige URL de treino e processo
+   descartável.
 
-```text
-http://127.0.0.1:8765
-```
+Simulador prova que **o nosso software** executa o fluxo esperado até o gate
+seguro. Não prova compatibilidade com um tribunal específico — só o teste live
+prova.
 
-Para rodar o teste Playwright ponta a ponta contra o simulador:
+## O que não fazer
 
-```bash
-RUN_PJE_SIMULATOR=1 python -m pytest tests/test_pje_simulator_integration.py -q
-```
+- Não gravar senha/certificado/`.pfx`/chave privada/OTP em log ou prompt de
+  LLM, esteja a credencial no vault, no agente ou num vendor delegado.
+- Não burlar captcha.
+- Não assinar nem protocolar sem gate humano.
+- Não implementar vários tribunais ao mesmo tempo.
+- Não registrar endpoint MNI não confirmado (falha de MNI não cai para o
+  agente — ver [`mni-credenciamento.md`](mni-credenciamento.md)).
 
-No PowerShell:
+## Primeiro fluxo real sugerido
 
-```powershell
-$env:RUN_PJE_SIMULATOR='1'
-python -m pytest tests/test_pje_simulator_integration.py -q
-```
+Alvo: **petição intermediária em processo existente**.
 
-Esse teste nao prova compatibilidade com um tribunal especifico; ele prova que o
-nosso software executa o fluxo de navegador esperado ate o gate seguro.
+Fora do primeiro fluxo: petição inicial, custas, múltiplos anexos complexos,
+segredo de justiça, múltiplos tribunais, captcha automatizado, assinatura
+cloud.
 
-## O que nao fazer
-
-- Nao gravar senha/certificado/`.pfx`/chave privada/OTP em log ou prompt de
-  LLM, esteja a credencial no vault do Causor ou num vendor delegado.
-- Nao burlar captcha.
-- Nao assinar nem protocolar sem gate humano.
-- Nao implementar varios tribunais ao mesmo tempo.
-
-## Primeiro MVP real sugerido
-
-Alvo: peticao intermediaria em processo PJe existente.
-
-Fora do primeiro fluxo:
-
-- peticao inicial;
-- custas;
-- multiplos anexos complexos;
-- segredo de justica;
-- multiplos tribunais;
-- captcha automatizado;
-- assinatura cloud.
-
-## Informacoes necessarias quando retomar
-
-- URL do PJe usado.
-- 1o grau ou 2o grau.
-- Processo real ou homologacao seguro para teste.
-- Tipo de peticao intermediaria do primeiro fluxo.
-- Confirmar se PJeOffice funciona na maquina do advogado.
+Informações necessárias quando retomar: tribunal e grau; se atende por MNI
+(`resolve_mni_profile`); processo real ou de homologação seguro; tipo de
+petição intermediária; e — se o caminho for o agente — se o PJeOffice funciona
+na máquina do advogado.

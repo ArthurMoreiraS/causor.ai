@@ -12,8 +12,24 @@ here; do not duplicate them elsewhere.
 contains the SOR, deterministic deadline engine, DJEN/DataJud capture, Claude
 agent layer, FastAPI API, Supabase auth/tenant isolation, Next.js frontend,
 templates, persistent jobs, vault adapters and an assisted PJe flow that stops
-at `ready_to_sign`. The remaining work is primarily real-pilot validation,
-production scheduling/observability and completing one controlled PJe scenario.
+at `ready_to_sign`. It also contains the **MNI channel** (`connectors/mni/`) —
+the CNJ's official court webservice — which reads the case file server-side
+through the same integrity pipeline as the local agent.
+
+Two rules that follow from the MNI work and are easy to get wrong:
+
+- **A court reader has two interchangeable sources, one router.** `MniReader`
+  and the local agent both implement `CourtReaderDriver`; `resolve_capture_fonte`
+  picks between them per process. Never add a third decision point.
+- **Only confirmed MNI endpoints belong in `mni/profiles.py`.** An MNI failure
+  marks the capture `failed` and does *not* fall back to the agent, so a guessed
+  endpoint sends the lawyer to an error instead of the path that works.
+
+The remaining work is primarily the MNI credentialing request (the single
+blocker for official reading *and* filing), real-pilot validation and
+production scheduling/observability. The Playwright connectors (Plano 3
+Tasks 6–9) were deprioritised — they stay as the fallback for courts the MNI
+does not serve.
 
 Use `README.md` for repository orientation and `docs/estado.md` as the source
 of truth for current status and execution order. The PRD (`docs/produto/PRD.md`)
@@ -54,7 +70,8 @@ Planned backend layout (`/backend`):
 - `capture/` — consumes **DJEN/Comunica** (intimations) and **DataJud** (process metadata/movements), normalizes, writes to SOR. Polls on schedule by OAB/court. **Capture uses official APIs, never scraping.**
 - `prazo_engine/` — **deterministic** deadline calculation (business-day counting per CPC/CLT, national/local holidays, recess/suspensions). This is plain testable code, not an LLM call. Claude only *interprets/classifies* the intimation's content; the date math itself is deterministic.
 - `agent/` — Claude orchestration via tool use: extract/classify intimation, decide the applicable petition and draft it, trigger the filing connector, fall back to vision/computer-use for new layouts.
-- `connectors/pje/` — Playwright, one connector per court system. Start with **one** system only (PJe recommended; e-SAJ/TJSP is the alternative — confirm against available pilots). Isolated browser session per lawyer.
+- `connectors/mni/` — SOAP client for the CNJ's **Modelo Nacional de Interoperabilidade**: reads the case file (`consultarProcesso`) and can file (`entregarManifestacaoProcessual`) server-side. Preferred over Playwright wherever the court is credentialed — official, free, standardised. Endpoint profiles are fail-closed and accept **confirmed URLs only**.
+- `connectors/pje/` — Playwright, one connector per court system, executed by the **local agent** (never by the hosted backend). The fallback for courts the MNI does not serve. Isolated browser session per lawyer.
 - `vault/` — credential/signature storage (cloud certificate reference or encrypted A1). Signing via the cloud-certificate provider's API.
 - `queue/` — Celery/RQ workers for async long-running captures and actions.
 - `api/` — FastAPI endpoints for the frontend.
@@ -67,7 +84,7 @@ Frontend (`/frontend`): Next.js (TypeScript) + React — inbox of intimations, d
 - Data: PostgreSQL. Queue/cache: Redis + Celery/RQ.
 - Frontend: Next.js (TypeScript) + React.
 - Deadline engine base: `workalendar` / `python-holidays` for Brazilian holidays.
-- Claude models: `claude-haiku-4-5` for chat/classification and `claude-sonnet-4-6` for drafting. Avoid premium models in the default/test path.
+- Claude models: `claude-haiku-4-5` for chat/classification and `claude-sonnet-5` for drafting. Avoid premium models in the default/test path.
 
 ## Non-negotiable constraints
 

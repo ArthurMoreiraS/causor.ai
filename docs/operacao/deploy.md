@@ -82,22 +82,23 @@ Variaveis opcionais:
 - `CAUSOR_CAPTURE_RETRY_BACKOFF_SECONDS` (default `2`);
 - `CAUSOR_JOB_STALE_MINUTES` (default `60`).
 
-## 5. PJe assistido
+## 5. Acesso aos tribunais
 
-No piloto, o protocolo PJe para em `ready_to_sign`; assinatura/envio final
-seguem no PJe/PJeOffice e o numero do protocolo e registrado no Causor.
+Duas fontes, escolhidas automaticamente por processo:
 
-Para capturar sessao PJe assistida em ambiente controlado:
+- **Credencial oficial MNI** — a captura roda no servidor. Cadastre em
+  Configuracoes → Acesso aos tribunais; a senha vai direto para o vault.
+  Obter a credencial exige credenciamento junto ao tribunal:
+  [`../areas/mni-credenciamento.md`](../areas/mni-credenciamento.md).
+- **Agente local** — o advogado pareia a maquina dele e loga no portal quando
+  o assistente pedir. Cobre tribunal sem MNI e e o unico caminho de protocolo
+  hoje. A sessao vive so no agente; nenhum cookie chega ao backend.
 
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m app.cli pje-capture-session `
-  --usuario <usuario_id> `
-  --tribunal TJSP `
-  --url-base "https://pje-treinamento.example/pje"
-```
+No piloto o protocolo para em `ready_to_sign`; assinatura/envio final seguem no
+PJe/PJeOffice e o numero do protocolo e registrado no Causor. Detalhe do fluxo
+em [`../areas/pje-assistido.md`](../areas/pje-assistido.md).
 
-Nao guardar senha, certificado, `.pfx`, chave privada ou OTP no Causor.
+Nao guardar senha, certificado, `.pfx`, chave privada ou OTP no SOR nem em log.
 
 ## 6. CI
 

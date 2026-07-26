@@ -592,7 +592,44 @@ git commit -m "refactor(connectors): execute real court actions in local agent"
 
 ---
 
+> ## ⚠️ Tasks 6–9 foram repriorizadas em 2026-07-22 — leia antes de executar
+>
+> O canal **MNI** (`backend/app/connectors/mni/`) entrou depois deste plano ser
+> escrito e muda a economia das Tasks 6–9. Elas **não estão canceladas**, mas
+> deixaram de ser o caminho crítico.
+>
+> **Por quê:** estas quatro tasks são 4 sistemas × (reader + filing) = 8
+> entregas, cada uma travada num *external gate* que depende de terceiro (conta
+> de tribunal autorizada). O MNI é um par de drivers cobrindo N tribunais,
+> travado num gate que o próprio Causor conduz (ofício de credenciamento), com
+> 16 endpoints já verificados.
+>
+> **O que fazer antes de pegar qualquer uma destas tasks:**
+>
+> 1. Confirme que o tribunal-alvo **não** atende por MNI —
+>    `resolve_mni_profile(tribunal, grau)` e
+>    [`../../areas/mni-credenciamento.md`](../../areas/mni-credenciamento.md).
+>    Se atender, a metade **reader** desta task é redundante: o `MniReader` já
+>    implementa o mesmo `CourtReaderDriver` e passa pelo mesmo pipeline de
+>    integridade.
+> 2. Para a metade **filing**, verifique se o `MniFilingDriver`
+>    (`entregarManifestacaoProcessual`) já existe. Ele reusa credencial,
+>    endpoint, vault, perfis e erros canônicos da leitura — é incremental, e
+>    tem prioridade sobre construir protocolo Playwright novo.
+>
+> **Ressalva:** a varredura de 2026-07-22 testou padrões de URL do **PJe**.
+> Para eproc (Task 7), e-SAJ (Task 8) e Projudi (Task 9), a ausência de
+> evidência de MNI é limite do método, não prova de ausência — verifique caso a
+> caso antes de assumir que precisa do conector Playwright.
+>
+> Contexto completo em [`../../estado.md`](../../estado.md) (seção "Como o MNI
+> reordena o Plano 3").
+
 ### Task 6: PJe real — leitura integral antes do protocolo
+
+**Status 2026-07-22:** metade *reader* superada pelo MNI nos 16 tribunais
+confirmados; siga esta task apenas para tribunal sem MNI. Metade *filing*
+continua válida como fallback enquanto o `MniFilingDriver` não existir.
 
 **External gate:** conta PJe autorizada com tribunal, grau, URL e processo read-only seguro.
 

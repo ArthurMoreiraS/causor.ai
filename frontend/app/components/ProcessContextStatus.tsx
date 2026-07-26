@@ -8,6 +8,7 @@ import {
   criarOverrideContexto,
   statusAutos
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import AcessoTribunalWizard from "./AcessoTribunalWizard";
 
 export type ContextUiState =
@@ -52,14 +53,6 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
   const [justification, setJustification] = useState("");
   const [overrideOk, setOverrideOk] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
-
-  // Mensagens de erro cruas (corpo JSON, vazio ou "{}") não ajudam o
-  // advogado — cai numa frase humana e deixa o detalhe pro console.
-  function humanError(err: unknown, fallback: string): string {
-    const raw = err instanceof Error ? err.message.trim() : "";
-    if (!raw || raw.startsWith("{") || raw.startsWith("[")) return fallback;
-    return raw;
-  }
 
   async function reload() {
     try {

@@ -13,8 +13,11 @@ O MVP já possui:
 - cálculo determinístico de prazos;
 - classificação, chat operacional e geração de minutas com Claude;
 - templates do escritório, fila de revisão e Gate OAB;
+- leitura íntegra dos autos com prova de completude e gate fail-closed;
+- canal oficial MNI (webservice do CNJ) para leitura dos autos no servidor,
+  com o agente local como fallback automático por processo;
 - protocolo PJe assistido até `ready_to_sign`;
-- vault local/Supabase para referências e sessões, sem segredos no SOR;
+- vault local/Supabase para referências e credenciais, sem segredos no SOR;
 - jobs persistidos, captura agendada com retry e recuperação de jobs interrompidos;
 - frontend Next.js para o fluxo operacional e onboarding do piloto;
 - auditoria das mutações relevantes.
@@ -75,6 +78,7 @@ O workflow `.github/workflows/ci.yml` executa essas verificações em pushes par
 - Deploy: [docs/operacao/deploy.md](docs/operacao/deploy.md)
 - Direção estratégica: [docs/produto/PRD.md](docs/produto/PRD.md)
 - Protocolo PJe + vault: [docs/areas/pje-assistido.md](docs/areas/pje-assistido.md)
+- Endpoints MNI e credenciamento: [docs/areas/mni-credenciamento.md](docs/areas/mni-credenciamento.md)
 
 Documentos em `docs/historico/superpowers/` registram decisões e planos
 históricos; não devem ser usados isoladamente para inferir o estado atual.

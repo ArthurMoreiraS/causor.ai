@@ -55,20 +55,20 @@ def test_next_step_skips_agent_steps_when_mni_covers_route(client, db_session, s
 
     processo = models.Processo(
         escritorio_id=seeded.escritorio_id, numero="0000001-11.2026.8.13.0001",
-        tribunal="TJMG", sistema="PJe",
+        tribunal="TRF5", sistema="PJe",
     )
     db_session.add(processo)
     db_session.flush()
     usuario = db_session.query(models.Usuario).first()
     mni_credentials.store_mni_credencial(
         db_session, escritorio_id=seeded.escritorio_id, usuario_id=usuario.id,
-        tribunal="TJMG", id_consultante="123", senha="s",
+        tribunal="TRF5", id_consultante="123", senha="s",
     )
     # Sem agente online e sem sessão de portal — mesmo assim o passo é capturar.
     resp = client.get(f"/processos/{processo.id}/contexto/proximo-passo")
     body = resp.json()
     assert body["next_step"] == "capture_autos"
-    assert body["rota"]["tribunal"] == "TJMG"
+    assert body["rota"]["tribunal"] == "TRF5"
 
 
 def test_next_step_ready_when_context_complete(client, db_session, seeded):

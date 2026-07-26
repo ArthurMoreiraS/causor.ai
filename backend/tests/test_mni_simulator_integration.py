@@ -30,14 +30,14 @@ def instancia_tjmg(db_session, seeded):
     processo = models.Processo(
         escritorio_id=seeded.escritorio_id,
         numero="0000000-00.2026.8.13.0000",
-        tribunal="TJMG",
+        tribunal="TRF5",
         sistema="PJe",
     )
     db_session.add(processo)
     db_session.flush()
     instancia = models.ProcessoInstancia(
         processo_id=processo.id, escritorio_id=seeded.escritorio_id,
-        sistema="PJe", tribunal="TJMG", grau="1", status="active",
+        sistema="PJe", tribunal="TRF5", grau="1", status="active",
     )
     db_session.add(instancia)
     db_session.flush()
@@ -53,7 +53,7 @@ def _usuario_id(db_session) -> int:
 def test_captura_completa_contra_simulador(db_session, seeded, instancia_tjmg, mni_server):
     mni_credentials.store_mni_credencial(
         db_session, escritorio_id=seeded.escritorio_id, usuario_id=_usuario_id(db_session),
-        tribunal="TJMG", id_consultante="12345678900", senha="sim-senha",
+        tribunal="TRF5", id_consultante="12345678900", senha="sim-senha",
     )
     capture = autos_service.open_capture(
         db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)

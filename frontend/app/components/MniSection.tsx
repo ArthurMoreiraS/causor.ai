@@ -9,6 +9,7 @@ import {
   revogarMniCredencial,
   testarMniCredencial
 } from "@/lib/api";
+import { humanError, mniErrorMessage } from "@/lib/errors";
 import { AsyncState, LoadingButton, Skeleton } from "./ui";
 
 // Credencial oficial (MNI): com ela ativa, a leitura dos autos roda no
@@ -33,7 +34,7 @@ export default function MniSection({ offline }: { offline: boolean }) {
       setCredenciais(await listarMniCredenciais());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar credenciais");
+      setError(humanError(err, "Falha ao carregar as credenciais do tribunal"));
     } finally {
       setLoading(false);
     }
@@ -91,7 +92,7 @@ export default function MniSection({ offline }: { offline: boolean }) {
       setFeedback(
         result.ok
           ? `Conexão ok — ${result.documentos ?? 0} documento(s) listados.`
-          : `Teste falhou: ${result.error_code}`
+          : mniErrorMessage(result.error_code)
       );
       await reload();
     } catch {
