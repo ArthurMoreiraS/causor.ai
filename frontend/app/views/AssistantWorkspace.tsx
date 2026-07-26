@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { enviarMensagemChat } from "@/lib/api";
 import type { ChatTurn, ProposedAction } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import {
   type AssistantConversation,
   createAssistantConversation,
@@ -113,7 +114,7 @@ export default function AssistantWorkspace({
         })
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha no assistente");
+      setError(humanError(err, "O assistente não respondeu"));
     } finally {
       setBusy(false);
     }
@@ -134,7 +135,7 @@ export default function AssistantWorkspace({
         })
       );
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ação não concluída");
+      setError(humanError(err, "A ação não foi concluída"));
     } finally {
       setBusy(false);
     }

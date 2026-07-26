@@ -3,6 +3,7 @@
 import { LockKeyhole } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CredencialAssinatura, listarCredenciais } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import { AsyncState, Skeleton } from "./ui";
 
 // A sessão do tribunal deixou de viver no backend: o login roda no agente local
@@ -19,7 +20,7 @@ export default function VaultSection({ offline }: { offline: boolean }) {
       setCredenciais(await listarCredenciais());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar credenciais");
+      setError(humanError(err, "Falha ao carregar as credenciais de assinatura"));
     } finally {
       setLoading(false);
     }

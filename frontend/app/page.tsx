@@ -75,6 +75,7 @@ import PrazosView from "./views/PrazosView";
 import ProcessosView from "./views/ProcessosView";
 import { useRequireAuth } from "./AuthProvider";
 import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
+import { humanError } from "@/lib/errors";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import { computeDashboardMetrics } from "@/lib/metrics";
@@ -201,7 +202,7 @@ export default function Home() {
       setData(await loadDashboard());
       setRefreshTick((tick) => tick + 1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível carregar o Causor");
+      setError(humanError(err, "Não foi possível carregar o Causor"));
       setData(emptyData);
     }
   }
@@ -214,7 +215,7 @@ export default function Home() {
       await refresh();
       toast({ kind: "success", title: actionSuccessTitle(key) });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Ação não concluída";
+      const message = humanError(err, "A ação não foi concluída");
       setError(message);
       toast({ kind: "error", title: "Ação não concluída", description: message });
     } finally {
@@ -241,7 +242,7 @@ export default function Home() {
         description: `${result.intimacoes_novas} intimações novas, ${result.prazos_registrados} prazos registrados. Processos são enriquecidos ao gerar a minuta.`
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Captura por OAB não concluída";
+      const message = humanError(err, "A captura por OAB não foi concluída");
       setError(message);
       toast({ kind: "error", title: "Captura não concluída", description: message });
     } finally {
@@ -263,7 +264,7 @@ export default function Home() {
         description: "Os dados capturados por ela foram apagados."
       });
     } catch (err) {
-      const message = err instanceof Error ? err.message : "OAB não removida";
+      const message = humanError(err, "A OAB não foi removida");
       setError(message);
       toast({ kind: "error", title: "OAB não removida", description: message });
     } finally {

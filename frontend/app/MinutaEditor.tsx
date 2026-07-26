@@ -3,6 +3,7 @@
 import { Check, Copy, Download, Loader2, RotateCcw, Save, X } from "lucide-react";
 import { useState } from "react";
 import { baixarPeticaoPdf, type Peticao, type Prazo, type Processo } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 
 export default function MinutaEditor({
@@ -42,7 +43,7 @@ export default function MinutaEditor({
       URL.revokeObjectURL(url);
       setDownloadError(null);
     } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Falha ao baixar PDF");
+      setDownloadError(humanError(err, "Falha ao baixar o PDF da minuta"));
     } finally {
       setDownloading(false);
     }

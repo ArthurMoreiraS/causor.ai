@@ -8,6 +8,7 @@ import {
   ProximoPasso,
   statusSessaoTribunal
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import { useToast } from "./Toast";
 import { LoadingButton } from "./ui";
 
@@ -49,7 +50,7 @@ export default function AcessoTribunalWizard({
       setStep(stepFromPasso(next));
       if (next.ready) onReady();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao consultar o acesso");
+      setError(humanError(err, "Falha ao consultar o acesso ao tribunal"));
       setStep("error");
     }
   }, [processoId, onReady]);
@@ -73,7 +74,7 @@ export default function AcessoTribunalWizard({
       await statusSessaoTribunal(processoId);
       await refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao abrir o login");
+      setError(humanError(err, "Falha ao abrir o login no seu computador"));
     } finally {
       setBusy(false);
     }

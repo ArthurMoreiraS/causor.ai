@@ -9,6 +9,7 @@ import {
   listarAgentes,
   revogarAgente
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import { AsyncState, LoadingButton, Modal, Skeleton } from "./ui";
 import { useToast } from "./Toast";
 
@@ -60,7 +61,7 @@ export default function AgentSection({ offline }: { offline: boolean }) {
       setAgentes(await listarAgentes());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar agentes");
+      setError(humanError(err, "Falha ao carregar os computadores pareados"));
     } finally {
       setLoading(false);
     }
@@ -82,9 +83,7 @@ export default function AgentSection({ offline }: { offline: boolean }) {
       setPairing(await criarCodigoPareamento());
       setActionError(null);
     } catch (err) {
-      setActionError(
-        err instanceof Error ? err.message : "Falha ao gerar código de pareamento"
-      );
+      setActionError(humanError(err, "Falha ao gerar o código de pareamento"));
     } finally {
       setBusy(null);
     }
@@ -116,7 +115,7 @@ export default function AgentSection({ offline }: { offline: boolean }) {
         description: "O computador não executa mais leituras nem protocolos."
       });
     } catch (err) {
-      setActionError(err instanceof Error ? err.message : "Falha ao revogar o acesso");
+      setActionError(humanError(err, "Falha ao revogar o acesso do computador"));
     } finally {
       setBusy(null);
     }

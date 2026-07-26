@@ -8,6 +8,7 @@ import {
   listarTemplates,
   TemplatePeticao
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import { Empty } from "../components/ui";
 
 type FormState = {
@@ -31,7 +32,7 @@ export default function TemplatesView({ offline }: { offline: boolean }) {
       setTemplates(await listarTemplates());
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar templates");
+      setError(humanError(err, "Falha ao carregar os templates do escritório"));
     }
   }
 
@@ -65,7 +66,7 @@ export default function TemplatesView({ offline }: { offline: boolean }) {
       setForm(EMPTY_FORM);
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível salvar o template");
+      setError(humanError(err, "Não foi possível salvar o template"));
     } finally {
       setBusy(null);
     }
@@ -77,7 +78,7 @@ export default function TemplatesView({ offline }: { offline: boolean }) {
       await atualizarTemplate(template.id, { ativo: !template.ativo });
       await reload();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Não foi possível atualizar o template");
+      setError(humanError(err, "Não foi possível atualizar o template"));
     } finally {
       setBusy(null);
     }

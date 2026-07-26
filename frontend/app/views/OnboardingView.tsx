@@ -22,6 +22,7 @@ import {
   OabMonitorada,
   TemplatePeticao
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import type { ViewKey } from "@/lib/views";
 
 function statusLabel(done: boolean, blocked = false) {
@@ -70,7 +71,7 @@ export default function OnboardingView({
         setError(null);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Falha ao carregar onboarding");
+          setError(humanError(err, "Falha ao carregar o onboarding"));
         }
       } finally {
         if (!cancelled) setLoading(false);

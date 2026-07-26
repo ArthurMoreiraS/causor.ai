@@ -10,6 +10,7 @@ import {
   OperationalProfile,
   removerOabMonitorada
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import type { Settings } from "@/lib/settings";
 import UfSearchSelect from "./components/UfSearchSelect";
 import AgentSection from "./components/AgentSection";
@@ -86,7 +87,7 @@ export default function SettingsModal({
       });
       setProfileError(null);
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Falha ao carregar perfil");
+      setProfileError(humanError(err, "Falha ao carregar o perfil do escritório"));
     } finally {
       setLoadingProfile(false);
     }
@@ -126,7 +127,7 @@ export default function SettingsModal({
       await onOabChanged();
       toast({ kind: "success", title: "Perfil salvo" });
     } catch (err) {
-      setProfileError(err instanceof Error ? err.message : "Perfil nao salvo");
+      setProfileError(humanError(err, "O perfil não foi salvo"));
     } finally {
       setSavingProfile(false);
     }
@@ -163,7 +164,7 @@ export default function SettingsModal({
       setOabs(await listarOabsMonitoradas());
       setOabError(null);
     } catch (err) {
-      setOabError(err instanceof Error ? err.message : "Falha ao carregar OABs");
+      setOabError(humanError(err, "Falha ao carregar as OABs monitoradas"));
     } finally {
       setLoadingOabs(false);
     }
@@ -179,7 +180,7 @@ export default function SettingsModal({
       setOabToRemove(null);
       toast({ kind: "success", title: `OAB ${oab.oab}/${oab.uf} removida`, description: "Dados capturados por ela foram apagados." });
     } catch (err) {
-      setOabError(err instanceof Error ? err.message : "OAB não removida");
+      setOabError(humanError(err, "A OAB não foi removida"));
     } finally {
       setRemovingOabId(null);
     }

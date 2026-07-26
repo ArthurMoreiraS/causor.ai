@@ -10,6 +10,7 @@ import {
   Processo,
   SignatureHandoff
 } from "@/lib/api";
+import { humanError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { EmptyState, Skeleton } from "../components/ui";
 
@@ -70,7 +71,7 @@ function RegistrarProtocoloForm({
       );
       await onDone();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Falha ao registrar o protocolo.");
+      setErr(humanError(e, "Falha ao registrar o protocolo."));
     } finally {
       setBusy(false);
     }
@@ -143,7 +144,7 @@ export default function ProtocolosView({
       setJobs(await listarJobs({ tipo: "protocolo_peticao" }));
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao carregar protocolos");
+      setError(humanError(err, "Falha ao carregar os protocolos"));
     } finally {
       setBusy(false);
     }
