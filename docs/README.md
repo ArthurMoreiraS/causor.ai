@@ -27,6 +27,7 @@
 | [`areas/pje-assistido.md`](areas/pje-assistido.md) | Protocolo PJe assistido, vault, assinatura, como testar | Antes de mexer no conector PJe ou no fluxo de assinatura |
 | [`areas/acesso-aos-autos-mercado.md`](areas/acesso-aos-autos-mercado.md) | Como Enter/Judit/Escavador resolvem o acesso aos autos e por que o Causor não deve copiá-los | Antes de decidir construir ou comprar camada de captura |
 | [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md) | Endpoints MNI verificados por varredura e o checklist do ofício de credenciamento | Ao registrar perfil MNI novo ou ao pedir acesso a um tribunal |
+| [`areas/oficio-credenciamento-mni.md`](areas/oficio-credenciamento-mni.md) | Ofício de credenciamento redigido, com placeholders para preencher | Na hora de efetivamente pedir acesso à DTI de um tribunal |
 
 ## Agentes
 

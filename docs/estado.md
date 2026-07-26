@@ -134,37 +134,56 @@ tribunal onde o MNI nao entregar.
 
 ## Ainda falta para MVP real
 
-Caminho critico (nesta ordem):
+Sao **duas trilhas paralelas**, nao uma fila. A trilha do piloto nao depende de
+terceiro e entrega valor sozinha; a trilha MNI espera o deferimento do oficio.
+O piloto **nao espera tribunal** — o agente local captura hoje, sem credencial
+nenhuma.
 
-1. **Solicitar o credenciamento MNI** no tribunal do piloto — destrava
-   simultaneamente leitura oficial, protocolo oficial e possivelmente a
-   dispensa de assinatura por certificado. Checklist do oficio em
-   [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md).
-2. Com a credencial em maos, rodar `RUN_MNI_LIVE=1` e confirmar que o tribunal
-   entrega **o teor** dos documentos (e onde mais tribunais falham).
-3. Construir o `MniFilingDriver` (`entregarManifestacaoProcessual`) sobre a
-   fundacao existente — o comprovante vem na resposta, satisfazendo a regra de
-   nunca marcar "protocolada" sem comprovante verificado.
-4. Executar um piloto ponta a ponta com OAB e dados reais.
+### Trilha do piloto (sem gate externo)
 
-Producao e operacao:
-
-5. Configurar em producao o cron que chama `capture-due` e alertar quando seu
+1. Publicar backend e frontend com CI verde.
+2. Configurar em producao o cron que chama `capture-due` e alertar quando seu
    codigo de saida for diferente de zero.
-6. Validar o Vault Supabase no ambiente publicado (referencias de assinatura
+3. Validar o Vault Supabase no ambiente publicado (referencias de assinatura
    `cloud_cert` e senhas MNI; o cofre de sessao de tribunal foi removido —
    sessao vive so no agente local, Plano 3 Task 3).
-7. Adicionar monitoramento externo do backend, cron e jobs `failed`.
-8. Alertas de prazo por e-mail ou WhatsApp.
+4. Adicionar monitoramento externo do backend, cron e jobs `failed`.
+5. Executar um piloto ponta a ponta com OAB e dados reais, **pelo agente
+   local**: capturar, prazo, minuta e revisao nao dependem de MNI.
+6. Alertas de prazo por e-mail ou WhatsApp.
 
-Fallback (so quando o MNI nao cobrir o tribunal do piloto):
+### Trilha MNI (espera o deferimento)
 
-9. Fechar um unico conector Playwright real ate a tela de assinatura
-   (Plano 3 Task 6), escolhendo tribunal, grau e tipo de peticao.
-10. Integracao com certificado em nuvem, se o piloto exigir envio final
+7. **Solicitar o credenciamento** no tribunal do piloto. E o item de maior
+   latencia e menor esforco — sai primeiro, hoje, e tramita em paralelo com
+   tudo acima. Oficio redigido, com placeholders, em
+   [`areas/oficio-credenciamento-mni.md`](areas/oficio-credenciamento-mni.md);
+   endpoints e ressalvas em
+   [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md).
+8. Deferido: rodar `RUN_MNI_LIVE=1` e confirmar que o tribunal entrega **o
+   teor** dos documentos — e onde mais tribunais falham na pratica.
+9. **So entao** construir o `MniFilingDriver` (`entregarManifestacaoProcessual`).
+
+   *Nao antecipar este item.* Protocolo e irreversivel e a regra e nunca marcar
+   "protocolada" sem comprovante verificado — nao da para projetar a
+   verificacao do comprovante sem ter visto um comprovante real. Tres respostas
+   do oficio mudam o desenho: se a autenticacao exige mTLS (pergunta 2), se o
+   credenciamento dispensa certificado (5) e se a resposta traz o comprovante
+   (6). Construir contra simulador proprio antes disso e codificar as nossas
+   suposicoes e chamar de verificado — exatamente o erro de 21/07, agora na
+   metade irreversivel do sistema.
+
+### Fallback (so quando o MNI nao cobrir o tribunal do piloto)
+
+10. Fechar um unico conector Playwright real ate a tela de assinatura
+    (Plano 3 Task 6), escolhendo tribunal, grau e tipo de peticao.
+11. Integracao com certificado em nuvem, se o piloto exigir envio final
     automatizado **e** o credenciamento MNI nao dispensar a assinatura.
 
 ## Ordem de execucao
+
+As duas trilhas acima intercaladas no tempo real: o oficio sai primeiro porque
+so ele tem latencia de semanas.
 
 1. Enviar o oficio de credenciamento MNI (nao bloqueia nada abaixo enquanto
    tramita).

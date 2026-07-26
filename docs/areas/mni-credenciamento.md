@@ -125,10 +125,15 @@ cd backend
 
 ### 2.1 Base normativa
 
-- **Resolução CNJ** que adota o MNI como protocolo de comunicação entre os
-  sistemas processuais via webservice.
+Ofício redigido e pronto para preencher:
+[`oficio-credenciamento-mni.md`](oficio-credenciamento-mni.md).
+
+- **Resolução Conjunta CNJ/CNMP nº 3/2013** — institui o MNI como padrão de
+  intercâmbio de informações processuais entre os órgãos do Judiciário, via
+  webservice. É a norma-mãe a citar.
 - **Provimento 355/2018** (citado pelo TJMG) — Código de Normas da
-  Corregedoria, que fundamenta o acesso via MNI.
+  Corregedoria, que fundamenta o acesso via MNI. **É específico do TJMG**;
+  para outro tribunal, troque pelo Código de Normas local.
 - **Lei 11.419/2006, art. 1º, §2º, III** — reconhece como assinatura
   eletrônica válida o **cadastro de usuário no Poder Judiciário**. É o
   dispositivo que pode dispensar PJeOffice/certificado no protocolo via MNI.
@@ -156,6 +161,10 @@ tribunais têm formulário próprio ("acesso automatizado por sistemas
 externos"); procure isso antes de protocolar ofício genérico.
 
 ### 2.4 O que pedir (checklist)
+
+> Já incorporado ao ofício em
+> [`oficio-credenciamento-mni.md`](oficio-credenciamento-mni.md) — este
+> checklist serve para conferir antes de enviar.
 
 - [ ] Acesso ao **webservice MNI**, versão **2.2.2**, para o sistema Causor.
 - [ ] Operações: **`consultarProcesso`** (com `incluirDocumentos=true`) e
