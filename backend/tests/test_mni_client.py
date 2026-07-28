@@ -5,7 +5,12 @@ import base64
 import httpx
 import pytest
 
-from app.connectors.errors import AccessDenied, DocumentDownloadFailed, MniUnavailable
+from app.connectors.errors import (
+    AccessDenied,
+    DocumentDownloadFailed,
+    InstanceNotFound,
+    MniUnavailable,
+)
 from app.connectors.mni.client import MniClient
 
 NS = (
@@ -57,6 +62,16 @@ RESPOSTA_AUTH = f"""<?xml version="1.0" encoding="UTF-8"?>
 </soap:Body></soap:Envelope>"""
 
 
+def _resposta_sem_sucesso(mensagem: str) -> str:
+    return f"""<?xml version="1.0" encoding="UTF-8"?>
+<soap:Envelope {NS}><soap:Body>
+  <ns2:consultarProcessoResposta>
+    <sucesso>false</sucesso>
+    <mensagem>{mensagem}</mensagem>
+  </ns2:consultarProcessoResposta>
+</soap:Body></soap:Envelope>"""
+
+
 def _client(handler) -> MniClient:
     return MniClient(
         url_endpoint="https://mni.sim.jus.br/intercomunicacao",
@@ -91,6 +106,48 @@ def test_baixar_documentos_missing_content_raises_download_failed():
 
 def test_auth_failure_maps_to_access_denied():
     client = _client(lambda request: httpx.Response(200, content=RESPOSTA_AUTH.encode()))
+    with pytest.raises(AccessDenied):
+        client.consultar_processo("0000000-00.2026.8.13.0000")
+
+
+@pytest.mark.parametrize(
+    "mensagem",
+    [
+        "Processo nao encontrado",
+        "Processo não encontrado",
+        "Nao existe processo com o numero informado",
+        "Processo inexistente neste grau",
+        "Processo não localizado",
+    ],
+)
+def test_processo_inexistente_no_grau_mapeia_para_instance_not_found(mensagem):
+    """Grau que o processo não tem é ausência, não falha de layout.
+
+    `LayoutUnknown` marcaria a captura `failed` e travaria o contexto; o
+    executor precisa distinguir para selar `not_applicable`.
+    """
+    client = _client(
+        lambda request: httpx.Response(200, content=_resposta_sem_sucesso(mensagem).encode())
+    )
+    with pytest.raises(InstanceNotFound):
+        client.consultar_processo("0000000-00.2026.8.13.0000")
+
+
+def test_nao_encontrado_por_falta_de_permissao_continua_access_denied():
+    """Ambiguidade resolve para o lado seguro.
+
+    Tratar negativa de acesso como "instância inexistente" selaria
+    `not_applicable` e deixaria o contexto ficar `ready` sem os autos —
+    exatamente o fail-open que o Plano 2 existe para impedir.
+    """
+    client = _client(
+        lambda request: httpx.Response(
+            200,
+            content=_resposta_sem_sucesso(
+                "Processo nao encontrado para o usuario informado"
+            ).encode(),
+        )
+    )
     with pytest.raises(AccessDenied):
         client.consultar_processo("0000000-00.2026.8.13.0000")
 

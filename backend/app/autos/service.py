@@ -21,6 +21,7 @@ from app.autos.integrity import (
     fingerprint_manifest,
     validate_pdf,
 )
+from app.connectors.errors import InstanceNotFound
 from app.sor import models
 from app.storage.objects import ObjectStore
 
@@ -133,6 +134,65 @@ def open_capture(
         capture.agent_command_id = command.id
     session.flush()
     return capture
+
+
+def mark_not_applicable(
+    session: Session,
+    *,
+    capture: models.CapturaAutos,
+    evidence: dict,
+) -> models.CapturaAutos:
+    """Sela a captura de uma instância que o processo não tem no tribunal.
+
+    Grau inexistente é ausência provada, não falha de captura. Sem este selo
+    o `ContextoProcesso` de todo processo só de 1º grau fica preso em
+    `building` e o gate passa a exigir override em toda minuta.
+    """
+    if not evidence:
+        raise CaptureError("not_applicable_sem_evidencia")
+    _transition(capture, "not_applicable")
+    capture.evidence = {**(capture.evidence or {}), **evidence}
+    capture.completed_at = _now()
+    session.flush()
+    return capture
+
+
+def apply_capture_failure(
+    session: Session,
+    *,
+    command: models.AgentCommand,
+    erro_codigo: str,
+    erro_detalhe: str | None = None,
+) -> models.CapturaAutos | None:
+    """Traduz a falha do comando do agente no estado da captura ligada.
+
+    Só ausência afirmada (`instance_not_found`) sela a instância. CAPTCHA ou
+    sessão expirada tratados como "instância inexistente" deixariam o contexto
+    ficar `ready` sem os autos daquele grau — fail-open.
+    """
+    if erro_codigo != InstanceNotFound.code:
+        return None
+    capture = session.scalars(
+        select(models.CapturaAutos).where(
+            models.CapturaAutos.agent_command_id == command.id
+        )
+    ).first()
+    if capture is None:
+        return None
+    if "not_applicable" not in CAPTURE_TRANSITIONS.get(capture.status, set()):
+        # Captura que já enumerou não é "instância inexistente"; a falha fica
+        # só no comando e o agente não leva 500 por reportar a verdade.
+        return None
+    return mark_not_applicable(
+        session,
+        capture=capture,
+        evidence={
+            "motivo": InstanceNotFound.code,
+            "fonte": "agente",
+            "agent_command_id": command.id,
+            "detalhe": erro_detalhe or "",
+        },
+    )
 
 
 def record_initial_manifest(

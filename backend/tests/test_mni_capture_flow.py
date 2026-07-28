@@ -118,6 +118,39 @@ def test_executor_completa_captura_com_prova_de_integridade(
     assert all(v.sha256 for v in versions)
 
 
+def test_executor_sela_not_applicable_quando_a_instancia_nao_existe(
+    db_session, seeded, instancia_tjmg
+):
+    """Tribunal afirmando que não há processo neste grau não é falha.
+
+    Sem isto o processo só de 1º grau nunca fecha o `ContextoProcesso` e o
+    gate fail-closed exige override em toda minuta.
+    """
+    from app.connectors.errors import InstanceNotFound
+
+    class SemInstanciaDriver(FakeDriver):
+        def enumerate_documents(self, target):
+            raise InstanceNotFound("MNI: processo inexistente nesta instancia")
+
+    mni_credentials.store_mni_credencial(
+        db_session, escritorio_id=seeded.escritorio_id, usuario_id=_usuario_id(db_session),
+        tribunal="TRF5", id_consultante="123", senha="s",
+    )
+    capture = autos_service.open_capture(
+        db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)
+    )
+
+    result = run_mni_capture_job(
+        db_session, capture_id=capture.id, object_store=get_object_store(),
+        driver=SemInstanciaDriver(),
+    )
+
+    assert result.status == "not_applicable"
+    assert result.error_code is None
+    assert result.evidence["motivo"] == "instance_not_found"
+    assert result.evidence["fonte"] == "mni"
+
+
 def test_executor_marca_failed_em_erro_canonico(db_session, seeded, instancia_tjmg):
     from app.connectors.errors import MniUnavailable
 

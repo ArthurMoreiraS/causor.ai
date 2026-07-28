@@ -100,6 +100,20 @@ class SystemMigrated(ConnectorError):
         super().__init__(safe_detail or f"processo migrou para {target_system}")
 
 
+class InstanceNotFound(ConnectorError):
+    """O processo não existe nesta instância/grau — ausência, não falha.
+
+    Distinto de `AccessDenied`: aqui o tribunal respondeu e afirmou que não há
+    processo. Na dúvida (mensagem que também sugere permissão) o mapeamento
+    tem de escolher `AccessDenied`, porque selar `not_applicable` sem os autos
+    é fail-open.
+    """
+
+    code = "instance_not_found"
+    retryable = False
+    requires_human = False
+
+
 class MniUnavailable(ConnectorError):
     """Endpoint MNI fora do ar ou instável; retry automático é seguro."""
 

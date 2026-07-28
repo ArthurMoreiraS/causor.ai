@@ -9,6 +9,7 @@ nunca aparece em log, erro ou ``repr``.
 from __future__ import annotations
 
 import base64
+import unicodedata
 from dataclasses import dataclass
 from xml.sax.saxutils import escape
 
@@ -18,12 +19,25 @@ from lxml import etree
 from app.connectors.errors import (
     AccessDenied,
     DocumentDownloadFailed,
+    InstanceNotFound,
     LayoutUnknown,
     MniUnavailable,
 )
 from app.settings import settings
 
 _AUTH_HINTS = ("senha", "autoriza", "credenci", "usuario", "usuário", "login")
+_NOT_FOUND_HINTS = (
+    "nao encontrado",
+    "nao localizado",
+    "nao existe processo",
+    "inexistente",
+)
+
+
+def _fold(text: str) -> str:
+    """Minúsculas sem acento: tribunal escreve "não" e "nao" indistintamente."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    return "".join(ch for ch in decomposed if not unicodedata.combining(ch)).casefold()
 
 _ENVELOPE = (
     '<?xml version="1.0" encoding="UTF-8"?>'
@@ -137,8 +151,14 @@ class MniClient:
         mensagem = (root.xpath("//*[local-name()='mensagem']/text()") or [""])[0]
         if sucesso and sucesso[0].strip().lower() != "true":
             safe = mensagem[:200]
-            if any(hint in safe.casefold() for hint in _AUTH_HINTS):
+            folded = _fold(safe)
+            # Auth vence a ambiguidade: selar "instancia inexistente" quando o
+            # tribunal na verdade negou acesso deixaria o contexto ficar ready
+            # sem os autos.
+            if any(_fold(hint) in folded for hint in _AUTH_HINTS):
                 raise AccessDenied(f"MNI negou a consulta: {safe}")
+            if any(hint in folded for hint in _NOT_FOUND_HINTS):
+                raise InstanceNotFound(f"MNI: processo inexistente nesta instancia: {safe}")
             raise LayoutUnknown(f"MNI sem sucesso: {safe}")
 
     # -- operações --------------------------------------------------------

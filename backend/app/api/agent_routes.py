@@ -31,6 +31,7 @@ from app.agent_runtime.service import (
 )
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.agent_runtime import service
+from app.autos import service as autos_service
 from app.connectors import sessions as court_sessions
 from app.settings import settings
 from app.sor import models
@@ -296,6 +297,13 @@ def falhar_comando(
     if not already_failed and command.tipo == "open_court_login":
         court_sessions.apply_login_failure(
             session, command=command, installation=installation, erro_codigo=payload.erro_codigo
+        )
+    if not already_failed and command.tipo == "read_process":
+        autos_service.apply_capture_failure(
+            session,
+            command=command,
+            erro_codigo=payload.erro_codigo,
+            erro_detalhe=payload.erro_detalhe,
         )
     if not already_failed:
         _audit(

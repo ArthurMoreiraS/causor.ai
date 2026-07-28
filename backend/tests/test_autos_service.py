@@ -2,6 +2,7 @@ from hashlib import sha256
 
 import pytest
 
+from app.autos import service as autos_service
 from app.autos.contracts import ManifestDocumentInput, ManifestInput
 from app.autos.service import (
     CaptureError,
@@ -76,6 +77,43 @@ def _upload_all(db_session, capture, object_store):
             reported_sha256=digest,
             object_store=object_store,
         )
+
+
+def test_instancia_inexistente_no_tribunal_vira_not_applicable_com_evidencia(
+    db_session, seeded, instance
+):
+    """Grau que o processo nunca teve não é falha de captura.
+
+    Sem isto o contexto de todo processo só de 1º grau fica preso em
+    `building` e o gate exige override para qualquer minuta.
+    """
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+
+    result = autos_service.mark_not_applicable(
+        db_session,
+        capture=capture,
+        evidence={"motivo": "instancia_inexistente", "fonte": "mni"},
+    )
+
+    assert result.status == "not_applicable"
+    assert result.evidence["motivo"] == "instancia_inexistente"
+    assert result.completed_at is not None
+
+
+def test_not_applicable_sem_evidencia_e_recusado(db_session, seeded, instance):
+    """`not_applicable` é terminal e o contexto o rejeita sem evidência.
+
+    Selar sem prova criaria um estado do qual não há saída: a captura não
+    transiciona mais e `build_process_context` acusa
+    `not_applicable_sem_evidencia` para sempre.
+    """
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+
+    with pytest.raises(CaptureError) as exc:
+        autos_service.mark_not_applicable(db_session, capture=capture, evidence={})
+
+    assert exc.value.code == "not_applicable_sem_evidencia"
+    assert capture.status == "queued"
 
 
 def test_capture_only_completes_after_same_final_manifest(

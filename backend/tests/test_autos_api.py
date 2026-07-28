@@ -46,6 +46,87 @@ def _manifest_json(order=("a", "b")):
     }
 
 
+def test_agente_reportando_instancia_inexistente_sela_not_applicable(
+    client, db_session, seeded, agent_headers
+):
+    """O grau que o processo não tem também precisa fechar pelo agente.
+
+    Sem isto a captura fica `queued` para sempre (o `fail_command` só marca o
+    comando) e o contexto do processo nunca fica `ready`.
+    """
+    captures = client.post(f"/processos/{seeded.id}/autos/capturar", json={"graus": ["2"]})
+    capture_id = captures.json()[0]["id"]
+    claimed = client.post("/agent/commands/claim", headers=agent_headers).json()
+
+    failed = client.post(
+        f"/agent/commands/{claimed['id']}/fail",
+        headers=agent_headers,
+        json={
+            "erro_codigo": "instance_not_found",
+            "erro_detalhe": "processo nao existe no 2o grau",
+        },
+    )
+    assert failed.status_code == 200
+
+    capture = db_session.get(models.CapturaAutos, capture_id)
+    db_session.refresh(capture)
+    assert capture.status == "not_applicable"
+    assert capture.evidence["motivo"] == "instance_not_found"
+    assert capture.evidence["fonte"] == "agente"
+
+
+def test_agente_falhando_por_outro_motivo_nao_sela_not_applicable(
+    client, db_session, seeded, agent_headers
+):
+    """Só ausência afirmada sela a instância; qualquer outra falha, não.
+
+    CAPTCHA ou sessão expirada tratados como "instância inexistente" deixariam
+    o contexto ficar `ready` sem os autos daquele grau.
+    """
+    captures = client.post(f"/processos/{seeded.id}/autos/capturar", json={"graus": ["2"]})
+    capture_id = captures.json()[0]["id"]
+    claimed = client.post("/agent/commands/claim", headers=agent_headers).json()
+
+    client.post(
+        f"/agent/commands/{claimed['id']}/fail",
+        headers=agent_headers,
+        json={"erro_codigo": "captcha_required", "erro_detalhe": "desafio no portal"},
+    )
+
+    capture = db_session.get(models.CapturaAutos, capture_id)
+    db_session.refresh(capture)
+    assert capture.status != "not_applicable"
+
+
+def test_instancia_inexistente_depois_da_enumeracao_nao_derruba_o_agente(
+    client, db_session, seeded, agent_headers
+):
+    """Captura que já enumerou não pode ser selada como inexistente.
+
+    `not_applicable` não é alcançável a partir de `downloading`; sem guarda o
+    agente recebe 500 ao reportar a falha e fica em loop de retry.
+    """
+    captures = client.post(f"/processos/{seeded.id}/autos/capturar", json={"graus": ["2"]})
+    capture_id = captures.json()[0]["id"]
+    claimed = client.post("/agent/commands/claim", headers=agent_headers).json()
+    client.put(
+        f"/agent/captures/{capture_id}/manifest/initial",
+        headers=agent_headers,
+        json=_manifest_json(),
+    )
+
+    failed = client.post(
+        f"/agent/commands/{claimed['id']}/fail",
+        headers=agent_headers,
+        json={"erro_codigo": "instance_not_found", "erro_detalhe": "tarde demais"},
+    )
+
+    assert failed.status_code == 200
+    capture = db_session.get(models.CapturaAutos, capture_id)
+    db_session.refresh(capture)
+    assert capture.status == "downloading"
+
+
 def test_capture_flow_end_to_end(client, db_session, seeded, agent_headers, local_store):
     captures = client.post(f"/processos/{seeded.id}/autos/capturar", json={"graus": ["1"]})
     assert captures.status_code == 200

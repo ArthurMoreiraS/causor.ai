@@ -8,6 +8,7 @@ from app.autos.contracts import ManifestDocumentInput, ManifestInput
 from app.autos.service import (
     confirm_document_upload,
     finalize_capture,
+    mark_not_applicable,
     open_capture,
     record_initial_manifest,
 )
@@ -113,15 +114,16 @@ def complete_extracted_process(db_session, seeded, tmp_path):
     assert capture.status == "complete"
 
     # 2º grau: conector provou não-aplicabilidade (com evidência).
-    na = models.CapturaAutos(
-        escritorio_id=seeded.escritorio_id,
-        processo_instancia_id=second.id,
-        generation=1,
-        status="not_applicable",
+    # Pelo caminho real de produção, não por linha escrita à mão — foi
+    # exatamente essa fixture que escondeu o fato de que nada em produção
+    # sabia selar `not_applicable`.
+    na = open_capture(db_session, processo_instancia=second, usuario_id=1)
+    mark_not_applicable(
+        db_session,
+        capture=na,
         evidence={"motivo": "processo sem recurso; sem autos de 2º grau"},
     )
-    db_session.add(na)
-    db_session.flush()
+    assert na.status == "not_applicable"
     return seeded
 
 

@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from app.autos import service as autos_service
 from app.autos.contracts import ManifestDocumentInput, ManifestInput
 from app.connectors.contracts import CourtManifestSnapshot, CourtTarget
-from app.connectors.errors import ConnectorError, DocumentDownloadFailed
+from app.connectors.errors import ConnectorError, DocumentDownloadFailed, InstanceNotFound
 from app.connectors.mni.client import MniClient
 from app.connectors.mni.credentials import find_active_credencial, load_credencial_senha
 from app.connectors.mni.profiles import resolve_mni_profile
@@ -146,6 +146,20 @@ def run_mni_capture_job(
         final = drv.enumerate_documents(target)
         return autos_service.finalize_capture(
             session, capture=capture, final_manifest=_manifest_input(final)
+        )
+    except InstanceNotFound as exc:
+        # Ausência provada, não falha: o grau que o processo nunca teve é
+        # selado com evidência para o `ContextoProcesso` poder fechar.
+        return autos_service.mark_not_applicable(
+            session,
+            capture=capture,
+            evidence={
+                "motivo": InstanceNotFound.code,
+                "fonte": "mni",
+                "tribunal": target.tribunal,
+                "grau": target.grau,
+                "detalhe": str(exc),
+            },
         )
     except ConnectorError as exc:
         if capture.status in _ACTIVE_STATUSES:
