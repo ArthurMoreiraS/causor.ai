@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+tests/
+artifacts/
+shots/
+causor_dev.db
+.env
+.env.*
+.pytest_cache/
+.ruff_cache/

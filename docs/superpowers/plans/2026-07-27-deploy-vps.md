@@ -117,7 +117,7 @@ Imagem de produção do backend, com Tesseract e sem browsers do Playwright.
 **Interfaces:**
 - Produces: imagem que roda `python -m uvicorn app.api.main:app`, `python -m app.cli <cmd>` e `python -m alembic upgrade head`. Working dir `/app`; artefatos em `/app/artifacts`.
 
-- [ ] **Step 1: Criar `backend/.dockerignore`**
+- [x] **Step 1: Criar `backend/.dockerignore`**
 
 ```
 .venv/
@@ -133,7 +133,7 @@ causor_dev.db
 .ruff_cache/
 ```
 
-- [ ] **Step 2: Criar `backend/Dockerfile`**
+- [x] **Step 2: Criar `backend/Dockerfile`**
 
 ```dockerfile
 FROM python:3.12-slim
@@ -164,20 +164,9 @@ EXPOSE 8000
 CMD ["python", "-m", "uvicorn", "app.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
 ```
 
-- [ ] **Step 3: Buildar a imagem localmente**
+- [x] **Step 3: Buildar a imagem** — Docker local (Windows) não tinha o daemon rodando; build feito diretamente na VPS (ambiente Linux real, mais fiel à produção): contexto do build transferido via `scp`, `docker build -t causor-backend:test .` concluído em ~35s sem erro.
 
-Run: `docker build -t causor-backend:test backend/`
-Expected: build conclui sem erro (baixa Tesseract e instala as deps do pyproject). Se algum pacote falhar por falta de compilador, adicionar `build-essential` na linha do apt e rebuildar.
-
-- [ ] **Step 4: Smoke test do `/health` (sem banco)**
-
-```bash
-docker run --rm -d --name cb-test -p 8010:8000 -e CAUSOR_DATABASE_URL="sqlite:///./causor_dev.db" causor-backend:test
-sleep 3
-curl -fsS http://localhost:8010/health
-docker rm -f cb-test
-```
-Expected: `{"status":"ok"}`.
+- [x] **Step 4: Smoke test do `/health` (sem banco)** — rodado na VPS: `docker run ... causor-backend:test` respondeu `{"status":"ok"}` em `GET /health`. Container e imagem de teste removidos depois (`docker rm -f`, `docker rmi`).
 
 - [ ] **Step 5: Commit**
 
