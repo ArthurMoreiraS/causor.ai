@@ -79,69 +79,30 @@ Endurecer o acesso (a caixa está com root por senha e sem firewall configurado)
 **Interfaces:**
 - Produces: usuário `deploy` com Docker (grupo existente) e sudo; SSH só por chave nas portas 22/80/443.
 
-- [ ] **Step 1 (🤖): Criar usuário `deploy` com a mesma chave**
+- [x] **Step 1 (🤖): Criar usuário `deploy` com a mesma chave** — feito, `adduser` + `authorized_keys` copiado + sudo NOPASSWD.
 
-```bash
-ssh -i "$HOME/.ssh/causor_deploy" root@179.197.70.156 '
-adduser --disabled-password --gecos "" deploy &&
-mkdir -p /home/deploy/.ssh &&
-cp /root/.ssh/authorized_keys /home/deploy/.ssh/authorized_keys &&
-chown -R deploy:deploy /home/deploy/.ssh && chmod 700 /home/deploy/.ssh &&
-chmod 600 /home/deploy/.ssh/authorized_keys &&
-usermod -aG sudo deploy &&
-echo "deploy ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/deploy'
-```
-Expected: sem erro.
+- [x] **Step 2 (🤖): Testar login como `deploy`** — confirmado, `deploy` + `sudo-ok`.
 
-- [ ] **Step 2 (🤖): Testar login como `deploy`**
+- [x] **Step 3 (🤖): Confirmar Docker existente e colocar `deploy` no grupo** — Docker já instalado (roda `infolex-evo`/`operly-evo`); `deploy` adicionado ao grupo `docker`.
 
-```bash
-ssh -i "$HOME/.ssh/causor_deploy" deploy@179.197.70.156 'whoami && sudo -n true && echo sudo-ok'
-```
-Expected: `deploy` e `sudo-ok`.
-
-- [ ] **Step 3 (🤖): Confirmar Docker existente e colocar `deploy` no grupo**
-
-Docker já está instalado (roda `infolex-evo`/`operly-evo`) — não reinstalar, só adicionar o usuário:
-```bash
-ssh -i "$HOME/.ssh/causor_deploy" deploy@179.197.70.156 '
-sudo usermod -aG docker deploy &&
-docker --version && docker compose version'
-```
-Expected: imprime versões do Docker e do Compose. (O grupo `docker` vale na próxima sessão SSH — reconectar antes do próximo step que use `docker` sem `sudo`.)
-
-- [ ] **Step 4 (🤖): Firewall ufw — só 22/80/443**
-
-```bash
-ssh -i "$HOME/.ssh/causor_deploy" deploy@179.197.70.156 '
-sudo ufw allow 22/tcp && sudo ufw allow 80/tcp && sudo ufw allow 443/tcp &&
-sudo ufw --force enable && sudo ufw status verbose'
-```
-Expected: `Status: active` com 22/80/443 permitidos.
+- [x] **Step 4 (🤖): Firewall ufw — só 22/80/443** — `ufw` ativo, `Status: active`, 22/80/443 (v4 e v6) permitidos. Confirmado que os stacks existentes (`infolex-evo`, `operly-evo`) continuaram `Up` depois de ativar.
 
 - [ ] **Step 5 (👤): Firewall da Hostinger**
 
-Painel Hostinger → VPS → **Regras de firewall** (hoje 0) → liberar entrada TCP **22, 80, 443**, bloquear o resto. (Camada extra além do ufw.)
+Painel Hostinger → VPS → **Regras de firewall** (hoje 0) → liberar entrada TCP **22, 80, 443**, bloquear o resto. (Camada extra além do ufw — ainda pendente, ação do Arthur no painel.)
 
-- [ ] **Step 6 (🤖): Endurecer o SSH — só chave, sem root direto**
+- [x] **Step 6 (🤖): Endurecer o SSH — só chave, sem root direto**
 
-Só depois de confirmar (Steps 2 e 3) que `deploy` entra por chave:
+Feito, com uma pegadinha real encontrada: editar `/etc/ssh/sshd_config` não bastou — o Ubuntu 24.04 da Hostinger inclui `/etc/ssh/sshd_config.d/*.conf` **antes** do arquivo principal, e `50-cloud-init.conf` (gerado pelo cloud-init) reafirmava `PasswordAuthentication yes`, vencendo por ordem alfabética sobre o `60-cloudimg-settings.conf` que já dizia `no`. Correção aplicada nesse arquivo específico:
 ```bash
-ssh -i "$HOME/.ssh/causor_deploy" deploy@179.197.70.156 '
-sudo sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config &&
-sudo sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin prohibit-password/" /etc/ssh/sshd_config &&
-sudo systemctl reload ssh && echo reloaded'
+sudo sed -i "s/^PasswordAuthentication yes/PasswordAuthentication no/" /etc/ssh/sshd_config.d/50-cloud-init.conf
+sudo systemctl reload ssh
 ```
-Expected: `reloaded`.
+**Nota para o futuro:** se a VPS for reprovisionada ou o cloud-init rodar de novo, esse arquivo pode ser regenerado com `yes` — vale checar `sudo sshd -T | grep passwordauthentication` depois de qualquer reset/rebuild do servidor.
 
-- [ ] **Step 7 (🤖): Verificar que senha foi desabilitada**
+- [x] **Step 7 (🤖): Verificar que senha foi desabilitada** — confirmado via `sudo sshd -T`: `passwordauthentication no`, `permitrootlogin without-password`. Acesso por chave (root e deploy) testado e funcionando depois da mudança.
 
-```bash
-ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password root@179.197.70.156 'echo NAODEVIA' ; echo "exit=$?"
-```
-Expected: conexão recusada / `Permission denied (publickey)` — login por senha **não** funciona mais. (`exit` diferente de 0.)
-
-**Deliverable:** VPS endurecida (chave-only, firewall duplo) com Docker + Compose e usuário `deploy`.
+**Deliverable:** VPS endurecida (chave-only, firewall ufw ativo) com usuário `deploy` no grupo docker. Falta só o Step 5 (firewall do painel Hostinger, ação do Arthur).
 
 ---
 
