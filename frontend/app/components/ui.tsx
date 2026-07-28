@@ -106,18 +106,44 @@ export function EmptyState({
   );
 }
 
-/** Estado de erro padronizado, com ação opcional de retry. */
+/**
+ * Estado de erro padronizado, com ação opcional de retry.
+ *
+ * `compact` troca o bloco centralizado por uma linha: dentro de uma seção
+ * secundária (um cartão de credencial, uma lista curta) o bloco cheio ocupa
+ * mais espaço que o conteúdo que falhou e passa a dominar a tela.
+ */
 export function ErrorState({
   title = "Algo deu errado",
   description,
   onRetry,
-  retrying = false
+  retrying = false,
+  compact = false
 }: {
   title?: string;
   description?: string;
   onRetry?: () => void;
   retrying?: boolean;
+  compact?: boolean;
 }) {
+  if (compact) {
+    return (
+      <div className="stateInline error" role="alert">
+        <AlertCircle size={14} aria-hidden="true" />
+        <span>{description ?? title}</span>
+        {onRetry ? (
+          <LoadingButton
+            className="toolbarButton compact"
+            loading={retrying}
+            icon={<RefreshCw size={13} />}
+            onClick={onRetry}
+          >
+            Tentar novamente
+          </LoadingButton>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div className="stateBlock error" role="alert">
       <span className="stateIcon">
@@ -153,6 +179,7 @@ export function AsyncState({
   emptyState,
   onRetry,
   retrying,
+  compactError = false,
   children
 }: {
   loading?: boolean;
@@ -162,10 +189,20 @@ export function AsyncState({
   emptyState?: ReactNode;
   onRetry?: () => void;
   retrying?: boolean;
+  /** Erro em uma linha, para seções secundárias (ver `ErrorState`). */
+  compactError?: boolean;
   children: ReactNode;
 }) {
   if (loading) return <>{skeleton ?? <SkeletonText lines={3} />}</>;
-  if (error) return <ErrorState description={error} onRetry={onRetry} retrying={retrying} />;
+  if (error)
+    return (
+      <ErrorState
+        description={error}
+        onRetry={onRetry}
+        retrying={retrying}
+        compact={compactError}
+      />
+    );
   if (empty) return <>{emptyState ?? <EmptyState title="Nada por aqui ainda" />}</>;
   return <>{children}</>;
 }

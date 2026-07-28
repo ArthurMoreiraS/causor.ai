@@ -117,6 +117,7 @@ export default function MniSection({ offline }: { offline: boolean }) {
           loading={loading}
           error={error}
           empty={!credenciais.length}
+          compactError
           skeleton={<Skeleton height={50} radius={8} />}
           emptyState={
             <small className="settingsHint">

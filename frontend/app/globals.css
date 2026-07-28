@@ -1209,7 +1209,7 @@ h2 {
   height: 28px;
   place-items: center;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--accent);
 }
@@ -2941,7 +2941,7 @@ h2 {
   gap: 6px;
   padding: 0 9px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   box-shadow: none;
   transition: border-color 140ms ease, box-shadow 140ms ease;
@@ -3004,7 +3004,7 @@ h2 {
   width: 100%;
   padding: 0 9px;
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: transparent;
   color: var(--ink-soft);
   text-align: left;
@@ -3052,7 +3052,7 @@ h2 {
   gap: 8px;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--line));
-  border-radius: 9px;
+  border-radius: var(--radius-sm);
   background: var(--accent-bg);
   color: var(--accent);
   font-size: 12px;
@@ -3095,7 +3095,7 @@ h2 {
   min-height: 38px;
   padding: 7px 8px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .modalListRow span {
@@ -3119,47 +3119,15 @@ h2 {
   background: var(--chip);
 }
 
+/* Configurações: abas laterais com cabeçalho e rodapé fixos. Só o painel
+   rola — antes o card inteiro rolava e o título saía da tela. */
 .settingsCard {
-  width: min(520px, 92vw);
-  max-height: 88vh;
-  overflow-y: auto;
+  width: min(880px, 94vw);
+  height: min(640px, 88vh);
+  padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
-}
-
-/* Variante ampliada do modal de configurações: mais largura e seções em
-   cartões distribuídos em duas colunas para melhor uso do espaço. */
-.settingsCardWide {
-  width: min(960px, 94vw);
-}
-
-.settingsLayout {
-  display: grid;
-  gap: 14px;
-}
-
-.settingsColumns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  align-items: start;
-}
-
-.settingsColumn {
-  display: grid;
-  gap: 14px;
-  align-content: start;
-  min-width: 0;
-}
-
-/* No modal ampliado cada grupo vira um cartão delimitado. */
-.settingsCardWide .settingsGroup {
-  gap: 10px;
-  padding: 16px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--panel-soft);
+  overflow: hidden;
 }
 
 .settingsRow.single {
@@ -3174,26 +3142,269 @@ h2 {
   grid-template-columns: minmax(0, 1fr) minmax(176px, 0.62fr);
 }
 
-@media (max-width: 720px) {
-  .settingsColumns {
-    grid-template-columns: 1fr;
-  }
-}
-
 .settingsHeader {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.settingsHeaderText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .settingsHeader h3 {
   margin: 0;
 }
 
+.settingsHeaderText small {
+  color: var(--muted);
+  font-size: 11.5px;
+}
+
+.settingsBody {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr);
+}
+
+.settingsNav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 10px;
+  border-right: 1px solid var(--line);
+  background: var(--panel-soft);
+  overflow-y: auto;
+}
+
+.settingsNavItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.settingsNavItem svg {
+  flex: none;
+  color: var(--muted);
+}
+
+.settingsNavItem:hover {
+  background: var(--chip);
+  color: var(--ink);
+}
+
+.settingsNavItem.active {
+  background: var(--panel);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.settingsNavItem.active svg {
+  color: var(--accent);
+}
+
+.settingsNavItem:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 32%, transparent);
+  outline-offset: 1px;
+}
+
+.settingsPane {
+  min-width: 0;
+  padding: 18px 20px 22px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.settingsLead {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* Uma seção agrupa campos com um propósito só; o cartão delimitado fica para
+   as subseções de tribunal, que são unidades independentes. */
+.settingsSection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settingsSectionHead {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settingsSectionHead h4 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.settingsSectionHead p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.settingsSectionFoot {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+
+/* Logo do timbrado: moldura de tamanho fixo para o painel não saltar quando
+   a imagem entra ou sai. */
+.settingsLogoRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.settingsLogoPreview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 132px;
+  height: 60px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel);
+}
+
+.settingsLogoPreview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* `.blank`, nao `.empty`: `.empty` ja e' o estado vazio global do app
+   (min-height 120px, padding 24px) e sequestrava a altura desta moldura. */
+.settingsLogoPreview.blank {
+  border-style: dashed;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.settingsLogoActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* O input[type=file] nativo renderiza um botão de outro sistema operacional
+   dentro do painel. Escondemos o input e o label carrega `toolbarButton
+   compact` — o mesmo botão do design system usado pelo "Remover" ao lado, em
+   vez de um estilo paralelo que sai de sincronia.
+
+   Só o eixo precisa ser corrigido aqui, e o seletor precisa ser
+   `.settingsPane .settingsFileButton` (0,2,0): `.modalCard label` (0,1,1)
+   empilha todo label do modal em coluna, e num flex de coluna o eixo principal
+   é o vertical — o texto ficava grudado no topo com sobra embaixo. */
+.settingsPane .settingsFileButton {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.settingsPane .settingsFileButton input[type="file"] {
+  display: none;
+}
+
+.settingsSlider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.settingsSlider strong {
+  min-width: 46px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.settingsDangerZone {
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-soft);
+  align-items: flex-start;
+}
+
+@media (max-width: 720px) {
+  .settingsCard {
+    height: min(720px, 92vh);
+  }
+
+  .settingsBody {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .settingsNav {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .settingsNavItem {
+    width: auto;
+    white-space: nowrap;
+  }
+}
+
 .settingsGroup {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+/* Dentro do painel de configurações cada grupo (credencial, agente, cofre) é
+   uma unidade independente e ganha moldura — no raio de cartão do design
+   system (`--radius-md`), não num 12px próprio como antes. */
+.settingsPane .settingsGroup {
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-soft);
 }
 
 .settingsLabel {
@@ -3276,7 +3487,7 @@ h2 {
   height: 32px;
   padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--ink);
 }
@@ -3290,12 +3501,17 @@ h2 {
 .settingsRow textarea {
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--ink);
   font-size: 12.5px;
   line-height: 1.45;
   resize: vertical;
+  /* O timbrado costuma passar das linhas iniciais; sem isto o campo nasce
+     com scrollbar e o texto aparece cortado no meio. */
+  min-height: 76px;
+  field-sizing: content;
+  max-height: 220px;
 }
 
 .settingsRow input:focus-visible,
@@ -3319,13 +3535,42 @@ h2 {
 .settingsFooter {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
-  margin-top: 4px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--line);
+  background: var(--panel);
 }
 
-.settingsSaveButton {
-  justify-self: start;
+/* Erro em uma linha: seção secundária não deve ser dominada pelo bloco de
+   erro centralizado (ver `ErrorState compact`). */
+.stateInline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-soft);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.stateInline.error {
+  border-color: color-mix(in srgb, var(--risk) 34%, var(--line));
+  background: var(--risk-bg);
+}
+
+.stateInline.error > svg {
+  flex: none;
+  color: var(--risk);
+}
+
+.stateInline span {
+  flex: 1;
+  min-width: 140px;
 }
 
 .filterWrap {
@@ -3717,7 +3962,7 @@ h2 {
   height: 34px;
   padding: 0 12px;
   border: 1px solid var(--line);
-  border-radius: 7px;
+  border-radius: var(--radius-sm);
   background: var(--panel);
   color: var(--ink);
 }
@@ -4262,11 +4507,16 @@ h2 {
 }
 
 .vaultSubmit {
-  justify-self: start;
+  /* `justify-self` nao tem efeito em container flex — o botao esticava a
+     largura toda e virava uma barra preta. `align-self` e' o eixo certo. */
+  align-self: flex-start;
   min-height: 34px;
 }
 
-.vaultError {
+/* `.vaultError` é o nome legado do texto de erro de formulário; `.settingsError`
+   é o nome novo. Mesma regra para não haver duas aparências para a mesma coisa. */
+.vaultError,
+.settingsError {
   color: var(--risk);
 }
 
