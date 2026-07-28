@@ -2,8 +2,18 @@
 // string vazia ou jargao de rede do navegador nao ajudam ninguem: viram uma
 // frase humana e o detalhe fica no console.
 
-const OFFLINE =
-  "Sem conexão com o servidor do Causor. Verifique sua internet e tente novamente.";
+// O browser entrega a MESMA falha ("Failed to fetch") em dois casos muito
+// diferentes: a internet caiu, ou o servidor respondeu erro sem cabecalho
+// CORS. Nao da para distinguir do lado do cliente, entao a frase nao pode
+// afirmar so uma das causas — mandar o advogado reiniciar o roteador enquanto
+// o servidor esta quebrado custa tempo e confianca.
+export const UNREACHABLE =
+  "Não foi possível falar com o servidor do Causor. Verifique sua conexão — se ela estiver boa, o servidor está fora do ar.";
+
+// 500 tratado do backend (`InternalErrorToJsonMiddleware`). O advogado precisa
+// saber que a falha nao e' dele nem dos dados que digitou.
+const SERVER_FAULT =
+  "O servidor do Causor falhou ao processar esta ação. Tente de novo; se repetir, avise o suporte.";
 
 // Cada engine tem a sua string para "o fetch nao chegou no servidor".
 const NETWORK_MARKERS = [
@@ -34,11 +44,28 @@ export function mniErrorMessage(code: string | null | undefined): string {
   return MNI_MESSAGES[code] ?? `O teste falhou (${code}). Confira os dados do credenciamento.`;
 }
 
+// Codigo canonico dentro do corpo JSON de erro do backend.
+function bodyErrorCode(raw: string): string | null {
+  try {
+    const parsed = JSON.parse(raw) as { detail?: { code?: unknown } | unknown };
+    const detail = (parsed as { detail?: unknown }).detail;
+    if (detail && typeof detail === "object" && "code" in detail) {
+      const code = (detail as { code?: unknown }).code;
+      return typeof code === "string" ? code : null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
 export function humanError(err: unknown, fallback: string): string {
   const raw = err instanceof Error ? err.message.trim() : "";
   if (!raw) return fallback;
   const normalized = raw.toLowerCase();
-  if (NETWORK_MARKERS.some((marker) => normalized.includes(marker))) return OFFLINE;
-  if (raw.startsWith("{") || raw.startsWith("[")) return fallback;
+  if (NETWORK_MARKERS.some((marker) => normalized.includes(marker))) return UNREACHABLE;
+  if (raw.startsWith("{") || raw.startsWith("[")) {
+    return bodyErrorCode(raw) === "internal_error" ? SERVER_FAULT : fallback;
+  }
   return raw;
 }

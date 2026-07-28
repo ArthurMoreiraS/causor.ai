@@ -9,10 +9,13 @@ from __future__ import annotations
 
 import base64
 import binascii
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
@@ -363,8 +366,38 @@ def _purge_oab_data(
     return counts
 
 
+logger = logging.getLogger(__name__)
+
+
+class InternalErrorToJsonMiddleware(BaseHTTPMiddleware):
+    """Converte exceção não tratada em JSON 500 dentro da cadeia de CORS.
+
+    O `ServerErrorMiddleware` do Starlette é o mais externo de todos — por fora
+    até do CORS. Deixar a exceção chegar lá produz uma resposta sem
+    `Access-Control-Allow-Origin`, que o browser recusa a ler e reporta como
+    `Failed to fetch`; o frontend então diz ao advogado para verificar a
+    internet enquanto o problema é do servidor. Capturando aqui, a resposta
+    ainda sobe pelo CORS e chega como um 500 legítimo.
+    """
+
+    async def dispatch(self, request, call_next):
+        try:
+            return await call_next(request)
+        except Exception:
+            logger.exception("erro interno em %s %s", request.method, request.url.path)
+            # Detalhe da exceção pode conter caminho, SQL ou segredo: fica no log.
+            return JSONResponse(
+                status_code=500,
+                content={"detail": {"code": "internal_error"}},
+            )
+
+
 def create_app() -> FastAPI:
     app = FastAPI(title="Causor API", version="0.1.0")
+    # Ordem importa: `add_middleware` insere no início, então o último a ser
+    # adicionado é o mais externo. O CORS precisa envolver o conversor para
+    # conseguir carimbar o cabeçalho na resposta de erro.
+    app.add_middleware(InternalErrorToJsonMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],

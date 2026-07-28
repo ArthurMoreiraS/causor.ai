@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { humanError, mniErrorMessage } from "./errors";
+import { humanError, mniErrorMessage, UNREACHABLE } from "./errors";
 
 const FALLBACK = "Falha ao carregar credenciais";
 
@@ -20,23 +20,37 @@ test("erro vazio ou nao-Error vira a frase humana", () => {
 });
 
 // O advogado nunca deve ler jargao de rede do navegador. Cada engine tem a
-// sua string e todas significam a mesma coisa: o servidor nao respondeu.
+// sua string e todas significam a mesma coisa: o fetch nao chegou ao servidor.
 test.each([
   "Failed to fetch",
   "NetworkError when attempting to fetch resource.",
   "Load failed",
   "fetch failed",
   "The Internet connection appears to be offline."
-])("falha de rede (%s) vira frase de servidor indisponivel", (raw) => {
-  expect(humanError(new Error(raw), FALLBACK)).toBe(
-    "Sem conexão com o servidor do Causor. Verifique sua internet e tente novamente."
-  );
+])("falha de rede (%s) vira frase de servidor inalcancavel", (raw) => {
+  expect(humanError(new Error(raw), FALLBACK)).toBe(UNREACHABLE);
 });
 
 test("falha de rede ignora caixa e espacos", () => {
-  expect(humanError(new Error("  failed to FETCH  "), FALLBACK)).toBe(
-    "Sem conexão com o servidor do Causor. Verifique sua internet e tente novamente."
-  );
+  expect(humanError(new Error("  failed to FETCH  "), FALLBACK)).toBe(UNREACHABLE);
+});
+
+// O browser entrega `Failed to fetch` tanto quando a internet caiu quanto
+// quando o servidor respondeu erro sem cabecalho CORS. Mandar o advogado
+// conferir o wi-fi enquanto o servidor esta quebrado e' um diagnostico errado
+// com custo real: ele reinicia o roteador em vez de avisar o suporte.
+test("falha de rede nao culpa so a internet do advogado", () => {
+  expect(UNREACHABLE).toMatch(/servidor/i);
+  expect(UNREACHABLE).not.toMatch(/verifique sua internet e tente novamente\.$/i);
+});
+
+// O backend passou a devolver 500 como JSON com codigo canonico; o corpo cru
+// nao diz ao advogado que o problema nao e' dele.
+test("erro interno do servidor vira frase propria, nao o fallback generico", () => {
+  const body = '{"detail":{"code":"internal_error"}}';
+  const message = humanError(new Error(body), FALLBACK);
+  expect(message).not.toBe(FALLBACK);
+  expect(message).toMatch(/servidor/i);
 });
 
 // O botao "Testar" e a primeira coisa que o advogado clica depois do
