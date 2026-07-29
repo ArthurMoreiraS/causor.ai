@@ -181,7 +181,7 @@ def login_tribunal(
         (payload.sistema if payload else None)
         or processo.sistema
         or (route.sistema if route else None)
-        or "PJe"
+        or "DESCONHECIDO"
     )
     url_login = route.url_login if route and route.sistema == sistema else None
     if route and not url_login and route.sistema != sistema:

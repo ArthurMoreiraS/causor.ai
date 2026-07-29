@@ -50,13 +50,24 @@ def _register(profile: LoginProfile) -> None:
 _register(
     LoginProfile(
         sistema="EPROC",
+        # NAO verificados: exigem sessao autenticada, que so o advogado abre.
         authenticated_selectors=(
             "#infraBarraSuperior",
             "a[href*='acao=logout']",
             "#lnkInfraSairSistema",
         ),
-        login_selectors=("input[type='password']", "#txtSenha", "#pwdSenha"),
+        # Verificados contra a tela publica do TJTO em 2026-07-29: o campo real
+        # e #pwdSenha (por isso vem primeiro); #txtSenha nao existe la, mas fica
+        # como alternativa para outras instalacoes eproc.
+        login_selectors=("input[type='password']", "#pwdSenha", "#txtSenha"),
         captcha_selectors=("iframe[src*='recaptcha']", ".g-recaptcha"),
+        # verificado continua False: metade autenticada do perfil sem confirmar.
+        evidencia=(
+            "parcial — tela de login do TJTO (1o e 2o grau) conferida em "
+            "2026-07-29: input[type=password] e #pwdSenha presentes, e nenhum "
+            "authenticated_selector aparece ali (sem falso positivo). Falta "
+            "confirmar os authenticated_selectors no painel logado."
+        ),
     )
 )
 

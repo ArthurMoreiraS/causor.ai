@@ -57,3 +57,13 @@ def test_assistant_nao_chuta_pje_para_processo_sem_sistema():
         sistema = None
 
     assert route_for(ProcessoFake(), "1")["sistema"] == "DESCONHECIDO"
+
+
+def test_tjto_tem_url_de_login_para_os_dois_graus():
+    """Sem URL no registro, /conectores/login devolve 422 e o agente nunca
+    chega a abrir o navegador — a validacao live ficava bloqueada."""
+    for grau in ("1", "2"):
+        route = resolve_route("TJTO", grau)
+        assert route.url_login, f"TJTO grau {grau} sem url_login"
+        assert route.url_login.startswith("https://eproc")
+        assert route.verificado is True

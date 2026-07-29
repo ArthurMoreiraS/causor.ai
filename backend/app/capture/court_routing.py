@@ -160,7 +160,21 @@ _ROUTES: dict[str, dict] = {
         "obs": "1o grau federal por secao (JFRS/JFSC/JFPR)",
     },
     "TJSC": {"sistema": "EPROC", "verificado": False},
-    "TJTO": {"sistema": "EPROC", "verificado": False},
+    "TJTO": {
+        "sistema": "EPROC",
+        "login": {
+            "1": (
+                "https://eproc1.tjto.jus.br/eprocV2_prod_1grau/"
+                "externo_controlador.php?acao=principal"
+            ),
+            "2": (
+                "https://eproc2.tjto.jus.br/eprocV2_prod_2grau/"
+                "externo_controlador.php?acao=principal"
+            ),
+        },
+        "verificado": True,
+        "obs": "URLs conferidas em 2026-07-29: servem a tela de login do eproc",
+    },
     # TRF2 migrou para eproc (era o unico TRF fora do padrao PJe/EPROC ja
     # mapeado; antes caia no default silencioso de PJe, que estava errado).
     "TRF2": {"sistema": "EPROC", "verificado": False},
