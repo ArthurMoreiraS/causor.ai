@@ -20,6 +20,51 @@ from app.local_agent import config as agent_config
 
 LOGIN_WAIT_SECONDS = 300.0
 POLL_SECONDS = 2.0
+INCONCLUSIVE_BEFORE_PROMPT_SECONDS = 30.0
+
+# Injetado só na janela local do agente, na máquina do advogado. Monta um
+# elemento e seta uma flag — não faz requisição nenhuma nem altera qualquer
+# coisa no sistema do tribunal.
+_BANNER_SCRIPT = """
+(() => {
+  if (document.getElementById('causor-confirm-banner')) return;
+  window.causorLoginConfirmed = false;
+  const bar = document.createElement('div');
+  bar.id = 'causor-confirm-banner';
+  bar.style.cssText = 'position:fixed;z-index:2147483647;left:0;right:0;bottom:0;'
+    + 'background:#111;color:#fff;font:14px system-ui;padding:12px 16px;'
+    + 'display:flex;gap:12px;align-items:center;justify-content:center';
+  const text = document.createElement('span');
+  text.textContent = 'Causor não conseguiu confirmar o login automaticamente.';
+  const button = document.createElement('button');
+  button.textContent = 'Já estou logado';
+  button.style.cssText = 'background:#fff;color:#111;border:0;border-radius:6px;'
+    + 'padding:6px 14px;cursor:pointer;font-weight:600';
+  button.onclick = () => { window.causorLoginConfirmed = true; bar.remove(); };
+  bar.appendChild(text); bar.appendChild(button);
+  document.body.appendChild(bar);
+})();
+"""
+
+
+def _install_confirm_banner(page) -> None:
+    """Injeta o pedido de confirmação na janela local do agente.
+
+    Falha silenciosa de propósito: se a página não aceita script, o login
+    segue esperando a detecção automática até o timeout — o banner é rede de
+    segurança, não pode virar mais um jeito de o comando morrer.
+    """
+    try:
+        page.evaluate(_BANNER_SCRIPT)
+    except Exception:
+        return
+
+
+def _confirm_clicked(page) -> bool:
+    try:
+        return bool(page.evaluate("window.causorLoginConfirmed === true"))
+    except Exception:
+        return False
 
 
 def handle_open_court_login(payload: dict) -> dict:
@@ -41,6 +86,7 @@ def handle_open_court_login(payload: dict) -> dict:
         headed=True,
     ) as (_context, page):
         deadline = time.monotonic() + LOGIN_WAIT_SECONDS
+        inconclusive_since: float | None = None
         while time.monotonic() < deadline:
             state = "inconclusive" if profile is None else detect_page_state(page, profile)
             if state == "authenticated":
@@ -54,6 +100,26 @@ def handle_open_court_login(payload: dict) -> dict:
                 }
             if state == "captcha":
                 return {"session_ready": False, "error_code": "captcha_required"}
+            if state == "inconclusive":
+                # Sistema sem perfil, ou perfil que não bateu (tribunal que
+                # nunca vimos): pergunta ao advogado, que já está na frente
+                # da janela, em vez de estourar o timeout.
+                now = time.monotonic()
+                if inconclusive_since is None:
+                    inconclusive_since = now
+                elif now - inconclusive_since >= INCONCLUSIVE_BEFORE_PROMPT_SECONDS:
+                    _install_confirm_banner(page)
+                    if _confirm_clicked(page):
+                        return {
+                            "session_ready": True,
+                            "version_marker": None,
+                            "evidence": {
+                                "final_url_host": _safe_host(page.url),
+                                "confirmed_by": "human",
+                            },
+                        }
+            else:
+                inconclusive_since = None
             time.sleep(POLL_SECONDS)
     return {"session_ready": False, "error_code": "login_timeout"}
 
