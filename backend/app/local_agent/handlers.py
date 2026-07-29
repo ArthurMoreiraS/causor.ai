@@ -3,30 +3,23 @@
 ``open_court_login`` abre o portal do tribunal em janela headed na máquina do
 advogado e espera o login acontecer. O desfecho reportado ao backend é apenas
 ``session_ready``/marcadores — a sessão fica no perfil local do navegador.
+
+A detecção de estado vem de ``app.connectors.login_profiles`` (fonte única,
+por seletor visível). **Não reintroduzir marcadores de substring aqui**: a
+lista anterior exigia a ausência da palavra "senha" para confirmar o login, e
+painel logado tem "Alterar Senha" no menu — o advogado logava e o agente
+girava até o timeout.
 """
 
 from __future__ import annotations
 
 import time
 
+from app.connectors.login_profiles import detect_page_state, resolve_login_profile
 from app.local_agent import config as agent_config
 
 LOGIN_WAIT_SECONDS = 300.0
 POLL_SECONDS = 2.0
-
-_LOGIN_MARKERS = ("entrar com gov.br", "certificado digital", "senha")
-_AUTHENTICATED_MARKERS = ("logout", "sair", "painel", "minhas intimações", "meu painel")
-
-
-def _page_state(content: str) -> str:
-    lowered = content.lower()
-    if "captcha" in lowered or "recaptcha" in lowered:
-        return "captcha"
-    authenticated = any(marker in lowered for marker in _AUTHENTICATED_MARKERS)
-    unauthenticated = any(marker in lowered for marker in _LOGIN_MARKERS)
-    if authenticated and not unauthenticated:
-        return "authenticated"
-    return "waiting"
 
 
 def handle_open_court_login(payload: dict) -> dict:
@@ -37,6 +30,7 @@ def handle_open_court_login(payload: dict) -> dict:
     tribunal = payload["tribunal"]
     grau = payload["grau"]
     url_login = payload["url_login"]
+    profile = resolve_login_profile(sistema)
 
     with persistent_court_context(
         root=agent_config.profiles_root(),
@@ -48,12 +42,15 @@ def handle_open_court_login(payload: dict) -> dict:
     ) as (_context, page):
         deadline = time.monotonic() + LOGIN_WAIT_SECONDS
         while time.monotonic() < deadline:
-            state = _page_state(page.content())
+            state = "inconclusive" if profile is None else detect_page_state(page, profile)
             if state == "authenticated":
                 return {
                     "session_ready": True,
                     "version_marker": None,
-                    "evidence": {"final_url_host": _safe_host(page.url)},
+                    "evidence": {
+                        "final_url_host": _safe_host(page.url),
+                        "confirmed_by": "selector",
+                    },
                 }
             if state == "captcha":
                 return {"session_ready": False, "error_code": "captcha_required"}
