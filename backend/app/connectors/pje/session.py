@@ -22,9 +22,15 @@ TRAINING_HOST_TOKENS = (
 
 
 def validate_training_base_url(base_url: str) -> None:
-    """Refuse production-looking PJe URLs unless explicitly enabled."""
+    """Recusa URL de produção salvo liberação explícita.
 
-    if os.getenv("CAUSOR_PJE_ALLOW_PROD") == "1":
+    Vale para os quatro sistemas: antes só o PJe passava por aqui, e
+    eproc/e-SAJ/Projudi abriam portal de produção sem barreira nenhuma.
+    ``CAUSOR_PJE_ALLOW_PROD`` continua aceito por compatibilidade com quem já
+    tinha a variável no ``.env``.
+    """
+
+    if os.getenv("CAUSOR_COURT_ALLOW_PROD") == "1" or os.getenv("CAUSOR_PJE_ALLOW_PROD") == "1":
         return
     parsed = urlparse(base_url)
     host = (parsed.hostname or "").lower()

@@ -40,7 +40,10 @@ def has_online_agent(session: Session, escritorio_id: int) -> bool:
 
 def route_for(processo: models.Processo, grau: str) -> dict:
     route = resolve_route(processo.tribunal, grau)
-    sistema = processo.sistema or (route.sistema if route else None) or "PJe"
+    # Sem default de PJe: o sistema vem do processo, da rota conhecida, ou é
+    # declaradamente desconhecido. Chutar mandava o advogado para o portal
+    # errado sem avisar.
+    sistema = processo.sistema or (route.sistema if route else None) or "DESCONHECIDO"
     tribunal = route.tribunal if route else (processo.tribunal or "DESCONHECIDO")
     return {"sistema": sistema, "tribunal": tribunal, "grau": grau}
 

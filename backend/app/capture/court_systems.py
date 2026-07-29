@@ -6,11 +6,16 @@ time. Deriving it here is instant and offline — no DataJud call — which is w
 the software needs to route filing (and populate the "Sistema" filter). DataJud,
 when it returns the field, is authoritative and overrides this guess.
 
-Best-effort by design: the map covers the well-known non-PJe courts and defaults
-everything else to PJe (the majority — Justiça Federal, do Trabalho, Eleitoral e
-a maior parte dos TJs estaduais). Court systems migrate over time; correct an
-entry here when a tribunal is known to be wrong. A wrong guess is caught by the
-human approval gate before any filing, never acted on silently.
+Sem default silencioso: o registro em ``court_routing`` cobre explicitamente os
+tribunais conhecidos — os quatro sistemas, os TJs estaduais, TRFs, os 24 TRTs,
+TST/TSE e os 27 TREs. Sigla fora do registro devolve ``"DESCONHECIDO"``, não um
+palpite: chutar "PJe" mandava calado um tribunal de e-SAJ/eproc para o fluxo
+errado (o TRF2, por exemplo, é eproc e o default o classificava como PJe).
+
+``verificado`` distingue entrada conferida contra o portal oficial de entrada
+declarada mas com URL a confirmar. Sistemas migram; corrija a entrada quando um
+tribunal for conhecidamente outro. Palpite errado é barrado pelo gate de
+aprovação humana antes de qualquer protocolo, nunca agido em silêncio.
 """
 
 from __future__ import annotations

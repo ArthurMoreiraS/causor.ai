@@ -17,9 +17,11 @@ def test_tjsp_second_degree_has_its_own_url():
     assert r1.url_peticionamento != r2.url_peticionamento
 
 
-def test_unknown_tribunal_falls_back_to_pje_without_url():
+def test_unknown_tribunal_is_declared_unknown_not_guessed_as_pje():
+    """Sigla fora do registro não vira PJe por palpite: o default silencioso
+    mandava tribunal de e-SAJ/eproc para o fluxo errado sem avisar."""
     route = resolve_route("TJXX", "1")
-    assert route.sistema == "PJe"
+    assert route.sistema == "DESCONHECIDO"
     assert route.url_peticionamento is None
     assert route.verificado is False
 

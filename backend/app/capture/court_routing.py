@@ -161,6 +161,9 @@ _ROUTES: dict[str, dict] = {
     },
     "TJSC": {"sistema": "EPROC", "verificado": False},
     "TJTO": {"sistema": "EPROC", "verificado": False},
+    # TRF2 migrou para eproc (era o unico TRF fora do padrao PJe/EPROC ja
+    # mapeado; antes caia no default silencioso de PJe, que estava errado).
+    "TRF2": {"sistema": "EPROC", "verificado": False},
     # --- Projudi ---
     "TJPR": {
         "sistema": "Projudi",
@@ -168,7 +171,37 @@ _ROUTES: dict[str, dict] = {
         "obs": "migrou para eproc; Projudi legado",
     },
     "TJGO": {"sistema": "Projudi", "verificado": False},
+    # --- TJs em PJe sem URL confirmada ---
+    # Antes caiam no default silencioso de PJe. Agora sao entrada explicita:
+    # o sistema esta declarado, a URL e que falta conferir (verificado=False).
+    # TJAP/TJES/TJPI/TJRR tem evidencia forte — os endpoints MNI /pje/ deles
+    # responderam WSDL na varredura de 2026-07-22 (mni-credenciamento.md).
+    "TJAP": {"sistema": "PJe", "verificado": False, "obs": "MNI PJe confirmado"},
+    "TJES": {"sistema": "PJe", "verificado": False, "obs": "MNI PJe confirmado"},
+    "TJPI": {"sistema": "PJe", "verificado": False, "obs": "MNI PJe confirmado"},
+    "TJRR": {"sistema": "PJe", "verificado": False, "obs": "MNI PJe confirmado"},
+    "TJAM": {"sistema": "PJe", "verificado": False},
+    "TJPB": {"sistema": "PJe", "verificado": False},
+    "TJRJ": {"sistema": "PJe", "verificado": False},
+    "TJRN": {"sistema": "PJe", "verificado": False},
+    "TJRO": {"sistema": "PJe", "verificado": False},
+    "TJSE": {"sistema": "PJe", "verificado": False},
+    # --- Tribunais superiores em PJe ---
+    "TST": {"sistema": "PJe", "verificado": False},
+    "TSE": {"sistema": "PJe", "verificado": False},
 }
+
+# Justica Eleitoral: TSE e os 27 TREs padronizaram em PJe. Entram explicitos
+# em vez de depender do default — sigla no padrao CNJ ("TRE-SP") e tambem sem
+# hifen, porque a origem (DJEN/DataJud) varia.
+_UFS = (
+    "AC", "AL", "AM", "AP", "BA", "CE", "DF", "ES", "GO", "MA", "MG", "MS",
+    "MT", "PA", "PB", "PE", "PI", "PR", "RJ", "RN", "RO", "RR", "RS", "SC",
+    "SE", "SP", "TO",
+)
+for _uf in _UFS:
+    for _sigla in (f"TRE-{_uf}", f"TRE{_uf}"):
+        _ROUTES[_sigla] = {"sistema": "PJe", "verificado": False}
 
 # Justica do Trabalho: os 24 TRTs usam PJe no padrao CSJT
 # pje.trt<N>.jus.br/{primeirograu,segundograu}/login.seam. Conferidos contra o
@@ -214,8 +247,11 @@ def resolve_route(tribunal: str | None, grau: str = "1") -> CourtRoute | None:
 
     cfg = _ROUTES.get(sigla)
     if cfg is None:
+        # Sem palpite de sistema. Chutar "PJe" mandava silenciosamente um
+        # tribunal de e-SAJ/eproc/Projudi para o fluxo errado; "DESCONHECIDO"
+        # é explícito e o cadastro/DataJud confirma depois.
         return CourtRoute(
-            tribunal=sigla, grau=grau, sistema="PJe",
+            tribunal=sigla, grau=grau, sistema="DESCONHECIDO",
             url_login=None, url_peticionamento=None, verificado=False,
         )
 
