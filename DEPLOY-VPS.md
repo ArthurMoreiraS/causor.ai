@@ -4,7 +4,9 @@ Design do hospedagem do Causor (backend FastAPI + frontend Next.js) numa VPS,
 com **deploy automático a cada push na `main`**. Este documento é o **desenho
 acordado**; o passo a passo de execução vira um plano de implementação à parte.
 
-> Status: **em execução.** Inventário da VPS feito em 2026-07-28.
+> Status: **em produção.** Deploy inicial e pipeline automático concluídos em
+> 2026-07-29 — `https://app.causorai.com` e `https://api.causorai.com` no ar,
+> push na `main` com CI verde atualiza a VPS sozinho.
 > Data do design: 2026-07-27. Revisado em 2026-07-28 após inventário real da VPS.
 > Domínio: **causorai.com** (`app.causorai.com` = frontend, `api.causorai.com` = backend).
 
@@ -206,8 +208,79 @@ Feito antes de qualquer alteração na VPS:
 
 - [x] **Domínio definido:** `causorai.com`. Falta criar os registros A
       (`app.causorai.com`, `api.causorai.com` → 179.197.70.156).
-- [ ] Confirmar valores `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` (do
-      `frontend/.env.local` atual).
+- [x] `NEXT_PUBLIC_SUPABASE_URL` / `ANON_KEY` confirmados e configurados como
+      variable/secret no GitHub Actions — usados como build args reais.
 - [x] Inventário real da VPS feito (2026-07-28) — proxy existente encontrado,
       integração via rede `edge` decidida (§2.1, §7).
-- [ ] Ajuste fino das frequências de cron após observar carga.
+- [ ] Ajuste fino das frequências de cron após observar carga real (partida:
+      `capture-due` de hora em hora, `process-autos-due` a cada 5 min).
+
+---
+
+## 11. Operação / runbook
+
+**Estado (2026-07-29):** deploy inicial feito, pipeline automático validado
+ponta a ponta — um push na `main` com CI verde recriou os containers da VPS
+sozinho (confirmado comparando `docker inspect` antes/depois e o `IMAGE_TAG`
+gravado batendo com o SHA do commit).
+
+### Onde estão as coisas
+
+| O quê | Onde |
+|---|---|
+| Compose + segredos | `/opt/causor/docker-compose.yml`, `/opt/causor/.env` (permissão `600`, nunca no git) |
+| Chave SSH de deploy | `~/.ssh/causor_deploy` (local) / GitHub Secret `VPS_SSH_KEY` |
+| Caddyfile compartilhado | `/opt/infolex-evo/Caddyfile` (backups em `Caddyfile.bak.<timestamp>` ao lado) |
+| Crons | `/etc/cron.d/causor`; log em `/var/log/causor-cron.log` |
+| Artefatos dos autos | volume Docker `causor_causor_artifacts` (sobrevive a redeploy) |
+
+### Ver logs
+
+```bash
+ssh -i ~/.ssh/causor_deploy deploy@179.197.70.156 'cd /opt/causor && docker compose logs -f backend'
+# troque "backend" por "worker" ou "frontend"; crons: tail -f /var/log/causor-cron.log
+```
+
+### Rollback manual
+
+```bash
+ssh -i ~/.ssh/causor_deploy deploy@179.197.70.156 '
+cd /opt/causor
+export IMAGE_TAG=<sha-do-commit-anterior-bom>
+echo "IMAGE_TAG=$IMAGE_TAG" > .image_tag.env
+docker compose --env-file .env --env-file .image_tag.env pull
+docker compose --env-file .env --env-file .image_tag.env up -d'
+```
+O SHA de cada deploy fica em `/opt/causor/.image_tag.env` (sobrescrito a cada
+deploy) e nas tags das imagens no ghcr (**GitHub → Packages**).
+
+### Mexer no Caddyfile compartilhado (TLS/proxy)
+
+O Causor **não tem Caddy próprio** — depende do container `infolex-evo-caddy-1`
+e do `/opt/infolex-evo/Caddyfile`, que também serve `evo.infolex.adv.br`
+(cliente Infolex) e `evo.operlyapp.com` (Operly). Qualquer mudança nesse
+arquivo:
+1. Backup antes: `sudo cp Caddyfile Caddyfile.bak.$(date +%Y%m%d%H%M%S)`.
+2. Editar.
+3. `docker exec infolex-evo-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile` — **nunca** `docker restart` desse container.
+4. Conferir os três domínios depois: `curl -fsS -o /dev/null -w "%{http_code}\n" https://<dominio>` para `evo.infolex.adv.br`, `evo.operlyapp.com` e os dois do Causor.
+
+### Achados reais durante a execução (referência rápida)
+
+- `ruff>=0.5` sem teto quebrou o CI (regras novas do ruff 0.16); travado em
+  `<0.16` no `backend/pyproject.toml`.
+- Um teste (`test_protocolar_async_pje_sem_orgao_enriquece_on_demand`) passava
+  em dev "por acidente" (`.env` local tem `CAUSOR_DATAJUD_API_KEY` real) e
+  falhava no CI (sem `.env`) — faltava `monkeypatch` da key, corrigido.
+- `pnpm@11.2.2` exige Node ≥22.13 — imagem do frontend precisa de
+  `node:22-alpine`, não `node:20-alpine`.
+- `pnpm-workspace.yaml` tem `overrides`; o estágio `deps` do Dockerfile do
+  frontend precisa copiá-lo, senão `pnpm install --frozen-lockfile` falha com
+  `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`.
+- Ubuntu 24.04 da Hostinger tem `/etc/ssh/sshd_config.d/50-cloud-init.conf`
+  que reafirma `PasswordAuthentication yes` e vence por ordem alfabética sobre
+  outros arquivos do mesmo diretório — checar `sudo sshd -T | grep password`
+  depois de qualquer hardening de SSH.
+- **Fine-grained PAT do GitHub não suporta Container Registry.** Para puxar
+  imagem privada vinculada a repo privado, precisa de PAT **clássico** com
+  `repo` + `read:packages` (só `read:packages` autentica mas dá 403 no pull).
