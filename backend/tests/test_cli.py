@@ -201,9 +201,9 @@ def test_cli_enrich_processos_backfills_only_unenriched(db_session, monkeypatch)
     # so o processo sem sistema (e com tribunal) foi consultado no DataJud
     assert consultados == ["00000010020248260100"]
     db_session.refresh(sem_sistema)
-    assert sem_sistema.sistema == "pje"
+    assert sem_sistema.sistema == "PJe"  # normalizado a partir do "pje" do DataJud
     db_session.refresh(ja_enriquecido)
-    assert ja_enriquecido.sistema == "pje"  # inalterado, ja tinha valor
+    assert ja_enriquecido.sistema == "pje"  # inalterado: nao passou pelo enrich
     db_session.refresh(sem_tribunal)
     assert sem_tribunal.sistema is None  # pulado, sem tribunal pra consultar
 

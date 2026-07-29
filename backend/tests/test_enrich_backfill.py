@@ -51,7 +51,7 @@ def test_backfill_enriches_only_processos_without_classe(db_session):
     assert result.sem_tribunal == 1
     db_session.flush()  # serviço deixa o commit/flush pro chamador (CLI/background)
     db_session.refresh(shell)
-    assert shell.sistema == "pje"
+    assert shell.sistema == "PJe"  # normalizado: DataJud manda "pje", gravamos canonico
 
 
 def test_backfill_sistema_fills_from_tribunal_offline(db_session):

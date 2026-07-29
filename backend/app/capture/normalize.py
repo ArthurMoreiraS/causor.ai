@@ -24,6 +24,32 @@ from app.sor import models
 
 _NON_DIGIT = re.compile(r"\D")
 
+# Rótulo bruto do DataJud -> vocabulário canônico do Causor. Cada tribunal
+# reporta o sistema à sua maneira ("Eproc", "EPROC", "eSAJ"...), e gravar o
+# valor cru fragmentava o filtro da UI: "Eproc" e "EPROC" viravam duas opções
+# e nenhuma listava todos os processos. O STJ chegou a reportar "Inválido",
+# que virou opção de filtro como se fosse um sistema processual.
+_SISTEMAS_CANONICOS: dict[str, str] = {
+    "pje": "PJe",
+    "eproc": "EPROC",
+    "esaj": "e-SAJ",
+    "e-saj": "e-SAJ",
+    "saj": "e-SAJ",
+    "projudi": "Projudi",
+}
+
+
+def normalizar_sistema(bruto: str | None) -> str | None:
+    """Converte o rótulo de sistema do DataJud para o vocabulário canônico.
+
+    Devolve ``None`` para rótulo que não mapeia — inclusive lixo como
+    "Inválido". ``None`` deixa o registro de ``court_routing`` decidir, em vez
+    de inventar um sistema que ninguém reconhece.
+    """
+    if not bruto or not bruto.strip():
+        return None
+    return _SISTEMAS_CANONICOS.get(bruto.strip().casefold())
+
 
 def canonical_numero(numero: str | None) -> str | None:
     if not numero:
@@ -127,7 +153,9 @@ def enrich_processo(session: Session, dto: ProcessoDTO, *, escritorio_id: int) -
     processo.classe = dto.classe or processo.classe
     processo.tribunal = dto.tribunal or processo.tribunal
     processo.orgao_julgador = dto.orgao_julgador or processo.orgao_julgador
-    processo.sistema = dto.sistema or processo.sistema
+    # DataJud é autoritativo (AGENTS.md), mas no vocabulário canônico: rótulo
+    # que não mapeia é descartado e o registro segue valendo.
+    processo.sistema = normalizar_sistema(dto.sistema) or processo.sistema
     processo.data_ajuizamento = dto.data_ajuizamento or processo.data_ajuizamento
 
     _sync_andamentos(session, processo, dto)
