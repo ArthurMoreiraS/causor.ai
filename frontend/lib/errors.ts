@@ -36,7 +36,10 @@ const MNI_MESSAGES: Record<string, string> = {
   document_download_failed:
     "O tribunal listou o processo mas não entregou o documento. A captura vai pelo computador do advogado.",
   cursor_incomplete:
-    "A listagem do tribunal veio incompleta. O Causor não usa autos parciais para gerar minuta."
+    "A listagem do tribunal veio incompleta. O Causor não usa autos parciais para gerar minuta.",
+  tribunal_sem_mni:
+    "Esse tribunal não atende por credencial oficial (MNI). A leitura dele roda pelo agente local: " +
+    "o advogado entra no portal com o login dele (OAB e senha) e a sessão fica no computador dele."
 };
 
 export function mniErrorMessage(code: string | null | undefined): string {
@@ -65,7 +68,12 @@ export function humanError(err: unknown, fallback: string): string {
   const normalized = raw.toLowerCase();
   if (NETWORK_MARKERS.some((marker) => normalized.includes(marker))) return UNREACHABLE;
   if (raw.startsWith("{") || raw.startsWith("[")) {
-    return bodyErrorCode(raw) === "internal_error" ? SERVER_FAULT : fallback;
+    const code = bodyErrorCode(raw);
+    if (code === "internal_error") return SERVER_FAULT;
+    // Erro de domínio com código canônico e mensagem própria: dizer o que
+    // fazer vale mais que o fallback genérico da tela.
+    if (code && MNI_MESSAGES[code]) return MNI_MESSAGES[code];
+    return fallback;
   }
   return raw;
 }

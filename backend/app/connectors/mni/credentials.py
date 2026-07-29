@@ -15,6 +15,18 @@ class MniCredencialNotFound(RuntimeError):
     pass
 
 
+class TribunalSemPerfilMni(RuntimeError):
+    """Cadastro de credencial para tribunal que não atende por MNI.
+
+    O roteamento (``assistant.resolve_next_step``) exige **perfil e
+    credencial** para escolher o canal oficial. Sem perfil na tabela, a
+    credencial nunca é usada: gravá-la só cria a ilusão de tribunal conectado
+    enquanto tudo continua indo pelo agente local. Mesma lógica fail-closed
+    que a tabela de perfis já aplica — endereço palpitado manda o advogado
+    para um erro em vez do caminho que funciona.
+    """
+
+
 def _audit(session: Session, *, acao: str, credencial: models.MniCredencial, ator: str) -> None:
     session.add(models.AuditLog(
         escritorio_id=credencial.escritorio_id,
@@ -24,6 +36,20 @@ def _audit(session: Session, *, acao: str, credencial: models.MniCredencial, ato
         entidade_id=credencial.id,
         detalhe={"tribunal": credencial.tribunal},
     ))
+
+
+def tribunal_atende_mni(tribunal: str | None) -> bool:
+    """True se algum grau do tribunal tem endpoint MNI confirmado.
+
+    Checa os dois graus porque há tribunal servido só num deles (o TJMT, por
+    exemplo, só tem perfil de 1º grau).
+    """
+    from app.connectors.mni.profiles import resolve_mni_profile
+
+    if not tribunal or not tribunal.strip():
+        return False
+    sigla = tribunal.strip().upper()
+    return any(resolve_mni_profile(sigla, grau) is not None for grau in ("1", "2"))
 
 
 def store_mni_credencial(
@@ -36,6 +62,11 @@ def store_mni_credencial(
     senha: str,
 ) -> models.MniCredencial:
     tribunal = tribunal.strip().upper()
+    if not tribunal_atende_mni(tribunal):
+        raise TribunalSemPerfilMni(
+            f"{tribunal} nao tem endpoint MNI confirmado; a leitura desse "
+            "tribunal roda pelo agente local (login do advogado no portal)"
+        )
     referencia = store_generic_secret(
         session,
         usuario_id=usuario_id or 0,

@@ -63,8 +63,12 @@ export default function MniSection({ offline }: { offline: boolean }) {
       setShowForm(false);
       await reload();
       setFeedback("Tribunal conectado pela credencial oficial.");
-    } catch {
-      setFeedback("Falha ao cadastrar a credencial. Confira os dados do credenciamento.");
+    } catch (err) {
+      // Erros de domínio (ex.: tribunal sem MNI) trazem código canônico e
+      // explicam o caminho alternativo; só o resto cai no genérico.
+      setFeedback(
+        humanError(err, "Falha ao cadastrar a credencial. Confira os dados do credenciamento.")
+      );
     } finally {
       setBusy(null);
     }

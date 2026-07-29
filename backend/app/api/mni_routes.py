@@ -69,14 +69,22 @@ def cadastrar_mni(
     session: Session = Depends(get_session),
     current: CurrentUser = Depends(get_current_user),
 ) -> MniCredencialOut:
-    credencial = mni_credentials.store_mni_credencial(
-        session,
-        escritorio_id=current.escritorio_id,
-        usuario_id=current.usuario_id,
-        tribunal=payload.tribunal,
-        id_consultante=payload.id_consultante,
-        senha=payload.senha,
-    )
+    try:
+        credencial = mni_credentials.store_mni_credencial(
+            session,
+            escritorio_id=current.escritorio_id,
+            usuario_id=current.usuario_id,
+            tribunal=payload.tribunal,
+            id_consultante=payload.id_consultante,
+            senha=payload.senha,
+        )
+    except mni_credentials.TribunalSemPerfilMni as exc:
+        # Fail-closed: credencial para tribunal sem perfil nunca seria usada
+        # pelo roteamento, entao cadastra-la so simula um acesso que nao existe.
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "tribunal_sem_mni", "message": str(exc)},
+        ) from exc
     session.commit()
     return _out(credencial)
 
