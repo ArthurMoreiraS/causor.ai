@@ -190,3 +190,85 @@ def test_session_state_for_returns_none_when_never_requested(db_session, seeded)
         )
         is None
     )
+
+
+# --- Checagem de sessão viva -------------------------------------------------
+# O gatilho que finalmente aciona o estado "expirado": antes destes testes,
+# mark_session_expired só era chamado por teste, nunca por produção.
+
+
+def _rota(seeded):
+    return {
+        "escritorio_id": seeded.escritorio_id,
+        "sistema": "EPROC",
+        "tribunal": "TJTO",
+        "grau": "1",
+    }
+
+
+def test_agente_expoe_o_comando_de_checagem():
+    from app.local_agent.handlers import default_handlers
+
+    assert "check_court_session" in default_handlers()
+
+
+def test_sessao_viva_atualiza_confirmacao(db_session, seeded, agent_installation):
+    from app.connectors.sessions import apply_session_check_result, request_session_check
+
+    _state, command = request_session_check(
+        db_session, usuario_id=None, url_login="https://exemplo/login", **_rota(seeded)
+    )
+    state = apply_session_check_result(
+        db_session,
+        command=command,
+        installation=agent_installation,
+        resultado={"session_alive": True},
+    )
+    assert state.status == "conectado"
+    assert state.last_confirmed_at is not None
+
+
+def test_sessao_morta_marca_expirado(db_session, seeded, agent_installation):
+    from app.connectors.sessions import apply_session_check_result, request_session_check
+
+    _state, command = request_session_check(
+        db_session, usuario_id=None, url_login="https://exemplo/login", **_rota(seeded)
+    )
+    state = apply_session_check_result(
+        db_session,
+        command=command,
+        installation=agent_installation,
+        resultado={"session_alive": False, "error_code": "session_expired"},
+    )
+    assert state.status == "expirado"
+    assert state.last_error_code == "session_expired"
+
+
+def test_perfil_travado_nao_derruba_sessao_boa(db_session, seeded, agent_installation):
+    """Lock do Chromium é inconclusivo. Marcar 'expirado' aqui faria o advogado
+    relogar à toa toda vez que estivesse com o navegador aberto."""
+    from app.connectors.sessions import apply_session_check_result, request_session_check
+
+    _state, command = request_session_check(
+        db_session, usuario_id=None, url_login="https://exemplo/login", **_rota(seeded)
+    )
+    state = apply_session_check_result(
+        db_session,
+        command=command,
+        installation=agent_installation,
+        resultado={"session_alive": None, "error_code": "profile_locked"},
+    )
+    assert state.status != "expirado"
+    assert state.last_error_code == "profile_locked"
+
+
+def test_checagem_e_idempotente_por_rota_e_hora(db_session, seeded):
+    from app.connectors.sessions import request_session_check
+
+    _s1, c1 = request_session_check(
+        db_session, usuario_id=None, url_login="https://exemplo/login", **_rota(seeded)
+    )
+    _s2, c2 = request_session_check(
+        db_session, usuario_id=None, url_login="https://exemplo/login", **_rota(seeded)
+    )
+    assert c1.id == c2.id

@@ -58,6 +58,41 @@ def handle_open_court_login(payload: dict) -> dict:
     return {"session_ready": False, "error_code": "login_timeout"}
 
 
+def handle_check_court_session(payload: dict) -> dict:
+    """Confere headless se o perfil persistente ainda está autenticado.
+
+    ``session_alive=None`` quando não dá para afirmar (perfil travado por uma
+    janela aberta do advogado, seletor que mudou, sistema sem perfil): o
+    backend mantém o estado atual em vez de marcar expirado.
+    """
+    from app.local_agent.browser import persistent_court_context
+
+    sistema = payload["sistema"]
+    profile = resolve_login_profile(sistema)
+    if profile is None:
+        return {"session_alive": None, "error_code": "sem_perfil_de_login"}
+
+    try:
+        with persistent_court_context(
+            root=agent_config.profiles_root(),
+            sistema=sistema,
+            tribunal=payload["tribunal"],
+            grau=payload["grau"],
+            url=payload["url_login"],
+            headed=False,
+        ) as (_context, page):
+            state = detect_page_state(page, profile)
+    except Exception:
+        # Perfil em uso pelo navegador aberto do advogado é o caso comum.
+        return {"session_alive": None, "error_code": "profile_locked"}
+
+    if state == "authenticated":
+        return {"session_alive": True}
+    if state == "login":
+        return {"session_alive": False, "error_code": "session_expired"}
+    return {"session_alive": None, "error_code": f"check_{state}"}
+
+
 def _safe_host(url: str) -> str:
     """Só o host entra na evidência; nunca path/query (podem conter IDs)."""
     from urllib.parse import urlsplit
@@ -101,6 +136,7 @@ def handle_prepare_filing(payload: dict) -> dict:
 def default_handlers() -> dict:
     return {
         "open_court_login": handle_open_court_login,
+        "check_court_session": handle_check_court_session,
         "read_process": handle_read_process,
         "prepare_filing": handle_prepare_filing,
     }

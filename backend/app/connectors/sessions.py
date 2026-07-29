@@ -175,3 +175,89 @@ def mark_session_expired(
     state.last_error_code = error_code
     session.flush()
     return state
+
+
+def request_session_check(
+    session: Session,
+    *,
+    escritorio_id: int,
+    usuario_id: int | None,
+    sistema: str,
+    tribunal: str,
+    grau: str,
+    url_login: str,
+) -> tuple[models.CourtSessionState, models.AgentCommand]:
+    """Pede ao agente que confira se a sessão daquela rota continua viva.
+
+    Só faz sentido para rota que já tem estado de navegador. Rota servida por
+    MNI nunca cria ``CourtSessionState`` (a credencial vive no vault e a
+    captura roda no servidor), então é excluída por construção — sem nenhuma
+    pergunta do tipo "isto é MNI?" aqui, que seria o segundo ponto de decisão
+    que o AGENTS.md proíbe.
+    """
+    state = _get_or_create_state(
+        session, escritorio_id=escritorio_id, sistema=sistema, tribunal=tribunal, grau=grau
+    )
+    command = enqueue_command(
+        session,
+        escritorio_id=escritorio_id,
+        usuario_id=usuario_id,
+        tipo="check_court_session",
+        idempotency_key=(
+            f"court-check:{sistema.casefold()}:{tribunal.upper()}:{grau}:"
+            f"{_now().strftime('%Y-%m-%dT%H')}"
+        ),
+        payload={
+            "sistema": sistema,
+            "tribunal": tribunal,
+            "grau": grau,
+            "url_login": url_login,
+        },
+    )
+    session.flush()
+    return state, command
+
+
+def apply_session_check_result(
+    session: Session,
+    *,
+    command: models.AgentCommand,
+    installation: models.AgentInstallation,
+    resultado: dict,
+) -> models.CourtSessionState:
+    """Traduz a checagem em estado derivado.
+
+    ``session_alive`` só decide quando é booleano. ``None`` significa que o
+    agente não conseguiu concluir (perfil travado pelo navegador aberto do
+    advogado, seletor que mudou) — nesse caso o status fica como está e só o
+    código de erro é registrado: derrubar sessão boa é pior que não checar.
+    """
+    payload = command.payload
+    alive = resultado.get("session_alive")
+
+    if alive is False:
+        return mark_session_expired(
+            session,
+            escritorio_id=command.escritorio_id,
+            sistema=payload["sistema"],
+            tribunal=payload["tribunal"],
+            grau=payload["grau"],
+            error_code=resultado.get("error_code") or "session_expired",
+        )
+
+    state = _get_or_create_state(
+        session,
+        escritorio_id=command.escritorio_id,
+        sistema=payload["sistema"],
+        tribunal=payload["tribunal"],
+        grau=payload["grau"],
+    )
+    if alive is True:
+        state.status = "conectado"
+        state.installation_id = installation.id
+        state.last_confirmed_at = _now()
+        state.last_error_code = None
+    else:
+        state.last_error_code = resultado.get("error_code") or "check_inconclusive"
+    session.flush()
+    return state
