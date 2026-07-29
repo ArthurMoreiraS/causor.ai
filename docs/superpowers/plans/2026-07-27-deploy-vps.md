@@ -279,7 +279,7 @@ Orquestração dos serviços do Causor. **Sem Caddy nesta task** — o TLS/proxy
 - Consumes: imagens `ghcr.io/arthurmoreiras/causor-backend` e `causor-frontend` (Tasks 3, 4, 6); variável `IMAGE_TAG`; rede Docker externa `edge` (já existe na VPS, criada pelo stack `infolex-evo`).
 - Produces: containers nomeados `causor-backend` e `causor-frontend`, alcançáveis por esse nome dentro da rede `edge` — é o nome que o Caddyfile compartilhado vai usar (Task 8).
 
-- [ ] **Step 1: Criar `infra/docker-compose.prod.yml`**
+- [x] **Step 1: Criar `infra/docker-compose.prod.yml`**
 
 ```yaml
 name: causor
@@ -337,7 +337,7 @@ volumes:
 
 Note: `edge: external: true` assume que a rede já existe na VPS (criada pelo `infolex-evo`, confirmado no inventário). Se o Compose reclamar que a rede não existe ao rodar localmente/CI (onde `edge` não existe), isso é esperado — `docker compose config` (Step 4 abaixo) ainda valida a sintaxe sem precisar da rede existir.
 
-- [ ] **Step 2: Criar `infra/.env.prod.example`**
+- [x] **Step 2: Criar `infra/.env.prod.example`**
 
 ```bash
 # Copie para /opt/causor/.env na VPS e preencha com os valores reais
@@ -366,11 +366,7 @@ CAUSOR_OBJECT_STORE_PROVIDER=localdev
 CAUSOR_OBJECT_STORE_LOCAL_PATH=/app/artifacts/objects
 ```
 
-- [ ] **Step 3: Validar a sintaxe do Compose**
-
-Localmente a rede `edge` não existe, então `config` pode avisar sobre isso — o que importa é não ter erro de sintaxe:
-Run: `docker compose -f infra/docker-compose.prod.yml --env-file infra/.env.prod.example config`
-Expected: imprime a config resolvida sem erro de sintaxe (pode listar `edge` como rede externa não resolvida localmente — normal, ela existe na VPS).
+- [x] **Step 3: Validar a sintaxe do Compose** — `docker compose config` resolveu sem erro (precisou de um `infra/.env` temporário local, já que `env_file: [.env]` exige o arquivo existir fisicamente para o comando `config`, diferente do `--env-file`; removido depois). `edge` foi aceita como rede externa mesmo sem existir localmente — só falharia em `up`/`run` de verdade.
 
 - [ ] **Step 4: Commit**
 

@@ -1,0 +1,51 @@
+name: causor
+
+services:
+  backend:
+    container_name: causor-backend
+    image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: [.env]
+    command: python -m uvicorn app.api.main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - causor_artifacts:/app/artifacts
+    networks: [causor, edge]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    container_name: causor-worker
+    image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: [.env]
+    command: python -m app.cli worker
+    volumes:
+      - causor_artifacts:/app/artifacts
+    networks: [causor]
+
+  frontend:
+    container_name: causor-frontend
+    image: ghcr.io/arthurmoreiras/causor-frontend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    networks: [causor, edge]
+
+  # One-shot: roda no deploy via `docker compose run --rm migrate`.
+  # profile "tools" evita que suba junto com `up -d`.
+  migrate:
+    image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
+    env_file: [.env]
+    command: python -m alembic upgrade head
+    restart: "no"
+    profiles: ["tools"]
+    networks: [causor]
+
+networks:
+  causor: {}
+  edge:
+    external: true
+
+volumes:
+  causor_artifacts: {}
