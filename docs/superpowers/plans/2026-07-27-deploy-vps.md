@@ -400,7 +400,7 @@ Repo GitHub → **Settings → Secrets and variables → Actions**:
 
 (A `NEXT_PUBLIC_API_BASE` é fixa `https://api.causorai.com` e vai direta no workflow.)
 
-- [ ] **Step 2: Criar `.github/workflows/deploy.yml` (só build/push nesta task)**
+- [x] **Step 2: Criar `.github/workflows/deploy.yml` (só build/push nesta task)**
 
 ```yaml
 name: Deploy
