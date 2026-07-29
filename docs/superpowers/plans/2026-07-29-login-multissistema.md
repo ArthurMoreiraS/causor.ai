@@ -1298,6 +1298,23 @@ git commit -m "fix(routing): sem palpite de PJe e trava de producao para os quat
 
 **Deliverable:** nenhum default silencioso de PJe; eproc/e-SAJ/Projudi ganham a trava de produção que só o PJe tinha.
 
+> **Desvio registrado na execução (2026-07-29).** Tirar o default derrubou 3
+> testes legados e a investigação mostrou que o problema era maior que o spec
+> previa: o default não cobria só "sigla inexistente" — **10 TJs** (TJAM,
+> TJAP, TJES, TJPB, TJPI, TJRJ, TJRN, TJRO, TJRR, TJSE), **TST**, **TSE**, os
+> **27 TREs** e o **TRF2** dependiam dele. São tribunais reais; deixá-los cair
+> em `DESCONHECIDO` seria uma regressão pior que o bug original.
+>
+> Em vez de afrouxar o teste ou reverter, o palpite silencioso virou **tabela
+> explícita**. Isso corrigiu um erro que o default escondia: **o TRF2 é eproc**,
+> e o default o classificava como PJe. TJAP/TJES/TJPI/TJRR entraram com
+> evidência — os endpoints MNI `/pje/` deles responderam WSDL na varredura de
+> 2026-07-22 registrada em `areas/mni-credenciamento.md`.
+>
+> Também foi corrigido um teste que passava pelo motivo errado:
+> `test_flag_nova_libera` não removia `CAUSOR_PJE_ALLOW_PROD`, que o `.env` de
+> dev traz — a flag nova nem era exercitada.
+
 ---
 
 ### Task 8: Validação live no eproc do TJTO e promoção do perfil (👤 Arthur)
