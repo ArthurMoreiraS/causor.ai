@@ -72,20 +72,39 @@ class CourtSimulator:
     documents: list[SimulatorDocument] = field(default_factory=_default_documents)
 
     def login_html(self) -> str:
+        """Tela de login com as duas armadilhas reais dos portais.
+
+        Tem formulário de senha de verdade (o que a detecção por seletor usa)
+        e a palavra "processo" no texto — que era marcador de *autenticado* em
+        ``pje/pages/login.py`` e fazia sessão morta passar por válida.
+        """
         return (
             f"<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
             f"<title>{self.sistema} Simulator</title></head><body>"
             f"<h1>Acesso {self.sistema}</h1>"
+            f"<p>Consulta e peticionamento de processo eletronico.</p>"
+            f"<form id='form-login' method='post'>"
+            f"<input type='text' name='usuario' placeholder='Usuario'>"
+            f'<input type="password" name="senha" placeholder="Senha">'
+            f"<button type='submit'>Entrar</button>"
+            f"</form>"
             f"<button type='button'>{self.login_marker}</button>"
             f"<button type='button'>Entrar com gov.br</button>"
             f"</body></html>"
         )
 
     def panel_html(self) -> str:
+        """Painel autenticado com "Alterar Senha" no menu.
+
+        Essa é a armadilha que fazia ``handlers.py`` nunca confirmar o login:
+        a substring "senha" aparece, mas não existe formulário de senha.
+        """
         return (
             f"<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'>"
             f"<title>{self.sistema} Simulator</title></head><body>"
-            f"<header>{self.panel_marker} · <a href='#sair'>Sair</a></header>"
+            f"<header>{self.panel_marker}"
+            f" · <a href='#alterar-senha'>Alterar Senha</a>"
+            f' · <a href="#logout">Sair</a></header>'
             f"<section id='autos'>{self.autos_html(page=1)}</section>"
             f"</body></html>"
         )
