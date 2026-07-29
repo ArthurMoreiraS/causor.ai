@@ -619,14 +619,14 @@ Ligar o gatilho: após build/push, o Actions atualiza a VPS sozinho.
 **Interfaces:**
 - Consumes: imagens do job `build-push` (Task 6); segredos SSH do repo.
 
-- [ ] **Step 1 (👤): Segredos de deploy no GitHub**
+- [x] **Step 1 (👤): Segredos de deploy no GitHub** — feito. A chave privada foi transferida via área de transferência (`Set-Clipboard`), nunca impressa no chat, dado o nível de acesso que ela concede (sudo NOPASSWD na VPS compartilhada).
 
 Repo → Settings → Secrets and variables → Actions → **Secrets**:
 - `VPS_HOST` = `179.197.70.156`
 - `VPS_USER` = `deploy`
 - `VPS_SSH_KEY` = conteúdo de `~/.ssh/causor_deploy` (a chave **privada**).
 
-- [ ] **Step 2: Adicionar o job `deploy` em `.github/workflows/deploy.yml`**
+- [x] **Step 2: Adicionar o job `deploy` em `.github/workflows/deploy.yml`**
 
 Acrescentar ao final do arquivo (depois de `build-push`):
 ```yaml

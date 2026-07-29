@@ -53,3 +53,23 @@ jobs:
             ghcr.io/arthurmoreiras/causor-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd /opt/causor
+            export IMAGE_TAG=${{ github.event.workflow_run.head_sha }}
+            echo "IMAGE_TAG=$IMAGE_TAG" > .image_tag.env
+            docker compose --env-file .env --env-file .image_tag.env pull
+            docker compose --env-file .env --env-file .image_tag.env run --rm migrate
+            docker compose --env-file .env --env-file .image_tag.env up -d
+            sleep 15
+            curl -fsS https://api.causorai.com/health
