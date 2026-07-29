@@ -980,11 +980,18 @@ def test_protocolar_async_pje_sem_sessao_falha_e_nao_protocola(client, db_sessio
     assert peticao.protocolada_em is None
 
 
-def test_protocolar_async_pje_sem_orgao_enriquece_on_demand(client, db_session, seeded):
+def test_protocolar_async_pje_sem_orgao_enriquece_on_demand(
+    client, db_session, seeded, monkeypatch
+):
     """Processo sem orgao_julgador: o job enriquece on-demand via DataJud
     antes de acionar o conector. Garante que o Playwright recebe o orgao."""
     from app.capture.datajud import ProcessoDTO
     from unittest.mock import patch
+
+    # Força o caminho DataJud-ativo: sem key o endpoint usaria _NoopDatajudClient
+    # e o mock de DatajudClient abaixo seria ignorado (teste passaria so por
+    # acidente, dependendo de haver ou nao datajud_api_key no ambiente).
+    monkeypatch.setattr("app.api.main.settings.datajud_api_key", "test-key")
 
     seeded.sistema = "PJe"
     seeded.orgao_julgador = None  # shell, precisa enriquecer
