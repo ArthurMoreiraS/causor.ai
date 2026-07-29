@@ -460,19 +460,15 @@ jobs:
           cache-to: type=gha,mode=max
 ```
 
-- [ ] **Step 3: Commit e push numa branch de teste**
+- [x] **Step 3: Commit e push direto na `main`** — feito (não precisou de branch de teste separada; commits foram direto na `main` com aprovação do Arthur a cada push).
 
-```bash
-git add .github/workflows/deploy.yml
-git commit -m "ci: build e push das imagens do Causor para o ghcr"
-git push origin HEAD
-```
+- [x] **Step 4 (👤/🤖): Merge na `main` e verificar as imagens** — dois problemas reais travaram o primeiro push e foram corrigidos antes do CI ficar verde (ambos pré-existentes, sem relação com o deploy):
+  1. **CI vermelho desde ~21/07** (descoberto olhando o histórico de runs): `ruff>=0.5` sem teto no `pyproject.toml` deixava o CI instalar a versão mais nova a cada run; `ruff 0.16.0` mudou o conjunto de regras padrão e passou a reportar 373 erros pré-existentes. Corrigido travando `ruff>=0.5,<0.16`.
+  2. Com o ruff desbloqueado, o `pytest` revelou (pela primeira vez, já que antes nunca chegava a rodar) um teste (`test_protocolar_async_pje_sem_orgao_enriquece_on_demand`) que mockava `DatajudClient` mas não forçava `settings.datajud_api_key` — passava em dev por acidente (`.env` local tem chave real) e falhava limpo no CI (sem `.env`). Corrigido com o mesmo padrão (`monkeypatch.setattr`) já usado em outro teste do arquivo.
 
-- [ ] **Step 4 (👤/🤖): Merge na `main` e verificar as imagens**
+  Depois dos dois fixes: `CI` verde, `Deploy → build-push` executou de verdade (~5min, as duas imagens), `causor-backend` e `causor-frontend` apareceram em **GitHub → repo → Packages**.
 
-Após o merge na `main`, o `CI` roda; ao passar, o `Deploy → build-push` dispara. Verificar em **GitHub → repo → Packages** que apareceram `causor-backend` e `causor-frontend` com a tag do SHA. (Se `build-push` não disparar, conferir que o `name:` do CI é exatamente `CI`.)
-
-**Deliverable:** imagens privadas publicadas no ghcr a cada push verde na `main`.
+**Deliverable:** imagens privadas publicadas no ghcr a cada push verde na `main`. ✅
 
 ---
 
@@ -482,49 +478,19 @@ Apontar os subdomínios e deixar a VPS pronta para baixar as imagens.
 
 **Files:** (nenhum no repo — configuração externa e no servidor)
 
-- [ ] **Step 1 (👤): Criar os registros A no DNS de `causorai.com`**
+- [x] **Step 1 (👤): Criar os registros A no DNS de `causorai.com`** — feito. `A app` e `A api` → `179.197.70.156`.
 
-No registrador/DNS do `causorai.com`, criar:
-- `A  app  → 179.197.70.156`
-- `A  api  → 179.197.70.156`
-(TTL baixo, ex.: 300s, durante o setup.)
+- [x] **Step 2 (🤖): Verificar propagação do DNS** — confirmado via `getent hosts` na própria VPS (o `nslookup` local não alcançava `1.1.1.1` por rede): ambos resolvem para `179.197.70.156`.
 
-- [ ] **Step 2 (🤖): Verificar propagação do DNS**
+- [x] **Step 3 (🤖): Copiar os arquivos de infra para a VPS** — `/opt/causor/docker-compose.yml` e `.env.example` copiados.
 
-```bash
-nslookup app.causorai.com 1.1.1.1
-nslookup api.causorai.com 1.1.1.1
-```
-Expected: ambos resolvem para `179.197.70.156`. (Pode levar alguns minutos.)
+- [x] **Step 4 (🤖 + 👤): Criar o `/opt/causor/.env` com os segredos reais** — feito: valores reaproveitados do `backend/.env` local, escrito num arquivo temporário no scratchpad (fora do repo), enviado por `scp` e o temporário local apagado em seguida. Permissão `600` na VPS. **Decisão:** `CAUSOR_VAULT_PROVIDER=localdev` (não `supabase` como o `.env.prod.example` sugeria) — a migração para o Supabase Vault é um passo separado e posterior no roadmap (`docs/estado.md`), ainda não validado; manter o mesmo provider que já roda em dev evita introduzir um caminho não testado nesta primeira subida.
 
-- [ ] **Step 3 (🤖): Copiar os arquivos de infra para a VPS**
+- [x] **Step 5 (👤): Criar um PAT de leitura do ghcr** — pivô real durante a execução: um **fine-grained PAT** (`Contents: Read` + tentativa de `Packages: Read`) **não é suportado pelo GitHub** para Container Registry — a opção "Packages" nem aparece na lista de permissões de fine-grained tokens. Também descoberto: um **classic PAT só com `read:packages`** autentica (`docker login` funciona) mas falha com **403** no `docker pull` de pacote vinculado a repositório privado — precisa do escopo **`repo`** completo junto. Token final: classic PAT com `repo` + `read:packages`.
 
-Sem Caddyfile aqui — o TLS/proxy é o do stack `infolex-evo` (integração na Task 8).
-```bash
-ssh -i "$HOME/.ssh/causor_deploy" deploy@179.197.70.156 'sudo mkdir -p /opt/causor && sudo chown deploy:deploy /opt/causor'
-scp -i "$HOME/.ssh/causor_deploy" infra/docker-compose.prod.yml deploy@179.197.70.156:/opt/causor/docker-compose.yml
-scp -i "$HOME/.ssh/causor_deploy" infra/.env.prod.example deploy@179.197.70.156:/opt/causor/.env.example
-```
-Expected: transferências concluídas.
+- [x] **Step 6 (🤖): `docker login` no ghcr a partir da VPS** — `Login Succeeded`; `docker pull` das duas imagens (`causor-backend`, `causor-frontend`) confirmado com sucesso.
 
-- [ ] **Step 4 (🤖 + 👤): Criar o `/opt/causor/.env` com os segredos reais**
-
-Reutilizar os valores que já funcionam no `backend/.env` local (mesmo Supabase, mesma `ANTHROPIC_API_KEY`, mesmo `CAUSOR_DATAJUD_API_KEY`, `CAUSOR_SUPABASE_JWT_SECRET`). Arthur confirma/fornece cada valor; Claude escreve o arquivo na VPS via SSH (sem imprimir os segredos no chat). Ajustar para produção: `CAUSOR_CORS_ORIGINS=https://app.causorai.com`, `CAUSOR_FILING_MODE=sandbox`, `CAUSOR_OBJECT_STORE_LOCAL_PATH=/app/artifacts/objects`.
-Expected: `ssh ... 'test -f /opt/causor/.env && echo ok'` → `ok`.
-
-- [ ] **Step 5 (👤): Criar um PAT de leitura do ghcr**
-
-GitHub → **Settings → Developer settings → Personal access tokens** → token (classic) com escopo **`read:packages`**. Guardar o valor para o Step 6.
-
-- [ ] **Step 6 (🤖): `docker login` no ghcr a partir da VPS**
-
-```bash
-ssh -i "$HOME/.ssh/causor_deploy" deploy@179.197.70.156 \
-  'echo "<PAT_read_packages>" | docker login ghcr.io -u ArthurMoreiraS --password-stdin'
-```
-Expected: `Login Succeeded`. (Credenciais ficam em `~/.docker/config.json` do `deploy`; o deploy do Actions reusa.)
-
-**Deliverable:** DNS apontando, arquivos de infra + `.env` na VPS, e a VPS autenticada para baixar imagens privadas.
+**Deliverable:** DNS apontando, arquivos de infra + `.env` na VPS, e a VPS autenticada e capaz de baixar as imagens privadas de verdade (testado, não só logado).
 
 ---
 
