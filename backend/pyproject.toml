@@ -32,7 +32,7 @@ dev = [
     "pytest>=8.2",
     "pytest-httpx>=0.30",
     "pypdf>=5.0",
-    "ruff>=0.5",
+    "ruff>=0.5,<0.16",
 ]
 
 [tool.ruff]
