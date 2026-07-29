@@ -192,7 +192,7 @@ Imagem enxuta do Next.js usando saída `standalone`.
 - Consumes (build args): `NEXT_PUBLIC_API_BASE`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
 - Produces: imagem que roda `node server.js` na porta 3000.
 
-- [ ] **Step 1: Ativar saída standalone em `frontend/next.config.mjs`**
+- [x] **Step 1: Ativar saída standalone em `frontend/next.config.mjs`**
 
 ```javascript
 /** @type {import('next').NextConfig} */
@@ -203,7 +203,7 @@ const nextConfig = {
 export default nextConfig;
 ```
 
-- [ ] **Step 2: Criar `frontend/.dockerignore`**
+- [x] **Step 2: Criar `frontend/.dockerignore`**
 
 ```
 node_modules/
@@ -213,18 +213,18 @@ node_modules/
 npm-debug.log
 ```
 
-- [ ] **Step 3: Criar `frontend/Dockerfile`**
+- [x] **Step 3: Criar `frontend/Dockerfile`** — versão final abaixo já incorpora os dois ajustes descobertos no build real (Step 4).
 
 ```dockerfile
 # --- deps ---
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 RUN corepack enable
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # --- build ---
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 RUN corepack enable
 COPY --from=deps /app/node_modules ./node_modules
@@ -238,7 +238,7 @@ ENV NEXT_PUBLIC_API_BASE=$NEXT_PUBLIC_API_BASE \
 RUN pnpm build
 
 # --- runtime ---
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build /app/.next/standalone ./
@@ -248,26 +248,13 @@ EXPOSE 3000
 CMD ["node", "server.js"]
 ```
 
-- [ ] **Step 4: Buildar a imagem com build args reais**
+- [x] **Step 4: Buildar a imagem com build args reais** — feito na VPS (Docker local sem daemon ativo), dois problemas reais encontrados e corrigidos no `Dockerfile`:
+  1. `node:20-alpine` não bastava: `pnpm@11.2.2` (fixado no `package.json`) exige **Node ≥22.13** — o build falhava em `pnpm install` com `ERR_UNKNOWN_BUILTIN_MODULE: node:sqlite`. Trocado para `node:22-alpine` nos três estágios.
+  2. Com Node 22, `pnpm install --frozen-lockfile` ainda falhava com `ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`: o repo tem um `pnpm-workspace.yaml` com `overrides: postcss: 8.5.10`, e o estágio `deps` só copiava `package.json`/`pnpm-lock.yaml` — sem o workspace file, o pnpm não via o override que o lockfile esperava. Corrigido copiando `pnpm-workspace.yaml` também.
 
-```bash
-docker build -t causor-frontend:test \
-  --build-arg NEXT_PUBLIC_API_BASE=https://api.causorai.com \
-  --build-arg NEXT_PUBLIC_SUPABASE_URL=https://ufzrhthkfmlzhaykkfsl.supabase.co \
-  --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=placeholder-anon \
-  frontend/
-```
-Expected: build conclui e mostra "Creating an optimized production build".
+  Depois dos dois ajustes: build completo em ~110s, `next build` gerou as 5 rotas (`/`, `/login`, `/set-password`, etc.) sem erro.
 
-- [ ] **Step 5: Smoke test**
-
-```bash
-docker run --rm -d --name cf-test -p 3010:3000 causor-frontend:test
-sleep 3
-curl -fsS -o /dev/null -w "%{http_code}\n" http://localhost:3010/login
-docker rm -f cf-test
-```
-Expected: `200`.
+- [x] **Step 5: Smoke test** — `GET /login` no container retornou `HTTP 200`.
 
 - [ ] **Step 6: Commit**
 
