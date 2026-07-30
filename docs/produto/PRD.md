@@ -92,9 +92,21 @@ O concorrente de monitoramento (Astrea, Projuris, Legal One, Digesto, Escavador)
 | Diferencial | Agir, não só agregar | Agir, não só monitorar |
 | Guarda-corpo | — | Gate de aprovação OAB + auditoria imutável |
 
-O moat **não** é capturar publicação (commodity). É a **execução autônoma com
-responsabilidade controlada** — e, no acesso aos autos, a **prova de que o
-conjunto veio inteiro**.
+O moat **não** é capturar publicação (commodity) — mas, **corrigido em
+2026-07-29**, também não é "nós protocolamos". A doc9/Task.doc9 já roda ~600 mil
+operações automatizadas por mês nos tribunais (incluindo peticionamentos
+intermediários) e o marketplace da própria OAB (iJUD Peticiona) vende protocolo
+multi-tribunal a partir de R$ 19,90/mês. O que a pesquisa **não** encontrou à
+venda em ninguém é a combinação de: **prova de que o conjunto dos autos veio
+inteiro + prazo determinístico auditável + trilha imutável de supervisão
+humana**. Esse é o moat; o protocolo é o último metro, executado pelo **agente
+local** com a credencial do próprio advogado.
+
+Evidência, números e fontes em
+[`docs/areas/viabilidade-mercado-2026-07-29.md`](../areas/viabilidade-mercado-2026-07-29.md).
+A dissecação do único precedente regulatório de "IA que protocola" (Garfield.Law,
+autorizada pela SRA) e sua transposição para o Brasil estão em
+[`docs/areas/modelo-garfield-2026-07-29.md`](../areas/modelo-garfield-2026-07-29.md).
 
 ### 4.1 Leitura competitiva: Enter / Judit (mercado brasileiro)
 
@@ -161,10 +173,13 @@ por `CapturaAutos.fonte` ("mni" | "agente"). A operação
 usando o cadastro do advogado como assinatura eletrônica válida
 (Lei 11.419/2006 art. 1º §2º III) — potencial atalho para dispensar
 PJeOffice/certificado, a confirmar por tribunal no credenciamento. Varredura de
-2026-07-22 confirmou **14 perfis (tribunal, grau)** em 9 tribunais (TJs estaduais + TRF5/TRF6). Falta só o
-**credenciamento** (ofício gratuito à DTI); com `RUN_MNI_LIVE=1` verde, o
-roteamento escolhe `fonte="mni"` sozinho. Detalhe em
-[`docs/areas/mni-credenciamento.md`](../areas/mni-credenciamento.md).
+2026-07-22 confirmou **14 perfis (tribunal, grau)** em 9 tribunais (TJs estaduais + TRF5/TRF6).
+**Ressalva de 2026-07-29:** o credenciamento **não** é um ofício gratuito de
+trâmite garantido — quatro fontes indicam que o MNI é desenhado para órgão
+público e pode não ser concedido a CNPJ privado. Consultar por escrito antes de
+investir mais; se negado, esta seção inteira vira código sem porta e o agente
+local passa a ser o único caminho. Detalhe e checklist da consulta em
+[`docs/areas/mni-credenciamento.md`](../areas/mni-credenciamento.md) §0.
 
 ### 5.4 Camada de agente (`backend/app/agent`) — ✅ parcial
 - **Classificador** (`claude-haiku-4-5`, structured output): interpreta o teor da intimação → tipo do ato, peça cabível, prazo em dias, dias úteis vs. corridos, confiança. O **cálculo da data continua determinístico**.
@@ -312,13 +327,29 @@ Agrupadas por tema. Cada uma indica o **porquê** (valor) e um **esboço** do co
 
 Mantém a ordem do plano: fatia vertical primeiro, depois expansão.
 
-**Fase 0 — Destravar o acesso ao tribunal (caminho crítico, now):** obter o
-**credenciamento MNI** em um tribunal com processo ativo do piloto (ofício
-gratuito) e/ou as **credenciais reais do advisor** para PJe/eproc/e-SAJ/Projudi
-+ um processo de teste seguro. Sem isso, os conectores (F12/F13) não saem do
-simulador — é o único gargalo real. Em paralelo: escolher o ambiente definitivo
-e operar a captura agendada. *Wizard-of-Oz aceitável:* rodar captura + prazo +
-minuta automáticos com protocolo manual enquanto o conector homologa.
+**Fase 0 — Um piloto real, sem esperar autorização de tribunal (caminho
+crítico, now).** Reescrita em 2026-07-29. A Fase 0 anterior colocava o
+credenciamento MNI e as credenciais do advisor como gargalo — a pesquisa mostrou
+que o MNI provavelmente não é concedido a CNPJ privado e que **o piloto não
+precisa dele**: DJEN/DataJud já rodam ao vivo, o agente local lê os autos com a
+credencial do próprio advogado, e prazo, minuta, gate e auditoria estão prontos.
+O protocolo sai como está hoje — `ready_to_sign` + confirmação do advogado —
+que é exatamente o desenho que a SRA autorizou na Garfield.Law (aprovação humana
+em cada passo). **Isso não é Wizard-of-Oz; é o produto.**
+
+Entregas da Fase 0:
+
+1. Publicar backend + frontend, cron de captura e monitoramento externo.
+2. Rodar 2–3 escritórios por 30 dias com intimações **reais**.
+3. Em paralelo e sem bloquear nada: a consulta escrita de viabilidade do MNI
+   (§0 de [`docs/areas/mni-credenciamento.md`](../areas/mni-credenciamento.md)).
+4. Escolher **uma raia** (um tipo de ato com árvore de decisão fechada) com o
+   escritório do piloto, em vez de "qualquer intimação" — critério em
+   [`modelo-garfield-2026-07-29.md`](../areas/modelo-garfield-2026-07-29.md) §5.
+
+**Critério de morte, definido antes de começar:** se as minutas forem reescritas
+do zero **e** o motor de prazos não sinalizar nada que o escritório teria
+perdido, o produto não está lá — e nenhum conector conserta isso.
 
 **Fase 1 — Confiança e operação:** A1 (radar de prazo), A2 (dupla checagem),
 D1 (relatório de auditoria) e worker dedicado.
@@ -363,7 +394,11 @@ D1 (relatório de auditoria) e worker dedicado.
 | Certificado/assinatura (gargalo de viabilidade) | Sem isso não há protocolo autônomo | Validar 1 provedor de certificado em nuvem cedo (F10). |
 | Captcha / mudança de layout no tribunal | Quebra o conector | Determinístico + fallback computer-use + human-in-the-loop; começar por 1 sistema. |
 | Responsabilidade OAB | Risco jurídico ao cliente | Gate + auditoria imutável desde o dia 1. |
-| Concorrência de monitoramento | Comoditização | Competir em **execução autônoma**, não em captura. |
+| Concorrência de monitoramento | Comoditização | Competir em **execução comprovável** (completude + prazo auditável + trilha), não em captura nem em "quem protocola". |
+| **MNI não credenciar CNPJ privado** (2026-07-29) | Mata a trilha MNI inteira (F12) | Consulta escrita a 2 DTIs + CNJ **antes** de mais código; piloto desacoplado do MNI; agente local como caminho primário. |
+| **Tribunal bloquear a credencial do cliente por acesso automatizado** | Pior falha possível: cliente sem acesso, com ciência da OAB | Agente local no volume de um humano, sem coleta centralizada; nunca consultar processo de terceiro (gatilho das regras do TRT-6/TRT-4). |
+| **Incumbente com distribuição** (doc9, ADVBOX, Astrea, iJUD/OAB) | Fecha o mercado por cima e por baixo | Não competir em protocolo genérico; uma raia estreita + prova de completude, que nenhum deles vende. |
+| **Compartilhar certificado digital** (MP 2.200-2/2001) | Ato não repudiável assinado por terceiro | Certificado fica com o advogado, no agente local; se delegar, exigir custódia gerenciada com permissão e auditoria. |
 | Alucinação na minuta/classificação | Erro material | Dupla checagem (A2), confiança explícita, gate, RAG com citação rastreável (B2). |
 | Mudança nas APIs do CNJ | Quebra de captura | Chave pública DataJud lida em runtime; testes de integração ao vivo. |
 
@@ -371,7 +406,9 @@ D1 (relatório de auditoria) e worker dedicado.
 
 ## 12. Perguntas em aberto (para decisão)
 
-1. **Primeiro tribunal do conector:** priorizar tribunal com **MNI já verificado** (TJPE, TJPI, TJAP, TRF5/TRF6 têm 1º/2º grau confirmados) e processo ativo do piloto, já que o MNI lê *e* pode protocolar sem certificado. e-SAJ/TJSP (maior mercado) fica para o agente local. Decidir com base no piloto disponível.
+1. **Primeiro tribunal do conector:** *superada em 2026-07-29* — decidir pelo tribunal onde o escritório do piloto tem volume do **mesmo ato**, atendido pelo agente local, e não pelo tribunal que tem MNI. A lista de MNI verificado (TJPE, TJPI, TJAP, TRF5/TRF6) só volta a importar se a consulta de credenciamento (§0 de `mni-credenciamento.md`) voltar positiva.
+5. **Raia do produto:** qual único tipo de ato fechar primeiro (candidatos e critério em [`modelo-garfield-2026-07-29.md`](../areas/modelo-garfield-2026-07-29.md) §5) — decidir olhando a carteira real do escritório-âncora.
+6. **Estrutura escritório-âncora:** formalizar licença de software para uma sociedade de advogados parceira (Modelo B), com fronteiras escritas: sem participação societária, sem remuneração por êxito, sem publicidade de serviço jurídico pelo Causor.
 2. **Provedor de certificado em nuvem** a integrar primeiro (BirdID, VIDaaS, Certisign Cloud, SafeID).
 3. **Modelo de cobrança:** por advogado, por OAB monitorada, por volume de protocolos, ou híbrido.
 4. **Wizard-of-Oz:** rodar captura + prazo automáticos com protocolo manual nos primeiros pilotos enquanto o conector amadurece?

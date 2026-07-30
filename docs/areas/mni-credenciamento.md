@@ -1,9 +1,58 @@
 # MNI — endpoints verificados e credenciamento
 
-Este arquivo tem duas partes: **(1)** o resultado da varredura de endpoints de
-2026-07-22, que é a base da tabela em `backend/app/connectors/mni/profiles.py`,
-e **(2)** o material para enviar o ofício de credenciamento — o único passo
-que falta para a leitura oficial dos autos sair do papel.
+Este arquivo tem três partes: **(0)** a ressalva crítica de 2026-07-29 sobre
+**quem** o MNI admite credenciar; **(1)** o resultado da varredura de endpoints
+de 2026-07-22, base da tabela em `backend/app/connectors/mni/profiles.py`; e
+**(2)** o material do ofício de credenciamento.
+
+---
+
+## 0. Ressalva crítica (2026-07-29): o MNI pode não admitir CNPJ privado
+
+**Leia antes de enviar qualquer ofício.** A seção 2 deste arquivo foi escrita
+sob a premissa de que o credenciamento é um trâmite burocrático gratuito. A
+pesquisa de mercado de 2026-07-29
+([`viabilidade-mercado-2026-07-29.md`](viabilidade-mercado-2026-07-29.md) §2)
+encontrou quatro fontes convergentes indicando que o MNI é desenhado para
+**órgão público**, não para fornecedor privado de software:
+
+| Fonte | O que diz |
+|---|---|
+| Termo de Adesão MNI — STF (VF 2024) | Só aderem órgãos **com credenciamento do art. 246 §2 do CPC**: administração direta/indireta, MP, Defensoria, Advocacia Pública |
+| TRF6 — página oficial do MNI | Exige CNPJ, **IP público**, "Gestor de Negócio" com **matrícula funcional**, e-mail institucional e **delegação formal de competência** |
+| eproc / TRF4 | Webservice MNI descrito como autorizado apenas a **órgãos do Poder Judiciário** |
+| Docs do PJe — MNI Client | `entregarManifestacaoProcessual` exposto a **sistemas** com role `invoke-service-endpoint` concedida pelo tribunal |
+
+Reforço institucional: o CNJ já atende o advogado por outro caminho — o
+**Escritório Digital** (CNJ + Conselho Federal da OAB, sobre MNI, consulta e
+**envia petição**, gratuito). O intermediário oficial existe e é institucional.
+
+Nenhuma dessas fontes diz "empresa privada não pode". Todas descrevem um
+desenho em que ela não caberia. **Não é conclusão — é motivo para perguntar
+antes de investir.**
+
+### 0.1 A consulta que resolve isso (faça primeiro)
+
+Destinatários: **DTI de dois tribunais** da lista da §1.1 + **`integracaopdpj@cnj.jus.br`**.
+
+Pergunta, literal:
+
+> Pessoa jurídica de direito privado, fornecedora de software de gestão para
+> advogados, pode obter credencial de acesso ao webservice MNI para as operações
+> `consultarProcesso` e `entregarManifestacaoProcessual`, atuando **em nome e
+> por conta de advogado regularmente habilitado nos autos**? Em caso positivo,
+> qual o procedimento e quais documentos são exigidos? Em caso negativo, existe
+> caminho previsto para o advogado autorizar sistema de terceiro?
+
+- [ ] Enviado ao tribunal A — data: ______ / resposta: ______
+- [ ] Enviado ao tribunal B — data: ______ / resposta: ______
+- [ ] Enviado ao `integracaopdpj@cnj.jus.br` — data: ______ / resposta: ______
+
+**Se a resposta for negativa nos três:** a trilha MNI morre, o `MniFilingDriver`
+não deve ser construído, e o agente local passa a ser o único caminho de leitura
+e protocolo. Isso **não** bloqueia o piloto — ver `estado.md`.
+
+**Se for positiva:** siga a seção 2 normalmente.
 
 ---
 

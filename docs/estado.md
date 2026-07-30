@@ -24,9 +24,18 @@
   enviava. Endpoints, ressalvas e o checklist do oficio:
   [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md).
 
-  **Bloqueio unico:** o credenciamento (oficio gratuito a DTI do tribunal).
-  Sem credencial nenhum tribunal esta utilizavel de fato — WSDL acessivel nao
-  e servico funcional.
+  **CORRIGIDO EM 2026-07-29 — o credenciamento nao e "bloqueio unico", e uma
+  aposta nao verificada.** A pesquisa de mercado
+  ([`areas/viabilidade-mercado-2026-07-29.md`](areas/viabilidade-mercado-2026-07-29.md) §2)
+  mostrou que o MNI e desenhado para orgao publico: o Termo de Adesao do STF
+  restringe a orgaos do art. 246 §2 do CPC, o TRF6 exige matricula funcional e
+  delegacao formal de competencia, o webservice do eproc e descrito como
+  autorizado so a orgaos do Judiciario, e o CNJ atende o advogado por outro
+  caminho (Escritorio Digital, CNJ + OAB, gratuito). Pode ser um "nao"
+  estrutural, nao uma fila burocratica. **Testar por escrito antes de investir
+  mais** (checklist na secao 0 de
+  [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md)).
+  Independente disso: WSDL acessivel nao e servico funcional.
 
 - **2026-07-10 — Plano 2 (autos integrais e contexto citado): COMPLETO
   (Tasks 1–10)** (branch `feat/autos-contexto-integral`):
@@ -152,11 +161,16 @@ nenhuma.
    local**: capturar, prazo, minuta e revisao nao dependem de MNI.
 6. Alertas de prazo por e-mail ou WhatsApp.
 
-### Trilha MNI (espera o deferimento)
+### Trilha MNI (aposta paralela — testar viabilidade antes de investir)
 
-7. **Solicitar o credenciamento** no tribunal do piloto. E o item de maior
-   latencia e menor esforco — sai primeiro, hoje, e tramita em paralelo com
-   tudo acima. Oficio redigido, com placeholders, em
+7. **Consultar por escrito se CNPJ privado pode ser credenciado** — duas DTIs
+   de tribunal e `integracaopdpj@cnj.jus.br`. Custo: dois e-mails; resolve a
+   duvida de vez (ver secao 0 de
+   [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md)). Se a resposta
+   for negativa, esta trilha inteira morre e o agente local vira o unico
+   caminho — o que **nao** bloqueia o piloto.
+   Deferida a consulta, **solicitar o credenciamento** no tribunal do piloto.
+   Oficio redigido, com placeholders, em
    [`areas/oficio-credenciamento-mni.md`](areas/oficio-credenciamento-mni.md);
    endpoints e ressalvas em
    [`areas/mni-credenciamento.md`](areas/mni-credenciamento.md).
@@ -182,11 +196,12 @@ nenhuma.
 
 ## Ordem de execucao
 
-As duas trilhas acima intercaladas no tempo real: o oficio sai primeiro porque
-so ele tem latencia de semanas.
+As duas trilhas acima intercaladas no tempo real. A consulta ao tribunal sai
+primeiro porque e a de maior latencia e menor esforco — **mas o piloto nao
+espera por ela.** O caminho critico e o piloto real; o MNI e aposta paralela.
 
-1. Enviar o oficio de credenciamento MNI (nao bloqueia nada abaixo enquanto
-   tramita).
+1. Enviar a consulta de viabilidade do MNI + o oficio (nao bloqueia nada abaixo
+   enquanto tramita).
 2. Publicar backend e frontend com CI verde.
 3. Provisionar o primeiro escritorio conforme `onboarding-piloto.md`.
 4. Ativar o cron e acompanhar ao menos dois ciclos de captura.

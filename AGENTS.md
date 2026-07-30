@@ -25,16 +25,29 @@ Two rules that follow from the MNI work and are easy to get wrong:
   marks the capture `failed` and does *not* fall back to the agent, so a guessed
   endpoint sends the lawyer to an error instead of the path that works.
 
-The remaining work is primarily the MNI credentialing request (the single
-blocker for official reading *and* filing), real-pilot validation and
-production scheduling/observability. The Playwright connectors (Plano 3
-Tasks 6–9) were deprioritised — they stay as the fallback for courts the MNI
-does not serve.
+**Market research of 2026-07-29 changed the priority order.** MNI credentialing
+is no longer "the single blocker" — it is an *unverified bet*: the MNI is
+designed for public bodies (STF's Termo de Adesão, TRF6's institutional
+requirements, eproc restricted to Judiciary organs), so a private CNPJ may
+simply not be granted access. Evidence and the cheap falsification test are in
+[`docs/areas/viabilidade-mercado-2026-07-29.md`](docs/areas/viabilidade-mercado-2026-07-29.md).
+
+What follows from that: **the pilot does not wait for any court authorisation.**
+DJEN/DataJud already run live and the local agent reads the case file with the
+lawyer's own credential — capture, deadline, minuta, gate and audit are all
+available today, with filing staying as `ready_to_sign` + lawyer confirmation.
+Real-pilot validation and production scheduling/observability are the critical
+path. The Playwright connectors (Plano 3 Tasks 6–9) and the MNI stay as parallel
+bets, not prerequisites.
 
 Use `README.md` for repository orientation and `docs/estado.md` as the source
 of truth for current status and execution order. The PRD (`docs/produto/PRD.md`)
 is strategic; files in `docs/historico/superpowers/` are historical
 design/implementation records and must not be used to infer current state.
+For market/strategy questions ("is this viable?", "what is the moat?", "which
+lane?"), read `docs/areas/viabilidade-mercado-2026-07-29.md` and
+`docs/areas/modelo-garfield-2026-07-29.md` — they carry the evidence and
+supersede older strategic claims in the PRD where the two disagree.
 
 ### Build / lint / test (run from `/backend`)
 
@@ -45,7 +58,8 @@ python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   
 docker compose -f ../infra/docker-compose.yml up -d postgres   # local Postgres + Redis
 CAUSOR_DATABASE_URL=postgresql+psycopg://causor:causor@localhost:5432/causor ./.venv/Scripts/alembic.exe upgrade head   # migrate
 RUN_LIVE=1 ./.venv/Scripts/python.exe -m pytest tests/test_live_integration.py   # opt-in live CNJ API tests
-python -m app.cli poll --oab 12345 --uf SP --escritorio 1       # run one capture cycle
+python -m app.cli poll --oab 12345 --uf SP --escritorio 1       # one capture cycle, bounded window (--dias-janela, default from settings)
+python -m app.cli poll --oab 12345 --uf SP --escritorio 1 --historico-completo   # sweeps the OAB's ENTIRE DJEN history — explicit on purpose
 ```
 
 On Linux/macOS use `.venv/bin/python` / `.venv/bin/alembic` instead of the `Scripts/` paths.
@@ -55,7 +69,7 @@ before making product or architecture decisions.
 Decisions already settled with the user (do not re-litigate without being asked):
 - Market: Brazil; initial customer: small/medium law firms (solo to ~50 lawyers).
 - First workflow: end-to-end case operations — **capture intimation → compute deadline → draft petition → file (protocol)**.
-- The moat is **autonomous action** (acting like the lawyer inside court systems), not publication monitoring (a commodity already served by Astrea, Projuris, Legal One, Digesto, Escavador). Do not build toward monitoring-only.
+- The moat is **provable execution**, not publication monitoring (a commodity already served by Astrea, Projuris, Legal One, Digesto, Escavador) — and no longer "we file", because doc9/Task.doc9 already runs ~600k automated court operations a month and the OAB's own marketplace (iJUD) sells multi-court filing from R$ 19,90/month. What nobody sells: **completeness proof of the case file + deterministic auditable deadline + immutable trail of human supervision**. Filing is the last mile, executed by the local agent under the lawyer's own credential. See [`docs/areas/viabilidade-mercado-2026-07-29.md`](docs/areas/viabilidade-mercado-2026-07-29.md) and [`docs/areas/modelo-garfield-2026-07-29.md`](docs/areas/modelo-garfield-2026-07-29.md).
 
 ## What this product is
 
