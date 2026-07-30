@@ -79,7 +79,7 @@ class Settings(BaseSettings):
 
 # Capture scheduling
     capture_lookback_days: int = 3
-    capture_manual_lookback_days: int = 60
+    capture_manual_lookback_days: int = 90
     capture_intervalo_horas_default: int = 12
     capture_retry_attempts: int = 5
     capture_retry_backoff_seconds: float = 10.0

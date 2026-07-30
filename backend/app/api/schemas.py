@@ -129,6 +129,9 @@ class CaptureResultOut(BaseModel):
     intimacoes_novas: int
     processos_enriquecidos: int
     prazos_registrados: int
+    # Intimações antigas cujo prazo provisório já estaria vencido: gravadas, mas
+    # sem prazo (não viram alarme no painel de risco).
+    prazos_historicos: int = 0
     djen_indisponivel: bool = False
     djen_erro: str | None = None
 

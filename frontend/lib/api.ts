@@ -120,6 +120,10 @@ export type CaptureResult = {
   intimacoes_novas: number;
   processos_enriquecidos: number;
   prazos_registrados: number;
+  // Intimações antigas capturadas cujo prazo provisório já estaria vencido: são
+  // gravadas, mas não geram prazo (evita parede de alarme falso no painel de
+  // risco). Opcional porque backend anterior à mudança não envia o campo.
+  prazos_historicos?: number;
 };
 
 export type ReviewQueueItem = {

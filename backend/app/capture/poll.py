@@ -24,10 +24,24 @@ from app.capture.registrar import registrar_prazo
 from app.prazo_engine.calendar import ForensicCalendar
 
 
+class UnboundedCaptureError(ValueError):
+    """Captura pedida sem janela de data.
+
+    O DJEN, sem ``dataDisponibilizacaoInicio``/``Fim``, devolve o histórico
+    inteiro da OAB ordenado do mais novo para o mais antigo, e a paginação vai
+    até esgotar. Em produção isso varreu uma OAB de 626 comunicações até
+    fevereiro porque um chamador não repassou as datas. Varredura completa
+    continua possível, mas só com ``historico_completo=True`` — explícito.
+    """
+
+
 @dataclass
 class PollResult:
     intimacoes_novas: int = 0
     processos_enriquecidos: int = 0
+    # Intimações antigas cujo prazo provisório já venceria antes de hoje: a
+    # intimação é gravada, o prazo não (seria alarme falso no painel de risco).
+    prazos_historicos: int = 0
     prazos_registrados: int = 0
     # Quando o DJEN fica instavel (500 "sistema muito ocupado" e comum em pico
     # do CNJ), guardamos o que ja foi capturado em vez de descartar tudo. O
@@ -74,6 +88,8 @@ def poll_oab(
     data_fim: date | None = None,
     itens_por_pagina: int = 50,
     enrich: bool = True,
+    historico_completo: bool = False,
+    hoje: date | None = None,
 ) -> PollResult:
     """Roda um ciclo de captura para uma OAB.
 
@@ -87,7 +103,22 @@ def poll_oab(
     (numero/tribunal). O enriquecimento e feito on-demand quando a minuta e
     gerada (``draft_from_intimacao``), garantindo o contexto completo do
     processo sem travar a captura.
+
+    ``data_inicio`` e obrigatoria na pratica: sem ela o DJEN devolve o historico
+    inteiro da OAB (ver ``UnboundedCaptureError``). Para varrer de proposito,
+    passe ``historico_completo=True``.
+
+    ``hoje`` (default: data corrente) e a referencia usada para decidir se o
+    prazo provisorio ainda vale a pena registrar.
     """
+    if data_inicio is None and not historico_completo:
+        raise UnboundedCaptureError(
+            f"captura da OAB {oab}/{uf} pedida sem data_inicio: isso varreria o "
+            "historico inteiro no DJEN. Informe a janela ou passe "
+            "historico_completo=True."
+        )
+
+    hoje = hoje or date.today()
     result = PollResult()
 
     iterador = _iter_comunicacoes(
@@ -126,7 +157,14 @@ def poll_oab(
                 if intimacao.processo_id is None:
                     intimacao.processo_id = processo.id
 
-        registrar_prazo(session, intimacao, dias=dias_default, calendar=calendar)
+        prazo = registrar_prazo(
+            session, intimacao, dias=dias_default, calendar=calendar, vigente_em=hoje
+        )
+        if prazo is None:
+            # Publicação antiga: o prazo provisório já venceria. A intimação fica
+            # no SOR (o advogado ainda pode ler e minutar), mas não vira alarme.
+            result.prazos_historicos += 1
+            continue
         session.flush()
         result.prazos_registrados += 1
 

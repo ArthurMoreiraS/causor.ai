@@ -10,7 +10,7 @@ Wires the real DJEN/DataJud clients and a SOR session, then delegates to
 from __future__ import annotations
 
 import argparse
-from datetime import date
+from datetime import date, timedelta
 
 from sqlalchemy import select
 
@@ -61,6 +61,24 @@ def default_calendar(today: date | None = None) -> ForensicCalendar:
     return build_calendar([year - 1, year, year + 1])
 
 
+def _resolve_poll_window(args, *, hoje: date | None = None) -> tuple[date | None, date | None]:
+    """Resolve a janela de captura do comando ``poll``.
+
+    Regra: janela limitada por default (``--dias-janela``, que vem do setting),
+    sobreponivel por ``--data-inicio``/``--data-fim``, e ``None`` apenas quando
+    ``--historico-completo`` for pedido — porque ``None`` no DJEN significa
+    "varra o historico inteiro da OAB", nao "use um default".
+    """
+    if args.historico_completo:
+        return None, None
+
+    hoje = hoje or date.today()
+    data_fim = date.fromisoformat(args.data_fim) if args.data_fim else hoje
+    if args.data_inicio:
+        return date.fromisoformat(args.data_inicio), data_fim
+    return data_fim - timedelta(days=args.dias_janela), data_fim
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="causor", description="Causor capture CLI")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -70,6 +88,22 @@ def _build_parser() -> argparse.ArgumentParser:
     poll.add_argument("--uf", required=True)
     poll.add_argument("--escritorio", required=True, type=int)
     poll.add_argument("--dias", type=int, default=15, help="Provisional deadline length")
+    # Sem janela o DJEN devolve o historico inteiro da OAB (paginado, do mais novo
+    # ao mais antigo). O default limitado evita varredura acidental; --historico-completo
+    # e a porta explicita para quando ela e realmente desejada.
+    poll.add_argument(
+        "--dias-janela",
+        type=int,
+        default=settings.capture_manual_lookback_days,
+        help="Tamanho da janela de captura em dias, contados de hoje para tras",
+    )
+    poll.add_argument("--data-inicio", help="Inicio da janela (YYYY-MM-DD); sobrepoe --dias-janela")
+    poll.add_argument("--data-fim", help="Fim da janela (YYYY-MM-DD); default hoje")
+    poll.add_argument(
+        "--historico-completo",
+        action="store_true",
+        help="Captura TODO o historico da OAB (sem janela). Use com consciencia.",
+    )
 
     sub.add_parser("seed-demo", help="Create/refresh the idempotent demo dataset")
 
@@ -178,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
     if args.command == "poll":
+        data_inicio, data_fim = _resolve_poll_window(args)
         session = SessionLocal()
         try:
             result: PollResult = poll_oab(
@@ -189,6 +224,9 @@ def main(argv: list[str] | None = None) -> int:
                 datajud=DatajudClient(),
                 calendar=default_calendar(),
                 dias_default=args.dias,
+                data_inicio=data_inicio,
+                data_fim=data_fim,
+                historico_completo=args.historico_completo,
                 enrich=False,  # captura rapida; enriquecimento on-demand na minuta
             )
             session.commit()

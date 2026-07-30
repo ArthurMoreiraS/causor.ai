@@ -856,8 +856,11 @@ export default function Home() {
               Captura concluída
               {captureContext ? ` para OAB ${captureContext.oab}/${captureContext.uf}` : ""}:{" "}
               {captureResult.intimacoes_novas} intimações novas e{" "}
-              {captureResult.prazos_registrados} prazos registrados. Os dados
-              completos do processo são carregados ao gerar a minuta.
+              {captureResult.prazos_registrados} prazos registrados.
+              {captureResult.prazos_historicos
+                ? ` ${captureResult.prazos_historicos} intimações são antigas e não geraram prazo (o vencimento provisório já teria passado).`
+                : ""}{" "}
+              Os dados completos do processo são carregados ao gerar a minuta.
             </span>
             <button
               className="dismiss-notice"

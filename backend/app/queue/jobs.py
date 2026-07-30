@@ -157,6 +157,18 @@ def get_job(session: Session, job_id: int) -> models.JobExecucao:
     return job
 
 
+def _parse_payload_date(value: object) -> date | None:
+    """Lê uma data do payload JSON do job (ISO string) de forma tolerante."""
+    if value is None:
+        return None
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value))
+    except ValueError:
+        return None
+
+
 def _windows(data_inicio: date, data_fim: date, batch_days: int):
     """Yield inclusive (start, end) date windows of ``batch_days`` covering the range."""
     if batch_days <= 0:
@@ -183,6 +195,7 @@ def run_capture_oab_job(
     dias_default: int = 15,
     batch_days: int | None = None,
     commit_each: Callable[[Session], None] | None = None,
+    hoje: date | None = None,
 ) -> models.JobExecucao:
     """Execute a queued captura_oab job: run poll_oab and record status + audit.
 
@@ -209,6 +222,15 @@ def run_capture_oab_job(
     except KeyError as exc:
         raise JobError(f"payload de captura incompleto: falta {exc}") from exc
 
+    # A janela vive no payload do job. Antes ela vinha só dos argumentos da
+    # função: quem executasse o job sem repassá-los transformava uma captura de
+    # 3 dias numa varredura do histórico inteiro da OAB. O argumento explícito
+    # ainda ganha (o scheduler recalcula pelo cursor); o payload é o fallback.
+    if data_inicio is None:
+        data_inicio = _parse_payload_date(payload.get("data_inicio"))
+    if data_fim is None:
+        data_fim = _parse_payload_date(payload.get("data_fim"))
+
     mark_running(session, job)
     session.flush()
 
@@ -223,6 +245,7 @@ def run_capture_oab_job(
             datajud=datajud,
             calendar=calendar,
             dias_default=dias_default,
+            hoje=hoje,
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
@@ -233,6 +256,7 @@ def run_capture_oab_job(
                 "intimacoes_novas": result.intimacoes_novas,
                 "processos_enriquecidos": result.processos_enriquecidos,
                 "prazos_registrados": result.prazos_registrados,
+                "prazos_historicos": result.prazos_historicos,
                 "djen_indisponivel": result.djen_indisponivel,
                 "djen_erro": result.djen_erro,
             },
@@ -254,6 +278,7 @@ def run_capture_oab_job(
             datajud=datajud,
             calendar=calendar,
             dias_default=dias_default,
+            hoje=hoje,
             data_inicio=w_start,
             data_fim=w_end,
         )
@@ -261,6 +286,7 @@ def run_capture_oab_job(
             intimacoes_novas=totals.intimacoes_novas + partial.intimacoes_novas,
             processos_enriquecidos=totals.processos_enriquecidos + partial.processos_enriquecidos,
             prazos_registrados=totals.prazos_registrados + partial.prazos_registrados,
+            prazos_historicos=totals.prazos_historicos + partial.prazos_historicos,
             djen_indisponivel=totals.djen_indisponivel or partial.djen_indisponivel,
             djen_erro=partial.djen_erro or totals.djen_erro,
         )
@@ -271,6 +297,7 @@ def run_capture_oab_job(
             "intimacoes_novas": totals.intimacoes_novas,
             "processos_enriquecidos": totals.processos_enriquecidos,
             "prazos_registrados": totals.prazos_registrados,
+            "prazos_historicos": totals.prazos_historicos,
             "windows_done": i,
             "windows_total": total_windows,
             "window_atual": {
@@ -292,6 +319,7 @@ def run_capture_oab_job(
             "intimacoes_novas": totals.intimacoes_novas,
             "processos_enriquecidos": totals.processos_enriquecidos,
             "prazos_registrados": totals.prazos_registrados,
+            "prazos_historicos": totals.prazos_historicos,
             "windows_done": total_windows,
             "windows_total": total_windows,
             "djen_indisponivel": djen_indisponivel,

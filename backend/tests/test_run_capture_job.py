@@ -1,8 +1,11 @@
 """TDD for the captura_oab job executor."""
 
+from datetime import date
+
 import pytest
 
 from app.capture.djen import ComunicacaoDTO
+from app.capture.poll import UnboundedCaptureError
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import JobError, create_job, run_capture_oab_job
 from app.sor import models
@@ -55,13 +58,21 @@ def test_run_capture_job_completes_and_audits(db_session, escritorio, calendar):
         tipo="captura_oab",
         entidade="oab_monitorada",
         entidade_id=1,
-        payload={"oab": "12345", "uf": "SP", "escritorio_id": escritorio.id},
+        payload={
+            "oab": "12345",
+            "uf": "SP",
+            "escritorio_id": escritorio.id,
+            # A janela e obrigatoria: sem ela o executor recusa (varreria o historico).
+            "data_inicio": "2024-09-01",
+            "data_fim": "2024-09-30",
+        },
     )
     db_session.flush()
 
     djen = FakeDjen([_comunicacao()])
     run_capture_oab_job(
-        db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar
+        db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar,
+        hoje=date(2024, 9, 9),
     )
 
     assert job.status == "completed"
@@ -111,7 +122,14 @@ def test_run_capture_job_windowed_splits_range_and_commits_progressively(
         tipo="captura_oab",
         entidade="escritorio",
         entidade_id=escritorio.id,
-        payload={"oab": "12345", "uf": "SP", "escritorio_id": escritorio.id},
+        payload={
+            "oab": "12345",
+            "uf": "SP",
+            "escritorio_id": escritorio.id,
+            # A janela e obrigatoria: sem ela o executor recusa (varreria o historico).
+            "data_inicio": "2024-09-01",
+            "data_fim": "2024-09-30",
+        },
     )
     db_session.flush()
 
@@ -153,7 +171,14 @@ def test_run_capture_job_windowed_is_idempotent_across_windows(db_session, escri
         tipo="captura_oab",
         entidade="escritorio",
         entidade_id=escritorio.id,
-        payload={"oab": "12345", "uf": "SP", "escritorio_id": escritorio.id},
+        payload={
+            "oab": "12345",
+            "uf": "SP",
+            "escritorio_id": escritorio.id,
+            # A janela e obrigatoria: sem ela o executor recusa (varreria o historico).
+            "data_inicio": "2024-09-01",
+            "data_fim": "2024-09-30",
+        },
     )
     db_session.flush()
 
@@ -172,3 +197,53 @@ def test_run_capture_job_windowed_is_idempotent_across_windows(db_session, escri
     # dedup dentro do normalize: mesma fonte -> 1 intimacao apenas
     assert db_session.query(models.Intimacao).count() == 1
     assert job.resultado["intimacoes_novas"] == 1
+
+
+def test_run_capture_oab_job_honra_datas_do_payload(db_session, escritorio, calendar):
+    """A janela vive no payload do job; o executor lia as datas só dos argumentos
+    da função e ignorava o payload — um chamador que esquecesse de repassar
+    transformava um job de 3 dias numa varredura do histórico inteiro da OAB.
+    """
+    job = create_job(
+        db_session,
+        tipo="captura_oab",
+        entidade="oab_monitorada",
+        entidade_id=1,
+        payload={
+            "oab": "3981",
+            "uf": "TO",
+            "escritorio_id": escritorio.id,
+            "data_inicio": "2024-09-01",
+            "data_fim": "2024-09-30",
+        },
+    )
+    db_session.flush()
+    djen = FakeDjen([])
+
+    run_capture_oab_job(
+        db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar,
+        hoje=date(2024, 9, 9),
+    )
+
+    assert djen.calls[0][2]["data_inicio"] == date(2024, 9, 1)
+    assert djen.calls[0][2]["data_fim"] == date(2024, 9, 30)
+
+
+def test_run_capture_oab_job_sem_janela_falha_alto(db_session, escritorio, calendar):
+    """Job legado sem janela no payload não pode virar varredura silenciosa."""
+    job = create_job(
+        db_session,
+        tipo="captura_oab",
+        entidade="oab_monitorada",
+        entidade_id=1,
+        payload={"oab": "3981", "uf": "TO", "escritorio_id": escritorio.id},
+    )
+    db_session.flush()
+    djen = FakeDjen([])
+
+    with pytest.raises(UnboundedCaptureError):
+        run_capture_oab_job(
+            db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar
+        )
+
+    assert djen.calls == []

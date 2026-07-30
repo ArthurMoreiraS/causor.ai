@@ -66,7 +66,14 @@ def test_claim_next_job_picks_oldest_queued_and_marks_running(db_session, escrit
         tipo="captura_oab",
         entidade="escritorio",
         entidade_id=escritorio.id,
-        payload={"oab": "1", "uf": "SP", "escritorio_id": escritorio.id},
+        payload={
+            "oab": "1",
+            "uf": "SP",
+            "escritorio_id": escritorio.id,
+            # Janela obrigatoria: sem ela o executor recusa a captura.
+            "data_inicio": "2024-09-01",
+            "data_fim": "2024-09-30",
+        },
     )
     j2 = create_job(
         db_session,
@@ -158,7 +165,14 @@ def test_run_once_continues_after_job_failure(session_factory, db_session, escri
         tipo="captura_oab",
         entidade="escritorio",
         entidade_id=escritorio.id,
-        payload={"oab": "1", "uf": "SP", "escritorio_id": escritorio.id},
+        payload={
+            "oab": "1",
+            "uf": "SP",
+            "escritorio_id": escritorio.id,
+            # Janela obrigatoria: sem ela o executor recusa a captura.
+            "data_inicio": "2024-09-01",
+            "data_fim": "2024-09-30",
+        },
     )
     bad = create_job(
         db_session,

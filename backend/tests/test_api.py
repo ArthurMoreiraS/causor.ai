@@ -11,6 +11,7 @@ from pypdf import PdfReader
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
+from app.settings import settings
 from app.sor import models
 from sqlalchemy import select
 from tests.conftest import seed_filing_ready, seed_ready_context
@@ -52,13 +53,19 @@ def test_capture_oab_defaults_to_bounded_lookback(client, seeded):
         "intimacoes_novas": 0,
         "processos_enriquecidos": 0,
         "prazos_registrados": 0,
+        "prazos_historicos": 0,
         "djen_indisponivel": False,
         "djen_erro": None,
     }
     assert fake_djen.calls[0][0:2] == ("12345", "SP")
     params = fake_djen.calls[0][2]
     assert today_before <= params["data_fim"] <= today_after
-    assert params["data_inicio"] == params["data_fim"] - timedelta(days=60)
+    # O que importa é a janela existir e vir do setting (ajustável sem quebrar o
+    # teste); um limite ausente faria a captura varrer o histórico inteiro da OAB.
+    assert 0 < settings.capture_manual_lookback_days <= 365
+    assert params["data_inicio"] == params["data_fim"] - timedelta(
+        days=settings.capture_manual_lookback_days
+    )
 
 
 def test_capture_oab_defers_datajud_enrichment(client, seeded, monkeypatch):
@@ -70,6 +77,11 @@ def test_capture_oab_defers_datajud_enrichment(client, seeded, monkeypatch):
     """
     from app.capture.djen import ComunicacaoDTO
 
+    # Disponibilização recente: a captura não registra prazo cujo vencimento
+    # provisório já passou, então uma data fixa de 2024 faria o assert de
+    # `prazos_registrados` depender do relógio da máquina.
+    disponibilizacao = (date.today() - timedelta(days=2)).isoformat()
+
     class FakeDjen:
         def consultar(self, oab, uf, **kw):
             return [
@@ -80,7 +92,7 @@ def test_capture_oab_defers_datajud_enrichment(client, seeded, monkeypatch):
                         "siglaTribunal": "TJSP",
                         "tipoComunicacao": "Intimação",
                         "texto": "Intimada para manifestar em 15 dias.",
-                        "data_disponibilizacao": "2024-09-06",
+                        "data_disponibilizacao": disponibilizacao,
                     }
                 )
             ]

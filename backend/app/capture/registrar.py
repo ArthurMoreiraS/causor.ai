@@ -38,11 +38,23 @@ def registrar_prazo(
     calendar: ForensicCalendar,
     business_days: bool = True,
     descricao: str | None = None,
-) -> models.Prazo:
+    vigente_em: date | None = None,
+) -> models.Prazo | None:
+    """Registra o prazo da intimação e devolve a linha criada.
+
+    ``vigente_em``: quando informado, um prazo cuja data fatal já passou nessa
+    data **não** é registrado (retorna ``None``). Serve para a captura, onde
+    ``dias`` é um placeholder provisório (o classificador refina depois):
+    fabricar vencimento já expirado a partir de um chute enche o painel de risco
+    de alarme falso sobre publicação antiga. Quem já tem a classificação (o
+    agente) não passa este parâmetro e registra sempre.
+    """
     publication = _resolve_publication(intimacao, calendar)
     result = compute_deadline(
         publication, dias, calendar=calendar, business_days=business_days
     )
+    if vigente_em is not None and result.data_fatal < vigente_em:
+        return None
 
     prazo = models.Prazo(
         processo_id=intimacao.processo_id,

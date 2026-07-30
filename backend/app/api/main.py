@@ -657,15 +657,23 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
+        # Sem janela no payload, quem executar o job varre o histórico inteiro da
+        # OAB no DJEN. O default limitado é gravado aqui, no momento da criação,
+        # para que o executor não dependa de o chamador lembrar de repassá-lo.
+        dados = payload.model_dump(mode="json")
+        if dados.get("data_inicio") is None:
+            data_fim = payload.data_fim or date.today()
+            dados["data_inicio"] = (
+                data_fim - timedelta(days=settings.capture_manual_lookback_days)
+            ).isoformat()
+            dados["data_fim"] = data_fim.isoformat()
+
         job = create_job(
             session,
             tipo="captura_oab",
             entidade="escritorio",
             entidade_id=current.escritorio_id,
-            payload={
-                **payload.model_dump(mode="json"),
-                "escritorio_id": current.escritorio_id,
-            },
+            payload={**dados, "escritorio_id": current.escritorio_id},
             ator=f"usuario:{current.usuario_id}",
         )
         session.commit()
