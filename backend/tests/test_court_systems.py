@@ -51,3 +51,19 @@ def test_case_and_whitespace_insensitive():
 def test_none_or_empty_returns_none():
     assert sistema_para_tribunal(None) is None
     assert sistema_para_tribunal("") is None
+
+
+def test_tribunais_superiores_com_sistema_proprio():
+    """STJ e STF nao usam PJe: cada um tem sistema proprio de peticionamento.
+
+    Sem entrada no registro eles caiam em DESCONHECIDO e o backfill deixava
+    `processo.sistema` nulo, o que a tela mostrava como "Nao identificado" —
+    lido como bug, quando o correto e informar o sistema real do tribunal.
+    Nenhum dos dois tem conector no Causor; o driver de protocolo segue
+    falhando fechado para eles.
+    """
+    assert sistema_para_tribunal("STJ") == "e-STJ"
+    assert sistema_para_tribunal("STF") == "STF Digital"
+    # Os superiores que realmente rodam PJe continuam PJe.
+    assert sistema_para_tribunal("TST") == "PJe"
+    assert sistema_para_tribunal("TSE") == "PJe"

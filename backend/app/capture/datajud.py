@@ -16,6 +16,7 @@ from datetime import date, datetime
 import httpx
 from pydantic import BaseModel, Field, field_validator
 
+from app.capture.text import sanitize_upstream_text
 from app.settings import settings
 
 
@@ -29,11 +30,17 @@ def _parse_date(value: str | None) -> date | None:
 
 
 def _name_of(value: object) -> str | None:
-    """DataJud nests {codigo, nome}; accept either a dict or a plain string."""
+    """DataJud nests {codigo, nome}; accept either a dict or a plain string.
+
+    Saneia na borda: os nomes do DataJud vêm com encoding corrompido na origem
+    (ver ``app.capture.text``). Sem isso o lixo entra no SOR e aparece na tela do
+    advogado como caixa/losango — foi o que apareceu no piloto, na Presidência do
+    STJ.
+    """
     if isinstance(value, dict):
-        return value.get("nome")
+        return sanitize_upstream_text(value.get("nome"))
     if isinstance(value, str):
-        return value
+        return sanitize_upstream_text(value)
     return None
 
 

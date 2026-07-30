@@ -203,6 +203,21 @@ _ROUTES: dict[str, dict] = {
     # --- Tribunais superiores em PJe ---
     "TST": {"sistema": "PJe", "verificado": False},
     "TSE": {"sistema": "PJe", "verificado": False},
+    # --- Tribunais superiores com sistema proprio (sem conector no Causor) ---
+    # Nao sao PJe. Sem estas entradas caiam em DESCONHECIDO e o backfill deixava
+    # processo.sistema nulo, virando "Nao identificado" na tela do advogado.
+    # Peticionamento em ambos exige certificado ICP-Brasil, o que os mantem fora
+    # de automacao de protocolo por ora — o driver falha fechado.
+    "STJ": {
+        "sistema": "e-STJ",
+        "verificado": False,
+        "obs": "Central do Processo Eletronico; Resolucao STJ/GP n. 16 de 12/02/2026",
+    },
+    "STF": {
+        "sistema": "STF Digital",
+        "verificado": False,
+        "obs": "Peticionamento eletronico proprio via portal do STF",
+    },
 }
 
 # Justica Eleitoral: TSE e os 27 TREs padronizaram em PJe. Entram explicitos

@@ -4080,6 +4080,16 @@ h2 {
   gap: 6px;
 }
 
+/* A última coluna das tabelas de dados é o grupo `.dataRowEnd`, alinhado à
+   direita. O cabeçalho herdava o alinhamento à esquerda do `.dataHead`, então o
+   rótulo ("Próximo prazo") ficava solto no canto esquerdo de uma coluna cujo
+   conteúdo está no canto direito — lido como tabela desalinhada. Restrito a
+   `.dataTable` de propósito: o painel de auditoria usa `.dataHead` sem grupo
+   final. */
+.dataTable .dataHead > span:last-child {
+  text-align: right;
+}
+
 /* Legenda de superfície (substitui os cards de introdução). */
 .surfaceCaption {
   margin: 0;
