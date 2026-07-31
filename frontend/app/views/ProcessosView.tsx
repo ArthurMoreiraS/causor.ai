@@ -46,6 +46,7 @@ export default function ProcessosView({
         <span>Intimações</span>
         <span>Minutas</span>
         <span>Próximo prazo</span>
+        <span className="dataRowEnd">Ação</span>
       </div>
       {visible.map(({ processo, intimacoesCount, peticoesCount, proximoPrazo }) => (
         <Fragment key={processo.id}>
@@ -66,11 +67,16 @@ export default function ProcessosView({
             </span>
             <span className="cellCount">{intimacoesCount}</span>
             <span className="cellCount">{peticoesCount}</span>
-            <div className="dataRowEnd">
+            {/* Data e risco são a mesma informação ("quando" e "quão perto"),
+                então dividem a coluna "Próximo prazo". A ação fica em coluna
+                própria, como na tabela de Intimações. */}
+            <div className="cellDeadline">
               <span className="cellDate">
                 {proximoPrazo ? formatDate(proximoPrazo.data_fatal) : "—"}
               </span>
               <DeadlineBadge prazo={proximoPrazo} />
+            </div>
+            <div className="dataRowEnd">
               <button
                 className="toolbarButton compact"
                 title="Contexto dos autos (captura, extração e gate)"

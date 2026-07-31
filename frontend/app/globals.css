@@ -1498,14 +1498,23 @@ h2 {
 
 .processTable .dataHead,
 .processTable .dataRow {
-  /* Última coluna FIXA, não `minmax(180px, auto)`. Cabeçalho e linhas são grids
-     separados: com `auto`, o cabeçalho resolvia 180px (só o rótulo "Próximo
-     prazo") e a linha 234px (data + selo de risco + botão "Autos"), e a
-     diferença saía das colunas `fr` — as cinco primeiras colunas da linha
-     ficavam ~31px à esquerda do próprio cabeçalho. Duas linhas com selos de
-     larguras diferentes também divergiam entre si. Medido em 2026-07-30:
-     72 (data) + 6 + 75 (selo "VENCIDO", o mais largo) + 6 + 76 (botão) = 235. */
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 132px 84px 72px 240px;
+  /* Uma coluna por informação, como na tabela de Intimações: "Próximo prazo"
+     leva data + selo de risco (o mesmo fato: quando e quão perto) e a ação sai
+     para a coluna "Ação".
+
+     As duas últimas são FIXAS, nunca `auto`. Cabeçalho e linhas são grids
+     separados: com `auto` o cabeçalho resolvia pela largura do rótulo e a linha
+     pela do conteúdo, a diferença saía das colunas `fr`, e as cinco primeiras
+     colunas da linha ficavam ~31px à esquerda do próprio cabeçalho (medido em
+     2026-07-30). Larguras: 72 (data) + 6 + 75 (selo "VENCIDO", o mais largo)
+     = 153 → 160; botão "Autos" = 76 → 96. */
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 132px 84px 72px 160px 96px;
+}
+
+.cellDeadline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .cellCount {
@@ -1556,12 +1565,13 @@ h2 {
 .inboxTable .dataHead,
 .inboxTable .dataRow {
   /* Cabeçalho e linhas são grids SEPARADOS que só compartilham este template.
-     A última coluna precisa de um piso que caiba o botão de ação (~93px): com
-     `auto` puro ela resolveria para a largura do texto "Ação" no cabeçalho e
-     para a do botão nas linhas — larguras diferentes encolhem as colunas `fr`
-     de forma distinta e desalinham Sistema/Prazo/Minuta. `minmax(120px, auto)`
-     mantém a coluna idêntica nos dois (mesma convenção das outras tabelas). */
-  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 132px 96px 130px minmax(120px, auto);
+     A coluna de ação é FIXA (mesma convenção da tabela de Processos): com
+     `auto` ela resolveria para a largura do texto "Ação" no cabeçalho e para a
+     do botão nas linhas, e a diferença encolheria as colunas `fr` de forma
+     distinta, desalinhando Sistema/Prazo/Minuta. O `minmax(120px, auto)`
+     anterior funcionava só por sorte — o piso cabia o botão (~93px); conteúdo
+     mais largo trazia o desalinhamento de volta. */
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1.1fr) 132px 96px 130px 120px;
 }
 
 .dataRow > .pill,
