@@ -11,13 +11,14 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.autos.context import latest_context
 from app.capture.court_routing import resolve_route
 from app.connectors import sessions as court_sessions
+from app.connectors.access_channel import resolve_acesso_tribunal
 from app.connectors.assistant import resolve_next_step
 from app.connectors.coverage import coverage_status, known_profiles
 from app.sor import models
@@ -104,6 +105,77 @@ def detalhar_cobertura(
         if row.profile_key == profile_key:
             return row
     raise HTTPException(status_code=404, detail="perfil de conector nao encontrado")
+
+
+class CapacidadeOut(BaseModel):
+    disponivel: bool
+    via: str | None
+    falta: str | None
+
+
+class AcessoTribunalOut(BaseModel):
+    sistema: str
+    tribunal: str
+    grau: str
+    processos: int
+    ler_autos: CapacidadeOut
+    protocolar: CapacidadeOut
+    mni_disponivel: bool
+
+
+@router.get("/tribunais/acesso", response_model=list[AcessoTribunalOut])
+def listar_acesso_tribunais(
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+) -> list[AcessoTribunalOut]:
+    """Painel "Seus tribunais": o que dá para fazer em cada rota, e o que falta.
+
+    Agrega pelas ``ProcessoInstancia`` do escritório — é onde o grau existe — e
+    ordena pelo número de processos afetados, para a rota que trava mais casos
+    aparecer primeiro. A decisão de capacidade vem inteira de
+    ``resolve_acesso_tribunal``; aqui não se recalcula regra nenhuma.
+    """
+    rotas = session.execute(
+        select(
+            models.ProcessoInstancia.sistema,
+            models.ProcessoInstancia.tribunal,
+            models.ProcessoInstancia.grau,
+            func.count(func.distinct(models.ProcessoInstancia.processo_id)).label("total"),
+        )
+        .where(models.ProcessoInstancia.escritorio_id == current.escritorio_id)
+        .group_by(
+            models.ProcessoInstancia.sistema,
+            models.ProcessoInstancia.tribunal,
+            models.ProcessoInstancia.grau,
+        )
+        .order_by(
+            func.count(func.distinct(models.ProcessoInstancia.processo_id)).desc(),
+            models.ProcessoInstancia.tribunal,
+            models.ProcessoInstancia.grau,
+        )
+    ).all()
+
+    saida: list[AcessoTribunalOut] = []
+    for sistema, tribunal, grau, total in rotas:
+        acesso = resolve_acesso_tribunal(
+            session,
+            escritorio_id=current.escritorio_id,
+            sistema=sistema,
+            tribunal=tribunal,
+            grau=grau,
+        )
+        saida.append(
+            AcessoTribunalOut(
+                sistema=acesso.sistema,
+                tribunal=acesso.tribunal,
+                grau=acesso.grau,
+                processos=total,
+                ler_autos=CapacidadeOut(**vars(acesso.ler_autos)),
+                protocolar=CapacidadeOut(**vars(acesso.protocolar)),
+                mni_disponivel=acesso.mni_disponivel,
+            )
+        )
+    return saida
 
 
 class CourtLoginIn(BaseModel):

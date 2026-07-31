@@ -44,6 +44,15 @@ class Settings(BaseSettings):
     # in production, e.g. "https://app.seudominio.com").
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
+    # Alerta de prazo por e-mail. Sem `smtp_host` o aviso cai no log
+    # (ConsoleSender) e nada quebra. A SENHA NÃO ENTRA AQUI: é lida do ambiente
+    # (`CAUSOR_SMTP_PASSWORD`) na hora do envio, porque este objeto acaba em log
+    # e diagnóstico.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_from: str = ""
+
     # Auth (Supabase). Aceita segredo HS256 legado ou chave PEM ES256;
     # tokens ES256 tambem podem ser validados pelo JWKS anunciado no issuer.
     supabase_jwt_secret: str = ""

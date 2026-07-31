@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
+from app.alertas.radar import prazos_em_alerta
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.auth.tenant import get_owned_or_404, tenant_select
 from app.api.schemas import (
@@ -1223,32 +1224,29 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> list[AlertaPrazo]:
-        """Radar de prazo: vencidos, D-0, D-1 e D-3, do mais crítico ao menos."""
-        today = date.today()
-        stmt = (
-            tenant_select(models.Prazo, current)
-            .where(models.Prazo.cumprido.is_(False))
-            .where(models.Prazo.data_fatal <= today + timedelta(days=3))
-            .order_by(models.Prazo.data_fatal.asc())
-        )
+        """Radar de prazo: vencidos, D-0, D-1 e D-3, do mais crítico ao menos.
+
+        A regra vive em ``alertas.radar`` — a mesma que o notificador consome,
+        para o e-mail e a tela nunca discordarem sobre o mesmo prazo.
+        """
         alertas: list[AlertaPrazo] = []
-        for prazo in session.scalars(stmt):
-            dias = (prazo.data_fatal - today).days
-            nivel = "vencido" if dias < 0 else "d0" if dias == 0 else "d1" if dias == 1 else "d3"
+        for item in prazos_em_alerta(
+            session, escritorio_id=current.escritorio_id, hoje=date.today()
+        ):
             processo = (
-                session.get(models.Processo, prazo.processo_id)
-                if prazo.processo_id is not None
+                session.get(models.Processo, item.prazo.processo_id)
+                if item.prazo.processo_id is not None
                 else None
             )
             alertas.append(
                 AlertaPrazo(
-                    prazo_id=prazo.id,
-                    processo_id=prazo.processo_id,
+                    prazo_id=item.prazo.id,
+                    processo_id=item.prazo.processo_id,
                     processo_numero=processo.numero if processo is not None else None,
-                    descricao=prazo.descricao,
-                    data_fatal=prazo.data_fatal,
-                    dias_para_vencer=dias,
-                    nivel=nivel,
+                    descricao=item.prazo.descricao,
+                    data_fatal=item.prazo.data_fatal,
+                    dias_para_vencer=item.dias_para_vencer,
+                    nivel=item.nivel,
                 )
             )
         return alertas

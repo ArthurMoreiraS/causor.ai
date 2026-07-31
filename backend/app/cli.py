@@ -14,6 +14,8 @@ from datetime import date, timedelta
 
 from sqlalchemy import select
 
+from app.alertas.notificacao import notificar_prazos
+from app.alertas.senders import build_sender
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
 from app.capture.enrich import backfill_enrichment
@@ -204,6 +206,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "--once",
         action="store_true",
         help="Drain queued jobs once and exit (no idle loop)",
+    )
+
+    notificar = sub.add_parser(
+        "notificar-prazos",
+        help="Send the deadline alert e-mail for every escritorio (cron entry point)",
+    )
+    notificar.add_argument(
+        "--hoje",
+        help="Reference date (YYYY-MM-DD) — defaults to today; for replay/testing",
+    )
+    notificar.add_argument(
+        "--escritorio",
+        type=int,
+        help="Restrict to a single escritorio id",
     )
     return parser
 
@@ -473,6 +489,25 @@ def main(argv: list[str] | None = None) -> int:
             commit_each=commit_each,
             idle_seconds=args.idle_seconds,
         )
+        return 0
+
+    if args.command == "notificar-prazos":
+        hoje = date.fromisoformat(args.hoje) if args.hoje else date.today()
+        session = SessionLocal()
+        try:
+            enviadas = notificar_prazos(
+                session,
+                sender=build_sender(),
+                hoje=hoje,
+                escritorio_id=args.escritorio,
+            )
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
+        finally:
+            session.close()
+        print(f"Alertas de prazo enviados: {len(enviadas)}")
         return 0
     return 0
 

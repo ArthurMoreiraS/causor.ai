@@ -666,6 +666,33 @@ class JobExecucao(TimestampMixin, Base):
     erro: Mapped[str | None] = mapped_column(Text)
 
 
+class NotificacaoPrazo(Base):
+    """Aviso de prazo já entregue, por ``(prazo, nível)``.
+
+    Existe para o advogado receber **um** aviso por nível (D-3, D-1, D-0,
+    vencido) em vez de um por execução do cron: repetir treina o usuário a
+    ignorar justamente o alerta que não pode ser ignorado. A linha só é gravada
+    **depois** do envio dar certo — marcar antes transformaria uma falha de SMTP
+    em prazo perdido.
+    """
+
+    __tablename__ = "notificacao_prazo"
+    __table_args__ = (
+        UniqueConstraint("prazo_id", "nivel", name="uq_notificacao_prazo_nivel"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(
+        ForeignKey("escritorio.id"), nullable=False, index=True
+    )
+    prazo_id: Mapped[int] = mapped_column(ForeignKey("prazo.id"), nullable=False)
+    nivel: Mapped[str] = mapped_column(String(10), nullable=False)
+    destino: Mapped[str] = mapped_column(String(500), nullable=False)
+    enviado_em: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=_utcnow
+    )
+
+
 class AuditLog(Base):
     """Immutable, append-only audit trail. No updated_at — entries never change."""
 

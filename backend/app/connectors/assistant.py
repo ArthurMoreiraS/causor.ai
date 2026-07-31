@@ -12,7 +12,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.capture.court_routing import resolve_route
-from app.connectors import sessions as court_sessions
 from app.sor import models
 
 # Um agente é "online" se pulsou nos últimos 120s (o worker pulsa a cada 20s).
@@ -59,25 +58,22 @@ def resolve_next_step(
     rota = route_for(processo, grau)
     if context_ready:
         return None, rota
-    # Rota coberta por credencial MNI ativa: a captura roda no servidor, sem
-    # agente nem login de portal — pedir pareamento aqui seria trabalho à toa
-    # para o advogado. Vai direto ao passo de capturar.
-    from app.connectors.mni.credentials import find_active_credencial
-    from app.connectors.mni.profiles import resolve_mni_profile
 
-    if resolve_mni_profile(rota["tribunal"], grau) is not None and find_active_credencial(
-        session, escritorio_id=processo.escritorio_id, tribunal=rota["tribunal"]
-    ) is not None:
-        return "capture_autos", rota
-    if not has_online_agent(session, processo.escritorio_id):
-        return "pair_agent", rota
-    state = court_sessions.session_state_for(
+    # A ordem das regras vive em ``access_channel`` — aqui só se traduz a
+    # capacidade "ler os autos" no passo que a UI abre. Recalcular a decisão
+    # aqui criaria o segundo ponto de decisão que o AGENTS.md proíbe, e é o que
+    # faria a tela prometer um estado que o sistema não entrega na hora H.
+    from app.connectors.access_channel import resolve_acesso_tribunal
+
+    acesso = resolve_acesso_tribunal(
         session,
         escritorio_id=processo.escritorio_id,
         sistema=rota["sistema"],
         tribunal=rota["tribunal"],
         grau=grau,
     )
-    if state is None or state.status != "conectado":
-        return "court_login", rota
-    return "capture_autos", rota
+    if acesso.ler_autos.disponivel:
+        return "capture_autos", rota
+    if acesso.ler_autos.falta == "parear":
+        return "pair_agent", rota
+    return "court_login", rota

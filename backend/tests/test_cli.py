@@ -246,3 +246,51 @@ def test_parser_accepts_pje_simulator():
     assert args.command == "pje-simulator"
     assert args.host == "127.0.0.1"
     assert args.port == 8765
+
+
+def test_cli_notificar_prazos_avisa_e_nao_repete(db_session, monkeypatch):
+    """O comando que o cron chama: envia uma vez por prazo/nível."""
+    import app.cli as cli
+    from app.sor import models
+
+    esc = models.Escritorio(nome="Escritório Alerta")
+    db_session.add(esc)
+    db_session.flush()
+    db_session.add(
+        models.Usuario(
+            escritorio_id=esc.id,
+            nome="Adv",
+            email="adv@example.com",
+            supabase_user_id="sub-alerta",
+        )
+    )
+    db_session.add(
+        models.Prazo(
+            escritorio_id=esc.id,
+            processo_id=None,
+            intimacao_id=None,
+            descricao="Contestação",
+            data_inicio=date(2026, 7, 1),
+            dias=15,
+            dias_uteis=True,
+            data_fatal=date(2026, 7, 30),
+            cumprido=False,
+        )
+    )
+    db_session.flush()
+
+    enviados: list[dict] = []
+
+    class SenderFalso:
+        def enviar(self, *, destinos, assunto, corpo):
+            enviados.append({"destinos": destinos, "assunto": assunto})
+
+    monkeypatch.setattr(cli, "SessionLocal", lambda: db_session)
+    monkeypatch.setattr(db_session, "close", lambda: None)
+    monkeypatch.setattr(cli, "build_sender", lambda: SenderFalso())
+
+    assert cli.main(["notificar-prazos", "--hoje", "2026-07-30"]) == 0
+    assert cli.main(["notificar-prazos", "--hoje", "2026-07-30"]) == 0
+
+    assert len(enviados) == 1
+    assert db_session.query(models.NotificacaoPrazo).count() == 1

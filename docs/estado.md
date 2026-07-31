@@ -159,7 +159,15 @@ nenhuma.
 4. Adicionar monitoramento externo do backend, cron e jobs `failed`.
 5. Executar um piloto ponta a ponta com OAB e dados reais, **pelo agente
    local**: capturar, prazo, minuta e revisao nao dependem de MNI.
-6. Alertas de prazo por e-mail ou WhatsApp.
+6. ~~Alertas de prazo por e-mail ou WhatsApp.~~ **Implementado em 2026-07-30**
+   (`app/alertas/`): regra unica do radar (`radar.prazos_em_alerta`, consumida
+   tambem pelo `GET /alertas`), notificacao com dedupe por `(prazo, nivel)` na
+   tabela `notificacao_prazo`, envio por SMTP com fallback para log
+   (`ConsoleSender`) e comando `python -m app.cli notificar-prazos` para o cron.
+   **Falta em producao:** aplicar a migration `a3e7b1c9d2f8`, definir
+   `CAUSOR_SMTP_HOST/PORT/USER/FROM` + `CAUSOR_SMTP_PASSWORD` no `.env` da VPS e
+   agendar o comando. Sem SMTP configurado o aviso cai no log e nada quebra.
+   WhatsApp entra depois como um segundo `AlertSender` — so esse arquivo muda.
 
 ### Trilha MNI (aposta paralela — testar viabilidade antes de investir)
 
@@ -195,6 +203,15 @@ nenhuma.
     automatizado **e** o credenciamento MNI nao dispensar a assinatura.
 
 ## Ordem de execucao
+
+> **SUBSTITUIDA EM 2026-07-30 por
+> [`areas/plano-90-dias-2026-07-30.md`](areas/plano-90-dias-2026-07-30.md).**
+> A pesquisa de 30/07 ([`areas/rota-produto-2026-07-30.md`](areas/rota-produto-2026-07-30.md))
+> mostrou que o CNJ esta unificando consulta processual e peticionamento
+> intercorrente no **jus.br** (Res. CNJ 455/2022 + 624/2025; ~39 tribunais ja
+> integrados), o que rebaixa os conectores por sistema (Tasks 6-9) a fallback, e
+> que os perfis MNI confirmados **nao cobrem o TJTO**, tribunal do piloto. A
+> ordem abaixo fica como registro historico; siga o plano de 90 dias.
 
 As duas trilhas acima intercaladas no tempo real. A consulta ao tribunal sai
 primeiro porque e a de maior latencia e menor esforco — **mas o piloto nao
