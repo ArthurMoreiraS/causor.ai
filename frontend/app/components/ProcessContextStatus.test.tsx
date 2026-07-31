@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen } from "@testing-library/react";
-import { expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, expect, test, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import ProcessContextStatus, { deriveUiState } from "./ProcessContextStatus";
 import { ToastProvider } from "./Toast";
+
+// Sem `globals: true` no vitest o Testing Library nao registra cleanup
+// automatico; sem isto os renders acumulam entre os testes.
+afterEach(cleanup);
 
 vi.mock("@/lib/api", () => ({
   statusAutos: vi.fn().mockResolvedValue({
@@ -38,7 +42,8 @@ vi.mock("@/lib/api", () => ({
     rota: { sistema: "PJe", tribunal: "TJMG", grau: "1" }
   }),
   loginTribunal: vi.fn(),
-  statusSessaoTribunal: vi.fn()
+  statusSessaoTribunal: vi.fn(),
+  enviarAutos: vi.fn()
 }));
 
 test("shows missing documents and opens the access wizard from Gerar minuta", async () => {
@@ -109,4 +114,36 @@ test("state derivation covers capture lifecycle", () => {
       ]
     })
   ).toBe("ready");
+});
+
+// O envio dos autos pelo proprio advogado e o unico caminho de captura que nao
+// depende de tribunal: sem pareamento, sem credencial, sem conector.
+test("envia os autos escolhidos pelo advogado", async () => {
+  const { enviarAutos } = await import("@/lib/api");
+  vi.mocked(enviarAutos).mockResolvedValue({
+    id: 11,
+    processo_instancia_id: 1,
+    generation: 2,
+    status: "complete",
+    expected_count: 1,
+    captured_count: 1,
+    missing_count: 0,
+    error_code: null,
+    started_at: null,
+    completed_at: null,
+    fonte: "upload"
+  });
+
+  render(
+    <ToastProvider>
+      <ProcessContextStatus processoId={7} />
+    </ToastProvider>
+  );
+  await screen.findByText("Contexto incompleto");
+
+  const input = screen.getByLabelText(/Enviar os autos/i) as HTMLInputElement;
+  const arquivo = new File(["%PDF-1.4"], "inicial.pdf", { type: "application/pdf" });
+  fireEvent.change(input, { target: { files: [arquivo] } });
+
+  await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(7, [arquivo], "1"));
 });

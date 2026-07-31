@@ -1517,6 +1517,22 @@ h2 {
   gap: 6px;
 }
 
+/* O <input type=file> fica dentro do <label> estilizado de botão: o clique no
+   rótulo abre o seletor sem precisar de ref nem de JS. */
+.contextUpload {
+  position: relative;
+  cursor: pointer;
+}
+
+.contextUpload input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
 .cellCount {
   font-family: var(--font-mono);
   font-size: 12.5px;

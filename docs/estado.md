@@ -2,6 +2,23 @@
 
 ## Onde estamos
 
+- **2026-07-31 — Upload dos autos pelo advogado.** `POST
+  /processos/{id}/autos/upload` (multipart) + botao "Enviar os autos" no painel
+  de Autos. Reusa as quatro etapas do agente (`open_capture` com
+  `fonte="upload"` → `record_initial_manifest` → `confirm_document_upload` →
+  `finalize_capture`), entao hash recomputado, magic bytes, versao imutavel e
+  extracao enfileirada valem igual. **Unico caminho de captura sem gate
+  externo.** A completude e registrada como *declarada pelo advogado* em
+  `evidence` — no upload as duas enumeracoes sao a mesma lista que o advogado
+  entregou, e isso nao pode ser vendido como a prova que a captura de tribunal
+  da. Ver `autos/upload.py`.
+
+  **Contexto que mudou no mesmo dia:** o acesso ao advogado-advisor acabou (sem
+  credencial de eproc, sem processos ativos). As Tasks 6-9 saem do roadmap por
+  falta de acesso, nao por prioridade, e o gargalo do projeto passa a ser
+  **falta de usuario**, nao falta de tribunal. Plano revisado em
+  [`areas/plano-90-dias-2026-07-30.md`](areas/plano-90-dias-2026-07-30.md).
+
 - **2026-07-21/22 — Canal oficial MNI: leitura implementada, endpoints
   verificados.** Cliente SOAP no backend, credencial por tribunal no vault,
   captura roteada por `CapturaAutos.fonte` ("mni" | "agente") pelo mesmo

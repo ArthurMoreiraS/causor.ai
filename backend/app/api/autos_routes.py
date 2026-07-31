@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -19,6 +19,7 @@ from app.api.agent_routes import get_agent_principal
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.autos.contracts import ManifestInput
 from app.autos import service as autos_service
+from app.autos.upload import ArquivoEnviado, ingerir_autos_enviados
 from app.capture.court_routing import resolve_route
 from app.settings import settings
 from app.sor import models
@@ -125,38 +126,101 @@ def capturar_autos(
     if not graus or any(grau not in {"1", "2"} for grau in graus):
         raise HTTPException(status_code=422, detail="graus deve conter apenas '1' e/ou '2'")
 
-    captures: list[models.CapturaAutos] = []
-    for grau in graus:
-        route = resolve_route(processo.tribunal, grau)
-        sistema = (processo.sistema or (route.sistema if route else None) or "PJe")
-        tribunal = processo.tribunal or "DESCONHECIDO"
-        instancia = session.scalars(
-            select(models.ProcessoInstancia).where(
-                models.ProcessoInstancia.processo_id == processo.id,
-                models.ProcessoInstancia.sistema == sistema,
-                models.ProcessoInstancia.tribunal == tribunal,
-                models.ProcessoInstancia.grau == grau,
-            )
-        ).first()
-        if instancia is None:
-            instancia = models.ProcessoInstancia(
-                processo_id=processo.id,
-                escritorio_id=processo.escritorio_id,
-                sistema=sistema,
-                tribunal=tribunal,
-                grau=grau,
-                url_base=route.url_login if route else None,
-                status="active",
-            )
-            session.add(instancia)
-            session.flush()
-        captures.append(
-            autos_service.open_capture(
-                session, processo_instancia=instancia, usuario_id=current.usuario_id
-            )
+    captures = [
+        autos_service.open_capture(
+            session,
+            processo_instancia=_resolve_or_create_instancia(session, processo, grau),
+            usuario_id=current.usuario_id,
         )
+        for grau in graus
+    ]
     session.commit()
     return captures
+
+
+def _resolve_or_create_instancia(
+    session: Session, processo: models.Processo, grau: str
+) -> models.ProcessoInstancia:
+    """A instância `(sistema, tribunal, grau)` do processo, criada se faltar."""
+    route = resolve_route(processo.tribunal, grau)
+    sistema = processo.sistema or (route.sistema if route else None) or "PJe"
+    tribunal = processo.tribunal or "DESCONHECIDO"
+    instancia = session.scalars(
+        select(models.ProcessoInstancia).where(
+            models.ProcessoInstancia.processo_id == processo.id,
+            models.ProcessoInstancia.sistema == sistema,
+            models.ProcessoInstancia.tribunal == tribunal,
+            models.ProcessoInstancia.grau == grau,
+        )
+    ).first()
+    if instancia is None:
+        instancia = models.ProcessoInstancia(
+            processo_id=processo.id,
+            escritorio_id=processo.escritorio_id,
+            sistema=sistema,
+            tribunal=tribunal,
+            grau=grau,
+            url_base=route.url_login if route else None,
+            status="active",
+        )
+        session.add(instancia)
+        session.flush()
+    return instancia
+
+
+@router.post("/processos/{processo_id}/autos/upload", response_model=CapturaOut)
+async def upload_autos(
+    processo_id: int,
+    grau: str = Form("1"),
+    arquivos: list[UploadFile] = File(default=[]),
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+) -> models.CapturaAutos:
+    """Recebe os autos que o próprio advogado baixou no tribunal.
+
+    Único caminho de captura sem gate externo: não exige pareamento, credencial
+    nem conector. A completude aqui é declarada pelo advogado, não provada
+    contra a listagem do tribunal — ver ``autos/upload.py``.
+    """
+    processo = _get_owned_processo(session, processo_id, current)
+    if grau not in {"1", "2"}:
+        raise HTTPException(status_code=422, detail="grau deve ser '1' ou '2'")
+    if not arquivos:
+        raise HTTPException(status_code=422, detail="envie ao menos um arquivo")
+
+    enviados: list[ArquivoEnviado] = []
+    for arquivo in arquivos:
+        conteudo = await arquivo.read()
+        if len(conteudo) > settings.agent_max_upload_bytes:
+            raise HTTPException(status_code=413, detail="arquivo acima do limite")
+        # Só o nome-base: o nome vira identidade do documento lógico e não pode
+        # carregar caminho.
+        nome = (arquivo.filename or "documento.pdf").replace("\\", "/").split("/")[-1]
+        enviados.append(
+            ArquivoEnviado(
+                nome=nome,
+                conteudo=conteudo,
+                mime_type=arquivo.content_type or "application/pdf",
+            )
+        )
+
+    instancia = _resolve_or_create_instancia(session, processo, grau)
+    try:
+        capture = ingerir_autos_enviados(
+            session,
+            processo_instancia=instancia,
+            usuario_id=current.usuario_id,
+            arquivos=enviados,
+            object_store=get_object_store(),
+        )
+    except autos_service.CaptureError as exc:
+        session.rollback()
+        raise HTTPException(status_code=422, detail=exc.code) from exc
+    except ValueError as exc:
+        session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    session.commit()
+    return capture
 
 
 @router.get("/processos/{processo_id}/autos/status", response_model=AutosStatusOut)

@@ -631,6 +631,36 @@ export async function statusAutos(processoId: number): Promise<AutosStatus> {
   return request<AutosStatus>(`/processos/${processoId}/autos/status`);
 }
 
+/** Envia os autos que o próprio advogado baixou no tribunal.
+ *
+ * Único caminho de captura sem gate externo: não exige pareamento, credencial
+ * nem conector. Vai por `fetch` direto porque `request` fixa
+ * `Content-Type: application/json` — em multipart quem define o cabeçalho (com
+ * o boundary) tem de ser o browser. */
+export async function enviarAutos(
+  processoId: number,
+  arquivos: File[],
+  grau: string = "1"
+): Promise<CapturaAutos> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const form = new FormData();
+  form.append("grau", grau);
+  for (const arquivo of arquivos) form.append("arquivos", arquivo);
+
+  const response = await fetch(`${API_BASE}/processos/${processoId}/autos/upload`, {
+    method: "POST",
+    headers: withAuthHeaders({}, token),
+    body: form,
+    cache: "no-store"
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(detail || `Request failed: ${response.status}`);
+  }
+  return (await response.json()) as CapturaAutos;
+}
+
 export async function criarOverrideContexto(
   processoId: number,
   action: "draft" | "file",

@@ -82,8 +82,14 @@ def open_capture(
 ) -> models.CapturaAutos:
     """Abre uma nova geração de captura e publica o trabalho na fonte certa.
 
-    ``fonte="mni"`` roda in-backend num job persistente; ``"agente"`` mantém
-    o comando enfileirado para o agente local.
+    ``fonte="mni"`` roda in-backend num job persistente; ``"agente"`` mantém o
+    comando enfileirado para o agente local; ``"upload"`` não despacha nada,
+    porque os bytes chegaram junto com a requisição.
+
+    ``"upload"`` **nunca** sai de ``resolve_capture_fonte`` — o roteamento
+    automático continua escolhendo só entre MNI e agente. Ele só entra por
+    ``fonte`` explícito, quando o advogado entrega os autos; por isso não é um
+    terceiro ponto de decisão.
     """
     processo = session.get(models.Processo, processo_instancia.processo_id)
     resolved = fonte or resolve_capture_fonte(session, processo_instancia)
@@ -103,7 +109,9 @@ def open_capture(
     session.add(capture)
     session.flush()
 
-    if resolved == "mni":
+    if resolved == "upload":
+        pass  # nada a despachar: o conteúdo já está em mãos
+    elif resolved == "mni":
         from app.queue.jobs import create_job
 
         create_job(

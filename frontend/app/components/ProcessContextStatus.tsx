@@ -1,11 +1,12 @@
 "use client";
 
-import { FileSearch, Loader2, RefreshCcw, ShieldAlert } from "lucide-react";
+import { FileSearch, Loader2, RefreshCcw, ShieldAlert, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   AutosStatus,
   capturarAutos,
   criarOverrideContexto,
+  enviarAutos,
   statusAutos
 } from "@/lib/api";
 import { humanError } from "@/lib/errors";
@@ -77,6 +78,21 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
       await reload();
     } catch (err) {
       setError(humanError(err, "Falha ao iniciar captura"));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  // O advogado já tem acesso aos autos: deixar que ele entregue resolve o caso
+  // em que nenhum canal automático alcança o tribunal.
+  async function enviar(arquivos: FileList | null) {
+    if (!arquivos || arquivos.length === 0) return;
+    setBusy("upload");
+    try {
+      await enviarAutos(processoId, Array.from(arquivos), "1");
+      await reload();
+    } catch (err) {
+      setError(humanError(err, "Falha ao enviar os autos"));
     } finally {
       setBusy(null);
     }
@@ -183,6 +199,18 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
         >
           {uiState === "not_captured" ? "Capturar autos" : "Retentar pendências"}
         </button>
+        <label className="toolbarButton compact contextUpload">
+          {busy === "upload" ? <Loader2 className="spin" size={13} /> : <Upload size={13} />}
+          Enviar os autos
+          <input
+            type="file"
+            multiple
+            accept="application/pdf"
+            aria-label="Enviar os autos que você baixou no tribunal"
+            disabled={busy === "upload"}
+            onChange={(event) => void enviar(event.target.files)}
+          />
+        </label>
         <button
           className="toolbarButton primary compact"
           onClick={() => {
