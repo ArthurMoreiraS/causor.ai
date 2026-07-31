@@ -45,9 +45,14 @@ of truth for current status and execution order. The PRD (`docs/produto/PRD.md`)
 is strategic; files in `docs/historico/superpowers/` are historical
 design/implementation records and must not be used to infer current state.
 For market/strategy questions ("is this viable?", "what is the moat?", "which
-lane?"), read `docs/areas/viabilidade-mercado-2026-07-29.md` and
+lane?"), read `docs/areas/rota-produto-2026-07-30.md` first, then
+`docs/areas/viabilidade-mercado-2026-07-29.md` and
 `docs/areas/modelo-garfield-2026-07-29.md` — they carry the evidence and
-supersede older strategic claims in the PRD where the two disagree.
+supersede older strategic claims in the PRD where the two disagree. The
+2026-07-30 doc adds the finding that the CNJ is unifying case consultation and
+intercurrent filing nationally in **jus.br** (Res. CNJ 455/2022 + 624/2025),
+which demotes per-court-system connectors, and records that the confirmed MNI
+profiles do not cover the pilot court (TJTO).
 
 ### Build / lint / test (run from `/backend`)
 
