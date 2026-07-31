@@ -123,12 +123,12 @@ export default function AgentSection({ offline }: { offline: boolean }) {
 
   return (
     <div className="settingsGroup">
-      <span className="settingsLabel">Computador do advogado</span>
+      <span className="settingsLabel">Seu computador</span>
       <small className="settingsHint vaultHint">
         <Laptop size={13} />
-        Pareado uma vez, executa o protocolo e atende tribunais sem credencial
-        oficial. O login no portal é aberto pelo assistente quando necessário;
-        nenhum token, cookie ou certificado sai daquela máquina.
+        Pareado uma vez, é ele que lê os autos e protocola, em todo tribunal. O
+        login no portal é aberto pelo assistente quando necessário; nenhum token,
+        cookie ou certificado sai daquela máquina.
       </small>
 
       <LoadingButton

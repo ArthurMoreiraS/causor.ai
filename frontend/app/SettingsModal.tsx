@@ -4,8 +4,8 @@ import { AlertTriangle, Landmark, RotateCcw, SlidersHorizontal, Radar, UserCog, 
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { Settings } from "@/lib/settings";
+import AcessoTribunaisPanel from "./components/AcessoTribunaisPanel";
 import AgentSection from "./components/AgentSection";
-import MniSection from "./components/MniSection";
 import VaultSection from "./components/VaultSection";
 import CaptureTab from "./components/settings/CaptureTab";
 import ProfileTab from "./components/settings/ProfileTab";
@@ -84,11 +84,10 @@ export default function SettingsModal({
           {tab === "tribunais" ? (
             <>
               <p className="settingsLead">
-                O Causor escolhe o caminho por processo: a credencial oficial roda sozinha
-                no servidor; o computador pareado cobre o protocolo e os tribunais sem
-                credencial.
+                O Causor entra no tribunal pelo seu computador, com o seu login. Pareie
+                uma vez: é o que permite ler os autos e protocolar.
               </p>
-              <MniSection offline={offline} />
+              <AcessoTribunaisPanel offline={offline} />
               <AgentSection offline={offline} />
               <VaultSection offline={offline} />
             </>

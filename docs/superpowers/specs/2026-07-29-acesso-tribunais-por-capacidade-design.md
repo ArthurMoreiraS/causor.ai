@@ -1,8 +1,28 @@
 # Acesso aos tribunais organizado por capacidade — Design
 
-> **Status:** aprovado, não implementado. Data: 2026-07-29.
+> **Status:** **implementado em 2026-07-30.** Data do design: 2026-07-29.
 > Substitui a proposta anterior de "painel diagnóstico por canal", que ainda
 > organizava a tela por tecnologia. Ver §2 para o motivo da virada.
+>
+> **Quatro desvios conscientes na implementação:**
+>
+> 1. **§4.4 não se aplica mais.** O `MniSection` não desceu para "Configuração
+>    avançada" — ele **saiu da UI** em 30/07, junto com a decisão de tirar o MNI
+>    do caminho crítico (ver [`areas/plano-90-dias-2026-07-30.md`](../../areas/plano-90-dias-2026-07-30.md)
+>    §1.1). Sobraram no painel "Seu computador" e "Assinatura em nuvem".
+> 2. **Sem botões de ação.** `Conectar`/`Reconectar` exigiriam um `processo_id`
+>    (o login é `POST /processos/{id}/tribunal/login`), que o painel de
+>    Configurações não tem em mão. O painel entrega diagnóstico — *estou
+>    pronto? o que falta?* — e a ação continua no `AcessoTribunalWizard`, que já
+>    aparece dentro do fluxo da minuta (§5). Botão no painel exigiria endpoint
+>    de login por rota; fica para quando o piloto mostrar que é preciso.
+> 3. **`falta` ganhou `"reconectar"`**, fora do enum do §4.1, porque a própria
+>    tela desenhada em §4.3 precisa distinguir "a sessão expirou" de "falta
+>    conectar". `credenciamento`/`conectar_credencial` não foram implementados —
+>    seriam o CTA de MNI, que saiu por (1).
+> 4. **`processos` vive no response model**, não no `AcessoTribunal` — a
+>    contagem é agregação do endpoint e manteria o resolvedor fazendo query a
+>    mais sem necessidade.
 
 ## 1. O problema, dito pelo próprio operador
 
@@ -156,8 +176,16 @@ Não são apagadas nem reescritas por dentro — viram **ação, não conceito**
 
 ## 5. Relação com o fluxo único (o que já existe)
 
+> **CORREÇÃO DE 2026-07-30.** Este parágrafo estava errado quando foi escrito.
+> O `AcessoTribunalWizard` existia mas **não era renderizado em lugar nenhum** —
+> era código morto. Na prática, clicar "Minutar" num processo sem autos íntegros
+> devolvia o 409 do gate como o toast genérico *"A ação não foi concluída"*,
+> porque o `humanError` não conhecia o código `process_context_incomplete`.
+> Ligado em 30/07: o gate abre o assistente e a minuta é refeita sozinha quando
+> o contexto fica pronto. O diagrama abaixo descreve o estado **atual**.
+
 O fluxo que o Arthur descreveu — *"cria a minuta, aprova e protocola, e o
-software pega o contexto na hora"* — **já está construído**:
+software pega o contexto na hora"* — **está construído**:
 
 ```
 gate de contexto (fail-closed)  →  AcessoTribunalWizard (JIT)  →  minuta

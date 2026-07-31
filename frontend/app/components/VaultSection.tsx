@@ -6,9 +6,10 @@ import { CredencialAssinatura, listarCredenciais } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import { AsyncState, Skeleton } from "./ui";
 
-// A sessão do tribunal deixou de viver no backend: o login roda no agente local
-// (ver "Acesso aos tribunais"). Aqui ficam apenas as referências de assinatura
-// em nuvem (cloud_cert) — que não são sessão de navegação.
+// A sessão do tribunal deixou de viver no backend: o login roda no computador
+// pareado do advogado (ver "Seu computador", acima). Aqui ficam apenas as
+// referências de assinatura em nuvem (cloud_cert) — que não são sessão de
+// navegação.
 export default function VaultSection({ offline }: { offline: boolean }) {
   const [credenciais, setCredenciais] = useState<CredencialAssinatura[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +44,7 @@ export default function VaultSection({ offline }: { offline: boolean }) {
         <LockKeyhole size={13} />
         Referências de provedores de assinatura em nuvem (BirdID, etc.). Não guardam
         senha nem certificado — apenas o apontamento do provedor. Não habilitam
-        protocolo direto; o login no tribunal fica em “Acesso aos tribunais”.
+        protocolo direto; o login no tribunal fica em “Seu computador”, acima.
       </small>
 
       <div className="vaultList">

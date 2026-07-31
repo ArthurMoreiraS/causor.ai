@@ -47,6 +47,52 @@ export function mniErrorMessage(code: string | null | undefined): string {
   return MNI_MESSAGES[code] ?? `O teste falhou (${code}). Confira os dados do credenciamento.`;
 }
 
+// Gate fail-closed do contexto (`autos/context.py`): a minuta so nasce dos
+// autos reais. E' o comportamento mais importante do produto e chegava ao
+// advogado como erro generico — ele via "A acao nao foi concluida" sem saber
+// que faltavam os autos nem o que fazer.
+export const GATE_CONTEXTO_CODE = "process_context_incomplete";
+
+const GATE_CONTEXTO_MESSAGE =
+  "Os autos deste processo ainda não estão completos. O Causor não escreve minuta " +
+  "sobre processo pela metade — vamos buscar as peças que faltam.";
+
+/** Passo acionavel que o backend devolve junto do 409 do gate. */
+export type GateContexto = {
+  processo_id: number;
+  missing: string[];
+  next_step: string | null;
+};
+
+/** Devolve o payload do gate quando o erro e' o bloqueio de contexto; senao `null`.
+ *
+ * E' o que permite a tela abrir o assistente no lugar de so mostrar um toast:
+ * o backend ja manda `processo_id` e `next_step` mastigados. */
+export function gateContexto(err: unknown): GateContexto | null {
+  const raw = err instanceof Error ? err.message.trim() : "";
+  if (!raw.startsWith("{")) return null;
+  try {
+    const parsed = JSON.parse(raw) as {
+      detail?: {
+        code?: unknown;
+        processo_id?: unknown;
+        missing?: unknown;
+        next_step?: unknown;
+      };
+    };
+    const detail = parsed.detail;
+    if (!detail || detail.code !== GATE_CONTEXTO_CODE) return null;
+    if (typeof detail.processo_id !== "number") return null;
+    return {
+      processo_id: detail.processo_id,
+      missing: Array.isArray(detail.missing) ? (detail.missing as string[]) : [],
+      next_step: typeof detail.next_step === "string" ? detail.next_step : null
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Codigo canonico dentro do corpo JSON de erro do backend.
 function bodyErrorCode(raw: string): string | null {
   try {
@@ -70,6 +116,7 @@ export function humanError(err: unknown, fallback: string): string {
   if (raw.startsWith("{") || raw.startsWith("[")) {
     const code = bodyErrorCode(raw);
     if (code === "internal_error") return SERVER_FAULT;
+    if (code === GATE_CONTEXTO_CODE) return GATE_CONTEXTO_MESSAGE;
     // Erro de domínio com código canônico e mensagem própria: dizer o que
     // fazer vale mais que o fallback genérico da tela.
     if (code && MNI_MESSAGES[code]) return MNI_MESSAGES[code];

@@ -749,6 +749,28 @@ export async function listarCoberturaConectores(): Promise<ConnectorCoverageRow[
   return request<ConnectorCoverageRow[]>(`/connectors/coverage`);
 }
 
+/** Uma das duas capacidades da rota: ler os autos ou protocolar. `falta` é a
+ * próxima ação do advogado quando a capacidade não está disponível. */
+export type AcessoCapacidade = {
+  disponivel: boolean;
+  via: "oficial" | "computador" | null;
+  falta: "parear" | "logar" | "reconectar" | null;
+};
+
+export type AcessoTribunal = {
+  sistema: string;
+  tribunal: string;
+  grau: string;
+  processos: number;
+  ler_autos: AcessoCapacidade;
+  protocolar: AcessoCapacidade;
+  mni_disponivel: boolean;
+};
+
+export async function listarAcessoTribunais(): Promise<AcessoTribunal[]> {
+  return request<AcessoTribunal[]>("/tribunais/acesso");
+}
+
 export async function listarTemplates(escritorioId?: number): Promise<TemplatePeticao[]> {
   const id = escritorioId ?? (await resolverEscritorioAtual());
   return request<TemplatePeticao[]>(`/escritorios/${id}/templates-peticao`);

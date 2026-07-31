@@ -53,6 +53,7 @@ import SettingsModal from "./SettingsModal";
 import DetailDrawer, { DetailSelection } from "./DetailDrawer";
 import MinutaEditor from "./MinutaEditor";
 import PrazoEditModal, { PrazoPatch } from "./PrazoEditModal";
+import AcessoTribunalWizard from "./components/AcessoTribunalWizard";
 import FiltersPanel from "./components/FiltersPanel";
 import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
@@ -75,7 +76,7 @@ import PrazosView from "./views/PrazosView";
 import ProcessosView from "./views/ProcessosView";
 import { useRequireAuth } from "./AuthProvider";
 import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
-import { humanError } from "@/lib/errors";
+import { gateContexto, humanError } from "@/lib/errors";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import { computeDashboardMetrics } from "@/lib/metrics";
@@ -152,6 +153,12 @@ export default function Home() {
   const [detail, setDetail] = useState<DetailSelection | null>(null);
   const [editorPeticao, setEditorPeticao] = useState<Peticao | null>(null);
   const [protocolarTarget, setProtocolarTarget] = useState<Peticao | null>(null);
+  // Minuta barrada pelo gate de contexto: guarda a intimação para refazê-la
+  // sozinha assim que o assistente terminar de buscar os autos.
+  const [gateAssistente, setGateAssistente] = useState<{
+    intimacaoId: number;
+    processoId: number;
+  } | null>(null);
   const [prazoEdit, setPrazoEdit] = useState<Prazo | null>(null);
   const [filters, setFilters] = useState<{ tribunal: string; sistema: string; risco: string }>({
     tribunal: "",
@@ -207,7 +214,14 @@ export default function Home() {
     }
   }
 
-  async function runAction(key: string, action: () => Promise<void>) {
+  /** `onError` devolve `true` quando a tela já tratou a falha — aí o toast
+   * vermelho não aparece. É o que permite o gate de contexto abrir o
+   * assistente em vez de virar mensagem de erro. */
+  async function runAction(
+    key: string,
+    action: () => Promise<void>,
+    onError?: (err: unknown) => boolean
+  ) {
     setBusy(key);
     setError(null);
     try {
@@ -215,12 +229,36 @@ export default function Home() {
       await refresh();
       toast({ kind: "success", title: actionSuccessTitle(key) });
     } catch (err) {
+      if (onError?.(err)) return;
       const message = humanError(err, "A ação não foi concluída");
       setError(message);
       toast({ kind: "error", title: "Ação não concluída", description: message });
     } finally {
       setBusy(null);
     }
+  }
+
+  /** Ponto único de geração de minuta.
+   *
+   * A minuta nasce de **intimação + autos completos**. Quando os autos ainda
+   * não estão íntegros o backend recusa com 409 estruturado (`next_step`,
+   * `processo_id`) — isso não é erro do advogado, é trabalho que falta. Em vez
+   * do toast genérico, abre o assistente, que conduz parear/logar/capturar e
+   * refaz a minuta sozinho ao terminar. */
+  async function minutar(intimacaoId: number) {
+    await runAction(
+      `draft-${intimacaoId}`,
+      async () => {
+        const cls = await gerarMinuta(intimacaoId, calendarYears);
+        if (cls) setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
+      },
+      (err) => {
+        const gate = gateContexto(err);
+        if (!gate) return false;
+        setGateAssistente({ intimacaoId, processoId: gate.processo_id });
+        return true;
+      }
+    );
   }
 
   async function runCaptureOab() {
@@ -274,9 +312,19 @@ export default function Home() {
 
   async function confirmAssistantAction(action: ProposedAction) {
     const { payload } = action;
-    if (action.tipo === "gerar_minuta")
-      await gerarMinuta(Number(payload.intimacao_id), calendarYears);
-    else if (action.tipo === "marcar_prazo_cumprido") await cumprirPrazo(Number(payload.prazo_id));
+    if (action.tipo === "gerar_minuta") {
+      // Aqui o erro real precisa continuar subindo (o assistente registra a
+      // falha na conversa); só o gate de contexto vira assistente.
+      const intimacaoId = Number(payload.intimacao_id);
+      try {
+        await gerarMinuta(intimacaoId, calendarYears);
+      } catch (err) {
+        const gate = gateContexto(err);
+        if (!gate) throw err;
+        setGateAssistente({ intimacaoId, processoId: gate.processo_id });
+      }
+    } else if (action.tipo === "marcar_prazo_cumprido")
+      await cumprirPrazo(Number(payload.prazo_id));
     else if (action.tipo === "aprovar_peticao") await aprovarPeticao(Number(payload.peticao_id));
     else throw new Error(`Ação desconhecida: ${action.tipo}`);
     await refresh();
@@ -1013,13 +1061,7 @@ export default function Home() {
                   items={dashboardWorklist}
                   busy={busy}
                   offline={offline}
-                  onGenerateDraft={(intimacaoId) =>
-                    runAction(`draft-${intimacaoId}`, async () => {
-                      const cls = await gerarMinuta(intimacaoId, calendarYears);
-                      if (cls)
-                        setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
-                    })
-                  }
+                  onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
                   onOpenEditor={(peticao) => setEditorPeticao(peticao)}
                   onApprove={(peticao) =>
                     runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))
@@ -1089,17 +1131,7 @@ export default function Home() {
               busy={busy}
               offline={offline}
               onOpen={(id) => setDetail({ kind: "intimacao", id })}
-              onGenerateDraft={(intimacaoId) =>
-                runAction(`draft-${intimacaoId}`, async () => {
-                  const cls = await gerarMinuta(intimacaoId, calendarYears);
-                  if (cls)
-                    setLastClassificacao({
-                      intimacaoId,
-                      tipo: cls.tipo,
-                      confianca: cls.confianca
-                    });
-                })
-              }
+              onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
             />
           ) : null}
           {view === "prazos" ? (
@@ -1295,13 +1327,7 @@ export default function Home() {
             offline={offline}
             onClose={() => setDetail(null)}
             onSelect={setDetail}
-            onGenerateDraft={(intimacaoId) =>
-              runAction(`draft-${intimacaoId}`, async () => {
-                const cls = await gerarMinuta(intimacaoId, calendarYears);
-                if (cls)
-                  setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
-              })
-            }
+            onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
             onOpenPeticao={(peticao) => {
               setDetail(null);
               setEditorPeticao(peticao);
@@ -1323,6 +1349,27 @@ export default function Home() {
             onConfirm={() => void confirmarProtocolo()}
             onClose={() => setProtocolarTarget(null)}
           />
+        ) : null}
+
+        {/* Gate de contexto: a minuta parou porque faltam os autos. O assistente
+            conduz parear/logar/capturar e, quando o contexto fica pronto,
+            refaz a minuta sozinho — o advogado não clica de novo. */}
+        {gateAssistente ? (
+          <Modal
+            onClose={() => setGateAssistente(null)}
+            labelledBy="acessoWizardTitle"
+            className="acessoWizardCard"
+          >
+            <AcessoTribunalWizard
+              processoId={gateAssistente.processoId}
+              onReady={() => {
+                const alvo = gateAssistente;
+                setGateAssistente(null);
+                void minutar(alvo.intimacaoId);
+              }}
+              onClose={() => setGateAssistente(null)}
+            />
+          </Modal>
         ) : null}
 
         {editorPeticao ? (

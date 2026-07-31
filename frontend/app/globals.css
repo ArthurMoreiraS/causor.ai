@@ -1498,7 +1498,14 @@ h2 {
 
 .processTable .dataHead,
 .processTable .dataRow {
-  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 132px 84px 72px minmax(180px, auto);
+  /* Última coluna FIXA, não `minmax(180px, auto)`. Cabeçalho e linhas são grids
+     separados: com `auto`, o cabeçalho resolvia 180px (só o rótulo "Próximo
+     prazo") e a linha 234px (data + selo de risco + botão "Autos"), e a
+     diferença saía das colunas `fr` — as cinco primeiras colunas da linha
+     ficavam ~31px à esquerda do próprio cabeçalho. Duas linhas com selos de
+     larguras diferentes também divergiam entre si. Medido em 2026-07-30:
+     72 (data) + 6 + 75 (selo "VENCIDO", o mais largo) + 6 + 76 (botão) = 235. */
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 132px 84px 72px 240px;
 }
 
 .cellCount {
@@ -4559,6 +4566,74 @@ h2 {
   word-break: break-all;
 }
 
+/* Painel "Seus tribunais": uma linha por capacidade, para a dependência do
+   computador pareado ficar visível em toda rota sem ninguém explicar. */
+.acessoPainelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.acessoResumo {
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.acessoRota {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+}
+
+.acessoRota header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 2px;
+}
+
+.acessoRota header strong {
+  font-size: 12.5px;
+}
+
+.acessoProcessos {
+  color: var(--muted);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.acessoLinha {
+  display: grid;
+  grid-template-columns: 14px 92px 1fr;
+  align-items: center;
+  gap: 8px;
+  font-size: 11.5px;
+}
+
+.acessoLinha.ok {
+  color: var(--ok, var(--muted));
+}
+
+.acessoLinha.pendente {
+  color: var(--warn, var(--muted));
+}
+
+.acessoCapacidade {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.acessoEstado {
+  color: var(--muted);
+}
+
 .vaultComando {
   margin: 0; /* o espaçamento vem do gap do .settingsGroup */
   padding: 12px 14px;
@@ -5578,6 +5653,19 @@ textarea:focus {
 .acessoWizardActions {
   display: flex;
   justify-content: flex-end;
+}
+
+/* Dentro do modal (gate de contexto barrando a minuta) o wizard já está num
+   cartão: a moldura própria dele viraria borda dupla. */
+.acessoWizardCard {
+  width: min(460px, 92vw);
+}
+
+.acessoWizardCard .acessoWizard {
+  margin-top: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
 }
 
 /* ---- Painel de contexto dos autos (ProcessContextStatus) ---- */

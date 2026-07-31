@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { humanError, mniErrorMessage, UNREACHABLE } from "./errors";
+import { gateContexto, humanError, mniErrorMessage, UNREACHABLE } from "./errors";
 
 const FALLBACK = "Falha ao carregar credenciais";
 
@@ -69,4 +69,34 @@ test("codigo desconhecido ou ausente ainda produz frase legivel", () => {
   );
   expect(mniErrorMessage(null)).toBe("O teste falhou. Confira os dados do credenciamento.");
   expect(mniErrorMessage(undefined)).toBe("O teste falhou. Confira os dados do credenciamento.");
+});
+
+// O gate de contexto e a peca mais importante do produto: a minuta so nasce
+// dos autos reais. Ate 30/07 ele chegava ao advogado como "A acao nao foi
+// concluida" — erro generico, sem dizer que faltam os autos e sem caminho.
+test("gate de contexto vira frase que nomeia os autos", () => {
+  const body =
+    '{"detail":{"code":"process_context_incomplete","processo_id":12,' +
+    '"missing":["1o grau"],"next_step":"pair_agent","rota":{"sistema":"EPROC"}}}';
+  const message = humanError(new Error(body), FALLBACK);
+  expect(message).not.toBe(FALLBACK);
+  expect(message).toMatch(/autos/i);
+});
+
+test("gate de contexto entrega o processo e o proximo passo para a UI conduzir", () => {
+  const body =
+    '{"detail":{"code":"process_context_incomplete","processo_id":12,' +
+    '"missing":["1o grau"],"next_step":"pair_agent","rota":{"sistema":"EPROC"}}}';
+
+  expect(gateContexto(new Error(body))).toEqual({
+    processo_id: 12,
+    missing: ["1o grau"],
+    next_step: "pair_agent"
+  });
+});
+
+test("erro que nao e o gate nao aciona o assistente", () => {
+  expect(gateContexto(new Error("Failed to fetch"))).toBeNull();
+  expect(gateContexto(new Error('{"detail":{"code":"internal_error"}}'))).toBeNull();
+  expect(gateContexto(null)).toBeNull();
 });

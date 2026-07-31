@@ -49,9 +49,9 @@ export default function ConectoresView({
           <div>
             <strong>Acesso aos tribunais</strong>
             <span>
-              O login do tribunal roda no computador do advogado (agente local) e nunca sai
-              dele; o Causor guarda só o estado “conectado”. Gerencie em Configurações →
-              Acesso aos tribunais.
+              O login do tribunal roda no computador do advogado e nunca sai dele; o
+              Causor guarda só o estado “conectado”. Gerencie em Configurações →
+              Tribunais.
             </span>
           </div>
         </article>

@@ -1,7 +1,7 @@
 "use client";
 
 import { KeyRound, Laptop, Loader2, ShieldCheck } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   loginTribunal,
   proximoPassoContexto,
@@ -42,13 +42,20 @@ export default function AcessoTribunalWizard({
   const [passo, setPasso] = useState<ProximoPasso | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // O polling continua rodando depois que o contexto fica pronto; sem esta
+  // trava cada volta avisaria de novo e quem escuta (a tela, gerando a minuta)
+  // produziria uma minuta por ciclo.
+  const readyNotified = useRef(false);
 
   const refresh = useCallback(async () => {
     try {
       const next = await proximoPassoContexto(processoId);
       setPasso(next);
       setStep(stepFromPasso(next));
-      if (next.ready) onReady();
+      if (next.ready && !readyNotified.current) {
+        readyNotified.current = true;
+        onReady();
+      }
     } catch (err) {
       setError(humanError(err, "Falha ao consultar o acesso ao tribunal"));
       setStep("error");
@@ -87,7 +94,7 @@ export default function AcessoTribunalWizard({
   return (
     <section className="acessoWizard" aria-label="Assistente de acesso ao tribunal">
       <header className="acessoWizardHeader">
-        <strong>Preparar contexto do processo</strong>
+        <strong id="acessoWizardTitle">Preparar contexto do processo</strong>
         {rotaLabel && <span className="acessoWizardRota">{rotaLabel}</span>}
       </header>
 
@@ -101,8 +108,8 @@ export default function AcessoTribunalWizard({
         <div className="acessoWizardStep">
           <p>
             <Laptop size={14} /> Nenhum computador pareado está online. Pareie este
-            computador em <strong>Configurações → Acesso aos tribunais</strong> e rode o
-            agente para o Causor conseguir abrir o tribunal.
+            computador em <strong>Configurações → Tribunais</strong> para o Causor
+            conseguir abrir o tribunal.
           </p>
           <button className="toolbarButton compact" onClick={() => void refresh()}>
             Já pareei — verificar

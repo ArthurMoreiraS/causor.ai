@@ -80,3 +80,24 @@ test("calls onReady when the context becomes ready", async () => {
   await waitFor(() => expect(onReady).toHaveBeenCalled());
   expect(await screen.findByText(/Contexto completo/)).toBeInTheDocument();
 });
+
+// O wizard repete a consulta a cada 4s. Sem trava, cada volta do polling
+// dispararia `onReady` de novo — e quem escuta gera a minuta, ou seja, o
+// advogado receberia varias minutas do mesmo processo.
+test("onReady dispara uma vez so, mesmo com o polling continuando", async () => {
+  vi.useFakeTimers();
+  const onReady = vi.fn();
+  vi.mocked(proximoPassoContexto).mockResolvedValue({
+    processo_id: 7,
+    ready: true,
+    next_step: null,
+    rota
+  });
+
+  renderWizard(onReady);
+
+  await vi.advanceTimersByTimeAsync(20_000);
+  vi.useRealTimers();
+
+  expect(onReady).toHaveBeenCalledTimes(1);
+});

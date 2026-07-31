@@ -147,11 +147,11 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
                     className="pill"
                     title={
                       instancia.captura.fonte === "mni"
-                        ? "Capturado pelo webservice oficial do tribunal (MNI), direto no servidor"
-                        : "Capturado pelo computador pareado do advogado"
+                        ? "Lido pelo canal oficial do tribunal, sem usar o seu computador"
+                        : "Lido pelo seu computador pareado, com o seu login"
                     }
                   >
-                    {instancia.captura.fonte === "mni" ? "Oficial (MNI)" : "Agente local"}
+                    {instancia.captura.fonte === "mni" ? "Direto do tribunal" : "Seu computador"}
                   </span>
                   <span className="contextMeta">
                     {instancia.captura.status}
