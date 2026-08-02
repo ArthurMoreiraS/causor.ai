@@ -25,6 +25,11 @@ from app.connectors.pje.simulator import serve as serve_pje_simulator
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import fail_stale_running_jobs
+from app.relatorios.dossie_oab import (
+    JANELA_PADRAO_DIAS,
+    montar_dossie,
+    renderizar_markdown,
+)
 from app.settings import settings
 from app.sor import models
 from app.sor.db import SessionLocal
@@ -221,6 +226,22 @@ def _build_parser() -> argparse.ArgumentParser:
         type=int,
         help="Restrict to a single escritorio id",
     )
+
+    dossie = sub.add_parser(
+        "dossie-oab",
+        help="Monta o quadro de intimacoes e prazos de uma OAB (demo e T3')",
+    )
+    dossie.add_argument("--escritorio", required=True, type=int)
+    dossie.add_argument("--oab", required=True)
+    dossie.add_argument("--uf", required=True)
+    dossie.add_argument(
+        "--janela-dias",
+        type=int,
+        default=JANELA_PADRAO_DIAS,
+        help="Tamanho da janela em dias, contados de hoje para tras",
+    )
+    dossie.add_argument("--hoje", help="Data de referencia (YYYY-MM-DD); default hoje")
+    dossie.add_argument("--saida", help="Arquivo .md de saida; sem isso imprime na tela")
     return parser
 
 
@@ -508,6 +529,29 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             session.close()
         print(f"Alertas de prazo enviados: {len(enviadas)}")
+        return 0
+
+    if args.command == "dossie-oab":
+        hoje = date.fromisoformat(args.hoje) if args.hoje else date.today()
+        session = SessionLocal()
+        try:
+            dossie = montar_dossie(
+                session,
+                escritorio_id=args.escritorio,
+                oab=args.oab,
+                uf=args.uf,
+                hoje=hoje,
+                janela_dias=args.janela_dias,
+            )
+        finally:
+            session.close()
+        texto = renderizar_markdown(dossie)
+        if args.saida:
+            with open(args.saida, "w", encoding="utf-8") as arquivo:
+                arquivo.write(texto)
+            print(f"Dossie gravado em {args.saida}")
+        else:
+            print(texto)
         return 0
     return 0
 
