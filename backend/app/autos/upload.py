@@ -28,6 +28,7 @@ from hashlib import sha256 as sha256_digest
 from sqlalchemy.orm import Session
 
 from app.autos import service as autos_service
+from app.autos.conferencia import ConsultaDatajud, conferir_upload_com_datajud
 from app.autos.contracts import ManifestDocumentInput, ManifestInput
 from app.sor import models
 from app.storage.objects import ObjectStore
@@ -85,6 +86,7 @@ def ingerir_autos_enviados(
     usuario_id: int | None,
     arquivos: list[ArquivoEnviado],
     object_store: ObjectStore,
+    datajud: ConsultaDatajud | None = None,
 ) -> models.CapturaAutos:
     """Transforma os arquivos entregues numa captura verificada dos autos."""
     if not arquivos:
@@ -122,6 +124,18 @@ def ingerir_autos_enviados(
 
     # A enumeração final é a mesma da inicial por construção; a conferência
     # segue rodando porque é ela que valida que todo item ficou `verified`.
-    return autos_service.finalize_capture(
+    capture = autos_service.finalize_capture(
         session, capture=capture, final_manifest=manifesto
     )
+    if datajud is not None:
+        # Sinal externo, opcional por desenho: sem cliente injetado o upload
+        # continua funcionando exatamente como antes. Ver `autos/conferencia.py`
+        # — a completude segue declarada, isto só a confronta com o DataJud.
+        conferir_upload_com_datajud(
+            session,
+            capture=capture,
+            processo=processo_instancia.processo,
+            arquivos_recebidos=len(arquivos),
+            datajud=datajud,
+        )
+    return capture

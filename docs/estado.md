@@ -23,6 +23,16 @@
   entregou, e isso nao pode ser vendido como a prova que a captura de tribunal
   da. Ver `autos/upload.py`.
 
+  **2026-08-01 — a declaracao passou a ser confrontada.** `autos/conferencia.py`
+  consulta o DataJud e compara os movimentos de juntada do tribunal com os
+  arquivos recebidos; o resultado fica em `evidence.conferencia_datajud` e sai
+  na resposta do upload (`CapturaOut.conferencia_datajud`). **Continua sendo
+  sinal, nao prova**: movimento processual nao e peca dos autos, entao
+  divergencia serve para perguntar ao advogado se faltou peca, nunca para
+  reprovar a captura. Falha ou indisponibilidade do DataJud e engolida (uma
+  tentativa so, via `get_datajud_client`), porque a captura ja esta completa
+  quando a conferencia roda.
+
   **Contexto que mudou no mesmo dia:** o acesso ao advogado-advisor acabou (sem
   credencial de eproc, sem processos ativos). As Tasks 6-9 saem do roadmap por
   falta de acesso, nao por prioridade, e o gargalo do projeto passa a ser

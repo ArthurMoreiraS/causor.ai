@@ -94,6 +94,43 @@ def test_processo_de_outro_escritorio_nao_recebe_upload(
     assert resp.status_code == 404
 
 
+def test_resposta_traz_a_conferencia_contra_o_datajud(client, seeded, local_store):
+    """A tela precisa saber que o tribunal registra mais juntadas do que chegou.
+
+    É sinal, não prova: a captura continua `complete`, porque o que ela afirma
+    ("recebemos exatamente estes arquivos, íntegros") continua verdadeiro.
+    """
+    from app.api.autos_routes import get_datajud_client
+    from app.capture.datajud import MovimentoDTO, ProcessoDTO
+
+    class _DatajudComJuntadas:
+        def consultar_processo(self, numero_processo: str, *, tribunal: str):
+            return ProcessoDTO(
+                numero_processo=numero_processo,
+                movimentos=[
+                    MovimentoDTO(nome="Juntada de Petição"),
+                    MovimentoDTO(nome="Juntada de Documento"),
+                    MovimentoDTO(nome="Conclusão"),
+                ],
+            )
+
+    client.app.dependency_overrides[get_datajud_client] = _DatajudComJuntadas
+
+    resp = client.post(
+        f"/processos/{seeded.id}/autos/upload",
+        files=[_arquivo("inicial.pdf")],
+        data={"grau": "1"},
+    )
+
+    assert resp.status_code == 200
+    corpo = resp.json()
+    assert corpo["status"] == "complete"
+    conferencia = corpo["conferencia_datajud"]
+    assert conferencia["juntadas"] == 2
+    assert conferencia["arquivos_recebidos"] == 1
+    assert conferencia["divergencia"] is True
+
+
 def test_arquivo_acima_do_limite_e_recusado(client, seeded, local_store, monkeypatch):
     from app import settings as settings_module
 

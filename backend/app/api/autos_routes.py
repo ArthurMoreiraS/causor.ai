@@ -17,16 +17,28 @@ from sqlalchemy.orm import Session
 
 from app.api.agent_routes import get_agent_principal
 from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.autos.conferencia import CHAVE_EVIDENCIA
 from app.autos.contracts import ManifestInput
 from app.autos import service as autos_service
 from app.autos.upload import ArquivoEnviado, ingerir_autos_enviados
 from app.capture.court_routing import resolve_route
+from app.capture.datajud import DatajudClient
 from app.settings import settings
 from app.sor import models
 from app.sor.db import get_session
 from app.storage.objects import get_object_store
 
 router = APIRouter(tags=["autos"])
+
+
+def get_datajud_client() -> DatajudClient:
+    """Cliente do DataJud para a conferência do upload.
+
+    Uma tentativa só, de propósito: a conferência é sinal opcional e não pode
+    segurar o request do advogado se o DataJud estiver lento ou fora do ar. É
+    dependência para os testes poderem trocá-la sem tocar na rede.
+    """
+    return DatajudClient(max_attempts=1)
 
 
 class CapturarAutosIn(BaseModel):
@@ -49,6 +61,9 @@ class CapturaOut(BaseModel):
     started_at: datetime | None
     completed_at: datetime | None
     fonte: str = "agente"
+    # Só no upload: o confronto das juntadas do DataJud com os arquivos
+    # entregues. Sinal, não prova — ver `autos/conferencia.py`.
+    conferencia_datajud: dict | None = None
 
 
 class InstanciaStatusOut(BaseModel):
@@ -175,7 +190,8 @@ async def upload_autos(
     arquivos: list[UploadFile] = File(default=[]),
     session: Session = Depends(get_session),
     current: CurrentUser = Depends(get_current_user),
-) -> models.CapturaAutos:
+    datajud: DatajudClient = Depends(get_datajud_client),
+) -> CapturaOut:
     """Recebe os autos que o próprio advogado baixou no tribunal.
 
     Único caminho de captura sem gate externo: não exige pareamento, credencial
@@ -212,6 +228,7 @@ async def upload_autos(
             usuario_id=current.usuario_id,
             arquivos=enviados,
             object_store=get_object_store(),
+            datajud=datajud,
         )
     except autos_service.CaptureError as exc:
         session.rollback()
@@ -219,8 +236,13 @@ async def upload_autos(
     except ValueError as exc:
         session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    conferencia = (capture.evidence or {}).get(CHAVE_EVIDENCIA)
     session.commit()
-    return capture
+    # `evidence` não é serializado inteiro (carrega manifesto e download_ref);
+    # sai só a conferência, que é o que a tela precisa mostrar.
+    return CapturaOut.model_validate(capture).model_copy(
+        update={"conferencia_datajud": conferencia}
+    )
 
 
 @router.get("/processos/{processo_id}/autos/status", response_model=AutosStatusOut)

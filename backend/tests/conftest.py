@@ -14,6 +14,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api.autos_routes import get_datajud_client
 from app.api.main import create_app
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.sor.db import Base, get_session
@@ -69,6 +70,15 @@ def client(db_session) -> TestClient:
         )
 
     app.dependency_overrides[get_current_user] = _current_user
+
+    # A conferência do upload consulta o DataJud. Nenhum teste de API pode sair
+    # para a rede: o dublê responde "processo não encontrado", que é o caminho
+    # em que a conferência não afirma nada.
+    class _DatajudSilencioso:
+        def consultar_processo(self, numero_processo: str, *, tribunal: str):
+            return None
+
+    app.dependency_overrides[get_datajud_client] = _DatajudSilencioso
     return TestClient(app)
 
 
