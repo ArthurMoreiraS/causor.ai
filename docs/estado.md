@@ -1,5 +1,15 @@
 # Proximos passos - MVP
 
+> **2026-08-01 — o que executar agora está em
+> [`superpowers/plans/2026-08-01-execucao-imediata.md`](superpowers/plans/2026-08-01-execucao-imediata.md)**,
+> que detalha as duas semanas seguintes do plano de 90 dias a partir da
+> [`areas/analise-competitiva-2026-08-01.md`](areas/analise-competitiva-2026-08-01.md).
+> Aquela pesquisa confirmou a rota de 29-30/07 (Enter virou unicornio de US$ 1,2 bi
+> sem construir a camada de dados e sem protocolar; Eve e EvenUp idem) e trouxe um
+> fato que reprecifica a venda: o **Jus IA do Jusbrasil passou a ser gratuito em
+> todos os planos** (13/04/2026, 300 mil advogados/mes). Redacao assistida virou
+> item de plano basico; o diferencial que sobra e o que esta embaixo dela.
+
 ## Onde estamos
 
 - **2026-07-31 — Upload dos autos pelo advogado.** `POST
