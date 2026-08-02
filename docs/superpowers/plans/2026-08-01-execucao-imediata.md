@@ -10,6 +10,17 @@
 
 **Origem:** [`docs/areas/analise-competitiva-2026-08-01.md`](../../areas/analise-competitiva-2026-08-01.md) §5, que revisa [`docs/areas/plano-90-dias-2026-07-30.md`](../../areas/plano-90-dias-2026-07-30.md). Aquele plano continua valendo; este detalha as duas semanas seguintes dele.
 
+## Estado da execução — 2026-08-01
+
+Escrito aqui em vez de nas caixinhas porque o repositório já tem o vício de plano com checkbox desatualizado (ver `docs/estado.md`); o que vale é o `git log`.
+
+| Item | Estado |
+|---|---|
+| **G1 — a raia** | **Pendente. É do Arthur.** Bloqueia a Fase 2 do plano de 90 dias. |
+| **Task 1 — produção** | **Pendente, e é o item mais urgente.** Depende de credenciais SMTP e do acesso SSH — não dá para executar daqui. |
+| **Task 2 — `dossie-oab`** | **Feita** (commit `a3bb9f3`), Steps 1–7. Falta o **Step 8**: rodar com a OAB de um advogado real e mostrar a ele. É do Arthur, e é o T3'. |
+| **Task 3 — conferência DataJud** | **Feita** (commit `b22eef7`), com um teste de API a mais do que o plano previa. Falta mostrar a divergência na tela de Autos — não estava no escopo desta task. |
+
 ## Global Constraints
 
 - Comandos de backend rodam de `/backend` com `./.venv/Scripts/python.exe` (Windows) ou `.venv/bin/python` (Linux/macOS).
