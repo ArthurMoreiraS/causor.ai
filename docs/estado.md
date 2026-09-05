@@ -1,5 +1,11 @@
 # Proximos passos - MVP
 
+> **05/09 — correção de remoção de OAB em validação.** Erro 500 reproduzido
+> com FKs ativas; limpeza passou a excluir os dependentes dos autos/contexto
+> e notificações antes do processo/prazo. Jobs limitados ao escritório correto.
+> Clientes, tarefas e auditoria preservados. Sem mudança de esquema ou remoção
+> de OAB real nesta execução. Veja o [registro da correção](produto/correcao-remocao-oab-2026-09-05.md).
+
 > **05/09 — escritório integrado: primeira expansão implantada (`c0e18fb`).** A visão
 > autorizada agora inclui atendimento, agenda, documentos, honorários e portal,
 > em entregas sucessivas ligadas ao mesmo cliente/caso. A primeira entrega

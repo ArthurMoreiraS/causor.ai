@@ -231,9 +231,6 @@ def _purge_oab_data(
         for intimacao in intimacoes
         if _payload_matches_oab(intimacao.payload, oab=oab, uf=uf)
     }
-    if not target_intimacao_ids:
-        return counts
-
     process_ids = {
         intimacao.processo_id for intimacao in intimacoes
         if intimacao.id in target_intimacao_ids and intimacao.processo_id is not None
@@ -290,19 +287,19 @@ def _purge_oab_data(
             )
         )
 
-    if target_peticao_ids:
-        counts["documentos"] += session.execute(
-            delete(models.Documento).where(models.Documento.peticao_id.in_(target_peticao_ids))
-        ).rowcount or 0
+    from app.capture.cleanup import purge_case_dependencies
+
+    counts["documentos"], document_entities = purge_case_dependencies(
+        session, process_ids=target_process_ids, petition_ids=target_peticao_ids,
+        deadline_ids=target_prazo_ids,
+    )
     if target_process_ids:
-        counts["documentos"] += session.execute(
-            delete(models.Documento).where(models.Documento.processo_id.in_(target_process_ids))
-        ).rowcount or 0
         counts["andamentos"] = session.execute(
             delete(models.Andamento).where(models.Andamento.processo_id.in_(target_process_ids))
         ).rowcount or 0
 
     entity_ids = {
+        **document_entities,
         "intimacao": target_intimacao_ids,
         "prazo": target_prazo_ids,
         "peticao": target_peticao_ids,
@@ -314,8 +311,10 @@ def _purge_oab_data(
     job_ids = [
         job.id
         for job in session.scalars(select(models.JobExecucao))
-        if _job_matches_oab(job, oab=oab, uf=uf)
-        or (job.entidade in entity_ids and job.entidade_id in entity_ids[job.entidade])
+        if isinstance(job.payload, dict)
+        and str(job.payload.get("escritorio_id")) == str(escritorio_id)
+        and (_job_matches_oab(job, oab=oab, uf=uf)
+             or (job.entidade in entity_ids and job.entidade_id in entity_ids[job.entidade]))
     ]
     if job_ids:
         counts["jobs"] = session.execute(
