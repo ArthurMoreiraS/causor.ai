@@ -21,6 +21,7 @@ export default function DetailDrawer({
   offline,
   onClose,
   onCreateTask,
+  onDocuments,
   onSelect,
   onGenerateDraft,
   onOpenPeticao,
@@ -35,6 +36,7 @@ export default function DetailDrawer({
   offline: boolean;
   onClose: () => void;
   onCreateTask?: () => void;
+  onDocuments?: () => void;
   onSelect: (sel: DetailSelection) => void;
   onGenerateDraft: (intimacaoId: number) => void;
   onOpenPeticao: (peticao: Peticao) => void;
@@ -50,6 +52,7 @@ export default function DetailDrawer({
       <aside className="detailDrawer" onClick={(e) => e.stopPropagation()}>
         <header className="detailDrawerHead">
           {onCreateTask ? <button className="toolbarButton compact" disabled={offline} onClick={onCreateTask}>Nova tarefa</button> : null}
+          {onDocuments ? <button className="toolbarButton compact" onClick={onDocuments}>Documentos e evidências</button> : null}
           <span className="sectionKicker">
             {selection.kind === "processo" ? "Processo" : "Intimação"}
           </span>

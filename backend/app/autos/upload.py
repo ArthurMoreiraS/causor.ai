@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256 as sha256_digest
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.autos import service as autos_service
@@ -87,6 +88,7 @@ def ingerir_autos_enviados(
     arquivos: list[ArquivoEnviado],
     object_store: ObjectStore,
     datajud: ConsultaDatajud | None = None,
+    complementar: bool = False,
 ) -> models.CapturaAutos:
     """Transforma os arquivos entregues numa captura verificada dos autos."""
     if not arquivos:
@@ -95,14 +97,53 @@ def ingerir_autos_enviados(
     if len(set(nomes)) != len(nomes):
         raise ValueError("nomes de arquivo repetidos no mesmo envio")
 
+    session.execute(select(models.Processo.id).where(
+        models.Processo.id == processo_instancia.processo_id).with_for_update())
+    manifesto = _montar_manifesto(arquivos, usuario_id=usuario_id)
+    retained = {}
+    if complementar:
+        base = session.scalars(select(models.CapturaAutos).where(
+            models.CapturaAutos.processo_instancia_id == processo_instancia.id)
+            .order_by(models.CapturaAutos.generation.desc()).limit(1)).first()
+        if base is not None:
+            if base.status != "complete":
+                raise autos_service.CaptureError("complement_base_incomplete")
+            incoming = {d.external_id for d in manifesto.documents}
+            previous_docs = []
+            base_rows = session.execute(select(models.ManifestoItem, models.Documento, models.DocumentoArquivo)
+                .join(models.Documento, models.Documento.id == models.ManifestoItem.documento_id)
+                .outerjoin(models.DocumentoArquivo, models.DocumentoArquivo.id == models.ManifestoItem.documento_arquivo_id)
+                .where(models.ManifestoItem.captura_id == base.id).order_by(models.ManifestoItem.ordem)).all()
+            if len(base_rows) != base.expected_count:
+                raise autos_service.CaptureError("complement_base_incomplete")
+            for item, doc, version in base_rows:
+                if item.status != "verified" or version is None or not version.atual:
+                    raise autos_service.CaptureError("complement_base_incomplete")
+                if item.external_id in incoming:
+                    continue
+                previous_docs.append(ManifestDocumentInput(external_id=item.external_id, nome=doc.nome,
+                    tipo=doc.tipo, ordem=len(previous_docs) + 1, parent_external_id=doc.parent_external_id,
+                    data_documento=doc.data_documento, sigiloso=doc.sigiloso, mime_type=version.mime_type,
+                    size_hint=version.size_bytes, download_ref=f"retained:{version.id}"))
+                retained[item.external_id] = version.id
+            for index, doc in enumerate(manifesto.documents, start=len(previous_docs) + 1):
+                doc.ordem = index
+            manifesto.documents = previous_docs + manifesto.documents
+            manifesto.evidence.update({"modo": "complementar", "captura_base_id": base.id,
+                "fonte_base": base.fonte, "arquivos_preservados": len(retained)})
     capture = autos_service.open_capture(
         session,
         processo_instancia=processo_instancia,
         usuario_id=usuario_id,
         fonte=FONTE,
     )
-    manifesto = _montar_manifesto(arquivos, usuario_id=usuario_id)
     autos_service.record_initial_manifest(session, capture=capture, manifest=manifesto)
+
+    for item in session.scalars(select(models.ManifestoItem).where(models.ManifestoItem.captura_id == capture.id)):
+        if item.external_id in retained:
+            item.documento_arquivo_id = retained[item.external_id]
+            item.status = "verified"
+    session.flush()
 
     for arquivo in arquivos:
         digest = sha256_digest(arquivo.conteudo).hexdigest()
@@ -127,7 +168,7 @@ def ingerir_autos_enviados(
     capture = autos_service.finalize_capture(
         session, capture=capture, final_manifest=manifesto
     )
-    if datajud is not None:
+    if datajud is not None and not complementar:
         # Sinal externo, opcional por desenho: sem cliente injetado o upload
         # continua funcionando exatamente como antes. Ver `autos/conferencia.py`
         # — a completude segue declarada, isto só a confronta com o DataJud.

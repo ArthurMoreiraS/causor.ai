@@ -46,6 +46,8 @@ import SidebarNavigation from "./components/SidebarNavigation";
 import TarefaDialog from "./components/TarefaDialog";
 import ClientesView from "./views/ClientesView";
 import TarefasView from "./views/TarefasView";
+import DocumentosView from "./views/DocumentosView";
+import DocumentEvidenceDialog from "./components/DocumentEvidenceDialog";
 import { viewFromHash } from "@/lib/navigation";
 import { obterPeticao, type Tarefa, type TarefaInput } from "@/lib/api";
 import SettingsModal from "./SettingsModal";
@@ -126,6 +128,8 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [view, setCurrentView] = useState<ViewKey>("dashboard");
   const [taskDialog, setTaskDialog] = useState<{ input: TarefaInput; task?: Tarefa; context?: string } | null>(null);
+  const [documentContext, setDocumentContext] = useState<{ processId?: number; task?: Tarefa } | null>(null);
+  const [evidenceSelection, setEvidenceSelection] = useState<{ id: number; version: number; page: number } | null>(null);
   const setView = useCallback((next: ViewKey) => {
     setCurrentView(next);
     if (window.location.hash !== `#${next}`) window.location.hash = next;
@@ -928,11 +932,16 @@ export default function Home() {
         ) : view === "tarefas" ? (
           <TarefasView offline={offline} refreshKey={refreshTick} onNew={() => openTask({ titulo: "" })}
             onEdit={task => setTaskDialog({ input: task, task })}
+            onDocuments={task => { setDocumentContext({ task }); setView("documentos"); }}
             onOpenProcess={id => setDetail({ kind: "processo", id })}
             onOpenNotice={id => setDetail({ kind: "intimacao", id })}
             onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }} />
         ) : view === "templates" ? (
           <TemplatesView offline={offline} />
+        ) : view === "documentos" ? (
+          <DocumentosView key={`${documentContext?.processId || "all"}-${documentContext?.task?.id || "none"}`}
+            processos={data.processos} offline={offline} initialProcessId={documentContext?.processId} initialTask={documentContext?.task}
+            onChanged={() => setRefreshTick(v => v + 1)} onTasks={() => setView("tarefas")} onAll={() => setDocumentContext(null)} />
         ) : view === "protocolos" ? (
           <ProtocolosView
             peticoes={data.peticoes}
@@ -1269,6 +1278,8 @@ export default function Home() {
             offline={offline}
             onClose={() => setDetail(null)}
             onCreateTask={() => openTask(detail.kind === "processo" ? { titulo: "", processo_id: detail.id } : { titulo: "", intimacao_id: detail.id })}
+            onDocuments={() => { const id = detail.kind === "processo" ? detail.id : data.intimacoes.find(i => i.id === detail.id)?.processo_id;
+              setDocumentContext(id ? { processId: id } : null); setDetail(null); setView("documentos"); }}
             onSelect={setDetail}
             onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
             onOpenPeticao={(peticao) => {
@@ -1321,6 +1332,7 @@ export default function Home() {
             processo={data.processos.find((p) => p.id === editorPeticao.processo_id) ?? null}
             prazo={data.prazos.find((p) => p.id === editorPeticao.prazo_id) ?? null}
             busy={busy === `save-pet-${editorPeticao.id}`}
+            onOpenEvidence={(id, version, page) => setEvidenceSelection({ id, version, page })}
             onCreateTask={(alerta, index) => openTask({ titulo: "Conferir pendência da minuta", descricao: alerta,
               tipo: "revisao", processo_id: editorPeticao.processo_id, peticao_id: editorPeticao.id,
               alerta_indice: index, alerta_texto_esperado: alerta }, "Pendência identificada na revisão da minuta")}
@@ -1333,6 +1345,10 @@ export default function Home() {
             onClose={() => setEditorPeticao(null)}
           />
         ) : null}
+
+        {evidenceSelection ? <DocumentEvidenceDialog key={`${evidenceSelection.id}-${evidenceSelection.version}`}
+          documentoId={evidenceSelection.id} nome={`Documento DOC-${evidenceSelection.id}`} versaoId={evidenceSelection.version}
+          pagina={evidenceSelection.page} onClose={() => setEvidenceSelection(null)} /> : null}
 
         {taskDialog ? <TarefaDialog key={taskDialog.task?.id ?? "new-task"} initial={taskDialog.input} task={taskDialog.task}
           contextLabel={taskDialog.context} processos={data.processos} offline={offline} onClose={() => setTaskDialog(null)}

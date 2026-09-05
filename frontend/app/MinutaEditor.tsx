@@ -13,6 +13,7 @@ export default function MinutaEditor({
   busy,
   onSave,
   onCreateTask,
+  onOpenEvidence,
   onClose
 }: {
   peticao: Peticao;
@@ -21,6 +22,7 @@ export default function MinutaEditor({
   busy: boolean;
   onSave: (content: string) => void;
   onCreateTask?: (alerta: string, index: number) => void;
+  onOpenEvidence?: (documentoId: number, versaoId: number, pagina: number) => void;
   onClose: () => void;
 }) {
   const serverContent = peticao.conteudo ?? "";
@@ -36,6 +38,7 @@ export default function MinutaEditor({
   }, [sourceUrl]);
 
   async function abrirFonte(doc: number, version: number, page: number) {
+    if (onOpenEvidence) { onOpenEvidence(doc, version, page); return; }
     try {
       const blob = await baixarFonteCitada(doc, version);
       setSourceUrl(`${URL.createObjectURL(blob)}#page=${page}`);

@@ -694,6 +694,20 @@ class Tarefa(TimestampMixin, Base):
     concluida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class TarefaDocumento(TimestampMixin, Base):
+    """Receipt of an exact document version; task completion remains explicit."""
+
+    __tablename__ = "tarefa_documento"
+    __table_args__ = (UniqueConstraint("tarefa_id", "documento_arquivo_id", name="uq_tarefa_documento_versao"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    tarefa_id: Mapped[int] = mapped_column(ForeignKey("tarefa.id", ondelete="CASCADE"), nullable=False, index=True)
+    documento_id: Mapped[int | None] = mapped_column(ForeignKey("documento.id", ondelete="SET NULL"))
+    documento_arquivo_id: Mapped[int | None] = mapped_column(ForeignKey("documento_arquivo.id", ondelete="SET NULL"))
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
 class NotificacaoPrazo(Base):
     """Aviso de prazo já entregue, por ``(prazo, nível)``.
 

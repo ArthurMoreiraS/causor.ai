@@ -268,3 +268,9 @@ def update_task(tarefa_id: int, payload: TarefaPatch, session: Session = Depends
         audit(session, current, "tarefa_atualizada", "tarefa", task.id, {"campos": sorted(changes), "versao": task.versao})
         session.commit()
     return task_out(session.execute(task_query(current).where(models.Tarefa.id == task.id)).one())
+
+
+@router.get("/tarefas/{tarefa_id}", response_model=TarefaOut)
+def get_task(tarefa_id: int, session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user)):
+    get_owned_or_404(session, models.Tarefa, tarefa_id, current)
+    return task_out(session.execute(task_query(current).where(models.Tarefa.id == tarefa_id)).one())

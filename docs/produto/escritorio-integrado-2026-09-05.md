@@ -1,5 +1,11 @@
 # Causor como plataforma integrada do escritório
 
+> **Continuação de 05/09:** Documentos e evidências passa a ter biblioteca,
+> consulta de versões/trechos/PDF e recebimento associado às tarefas. O envio
+> complementar preserva o inventário e alimenta o contexto. Veja o
+> [registro da entrega](documentos-e-evidencias-2026-09-05.md). Pacote de anexos,
+> modelos de conhecimento e demais módulos abaixo permanecem no plano.
+
 Em 05/09 o fundador ampliou explicitamente a visão: integrar mais da rotina do
 escritório com IA e tornar os módulos mais claros na navegação. Este documento
 atualiza o recorte de produto sem abandonar o piloto de qualidade das minutas.
@@ -56,8 +62,8 @@ Não foram verificadas precisão, satisfação ou cobertura dos fornecedores.
 | Equipe e indicadores | Carga, tempo, retrabalho, cumprimento e custo por trabalho aceito | Explicar gargalos com evidências dos registros | Métricas derivadas dos eventos, não contadores fictícios |
 | Automações e integrações | Gatilhos, propostas, execução, falhas e retomada | Coordenar ferramentas autorizadas e pedir intervenção quando necessário | Usa os mesmos serviços dos módulos manuais |
 
-Esse é o mapa de evolução, não a lista de capacidades prontas. Documentos,
-contratos, financeiro, portal e agenda próprios ainda exigem entregas descritas
+Esse é o mapa de evolução, não a lista de capacidades prontas. Contratos,
+financeiro, portal e agenda próprios ainda exigem entregas descritas
 abaixo. APIs de calendário, mensagens, assinatura, dados judiciais e cobrança
 serão avaliadas pelo fluxo concreto; nenhum fornecedor foi contratado.
 

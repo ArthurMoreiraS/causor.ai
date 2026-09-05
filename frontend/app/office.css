@@ -43,10 +43,21 @@
 .officeForm { display: grid; gap: 16px; }
 .officePanel .officeForm { margin-top: 20px; }
 .officeFormGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
-.officeDialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; }
+.modalCard.officeDialog { width: min(620px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); overflow-y: auto; }
 .officeDialog h2 { margin: 0; font-size: 20px; }
 .officeSource { margin: 0; padding: 12px; border-left: 3px solid var(--line-strong); background: var(--panel-soft); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .officeAlertAction { margin-left: 10px; margin-top: 5px; }
+.documentTaskPanel { margin-bottom: 20px; }
+.documentReceipt { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; font-size: 13px; }
+.modalCard.evidenceDialog { width: min(1280px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.evidenceDialog h2 { margin: 0; overflow-wrap: anywhere; }
+.evidenceColumns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; }
+.evidenceText, .evidencePdf { min-width: 0; }
+.evidenceText { max-height: 65dvh; overflow-y: auto; }
+.evidencePdf iframe { width: 100%; min-height: 60dvh; border: 1px solid var(--line); margin-top: 12px; border-radius: var(--radius-sm); }
+.evidenceChunk { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.evidenceText details { margin-bottom: 20px; font-size: 13px; }
+@media (max-width: 850px) { .evidenceColumns { grid-template-columns: minmax(0, 1fr); } }
 .inboxTable .dataRowEnd { flex-wrap: wrap; gap: 6px; }
 @media (max-width: 1080px) {
   .officeColumns { grid-template-columns: minmax(0, 1fr); }

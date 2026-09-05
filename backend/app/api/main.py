@@ -390,6 +390,8 @@ def create_app() -> FastAPI:
     app.include_router(connector_router)
     app.include_router(mni_router)
     app.include_router(office_router)
+    from app.api.document_routes import router as document_router
+    app.include_router(document_router)
 
     @app.exception_handler(ContextNotReadyError)
     def _context_not_ready(_request, exc: ContextNotReadyError):

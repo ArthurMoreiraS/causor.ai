@@ -12,6 +12,7 @@ export type ViewKey =
   | "dashboard"
   | "clientes"
   | "tarefas"
+  | "documentos"
   | "onboarding"
   | "assistente"
   | "processos"
@@ -37,6 +38,7 @@ export const VIEW_LABEL: Record<ViewKey, string> = {
   dashboard: "Visão geral",
   clientes: "Clientes",
   tarefas: "Tarefas e pendências",
+  documentos: "Documentos e evidências",
   onboarding: "Configuração inicial",
   templates: "Modelos de peças",
   assistente: "Assistente Causor",

@@ -189,6 +189,9 @@ async def upload_autos(
     processo_id: int,
     grau: str = Form("1"),
     arquivos: list[UploadFile] = File(default=[]),
+    complementar: bool = Form(False),
+    tarefa_id: int | None = Form(None),
+    tarefa_versao: int | None = Form(None),
     session: Session = Depends(get_session),
     current: CurrentUser = Depends(get_current_user),
     datajud: DatajudClient = Depends(get_datajud_client),
@@ -204,15 +207,21 @@ async def upload_autos(
         raise HTTPException(status_code=422, detail="grau deve ser '1' ou '2'")
     if not arquivos:
         raise HTTPException(status_code=422, detail="envie ao menos um arquivo")
+    if len(arquivos) > 50:
+        raise HTTPException(413, "envie até 50 arquivos por vez")
+    if (tarefa_id is None) != (tarefa_versao is None) or (tarefa_id is not None and not complementar):
+        raise HTTPException(422, "informe a tarefa e sua versão no envio complementar")
 
     enviados: list[ArquivoEnviado] = []
     for arquivo in arquivos:
-        conteudo = await arquivo.read()
+        conteudo = await arquivo.read(settings.agent_max_upload_bytes + 1)
         if len(conteudo) > settings.agent_max_upload_bytes:
             raise HTTPException(status_code=413, detail="arquivo acima do limite")
         # Só o nome-base: o nome vira identidade do documento lógico e não pode
         # carregar caminho.
         nome = (arquivo.filename or "documento.pdf").replace("\\", "/").split("/")[-1]
+        if not nome.strip() or len(nome) > 255:
+            raise HTTPException(422, "nome do arquivo deve ter entre 1 e 255 caracteres")
         enviados.append(
             ArquivoEnviado(
                 nome=nome,
@@ -221,6 +230,19 @@ async def upload_autos(
             )
         )
 
+    session.execute(select(models.Processo.id).where(models.Processo.id == processo.id).with_for_update())
+    session.refresh(processo)
+    task = None
+    if tarefa_id is not None:
+        task = session.scalar(select(models.Tarefa).where(models.Tarefa.id == tarefa_id,
+            models.Tarefa.escritorio_id == current.escritorio_id).with_for_update())
+        if task is None:
+            raise HTTPException(404, "tarefa não encontrada")
+        if task.versao != tarefa_versao or task.status in {"concluida", "cancelada"}:
+            raise HTTPException(409, "A tarefa mudou ou foi encerrada. Atualize antes de enviar.")
+        if task.processo_id not in {None, processo.id} or (
+            task.processo_id is None and task.cliente_id not in {None, processo.cliente_id}):
+            raise HTTPException(422, "tarefa e processo não correspondem")
     instancia = _resolve_or_create_instancia(session, processo, grau)
     try:
         capture = ingerir_autos_enviados(
@@ -230,13 +252,31 @@ async def upload_autos(
             arquivos=enviados,
             object_store=get_object_store(),
             datajud=datajud,
+            complementar=complementar,
         )
     except autos_service.CaptureError as exc:
         session.rollback()
-        raise HTTPException(status_code=422, detail=exc.code) from exc
+        raise HTTPException(status_code=409 if exc.code == "complement_base_incomplete" else 422,
+            detail="Conclua ou corrija o envio anterior deste grau antes de complementar." if exc.code == "complement_base_incomplete" else exc.code) from exc
     except ValueError as exc:
         session.rollback()
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if task is not None:
+        received = {f"upload:{a.nome}" for a in enviados}
+        for item, doc, version in session.execute(select(models.ManifestoItem, models.Documento, models.DocumentoArquivo)
+            .join(models.Documento, models.Documento.id == models.ManifestoItem.documento_id)
+            .join(models.DocumentoArquivo, models.DocumentoArquivo.id == models.ManifestoItem.documento_arquivo_id)
+            .where(models.ManifestoItem.captura_id == capture.id, models.ManifestoItem.external_id.in_(received))):
+            if not session.scalar(select(models.TarefaDocumento.id).where(models.TarefaDocumento.tarefa_id == task.id,
+                models.TarefaDocumento.documento_arquivo_id == version.id)):
+                session.add(models.TarefaDocumento(escritorio_id=current.escritorio_id, tarefa_id=task.id,
+                    documento_id=doc.id, documento_arquivo_id=version.id, nome=doc.nome, sha256=version.sha256))
+        task.processo_id, task.cliente_id = processo.id, None
+        task.status = "em_andamento"
+        task.versao += 1
+        session.add(models.AuditLog(escritorio_id=current.escritorio_id, ator=f"usuario:{current.usuario_id}",
+            acao="tarefa_documentos_recebidos", entidade="tarefa", entidade_id=task.id,
+            detalhe={"captura_id": capture.id, "versao": task.versao, "processo_id": processo.id}))
     conferencia = (capture.evidence or {}).get(CHAVE_EVIDENCIA)
     session.commit()
     # `evidence` não é serializado inteiro (carrega manifesto e download_ref);

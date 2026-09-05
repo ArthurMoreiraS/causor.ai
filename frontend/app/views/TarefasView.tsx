@@ -8,9 +8,10 @@ import { formatDate } from "@/lib/format";
 import { TASK_STATUSES, TASK_TYPES } from "../components/TarefaDialog";
 import { EmptyState, LoadingButton } from "../components/ui";
 
-export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpenProcess, onOpenNotice, onOpenDraft }: {
+export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpenProcess, onOpenNotice, onOpenDraft, onDocuments }: {
   offline: boolean; refreshKey: number; onNew: () => void; onEdit: (task: Tarefa) => void;
   onOpenProcess: (id: number) => void; onOpenNotice: (id: number) => void; onOpenDraft: (id: number) => void;
+  onDocuments?: (task: Tarefa) => void;
 }) {
   const [items, setItems] = useState<Tarefa[]>([]);
   const [total, setTotal] = useState(0);
@@ -74,6 +75,7 @@ export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpen
           {task.cliente_nome ? <span>{task.cliente_nome}</span> : null}</div>
         {task.origem_texto ? <details className="officeOrigin"><summary>Alerta que originou a pendência</summary><p>{task.origem_texto}</p></details> : null}
         <div className="officeActions">
+          {onDocuments ? <button className="toolbarButton compact" disabled={offline} onClick={() => onDocuments(task)}>Documentos da pendência</button> : null}
           {task.processo_id ? <button className="toolbarButton compact" onClick={() => onOpenProcess(task.processo_id!)}>{task.processo_numero || "Abrir processo"}</button> : null}
           {task.intimacao_id ? <button className="toolbarButton compact" onClick={() => onOpenNotice(task.intimacao_id!)}>Intimação de origem</button> : null}
           {task.peticao_id ? <button className="toolbarButton compact" onClick={() => onOpenDraft(task.peticao_id!)}>Minuta de origem</button> : null}

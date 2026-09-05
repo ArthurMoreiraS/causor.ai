@@ -50,7 +50,9 @@ const STATE_LABEL: Record<ContextUiState, string> = {
   blocked: "Bloqueado"
 };
 
-export default function ProcessContextStatus({ processoId }: { processoId: number }) {
+export default function ProcessContextStatus({ processoId, onReceiveDocuments, receivingDisabled = false }: {
+  processoId: number; onReceiveDocuments?: () => void; receivingDisabled?: boolean;
+}) {
   const [status, setStatus] = useState<AutosStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -233,7 +235,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
         >
           {uiState === "not_captured" ? "Capturar autos" : "Retentar pendências"}
         </button>
-        <label className="toolbarButton compact contextUpload">
+        {onReceiveDocuments ? <button className="toolbarButton compact" disabled={receivingDisabled} onClick={onReceiveDocuments}>Receber documentos</button> : <label className="toolbarButton compact contextUpload">
           {busy === "upload" ? <Loader2 className="spin" size={13} /> : <Upload size={13} />}
           Enviar os autos
           <input
@@ -244,7 +246,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
             disabled={busy === "upload"}
             onChange={(event) => void enviar(event.target.files)}
           />
-        </label>
+        </label>}
         <button
           className="toolbarButton primary compact"
           onClick={() => {
@@ -260,7 +262,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
         )}
       </div>
 
-      <p>Envie o conjunto de arquivos do grau selecionado. Um novo envio substitui o inventário anterior desse grau.</p>
+      <p>{onReceiveDocuments ? "Use Receber documentos para acrescentar arquivos ao conjunto existente e conferir o destino do envio." : "Envie o conjunto de arquivos do grau selecionado. Um novo envio substitui o inventário anterior desse grau."}</p>
       {status?.contexto && (
         <p aria-live="polite">
           {status.contexto.documents_extracted ?? 0} documentos extraídos · {status.contexto.documents_summarized ?? 0} resumidos de {status.contexto.documents_total ?? 0} recebidos.

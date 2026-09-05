@@ -58,6 +58,31 @@ export function criarTarefa(payload: TarefaInput): Promise<Tarefa> {
   return request("/tarefas", { method: "POST", body: JSON.stringify(payload) });
 }
 export function obterPeticao(id: number): Promise<Peticao> { return request(`/peticoes/${id}`); }
+export function obterTarefa(id: number): Promise<Tarefa> { return request(`/tarefas/${id}`); }
+export type DocumentoVersao = {
+  id: number; sha256: string; mime_type: string; size_bytes: number; paginas: number | null;
+  atual: boolean; extracao: string; resumo_status: string; created_at: string;
+};
+export type DocumentoBiblioteca = {
+  id: number; nome: string; tipo: string | null; processo_id: number | null; processo_numero: string | null;
+  cliente_nome: string | null; grau: string | null; no_contexto: boolean; versao: DocumentoVersao | null;
+};
+export type DocumentoRecebido = {
+  id: number; nome: string; documento_id: number | null; documento_arquivo_id: number | null; sha256: string; created_at: string;
+};
+export type DocumentoTrechos = Pagina<{ id: number; pagina: number; texto: string; ocr: boolean }> & {
+  resumo: string | null; citations: { pagina?: number; quote?: string; chunk_id?: number }[]; versao: DocumentoVersao;
+};
+export function listarDocumentos(params: { processo_id?: number; q?: string; limit?: number; offset?: number } = {}): Promise<Pagina<DocumentoBiblioteca>> {
+  return request(`/documentos?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`);
+}
+export function listarVersoesDocumento(id: number, offset = 0): Promise<Pagina<DocumentoVersao>> {
+  return request(`/documentos/${id}/versoes?limit=30&offset=${offset}`);
+}
+export function listarTrechosDocumento(id: number, version: number, q = "", offset = 0): Promise<DocumentoTrechos> {
+  return request(`/documentos/${id}/versoes/${version}/trechos?${new URLSearchParams({ q, offset: String(offset), limit: "20" })}`);
+}
+export function listarDocumentosTarefa(id: number): Promise<DocumentoRecebido[]> { return request(`/tarefas/${id}/documentos`); }
 export function atualizarTarefa(id: number, payload: TarefaPatch): Promise<Tarefa> {
   return request(`/tarefas/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 }
@@ -714,12 +739,20 @@ export async function statusAutos(processoId: number): Promise<AutosStatus> {
 export async function enviarAutos(
   processoId: number,
   arquivos: File[],
-  grau: string = "1"
+  grau: string = "1",
+  complemento?: { tarefa?: Pick<Tarefa, "id" | "versao"> }
 ): Promise<CapturaAutos> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const form = new FormData();
   form.append("grau", grau);
+  if (complemento) {
+    form.append("complementar", "true");
+    if (complemento.tarefa) {
+      form.append("tarefa_id", String(complemento.tarefa.id));
+      form.append("tarefa_versao", String(complemento.tarefa.versao));
+    }
+  }
   for (const arquivo of arquivos) form.append("arquivos", arquivo);
 
   const response = await fetch(`${API_BASE}/processos/${processoId}/autos/upload`, {

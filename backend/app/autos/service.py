@@ -92,6 +92,7 @@ def open_capture(
     terceiro ponto de decisão.
     """
     processo = session.get(models.Processo, processo_instancia.processo_id)
+    session.execute(select(models.Processo.id).where(models.Processo.id == processo.id).with_for_update())
     resolved = fonte or resolve_capture_fonte(session, processo_instancia)
     latest = session.scalar(
         select(func.max(models.CapturaAutos.generation)).where(
@@ -365,10 +366,11 @@ def confirm_document_upload(
             tipo="process_document",
             entidade="documento_arquivo",
             entidade_id=version.id,
-            payload={"documento_arquivo_id": version.id},
+            payload={"documento_arquivo_id": version.id, "escritorio_id": capture.escritorio_id},
             ator="agent",
         )
 
+    session.flush()  # Include the current item even when its version needed no new job.
     capture.captured_count = session.scalar(
         select(func.count(models.ManifestoItem.id)).where(
             models.ManifestoItem.captura_id == capture.id,
