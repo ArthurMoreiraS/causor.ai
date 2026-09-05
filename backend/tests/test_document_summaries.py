@@ -15,6 +15,9 @@ from app.autos.summarizer import (
     InvalidCitationError,
     summarize_document,
     validate_citations,
+    load_summary_input,
+    generate_summary,
+    persist_summary,
 )
 from app.autos.worker import run_document_processing_job
 from app.sor import models
@@ -155,6 +158,20 @@ class _FakeProvider:
 
     def complete_text(self, *, system, user, max_tokens):  # pragma: no cover
         raise NotImplementedError
+
+
+def test_summary_checkpoint_rejects_changed_source(db_session, document_with_chunks):
+    version, chunks = document_with_chunks
+    snapshot = load_summary_input(db_session, version)
+    digest = DocumentDigest(resumo="Resumo", fatos=[], pedidos=[], decisoes=[], prazos=[],
+                            incertezas=[], citations=[ChunkCitation(chunk_id=chunks[0].id, quote=chunks[0].texto[:60])])
+    result = generate_summary(snapshot, provider=_FakeProvider(digest))
+    assert result.digest is not None
+    chunks[0].texto = "Texto alterado enquanto o provedor trabalhava."
+    db_session.flush()
+    with pytest.raises(InvalidCitationError, match="summary_input_changed"):
+        persist_summary(db_session, snapshot, result)
+    assert db_session.query(models.DocumentoResumo).count() == 0
 
 
 def test_summarize_document_accepts_valid_citations(db_session, document_with_chunks):

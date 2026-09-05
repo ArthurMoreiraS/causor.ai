@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -79,29 +80,32 @@ _SYSTEM_PROMPT = (
 )
 
 
-def summarize_document(
-    session: Session,
-    *,
-    version: models.DocumentoArquivo,
-    provider=None,
-) -> models.DocumentoResumo:
-    """Gera (ou regenera) o resumo citado de uma versão extraída."""
-    resumo_row = session.scalars(
-        select(models.DocumentoResumo).where(
-            models.DocumentoResumo.documento_arquivo_id == version.id
-        )
-    ).first()
-    if resumo_row is None:
-        resumo_row = models.DocumentoResumo(documento_arquivo_id=version.id)
-        session.add(resumo_row)
-        session.flush()
+@dataclass(frozen=True)
+class SummaryChunk:
+    id: int
+    pagina: int
+    texto: str
 
-    if version.extraction_status != "complete":
-        resumo_row.status = "failed"
-        resumo_row.error = f"extraction_status={version.extraction_status}"
-        session.flush()
-        return resumo_row
 
+@dataclass(frozen=True)
+class SummaryInput:
+    version_id: int
+    sha256: str
+    extraction_status: str
+    prefix: str
+    chunks: tuple[SummaryChunk, ...]
+
+
+@dataclass(frozen=True)
+class SummaryResult:
+    digest: DocumentDigest | None
+    model: str
+    parts: int = 0
+    error: str | None = None
+
+
+def load_summary_input(session: Session, version: models.DocumentoArquivo) -> SummaryInput:
+    """Copy the inputs; no ORM instances/connections escape the read session."""
     chunks = list(
         session.scalars(
             select(models.DocumentoTrecho)
@@ -109,12 +113,6 @@ def summarize_document(
             .order_by(models.DocumentoTrecho.pagina, models.DocumentoTrecho.indice)
         )
     )
-    if not chunks:
-        resumo_row.status = "failed"
-        resumo_row.error = "sem trechos extraidos"
-        session.flush()
-        return resumo_row
-
     documento = session.get(models.Documento, version.documento_id)
     prefix = (
         f"Documento: {documento.nome if documento else version.documento_id} "
@@ -122,7 +120,18 @@ def summarize_document(
         "Trechos numerados desta parte do documento:\n\n"
     )
 
+    return SummaryInput(version.id, version.sha256, version.extraction_status, prefix,
+                        tuple(SummaryChunk(c.id, c.pagina, c.texto) for c in chunks))
+
+
+def generate_summary(snapshot: SummaryInput, *, provider=None) -> SummaryResult:
+    """Provider work and literal citation validation, with no database access."""
     model_name = settings.claude_context_model
+    if snapshot.extraction_status != "complete":
+        return SummaryResult(None, model_name, error=f"extraction_status={snapshot.extraction_status}")
+    if not snapshot.chunks:
+        return SummaryResult(None, model_name, error="sem trechos extraidos")
+    chunks = snapshot.chunks
     try:
         llm = provider or get_provider(model=model_name, task="context")
         model_name = getattr(llm, "_model", model_name)
@@ -140,13 +149,18 @@ def summarize_document(
                 f"[chunk_id={chunk.id} | pagina {chunk.pagina}]\n{chunk.texto}" for chunk in batch
             )
             part = llm.complete_structured(
-                system=_SYSTEM_PROMPT, user=prefix + numbered,
+                system=_SYSTEM_PROMPT, user=snapshot.prefix + numbered,
                 schema=DocumentDigest, max_tokens=3000,
             )
-            validate_citations(session, part, documento_arquivo_id=version.id)
             allowed = {chunk.id for chunk in batch}
+            if not part.citations:
+                raise InvalidCitationError("resumo sem fonte citada")
             if any(c.chunk_id not in allowed for c in part.citations):
                 raise InvalidCitationError("citação de trecho não fornecido nesta parte")
+            text_by_id = {c.id: c.texto for c in batch}
+            for citation in part.citations:
+                if _normalize(citation.quote) not in _normalize(text_by_id[citation.chunk_id]):
+                    raise InvalidCitationError(f"quote nao encontrado no chunk {citation.chunk_id}")
             digests.append(part)
         digest = DocumentDigest(
             resumo="\n\n".join(d.resumo for d in digests),
@@ -154,18 +168,32 @@ def summarize_document(
                for field in ("fatos", "pedidos", "decisoes", "prazos", "incertezas", "citations")},
         )
     except InvalidCitationError as exc:
-        resumo_row.status = "failed"
-        resumo_row.error = str(exc)
-        resumo_row.model = model_name
-        session.flush()
-        return resumo_row
+        return SummaryResult(None, model_name, error=str(exc))
     except Exception as exc:  # noqa: BLE001 - falha de LLM vira estado observável
+        return SummaryResult(None, model_name, error=type(exc).__name__)
+    return SummaryResult(digest, model_name, parts=len(batches))
+
+
+def persist_summary(session: Session, snapshot: SummaryInput, result: SummaryResult) -> models.DocumentoResumo:
+    """Caller holds ownership. Serialize duplicate jobs on the same version."""
+    version = session.scalar(select(models.DocumentoArquivo).where(
+        models.DocumentoArquivo.id == snapshot.version_id,
+    ).with_for_update().execution_options(populate_existing=True))
+    if version is None or load_summary_input(session, version) != snapshot:
+        raise InvalidCitationError("summary_input_changed")
+    resumo_row = session.scalar(select(models.DocumentoResumo).where(
+        models.DocumentoResumo.documento_arquivo_id == snapshot.version_id,
+    ))
+    if resumo_row is None:
+        resumo_row = models.DocumentoResumo(documento_arquivo_id=snapshot.version_id)
+        session.add(resumo_row)
+    resumo_row.model = result.model
+    digest = result.digest
+    if digest is None:
         resumo_row.status = "failed"
-        resumo_row.error = type(exc).__name__
-        resumo_row.model = model_name
+        resumo_row.error = result.error
         session.flush()
         return resumo_row
-
     resumo_row.status = "complete"
     resumo_row.resumo = digest.resumo
     resumo_row.dados = {
@@ -174,10 +202,15 @@ def summarize_document(
         "decisoes": digest.decisoes,
         "prazos": digest.prazos,
         "incertezas": digest.incertezas,
-        "processamento": {"trechos": len(chunks), "partes": len(batches)},
+        "processamento": {"trechos": len(snapshot.chunks), "partes": result.parts},
     }
     resumo_row.citations = [citation.model_dump() for citation in digest.citations]
-    resumo_row.model = model_name
     resumo_row.error = None
     session.flush()
     return resumo_row
+
+
+def summarize_document(session: Session, *, version: models.DocumentoArquivo, provider=None) -> models.DocumentoResumo:
+    """Compatibility helper. Workers use the three stages with separate sessions."""
+    snapshot = load_summary_input(session, version)
+    return persist_summary(session, snapshot, generate_summary(snapshot, provider=provider))

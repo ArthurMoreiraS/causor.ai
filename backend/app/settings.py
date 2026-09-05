@@ -144,6 +144,7 @@ class Settings(BaseSettings):
     document_processing_attempts: int = 3
     document_processing_concurrency: int = 1
     document_recovery_after_minutes: int = Field(default=60, ge=1)
+    document_lease_seconds: int = Field(default=180, ge=30)
 
     # Consulta oficial MNI (SOAP consultarProcesso) rodando no backend.
     mni_timeout_seconds: float = 60.0  # timeout por chamada SOAP ao MNI

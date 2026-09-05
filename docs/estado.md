@@ -1,5 +1,14 @@
 # Proximos passos - MVP
 
+> **05/09 — próxima etapa em validação:** processamento documental com posse
+> renovável e checkpoints, sem transações durante OCR/IA; preparação de revisão
+> cega por comando local. O fundador confirmou um advogado revisor. O próximo
+> foco de produto é avaliar cinco casos e melhorar as evidências conforme os
+> erros encontrados. Veja o [roteiro do piloto](produto/piloto-cinco-casos-2026-09-05.md)
+> e o [registro técnico](produto/execucao-2026-09-04.md). Ainda não há casos
+> reais avaliados nem acesso do Causor a tribunal. Último deploy confirmado
+> antes desta revisão: `12b5709`.
+
 > **04/09/2026 — Postgres, recuperação e auditoria implantados (`12b5709`).** A etapa
 > adiciona CI com Postgres 16/17 e migrações reais; proteção de `audit_log`
 > contra UPDATE/DELETE/TRUNCATE; preservação de eventos na limpeza de OAB/demo;

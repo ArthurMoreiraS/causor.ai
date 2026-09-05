@@ -664,6 +664,8 @@ class JobExecucao(TimestampMixin, Base):
     payload: Mapped[dict | None] = mapped_column(JSON)
     resultado: Mapped[dict | None] = mapped_column(JSON)
     erro: Mapped[str | None] = mapped_column(Text)
+    lease_token: Mapped[str | None] = mapped_column(String(36))
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 class NotificacaoPrazo(Base):

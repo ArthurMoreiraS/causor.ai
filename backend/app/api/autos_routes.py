@@ -359,6 +359,7 @@ def reprocessar_autos(
             continue
         if job:
             job.status, job.erro = "queued", None
+            job.lease_token, job.lease_expires_at = None, None
         else:
             create_job(session, tipo="process_document", entidade="documento_arquivo",
                        entidade_id=version.id, payload={"documento_arquivo_id": version.id},

@@ -1,5 +1,10 @@
 # Plano de evolução: um fluxo útil, uma pessoa desenvolvendo
 
+> **05/09 — parceiro de revisão confirmado pelo fundador.** Começar com os
+> [cinco casos e o roteiro operacional](piloto-cinco-casos-2026-09-05.md).
+> Ainda faltam os exemplos autorizados, a família de atos e o primeiro acesso
+> judicial. A próxima entrega de produto será guiada pelos erros dessa revisão.
+
 Data: 04/09/2026. Plano baseado no [diagnóstico do código](../areas/diagnostico-causor-2026-09-04.md) e na [pesquisa de mercado](../areas/pesquisa-mercado-2026-09-04.md). O fundador autorizou a execução; as entregas internas e a validação estão no [registro de execução](execucao-2026-09-04.md). Confirmou também que ainda não dispõe de acesso a tribunais. As etapas de piloto e homologação continuam dependentes dos recursos descritos abaixo.
 
 **Primeiro resultado buscado:** um advogado consegue partir de uma intimação real e de documentos autorizados, revisar uma minuta fundamentada, exportar o pacote e registrar o resultado, sem depender do fundador para corrigir estados no banco.

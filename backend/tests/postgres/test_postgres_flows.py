@@ -1,6 +1,7 @@
 """Reuse the public workflow with PostgreSQL migrations and real transactions."""
 
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 import re
 
 import pytest
@@ -20,7 +21,7 @@ from tests.test_autos_upload_api import (
 )
 
 
-@pytest.mark.parametrize("crash", [True, False])
+@pytest.mark.parametrize("crash", [True, False, "after_summary"])
 def test_document_restart_preserves_transaction_and_reuses_completed_extraction(
     client, db_session, seeded, local_store, monkeypatch, crash,
 ):
@@ -42,7 +43,7 @@ def test_document_restart_preserves_transaction_and_reuses_completed_extraction(
 
         def complete_structured(self, *, user, **kw):
             self.calls += 1
-            if self.calls == 1:
+            if self.calls == 1 and crash != "after_summary":
                 if crash:
                     raise SystemExit("simulated worker death")
                 raise RuntimeError("simulated provider outage")
@@ -55,6 +56,11 @@ def test_document_restart_preserves_transaction_and_reuses_completed_extraction(
     monkeypatch.setattr(worker, "extract_pdf_pages", extract)
     monkeypatch.setattr("app.autos.summarizer.get_provider", lambda **kw: provider)
     factory = sessionmaker(bind=db_session.get_bind(), expire_on_commit=False)
+    real_finish = worker._finish_document_job
+    if crash == "after_summary":
+        def crash_before_completion(*args):
+            raise SystemExit("simulated death after summary checkpoint")
+        monkeypatch.setattr(worker, "_finish_document_job", crash_before_completion)
     if crash:
         with pytest.raises(SystemExit):
             process_due_documents(factory)
@@ -62,14 +68,18 @@ def test_document_restart_preserves_transaction_and_reuses_completed_extraction(
         assert process_due_documents(factory) == 1
     db_session.expire_all()
     job = db_session.scalars(select(models.JobExecucao).where(models.JobExecucao.tipo == "process_document")).one()
-    assert job.status == ("queued" if crash else "failed")
+    assert job.status == ("running" if crash else "failed")
     before_ids = set(db_session.scalars(select(models.DocumentoTrecho.id)))
-    assert bool(before_ids) is (not crash)
-    if not crash:
+    assert before_ids  # durable extraction checkpoint survives provider/process failure
+    if crash:
+        job.lease_expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db_session.commit()
+    else:
         assert client.post(f"/processos/{seeded.id}/autos/reprocessar").status_code == 200
+    monkeypatch.setattr(worker, "_finish_document_job", real_finish)
     assert process_due_documents(factory) == 1
     db_session.expire_all()
     assert db_session.get(models.JobExecucao, job.id).status == "completed"
-    assert len(extraction_calls) == (2 if crash else 1)
-    if not crash:
-        assert before_ids == set(db_session.scalars(select(models.DocumentoTrecho.id)))
+    assert len(extraction_calls) == 1
+    assert before_ids == set(db_session.scalars(select(models.DocumentoTrecho.id)))
+    assert provider.calls == (1 if crash == "after_summary" else 2)

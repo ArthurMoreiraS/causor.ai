@@ -2,23 +2,24 @@
 
 O upload confirma e enfileira; este worker baixa do storage para arquivo
 temporário (hash em blocos de 1 MiB), respeita o teto de tamanho, extrai
-texto/OCR por página. O job documental mantém seu lock até concluir: se o
-processo morrer, o rollback devolve o job à fila. Isso mantém uma transação
-durante OCR/LLM; separar por leases fica para a etapa de concorrência.
+texto/OCR por página. OCR/LLM rodam fora de transações; checkpoints curtos
+exigem posse vigente do job. Interrupções preservam a extração concluída.
 """
 
 from __future__ import annotations
 
 from hashlib import sha256
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 import tempfile
 import time
+from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.autos.extraction import PdfExtractionError, extract_pdf_pages
+from app.autos.leases import Heartbeat, LeaseLost, check_expiry, database_now, guard_lease
 from app.settings import settings
 from app.sor import models
 from app.storage.objects import ObjectStore, get_object_store
@@ -53,10 +54,20 @@ def run_document_processing_job(
         raise DocumentProcessingError("not_found", f"documento_arquivo {documento_arquivo_id}")
     if version.extraction_status in {"complete", "unsupported_mime"}:
         return version
-    if version.size_bytes > settings.document_max_bytes:
+    try:
+        result = extract_document(version, object_store=object_store)
+    except DocumentProcessingError as exc:
         version.extraction_status = "failed"
-        version.extraction_error = "document_too_large"
+        version.extraction_error = str(exc)[:2000]
         session.flush()
+        raise
+    persist_extraction(session, version, result)
+    return version
+
+
+def extract_document(version: models.DocumentoArquivo, *, object_store=None):
+    """Only uses detached scalar metadata. No database session during IO/OCR."""
+    if version.size_bytes > settings.document_max_bytes:
         raise DocumentProcessingError("document_too_large")
 
     store = object_store or get_object_store()
@@ -69,41 +80,30 @@ def run_document_processing_job(
         store.download_to(version.storage_key, tmp_path)
 
         if tmp_path.stat().st_size > settings.document_max_bytes:
-            version.extraction_status = "failed"
-            version.extraction_error = "document_too_large"
-            session.flush()
             raise DocumentProcessingError("document_too_large")
         if _hash_file(tmp_path) != version.sha256:
-            version.extraction_status = "failed"
-            version.extraction_error = "hash_mismatch_on_processing"
-            session.flush()
             raise DocumentProcessingError("hash_mismatch")
 
         try:
-            result = extract_pdf_pages(tmp_path.read_bytes())
+            return extract_pdf_pages(tmp_path.read_bytes())
         except PdfExtractionError as exc:
-            version.extraction_status = "failed"
-            version.extraction_error = str(exc)[:2000]
-            session.flush()
             raise DocumentProcessingError("extraction_failed", str(exc)) from exc
-
-        version.page_count = result.page_count
-        version.text_sha256 = result.text_sha256
-        version.extraction_status = "complete"
-        version.extraction_error = None
-        _persist_pages(session, version, result)
-        session.flush()
-        return version
     finally:
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
 
 
-def _persist_pages(session: Session, version: models.DocumentoArquivo, result) -> None:
-    """Persiste trechos citáveis. Implementação de chunking chega na Task 5;
+def persist_extraction(session: Session, version: models.DocumentoArquivo, result) -> None:
+    version.page_count = result.page_count
+    version.text_sha256 = result.text_sha256
+    version.extraction_status = "complete"
+    version.extraction_error = None
+    _persist_pages(session, version, result)
+    session.flush()
 
-    até lá cada página vira um trecho único (índice 0), já citável.
-    """
+
+def _persist_pages(session: Session, version: models.DocumentoArquivo, result) -> None:
+    """Persiste trechos citáveis limitados à página de origem."""
     from app.autos import chunks as chunks_module
 
     chunks_module.persist_chunks(session, version=version, pages=result.pages)
@@ -264,6 +264,8 @@ def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[mode
     jobs = list(session.scalars(stmt))
     for job in jobs:
         job.status = "running"
+        job.lease_token = str(uuid4())
+        job.lease_expires_at = database_now(session) + timedelta(seconds=settings.document_lease_seconds)
     session.flush()
     return jobs
 
@@ -271,18 +273,15 @@ def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[mode
 def recover_stale_document_jobs(
     session: Session, *, older_than_minutes: int, now: datetime | None = None, limit: int = 100,
 ) -> list[models.JobExecucao]:
-    """Recover committed legacy `running` rows, excluding currently locked work.
-
-    Current workers hold the job lock until completion. Their crash rolls back
-    the claim automatically. Only document processing is safe to requeue here;
-    court filing and uncertain external operations are never recovered by age.
-    """
+    """Recover expired leases or old legacy jobs, excluding locked checkpoints."""
     if older_than_minutes <= 0 or limit <= 0:
         raise ValueError("recovery age and batch size must be positive")
-    cutoff = (now or datetime.now(timezone.utc)) - timedelta(minutes=older_than_minutes)
+    now = now or database_now(session)
+    cutoff = now - timedelta(minutes=older_than_minutes)
     jobs = list(session.scalars(select(models.JobExecucao).where(
         models.JobExecucao.tipo == "process_document", models.JobExecucao.status == "running",
-        models.JobExecucao.updated_at <= cutoff,
+        or_(models.JobExecucao.lease_expires_at <= now,
+            and_(models.JobExecucao.lease_expires_at.is_(None), models.JobExecucao.updated_at <= cutoff)),
     ).order_by(models.JobExecucao.id).limit(limit).with_for_update(skip_locked=True)))
     for job in jobs:
         payload = job.payload or {}
@@ -296,8 +295,104 @@ def recover_stale_document_jobs(
         ))
         job.status = "queued"
         job.erro = None
+        job.lease_token = None
+        job.lease_expires_at = None
     session.flush()
     return jobs
+
+
+def _process_document_stages(session_factory, job_id: int, token: str, version_id: int, heartbeat) -> None:
+    from app.autos.summarizer import generate_summary, load_summary_input, persist_summary
+
+    with session_factory() as session:
+        guard_lease(session, job_id, token)
+        version = session.get(models.DocumentoArquivo, version_id)
+        if version is None:
+            raise DocumentProcessingError("not_found")
+        session.expunge(version)
+    if version.extraction_status not in {"complete", "unsupported_mime"}:
+        try:
+            result = extract_document(version)
+        except DocumentProcessingError as exc:
+            heartbeat.check()
+            with session_factory() as session:
+                job = guard_lease(session, job_id, token)
+                current = session.scalar(select(models.DocumentoArquivo).where(
+                    models.DocumentoArquivo.id == version_id,
+                ).with_for_update())
+                if current and current.extraction_status != "complete":
+                    current.extraction_status = "failed"
+                    current.extraction_error = str(exc)[:2000]
+                check_expiry(session, job)
+                session.commit()
+            raise
+        heartbeat.check()
+        with session_factory() as session:
+            job = guard_lease(session, job_id, token)
+            current = session.scalar(select(models.DocumentoArquivo).where(
+                models.DocumentoArquivo.id == version_id,
+            ).with_for_update())
+            if current is None or (current.sha256, current.storage_key) != (version.sha256, version.storage_key):
+                raise DocumentProcessingError("document_input_changed")
+            # A duplicate job may have completed it; preserve existing citation IDs.
+            if current.extraction_status != "complete":
+                persist_extraction(session, current, result)
+            job.resultado = {"documento_arquivo_id": version_id, "stage": "extracted"}
+            check_expiry(session, job)
+            session.commit()
+
+    with session_factory() as session:
+        guard_lease(session, job_id, token)
+        summary = session.scalar(select(models.DocumentoResumo).where(
+            models.DocumentoResumo.documento_arquivo_id == version_id,
+        ))
+        if summary is not None and summary.status == "complete":
+            return
+        version = session.get(models.DocumentoArquivo, version_id)
+        if version is None:
+            raise DocumentProcessingError("not_found")
+        snapshot = load_summary_input(session, version)
+    result = generate_summary(snapshot)
+    heartbeat.check()
+    with session_factory() as session:
+        job = guard_lease(session, job_id, token)
+        # Lock the version before reading the existing summary, including duplicate jobs.
+        session.scalar(select(models.DocumentoArquivo).where(
+            models.DocumentoArquivo.id == version_id,
+        ).with_for_update())
+        summary = session.scalar(select(models.DocumentoResumo).where(
+            models.DocumentoResumo.documento_arquivo_id == version_id,
+        ))
+        if summary is None or summary.status != "complete":
+            summary = persist_summary(session, snapshot, result)
+        completed = summary.status == "complete"
+        job.resultado = {"documento_arquivo_id": version_id, "stage": "summarized" if completed else "summary_failed"}
+        check_expiry(session, job)
+        session.commit()
+    if not completed:
+        raise DocumentProcessingError("summary_failed")
+
+
+def _finish_document_job(session_factory, job_id: int, token: str, version_id: int, error: str | None):
+    from app.autos.context import build_process_context
+
+    with session_factory() as session:
+        job = guard_lease(session, job_id, token)
+        version = session.get(models.DocumentoArquivo, version_id)
+        if version:
+            document = session.get(models.Documento, version.documento_id)
+            process = session.get(models.Processo, document.processo_id) if document else None
+            if process:
+                build_process_context(session, processo=process)
+        # Context construction can wait on another publisher; check expiry again.
+        check_expiry(session, job)
+        job.status = "failed" if error else "completed"
+        job.erro = error
+        if not error:
+            job.resultado = {"documento_arquivo_id": version_id}
+        job.lease_token = None
+        job.lease_expires_at = None
+        session.commit()
 
 
 def process_due_documents(
@@ -306,14 +401,7 @@ def process_due_documents(
     max_attempts: int | None = None,
     backoff_seconds: float = 1.0,
 ) -> int:
-    """Extrai, resume e reconstrói o contexto. Falha permanece retomável.
-
-    Claim e conclusão na mesma transação evitam jobs running abandonados após
-    interrupção. Resumos completos são reutilizados nas tentativas seguintes.
-    """
-    from app.autos.context import build_process_context
-    from app.autos.summarizer import summarize_document
-
+    """Drain documents with renewable leases and durable extraction/summary checkpoints."""
     attempts_ceiling = max_attempts or settings.document_processing_attempts
     with session_factory() as recovery_session:
         recover_stale_document_jobs(
@@ -328,40 +416,32 @@ def process_due_documents(
                 return processed
             job = jobs[0]
             documento_arquivo_id = (job.payload or {}).get("documento_arquivo_id")
-            for attempt in range(1, attempts_ceiling + 1):
-                try:
-                    version = run_document_processing_job(
-                        session, documento_arquivo_id=documento_arquivo_id
-                    )
-                    summary = session.scalars(select(models.DocumentoResumo).where(
-                        models.DocumentoResumo.documento_arquivo_id == version.id
-                    )).first()
-                    if summary is None or summary.status != "complete":
-                        summary = summarize_document(session, version=version)
-                    if summary.status != "complete":
-                        raise DocumentProcessingError("summary_failed")
-                    job.status = "completed"
-                    job.resultado = {"documento_arquivo_id": documento_arquivo_id}
-                    job.erro = None
-                    break
-                except DocumentProcessingError as exc:
-                    job.status = "failed"
-                    job.erro = exc.code
-                    break
-                except Exception as exc:  # noqa: BLE001 - transiente: retry limitado
-                    if not session.is_active:
-                        raise  # erro de banco exige rollback, preservando job queued
-                    if attempt >= attempts_ceiling:
-                        job.status = "failed"
-                        job.erro = type(exc).__name__
-                        break
-                    time.sleep(backoff_seconds * (2 ** (attempt - 1)))
-            version = session.get(models.DocumentoArquivo, documento_arquivo_id)
-            if version:
-                document = session.get(models.Documento, version.documento_id)
-                process = session.get(models.Processo, document.processo_id)
-                build_process_context(session, processo=process)
+            job_id, token = job.id, job.lease_token
             session.commit()
+        try:
+            with Heartbeat(session_factory, job_id, token) as heartbeat:
+                error = None
+                for attempt in range(1, attempts_ceiling + 1):
+                    heartbeat.check()
+                    try:
+                        _process_document_stages(session_factory, job_id, token, documento_arquivo_id, heartbeat)
+                        error = None
+                        break
+                    except LeaseLost:
+                        raise
+                    except DocumentProcessingError as exc:
+                        error = exc.code
+                        break
+                    except Exception as exc:  # noqa: BLE001 - bounded transient retries
+                        error = type(exc).__name__
+                        if attempt < attempts_ceiling:
+                            time.sleep(backoff_seconds * (2 ** (attempt - 1)))
+                heartbeat.check()
+                _finish_document_job(session_factory, job_id, token, documento_arquivo_id, error)
+        except LeaseLost:
+            import logging
+
+            logging.getLogger(__name__).warning("document_result_discarded job_id=%s", job_id)
         processed += 1
 
 
