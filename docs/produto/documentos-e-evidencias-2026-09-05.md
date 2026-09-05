@@ -82,6 +82,17 @@ O CI também inclui dois complementos simultâneos no PostgreSQL.
 O reenvio de versão processada foi testado: a contagem inclui o item recebido
 e não há nova chamada de extração/IA para os mesmos bytes já processados.
 
+O [CI da versão 8e94063](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33949623232)
+aprovou **682 testes gerais backend, 79 frontend e 49 em cada PostgreSQL
+(16/17)**, além de lint, tipos e build de produção no Linux. A migração real
+e os complementos concorrentes passaram nos dois bancos.
+
+A primeira tentativa de implantação falhou antes dos comandos remotos:
+timeout ao conectar à porta SSH da VPS. Não houve migração ou troca de
+serviços nessa tentativa. A integração GitHub recusou o re-run com HTTP 403
+por falta de permissão de Actions; a próxima tentativa usa o fluxo normal
+de push/CI/deploy, com a mesma implementação e este registro de validação.
+
 Ainda não foi possível validar visualmente: o inventário de navegadores da
 sessão continuou vazio. O frontend foi implementado com os componentes e
 tokens existentes; testes de interação não substituem essa conferência.
