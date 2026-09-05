@@ -1,5 +1,16 @@
 # Proximos passos - MVP
 
+> **05/09 — expansão para escritório integrado em validação local.** A visão
+> autorizada agora inclui atendimento, agenda, documentos, honorários e portal,
+> em entregas sucessivas ligadas ao mesmo cliente/caso. A primeira entrega
+> adiciona Clientes e Tarefas persistentes, associações com processo/intimação/
+> alerta da minuta, responsável, data interna, controle de versão e auditoria.
+> A sidebar foi ampliada e organizada por rotina; minutas `em_revisao` voltam
+> à fila de aprovação. Não há navegador disponível para validação visual.
+> Veja o [mapa de módulos e ordem de execução](produto/escritorio-integrado-2026-09-05.md).
+> O próximo bloco continua sendo a revisão dos cinco casos pelo advogado;
+> exemplos reais e homologação de tribunal permanecem pendentes.
+
 > **05/09 — checkpoints e revisão cega implantados (`1466537`).** OCR/IA rodam
 > sem transações abertas; extração/resumo concluídos sobrevivem à interrupção,
 > e resultados de workers sem posse vigente são descartados. Há comando local

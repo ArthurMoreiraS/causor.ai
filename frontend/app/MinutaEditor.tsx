@@ -12,6 +12,7 @@ export default function MinutaEditor({
   prazo,
   busy,
   onSave,
+  onCreateTask,
   onClose
 }: {
   peticao: Peticao;
@@ -19,6 +20,7 @@ export default function MinutaEditor({
   prazo: Prazo | null;
   busy: boolean;
   onSave: (content: string) => void;
+  onCreateTask?: (alerta: string, index: number) => void;
   onClose: () => void;
 }) {
   const serverContent = peticao.conteudo ?? "";
@@ -127,7 +129,7 @@ export default function MinutaEditor({
                   <span className="sectionKicker">Alertas</span>
                   <ul className="dossieAlertas">
                     {dossie.alertas.map((alerta, i) => (
-                      <li key={i}>{alerta}</li>
+                      <li key={i}>{alerta}{onCreateTask ? <button type="button" className="toolbarButton compact officeAlertAction" onClick={() => onCreateTask(alerta, i)}>Criar pendência</button> : null}</li>
                     ))}
                   </ul>
                 </div>

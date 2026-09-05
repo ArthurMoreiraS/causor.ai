@@ -384,11 +384,13 @@ def create_app() -> FastAPI:
     from app.api.autos_routes import router as autos_router
     from app.api.connector_routes import router as connector_router
     from app.api.mni_routes import router as mni_router
+    from app.api.office_routes import router as office_router
 
     app.include_router(agent_router)
     app.include_router(autos_router)
     app.include_router(connector_router)
     app.include_router(mni_router)
+    app.include_router(office_router)
 
     @app.exception_handler(ContextNotReadyError)
     def _context_not_ready(_request, exc: ContextNotReadyError):
@@ -1439,6 +1441,9 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
+        # Same process lock as represented-client changes; approvals and relinking serialize.
+        session.execute(select(models.Processo.id).where(models.Processo.id == peticao.processo_id).with_for_update())
+        session.refresh(peticao)
         if peticao.status in {"protocolada", "protocolando"}:
             raise HTTPException(status_code=409, detail="petição em envio ou já protocolada")
         from app.filing.approval import approve_snapshot

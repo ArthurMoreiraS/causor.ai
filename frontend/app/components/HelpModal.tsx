@@ -26,7 +26,9 @@ export default function HelpModal({
             <li><strong>Captura por OAB</strong> — puxa intimações do DJEN e metadados do DataJud.</li>
             <li><strong>Prazo</strong> — calculado por motor determinístico (dias úteis, feriados, recesso).</li>
             <li><strong>Minuta</strong> — a IA classifica e redige; você revisa.</li>
-            <li><strong>Gate OAB</strong> — nada é protocolado sem aprovação humana.</li>
+            <li><strong>Revisão e aprovação</strong> — confira a peça antes de autorizar o protocolo.</li>
+            <li><strong>Clientes</strong> — cadastre a parte representada, vincule seus processos e crie tarefas de atendimento.</li>
+            <li><strong>Tarefas e pendências</strong> — acompanhe providências e transforme alertas das minutas em tarefas com responsável.</li>
           </ol>
         </div>
         <div className="settingsGroup">

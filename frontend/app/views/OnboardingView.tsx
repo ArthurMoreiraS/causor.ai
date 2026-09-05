@@ -149,10 +149,10 @@ export default function OnboardingView({
     },
     {
       icon: <ShieldCheck size={16} />,
-      title: "Gate OAB",
+      title: "Revisão e aprovação",
       detail: approved
         ? "Ja existe minuta aprovada ou protocolada."
-        : "Aprove a primeira minuta revisada no Gate OAB.",
+        : "Aprove a primeira minuta no módulo Revisão e aprovação.",
       done: approved,
       action: "Abrir gate",
       onClick: () => onNavigate("gate")

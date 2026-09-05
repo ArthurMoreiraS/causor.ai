@@ -69,7 +69,7 @@ export default function HomeDashboard({
       icon: <FilePenLine size={15} />
     },
     {
-      label: "Gate OAB",
+      label: "Aprovação",
       detail: `${metrics.approved} liberada${metrics.approved === 1 ? "" : "s"}`,
       status: metrics.approved > 0 ? "active" : metrics.drafts > 0 ? "review" : "queued",
       icon: <ShieldCheck size={15} />
@@ -162,7 +162,7 @@ export default function HomeDashboard({
                       ? "prazos"
                       : step.label === "Minuta"
                         ? "peticoes"
-                        : step.label === "Gate OAB" || step.label === "PJe assistido"
+                        : step.label === "Aprovação" || step.label === "PJe assistido"
                           ? "gate"
                           : "auditoria"
                 )
@@ -222,7 +222,7 @@ export default function HomeDashboard({
             <FeatureTile icon={<Inbox size={16} />} label="Intimações" value={metrics.captured} onClick={() => onNavigate("intimacoes")} />
             <FeatureTile icon={<Clock3 size={16} />} label="Prazos" value={metrics.pending} onClick={() => onNavigate("prazos")} />
             <FeatureTile icon={<FilePenLine size={16} />} label="Minutas" value={metrics.drafts + metrics.approved} onClick={() => onNavigate("peticoes")} />
-            <FeatureTile icon={<ShieldCheck size={16} />} label="Gate OAB" value={metrics.approved} onClick={() => onNavigate("gate")} />
+            <FeatureTile icon={<ShieldCheck size={16} />} label="Revisão e aprovação" value={metrics.approved} onClick={() => onNavigate("gate")} />
           </div>
       </Panel>
     </section>

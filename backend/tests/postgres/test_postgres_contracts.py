@@ -31,7 +31,7 @@ def test_full_migration_chain_matches_model_columns(pg_engine):
     for table in models.Base.metadata.sorted_tables:
         assert {c.name for c in table.columns} == {c["name"] for c in inspector.get_columns(table.name)}
     with pg_engine.connect() as connection:
-        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "a5f1b7d3c9e2"
+        assert connection.scalar(text("SELECT version_num FROM alembic_version")) == "a6c2e8f4b0d3"
         assert connection.scalar(text("SELECT tgenabled FROM pg_trigger WHERE tgname = 'audit_log_append_only' AND tgrelid = 'audit_log'::regclass")) == "A"
 
 

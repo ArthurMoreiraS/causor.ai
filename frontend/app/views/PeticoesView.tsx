@@ -20,7 +20,7 @@ export default function PeticoesView({
       <p className="surfaceCaption">
         Revise e edite o conteúdo das minutas. A aprovação e o protocolo acontecem no{" "}
         <button className="linkButton" onClick={onGoToGate}>
-          Gate OAB
+          Revisão e aprovação
         </button>
         .
       </p>

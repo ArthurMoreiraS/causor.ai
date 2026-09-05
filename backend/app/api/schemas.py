@@ -43,6 +43,7 @@ class ProcessoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    cliente_id: int | None = None
     numero: str
     classe: str | None
     tribunal: str | None

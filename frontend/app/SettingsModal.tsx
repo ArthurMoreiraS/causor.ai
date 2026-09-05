@@ -99,7 +99,7 @@ export default function SettingsModal({
                 <div className="settingsSectionHead">
                   <h4>
                     Limiar de confiança da IA{" "}
-                    <InfoHint label="Quando a confiança da classificação da IA fica abaixo deste limiar, a minuta é sinalizada para revisão humana antes de seguir para o Gate OAB." />
+                    <InfoHint label="Quando a confiança da classificação da IA fica abaixo deste limiar, a minuta é sinalizada para revisão humana antes de seguir para aprovação." />
                   </h4>
                   <p>Classificações abaixo deste valor vão para revisão humana.</p>
                 </div>

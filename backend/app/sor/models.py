@@ -668,6 +668,32 @@ class JobExecucao(TimestampMixin, Base):
     lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class Tarefa(TimestampMixin, Base):
+    """Office work, distinct from a judicial deadline or an approval to file."""
+
+    __tablename__ = "tarefa"
+    __table_args__ = (UniqueConstraint("escritorio_id", "origem_key", name="uq_tarefa_origem"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    descricao: Mapped[str | None] = mapped_column(Text)
+    tipo: Mapped[str] = mapped_column(String(30), default="providencia", nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="aberta", nullable=False)
+    prioridade: Mapped[str] = mapped_column(String(20), default="normal", nullable=False)
+    data_prevista: Mapped[date | None] = mapped_column(Date)
+    processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id", ondelete="SET NULL"), index=True)
+    cliente_id: Mapped[int | None] = mapped_column(ForeignKey("cliente.id", ondelete="SET NULL"))
+    intimacao_id: Mapped[int | None] = mapped_column(ForeignKey("intimacao.id", ondelete="SET NULL"))
+    peticao_id: Mapped[int | None] = mapped_column(ForeignKey("peticao.id", ondelete="SET NULL"))
+    responsavel_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))
+    origem: Mapped[str] = mapped_column(String(30), default="manual", nullable=False)
+    origem_key: Mapped[str | None] = mapped_column(String(64))
+    origem_texto: Mapped[str | None] = mapped_column(Text)
+    versao: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    concluida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class NotificacaoPrazo(Base):
     """Aviso de prazo já entregue, por ``(prazo, nível)``.
 

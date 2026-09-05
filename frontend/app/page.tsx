@@ -1,9 +1,10 @@
 "use client";
 
+import "./office.css";
+
 import Image from "next/image";
 import {
   AlertTriangle,
-  BookOpen,
   CheckCircle2,
   ChevronDown,
   ChevronsLeft,
@@ -11,24 +12,16 @@ import {
   ChevronRight,
   Clock3,
   Download,
-  FilePenLine,
   HelpCircle,
-  HomeIcon,
-  Inbox,
   Loader2,
-  MessageCircle,
-  Scale,
   Search,
   Send,
   Settings,
-  ShieldCheck,
   SlidersHorizontal,
   Sparkles,
-  Table2,
-  Workflow,
   X
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   aprovarPeticao,
   CaptureResult,
@@ -49,6 +42,12 @@ import {
   rodarCapturaOab
 } from "@/lib/api";
 import AuditPanel from "./AuditPanel";
+import SidebarNavigation from "./components/SidebarNavigation";
+import TarefaDialog from "./components/TarefaDialog";
+import ClientesView from "./views/ClientesView";
+import TarefasView from "./views/TarefasView";
+import { viewFromHash } from "@/lib/navigation";
+import { obterPeticao, type Tarefa, type TarefaInput } from "@/lib/api";
 import SettingsModal from "./SettingsModal";
 import DetailDrawer, { DetailSelection } from "./DetailDrawer";
 import MinutaEditor from "./MinutaEditor";
@@ -61,7 +60,7 @@ import ProtocolarModal from "./components/ProtocolarModal";
 import RadarBell from "./components/RadarBell";
 import { useToast } from "./components/Toast";
 import UfSearchSelect from "./components/UfSearchSelect";
-import { LoadingButton, Modal, NavGroup, NavItem, Skeleton, ThemeToggle } from "./components/ui";
+import { LoadingButton, Modal, NavItem, Skeleton, ThemeToggle } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
 import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
@@ -125,7 +124,19 @@ export default function Home() {
   const [data, setData] = useState<DashboardData>(emptyData);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [view, setView] = useState<ViewKey>("dashboard");
+  const [view, setCurrentView] = useState<ViewKey>("dashboard");
+  const [taskDialog, setTaskDialog] = useState<{ input: TarefaInput; task?: Tarefa; context?: string } | null>(null);
+  const setView = useCallback((next: ViewKey) => {
+    setCurrentView(next);
+    if (window.location.hash !== `#${next}`) window.location.hash = next;
+  }, []);
+  useEffect(() => {
+    const update = () => setCurrentView(viewFromHash(window.location.hash));
+    update();
+    window.addEventListener("hashchange", update);
+    return () => window.removeEventListener("hashchange", update);
+  }, []);
+  function openTask(input: TarefaInput, context?: string) { setTaskDialog({ input, context }); }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusKey>("pendentes");
   const [error, setError] = useState<string | null>(null);
@@ -756,86 +767,7 @@ export default function Home() {
           </button>
         </div>
 
-        <nav className="sideNav">
-          <NavItem
-            icon={<HomeIcon size={15} />}
-            label="Dashboard"
-            active={view === "dashboard"}
-            onClick={() => setView("dashboard")}
-          />
-          <NavItem
-            icon={<CheckCircle2 size={15} />}
-            label="Onboarding"
-            active={view === "onboarding"}
-            onClick={() => setView("onboarding")}
-          />
-          <NavItem
-            icon={<MessageCircle size={15} />}
-            label="Assistente"
-            active={view === "assistente"}
-            onClick={() => setView("assistente")}
-          />
-          <NavGroup label="Automações">
-            <NavItem
-              icon={<FilePenLine size={15} />}
-              label="Minutas"
-              active={view === "peticoes"}
-              onClick={() => setView("peticoes")}
-            />
-            <NavItem
-              icon={<BookOpen size={15} />}
-              label="Templates"
-              active={view === "templates"}
-              onClick={() => setView("templates")}
-            />
-            <NavItem
-              icon={<ShieldCheck size={15} />}
-              label="Gate OAB"
-              active={view === "gate"}
-              onClick={() => setView("gate")}
-            />
-            <NavItem
-              icon={<Send size={15} />}
-              label="Protocolos"
-              active={view === "protocolos"}
-              onClick={() => setView("protocolos")}
-            />
-          </NavGroup>
-          <NavGroup label="Registro">
-            <NavItem
-              icon={<Scale size={15} />}
-              label="Processos"
-              active={view === "processos"}
-              onClick={() => setView("processos")}
-            />
-            <NavItem
-              icon={<Inbox size={15} />}
-              label="Intimações"
-              active={view === "intimacoes"}
-              onClick={() => setView("intimacoes")}
-            />
-            <NavItem
-              icon={<Clock3 size={15} />}
-              label="Prazos"
-              active={view === "prazos"}
-              onClick={() => setView("prazos")}
-            />
-          </NavGroup>
-          <NavGroup label="Governança">
-            <NavItem
-              icon={<Workflow size={15} />}
-              label="Conectores"
-              active={view === "conectores"}
-              onClick={() => setView("conectores")}
-            />
-            <NavItem
-              icon={<Table2 size={15} />}
-              label="Auditoria"
-              active={view === "auditoria"}
-              onClick={() => setView("auditoria")}
-            />
-          </NavGroup>
-        </nav>
+        <SidebarNavigation view={view} onNavigate={setView} />
 
         <div className="sidebarFooter">
           <NavItem
@@ -990,6 +922,15 @@ export default function Home() {
             offline={offline}
             onConfirmAction={confirmAssistantAction}
           />
+        ) : view === "clientes" ? (
+          <ClientesView offline={offline} processos={data.processos} refreshKey={refreshTick} onChanged={() => void refresh()}
+            onOpenProcess={id => setDetail({ kind: "processo", id })} onNewTask={openTask} />
+        ) : view === "tarefas" ? (
+          <TarefasView offline={offline} refreshKey={refreshTick} onNew={() => openTask({ titulo: "" })}
+            onEdit={task => setTaskDialog({ input: task, task })}
+            onOpenProcess={id => setDetail({ kind: "processo", id })}
+            onOpenNotice={id => setDetail({ kind: "intimacao", id })}
+            onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }} />
         ) : view === "templates" ? (
           <TemplatesView offline={offline} />
         ) : view === "protocolos" ? (
@@ -1132,6 +1073,7 @@ export default function Home() {
               offline={offline}
               onOpen={(id) => setDetail({ kind: "intimacao", id })}
               onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
+              onCreateTask={intimacao => openTask({ titulo: "", intimacao_id: intimacao.id, tipo: "providencia" }, intimacao.numero_processo || "Intimação selecionada")}
             />
           ) : null}
           {view === "prazos" ? (
@@ -1326,6 +1268,7 @@ export default function Home() {
             busy={busy}
             offline={offline}
             onClose={() => setDetail(null)}
+            onCreateTask={() => openTask(detail.kind === "processo" ? { titulo: "", processo_id: detail.id } : { titulo: "", intimacao_id: detail.id })}
             onSelect={setDetail}
             onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
             onOpenPeticao={(peticao) => {
@@ -1378,6 +1321,9 @@ export default function Home() {
             processo={data.processos.find((p) => p.id === editorPeticao.processo_id) ?? null}
             prazo={data.prazos.find((p) => p.id === editorPeticao.prazo_id) ?? null}
             busy={busy === `save-pet-${editorPeticao.id}`}
+            onCreateTask={(alerta, index) => openTask({ titulo: "Conferir pendência da minuta", descricao: alerta,
+              tipo: "revisao", processo_id: editorPeticao.processo_id, peticao_id: editorPeticao.id,
+              alerta_indice: index, alerta_texto_esperado: alerta }, "Pendência identificada na revisão da minuta")}
             onSave={(content) =>
               runAction(`save-pet-${editorPeticao.id}`, async () => {
                 const updated = await editarPeticao(editorPeticao.id, { conteudo: content });
@@ -1387,6 +1333,10 @@ export default function Home() {
             onClose={() => setEditorPeticao(null)}
           />
         ) : null}
+
+        {taskDialog ? <TarefaDialog key={taskDialog.task?.id ?? "new-task"} initial={taskDialog.input} task={taskDialog.task}
+          contextLabel={taskDialog.context} processos={data.processos} offline={offline} onClose={() => setTaskDialog(null)}
+          onSaved={() => { setTaskDialog(null); setRefreshTick(value => value + 1); toast({ title: "Tarefa disponível em Tarefas e pendências" }); }} /> : null}
 
         {prazoEdit ? (
           <PrazoEditModal

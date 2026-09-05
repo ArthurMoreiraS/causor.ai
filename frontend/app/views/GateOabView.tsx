@@ -20,21 +20,21 @@ export default function GateOabView({
   onApprove: (peticao: Peticao) => void;
   onFile: (peticao: Peticao) => void;
 }) {
-  const awaiting = rows.filter((row) => row.peticao.status === "rascunho");
+  const awaiting = rows.filter((row) => ["rascunho", "em_revisao"].includes(row.peticao.status));
   const cleared = rows.filter((row) => row.peticao.status === "aprovada");
   const filed = rows.filter((row) => row.peticao.status === "protocolada");
 
   return (
     <section className="gateView">
       <div className="gateSummary">
-        <CommandStat label="Aguardando OAB" value={awaiting.length} detail="revisão humana" />
+        <CommandStat label="Aguardando revisão" value={awaiting.length} detail="revisão humana" />
         <CommandStat label="Liberadas" value={cleared.length} detail="prontas para protocolo" />
         <CommandStat label="Protocoladas" value={filed.length} detail="ato finalizado" />
       </div>
 
       <section className="gateLanes">
         <GateLane
-          title="Revisão OAB"
+          title="Revisão do advogado"
           rows={awaiting}
           busy={busy}
           offline={offline}

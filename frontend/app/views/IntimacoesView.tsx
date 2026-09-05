@@ -4,6 +4,7 @@ import { Loader2, Sparkles } from "lucide-react";
 import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
+import type { Intimacao } from "@/lib/api";
 import { DeadlineBadge, Empty } from "../components/ui";
 
 export default function IntimacoesView({
@@ -11,12 +12,14 @@ export default function IntimacoesView({
   busy,
   offline,
   onOpen,
+  onCreateTask,
   onGenerateDraft
 }: {
   rows: IntimacaoRow[];
   busy: string | null;
   offline: boolean;
   onOpen: (intimacaoId: number) => void;
+  onCreateTask?: (intimacao: Intimacao) => void;
   onGenerateDraft: (intimacaoId: number) => void;
 }) {
   return (
@@ -59,6 +62,8 @@ export default function IntimacoesView({
             {peticao ? statusLabel(peticao.status) : "Sem minuta"}
           </span>
           <div className="dataRowEnd">
+            {onCreateTask ? <button type="button" className="toolbarButton compact" disabled={offline}
+              onClick={e => { e.stopPropagation(); onCreateTask(intimacao); }}>Criar tarefa</button> : null}
             <button
               className="toolbarButton compact"
               disabled={busy === `draft-${intimacao.id}` || offline}

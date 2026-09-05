@@ -10,6 +10,8 @@ import type {
 
 export type ViewKey =
   | "dashboard"
+  | "clientes"
+  | "tarefas"
   | "onboarding"
   | "assistente"
   | "processos"
@@ -32,18 +34,20 @@ export const STATUS_MATCH: Record<StatusKey, (status: string) => boolean> = {
 };
 
 export const VIEW_LABEL: Record<ViewKey, string> = {
-  dashboard: "Dashboard",
-  onboarding: "Onboarding",
-  templates: "Minutas & Templates",
+  dashboard: "Visão geral",
+  clientes: "Clientes",
+  tarefas: "Tarefas e pendências",
+  onboarding: "Configuração inicial",
+  templates: "Modelos de peças",
   assistente: "Assistente Causor",
   processos: "Processos",
   intimacoes: "Intimações",
   prazos: "Prazos",
   peticoes: "Minutas",
-  gate: "Gate OAB",
+  gate: "Revisão e aprovação",
   protocolos: "Protocolos",
-  conectores: "Conectores",
-  auditoria: "Auditoria"
+  conectores: "Integrações",
+  auditoria: "Histórico de ações"
 };
 
 export const CONNECTORS_FALLBACK = [

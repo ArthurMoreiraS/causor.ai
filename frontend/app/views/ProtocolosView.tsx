@@ -190,7 +190,7 @@ export default function ProtocolosView({
       ) : !jobs.length ? (
         <EmptyState
           title="Nenhum protocolo executado ainda"
-          description="Aprove uma minuta no Gate OAB e protocole para acompanhar os jobs aqui."
+          description="Confira a minuta em Revisão e aprovação. Os registros de envio e comprovantes ficam reunidos aqui."
         />
       ) : (
         <div className="protocolList">

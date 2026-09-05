@@ -15,12 +15,52 @@ export type Intimacao = {
 
 export type Processo = {
   id: number;
+  cliente_id?: number | null;
   numero: string;
   classe: string | null;
   tribunal: string | null;
   orgao_julgador: string | null;
   sistema: string | null;
 };
+
+export type Cliente = { id: number; nome: string; documento: string | null; processos_count: number };
+export type TarefaStatus = "aberta" | "em_andamento" | "aguardando" | "concluida" | "cancelada";
+export type TarefaTipo = "providencia" | "documento" | "revisao" | "atendimento";
+export type TarefaInput = {
+  titulo: string; descricao?: string | null; tipo?: TarefaTipo; prioridade?: "normal" | "alta" | "urgente";
+  data_prevista?: string | null; processo_id?: number | null; cliente_id?: number | null;
+  intimacao_id?: number | null; peticao_id?: number | null; alerta_indice?: number | null;
+  alerta_texto_esperado?: string | null; responsavel_id?: number | null;
+};
+export type Tarefa = TarefaInput & {
+  id: number; tipo: TarefaTipo; status: TarefaStatus; prioridade: "normal" | "alta" | "urgente";
+  versao: number; origem: string; origem_texto: string | null; concluida_em: string | null;
+  processo_numero: string | null; cliente_nome: string | null; responsavel_nome: string | null;
+};
+export type TarefaPatch = Partial<Pick<TarefaInput, "titulo" | "descricao" | "tipo" | "prioridade" | "data_prevista" | "responsavel_id">> & {
+  versao: number; status?: TarefaStatus;
+};
+export type Pagina<T> = { total: number; items: T[] };
+
+export function listarClientes(params: { q?: string; limit?: number; offset?: number } = {}): Promise<Pagina<Cliente>> {
+  return request(`/clientes?${new URLSearchParams(Object.entries(params).map(([k, v]) => [k, String(v)]))}`);
+}
+export function criarCliente(payload: { nome: string; documento?: string | null }): Promise<Cliente> {
+  return request("/clientes", { method: "POST", body: JSON.stringify(payload) });
+}
+export function vincularCliente(processoId: number, clienteId: number | null): Promise<{ processo_id: number; cliente_id: number | null }> {
+  return request(`/processos/${processoId}/cliente`, { method: "PUT", body: JSON.stringify({ cliente_id: clienteId }) });
+}
+export function listarTarefas(params: { q?: string; status?: TarefaStatus; processo_id?: number; cliente_id?: number; responsavel_id?: number; limit?: number; offset?: number } = {}): Promise<Pagina<Tarefa>> {
+  return request(`/tarefas?${new URLSearchParams(Object.entries(params).filter(([, v]) => v !== undefined).map(([k, v]) => [k, String(v)]))}`);
+}
+export function criarTarefa(payload: TarefaInput): Promise<Tarefa> {
+  return request("/tarefas", { method: "POST", body: JSON.stringify(payload) });
+}
+export function obterPeticao(id: number): Promise<Peticao> { return request(`/peticoes/${id}`); }
+export function atualizarTarefa(id: number, payload: TarefaPatch): Promise<Tarefa> {
+  return request(`/tarefas/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+}
 
 export type ProximoPrazo = {
   data_fatal: string;

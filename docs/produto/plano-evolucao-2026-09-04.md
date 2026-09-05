@@ -1,5 +1,13 @@
 # Plano de evolução: um fluxo útil, uma pessoa desenvolvendo
 
+> **05/09 — visão ampliada a pedido do fundador:** o Causor deve integrar a
+> rotina completa do escritório. O [mapa de módulos e a ordem de construção](escritorio-integrado-2026-09-05.md)
+> inclui clientes, tarefas, atendimento, agenda, documentos, financeiro e
+> comunicação, com IA nos fluxos. A primeira expansão implementa Clientes e
+> Tarefas ligados ao núcleo jurídico. As restrições anteriores sobre novos
+> módulos deixam de excluir esse horizonte; a execução mantém uma entrega
+> integrada por vez e a revisão das minutas com o advogado como próximo bloco.
+
 > **05/09 — parceiro de revisão confirmado pelo fundador.** Começar com os
 > [cinco casos e o roteiro operacional](piloto-cinco-casos-2026-09-05.md).
 > Ainda faltam os exemplos autorizados, a família de atos e o primeiro acesso
