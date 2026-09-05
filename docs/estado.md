@@ -1,13 +1,19 @@
 # Proximos passos - MVP
 
-> **05/09 — próxima etapa em validação:** processamento documental com posse
-> renovável e checkpoints, sem transações durante OCR/IA; preparação de revisão
-> cega por comando local. O fundador confirmou um advogado revisor. O próximo
-> foco de produto é avaliar cinco casos e melhorar as evidências conforme os
-> erros encontrados. Veja o [roteiro do piloto](produto/piloto-cinco-casos-2026-09-05.md)
-> e o [registro técnico](produto/execucao-2026-09-04.md). Ainda não há casos
-> reais avaliados nem acesso do Causor a tribunal. Último deploy confirmado
-> antes desta revisão: `12b5709`.
+> **05/09 — checkpoints e revisão cega implantados (`1466537`).** OCR/IA rodam
+> sem transações abertas; extração/resumo concluídos sobrevivem à interrupção,
+> e resultados de workers sem posse vigente são descartados. Há comando local
+> para preparar minutas e ficha de revisão sem metadados do modelo.
+> CI: **658 testes gerais backend, 22 em cada PostgreSQL (16/17), 70 frontend**,
+> lint, tipos e build aprovados. Migração `a5f1b7d3c9e2`, imagens dos quatro
+> serviços e API verificadas na VPS em 05/09 às 00h22 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33941434207).
+> O fundador confirmou um advogado revisor. Próximo foco: avaliar cinco casos
+> e melhorar as evidências conforme os erros encontrados. Veja o
+> [roteiro do piloto](produto/piloto-cinco-casos-2026-09-05.md) e o
+> [registro técnico](produto/execucao-2026-09-04.md). Qualidade jurídica real e
+> protocolo automatizado permanecem sem validação; casos e acesso ao tribunal
+> ainda precisam ser disponibilizados.
 
 > **04/09/2026 — Postgres, recuperação e auditoria implantados (`12b5709`).** A etapa
 > adiciona CI com Postgres 16/17 e migrações reais; proteção de `audit_log`

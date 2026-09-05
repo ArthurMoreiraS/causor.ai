@@ -15,7 +15,7 @@ Manter o objetivo de automatizar até o protocolo. Começar com envio manual ass
 
 O fundador desenvolve sozinho; quantidade de clientes e volume de trabalho são desconhecidos. O tribunal e a especialidade atuais não foram confirmados. Não dimensionar arquitetura para um número inventado nem escolher eproc/TJTO apenas porque consta em documentos antigos.
 
-Buscar um advogado parceiro com disponibilidade para revisar exemplos. Fazer até cinco conversas curtas de descoberta, procurando uma família repetida de providências, processos acessíveis e dor mensurável. Não pedir a carteira inteira para começar.
+O fundador confirmou em 05/09 um advogado disponível para revisar exemplos. Selecionar com ele uma família repetida de providências, processos acessíveis e dor mensurável. Conversas adicionais podem ajudar a conferir o recorte; não são uma condição para começar os cinco casos.
 
 Roteiro:
 
