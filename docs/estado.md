@@ -1,11 +1,14 @@
 # Proximos passos - MVP
 
-> **05/09 — Documentos e evidências implementado, em validação de publicação.**
+> **05/09 — Documentos e evidências implantado (`7aacbf2`).**
 > Biblioteca por processo, versões históricas, resumo, busca em trechos e PDF
 > citado. Recebimento por tarefa preserva a versão exata e deixa a pendência
 > em andamento. Upload complementar mantém o inventário anterior e atualiza
-> o contexto após processamento. Migração `a7d3f9b5c1e4`. Validação local:
-> **682 backend e 79 frontend**, lint/tipos aprovados. Conferência visual
+> o contexto após processamento. Migração `a7d3f9b5c1e4` aplicada. CI aprovado:
+> **682 backend, 79 frontend e 49 em cada PostgreSQL (16/17)**, lint, tipos
+> e build. Quatro serviços saudáveis e versão exata verificada na VPS em
+> 05/09 às 03h37 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33950069870). Conferência visual
 > indisponível nesta sessão. [Registro e próximo aceite](produto/documentos-e-evidencias-2026-09-05.md).
 
 > **05/09 — correção de remoção de OAB implantada (`ad9bfb6`).** Erro 500 reproduzido

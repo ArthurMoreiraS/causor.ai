@@ -90,8 +90,14 @@ e os complementos concorrentes passaram nos dois bancos.
 A primeira tentativa de implantação falhou antes dos comandos remotos:
 timeout ao conectar à porta SSH da VPS. Não houve migração ou troca de
 serviços nessa tentativa. A integração GitHub recusou o re-run com HTTP 403
-por falta de permissão de Actions; a próxima tentativa usa o fluxo normal
+por falta de permissão de Actions. A segunda tentativa usou o fluxo normal
 de push/CI/deploy, com a mesma implementação e este registro de validação.
+
+O [novo CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33950004436)
+aprovou novamente. O [deploy de `7aacbf2`](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33950069870)
+concluiu em 05/09/2026 às 03h37 (Brasília): migração `a7d3f9b5c1e4` aplicada,
+backend, worker, autos-worker e frontend saudáveis, com a versão exata
+`7aacbf245bd4d63f5d70e8b33cc5052fc08b9e00` verificada nos quatro serviços.
 
 Ainda não foi possível validar visualmente: o inventário de navegadores da
 sessão continuou vazio. O frontend foi implementado com os componentes e
