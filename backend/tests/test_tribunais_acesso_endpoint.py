@@ -11,6 +11,8 @@ import pytest
 
 from app.sor import models
 
+pytestmark = pytest.mark.usefixtures("registered_test_routes")
+
 
 @pytest.fixture
 def escritorio_com_rotas(db_session):

@@ -14,12 +14,13 @@ import { LoadingButton } from "./ui";
 
 const POLL_MS = 4000;
 
-export type WizardStep = "loading" | "pair_agent" | "court_login" | "capturing" | "ready" | "error";
+export type WizardStep = "loading" | "pair_agent" | "court_login" | "upload_autos" | "capturing" | "ready" | "error";
 
 function stepFromPasso(passo: ProximoPasso): WizardStep {
   if (passo.ready) return "ready";
   if (passo.next_step === "pair_agent") return "pair_agent";
   if (passo.next_step === "court_login") return "court_login";
+  if (passo.next_step === "upload_autos") return "upload_autos";
   return "capturing";
 }
 
@@ -141,9 +142,15 @@ export default function AcessoTribunalWizard({
         </p>
       )}
 
+      {step === "upload_autos" && (
+        <p className="acessoWizardStep">A leitura automática ainda não está disponível para esta rota.
+          Abra o processo e use “Enviar os autos” para fornecer os PDFs baixados no tribunal.
+          Se já enviou, acompanhe o processamento e confira as pendências por grau.</p>
+      )}
+
       {step === "ready" && (
         <p className="acessoWizardStep acessoWizardReady">
-          <ShieldCheck size={14} /> Contexto completo. Gerando a minuta…
+          <ShieldCheck size={14} /> Contexto disponível para revisão.
         </p>
       )}
 

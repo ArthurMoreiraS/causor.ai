@@ -32,6 +32,7 @@ from app.api.schemas import (
     ChatRequest,
     ChatResponse,
     ConfirmarProtocoloRequest,
+    ConfirmarPrazoRequest,
     CourtRoutingOut,
     CreateCredencialAssinaturaRequest,
     CredencialAssinaturaOut,
@@ -65,8 +66,7 @@ from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
 from app.capture.enrich import backfill_sistema, run_enrichment_backfill
 from app.capture.poll import poll_oab
-from app.filing.render import render_minuta_pdf
-from app.filing.timbrado import LogoInvalidoError, load_timbrado, normalize_logo
+from app.filing.timbrado import LogoInvalidoError, normalize_logo
 from app.prazo_engine.factory import build_calendar
 from app.queue.jobs import (
     AlreadyFiledError,
@@ -1312,6 +1312,49 @@ def create_app() -> FastAPI:
         stmt = stmt.order_by(models.Peticao.id.desc()).limit(limit)
         return list(session.scalars(stmt))
 
+    @app.post("/intimacoes/{intimacao_id}/prazo", response_model=PrazoOut)
+    def confirmar_prazo_intimacao(
+        intimacao_id: int, payload: ConfirmarPrazoRequest,
+        session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user),
+    ):
+        from app.prazo_engine.deadline import compute_deadline
+
+        notice = get_owned_or_404(session, models.Intimacao, intimacao_id, current)
+        session.execute(select(models.Intimacao.id).where(models.Intimacao.id == notice.id).with_for_update())
+        existing = session.scalars(select(models.Prazo).where(
+            models.Prazo.intimacao_id == notice.id, models.Prazo.cumprido.is_(False)
+        )).first()
+        if existing:
+            raise HTTPException(409, "Já existe prazo em aberto; revise o prazo vinculado")
+        result = compute_deadline(
+            payload.data_base, payload.dias, business_days=payload.dias_uteis,
+            calendar=build_calendar(range(payload.data_base.year - 1, payload.data_base.year + 17),
+                                    extra_holidays=payload.dias_sem_expediente),
+        )
+        prazo = models.Prazo(
+            escritorio_id=current.escritorio_id, processo_id=notice.processo_id,
+            intimacao_id=notice.id, descricao=notice.tipo_comunicacao,
+            data_inicio=result.data_inicio, data_fatal=result.data_fatal,
+            dias=result.dias, dias_uteis=result.dias_uteis, cumprido=False,
+        )
+        session.add(prazo)
+        session.flush()
+        drafts = session.scalars(select(models.Peticao).where(
+            models.Peticao.escritorio_id == current.escritorio_id,
+            models.Peticao.processo_id == notice.processo_id,
+            models.Peticao.prazo_id.is_(None),
+            models.Peticao.status.in_(["rascunho", "em_revisao"]),
+        )).all()
+        for draft in drafts:
+            if (draft.dossie or {}).get("intimacao_id") == notice.id:
+                draft.prazo_id = prazo.id
+                draft.dossie = {**draft.dossie, "prazo_revisao_pendente": False}
+        _audit(session, acao="prazo_confirmado", entidade="prazo", entidade_id=prazo.id,
+               ator_id=current.usuario_id, escritorio_id=current.escritorio_id,
+               detalhe={**payload.model_dump(mode="json"), "origem": "revisao_humana", "calendario": "nacional_recesso_civel_com_excecoes_informadas"})
+        session.commit()
+        return prazo
+
     @app.post("/intimacoes/{intimacao_id}/draft", response_model=DraftResponse)
     def gerar_minuta(
         intimacao_id: int,
@@ -1361,7 +1404,7 @@ def create_app() -> FastAPI:
         )
         session.commit()
         return DraftResponse(
-            prazo=PrazoOut.model_validate(prazo),
+            prazo=PrazoOut.model_validate(prazo) if prazo else None,
             peticao=PeticaoOut.model_validate(peticao),
             classificacao=classificacao.model_dump(),
         )
@@ -1374,20 +1417,29 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
-        if peticao.status == "protocolada":
+        if peticao.status in {"protocolada", "protocolando"}:
             raise HTTPException(
-                status_code=409, detail="petição protocolada não pode ser editada"
+                status_code=409, detail="petição em envio ou protocolada não pode ser editada"
             )
 
         alteracoes: dict = {}
-        if payload.conteudo is not None:
+        if payload.conteudo is not None and payload.conteudo != peticao.conteudo:
             peticao.conteudo = payload.conteudo
             alteracoes["conteudo"] = True
+            if peticao.status == "aprovada":
+                peticao.status = "em_revisao"
+                peticao.aprovada_por = None
+                alteracoes["aprovacao_invalidada"] = True
         if payload.status is not None and payload.status != peticao.status:
             alteracoes["status"] = {"de": peticao.status, "para": payload.status}
             peticao.status = payload.status
 
         if alteracoes:
+            if "conteudo" in alteracoes or "status" in alteracoes:
+                dossie = dict(peticao.dossie or {})
+                dossie.pop("pdf_snapshot", None)
+                peticao.dossie = dossie
+                peticao.aprovada_por = None
             _audit(
                 session,
                 acao="peticao_editada",
@@ -1408,8 +1460,11 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
-        if peticao.status == "protocolada":
-            raise HTTPException(status_code=409, detail="petição já protocolada")
+        if peticao.status in {"protocolada", "protocolando"}:
+            raise HTTPException(status_code=409, detail="petição em envio ou já protocolada")
+        from app.filing.approval import approve_snapshot
+
+        snapshot = approve_snapshot(session, peticao)
         peticao.status = "aprovada"
         peticao.aprovada_por = current.usuario_id
         _audit(
@@ -1419,7 +1474,8 @@ def create_app() -> FastAPI:
             entidade_id=peticao.id,
             ator_id=current.usuario_id,
             escritorio_id=current.escritorio_id,
-            detalhe={"tipo": peticao.tipo},
+            detalhe={"tipo": peticao.tipo, "pdf_sha256": snapshot["pdf_sha256"],
+                     "input_sha256": snapshot["input_sha256"]},
         )
         session.commit()
         session.refresh(peticao)
@@ -1477,6 +1533,7 @@ def create_app() -> FastAPI:
                 protocolo=payload.protocolo,
                 comprovante_uri=payload.comprovante_uri,
                 credencial_id=payload.credencial_id,
+                usuario_id=current.usuario_id,
             )
         except PeticaoNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1497,15 +1554,15 @@ def create_app() -> FastAPI:
         protocolo anexa, renderizado sob demanda para o gate humano."""
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         processo = session.get(models.Processo, peticao.processo_id)
-        pdf = render_minuta_pdf(
-            peticao.conteudo or "",
-            meta={
-                "processo": processo.numero if processo else None,
-                "tipo": peticao.tipo,
-                "tribunal": processo.tribunal if processo else None,
-            },
-            timbrado=load_timbrado(session, current.escritorio_id),
-        )
+        from app.filing.approval import prepare_snapshot, snapshot_pdf, ApprovalSnapshotError
+
+        try:
+            if peticao.status not in {"aprovada", "protocolada", "protocolando"}:
+                prepare_snapshot(session, peticao)
+            pdf = snapshot_pdf(session, peticao, require_approved=peticao.status in {"aprovada", "protocolada", "protocolando"}, validate_current=peticao.status != "protocolada")
+        except ApprovalSnapshotError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        session.commit()
         nome_arquivo = f"minuta-{processo.numero if processo else peticao.id}.pdf"
         return Response(
             content=pdf,

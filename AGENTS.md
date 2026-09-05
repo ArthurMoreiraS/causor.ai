@@ -8,19 +8,37 @@ here; do not duplicate them elsewhere.
 
 ## Repository status
 
-**Pilot-ready MVP under operational validation.** The repository already
+**2026-09-04 factual correction — read first.** The code review in
+[`docs/areas/diagnostico-causor-2026-09-04.md`](docs/areas/diagnostico-causor-2026-09-04.md)
+supersedes readiness claims below where they conflict: local-agent read/filing
+handlers remain unimplemented. The follow-up execution integrates document
+extraction, cited summaries and context construction, with an HTTP end-to-end
+test using simulated providers. Passing tests does not establish a live pilot.
+Implementation and operational limits are recorded in
+[`docs/produto/execucao-2026-09-04.md`](docs/produto/execucao-2026-09-04.md).
+Current market findings are in
+[`docs/areas/pesquisa-mercado-2026-09-04.md`](docs/areas/pesquisa-mercado-2026-09-04.md).
+The founder confirmed solo development and no access to any court system yet.
+The founder authorized executing the plan. Internal assisted-flow changes are
+implemented; court homologation and legal quality evaluation remain pending.
+Preserve the constraints below, but consult the
+September diagnosis before relying on older statements of completed workflows.
+
+**MVP with tested components; end-to-end integration incomplete.** The repository
 contains the SOR, deterministic deadline engine, DJEN/DataJud capture, Claude
 agent layer, FastAPI API, Supabase auth/tenant isolation, Next.js frontend,
-templates, persistent jobs, vault adapters and an assisted PJe flow that stops
-at `ready_to_sign`. It also contains the **MNI channel** (`connectors/mni/`) —
-the CNJ's official court webservice — which reads the case file server-side
-through the same integrity pipeline as the local agent.
+templates, persistent jobs, vault adapters and a legacy assisted PJe connector.
+The current local-agent handlers do not execute reading or filing. The **MNI
+channel** (`connectors/mni/`) has a server-side reader implementation, subject
+to credentials and live validation. Upload now runs through extraction,
+summarization and context construction in the autos worker. The production
+Compose declares that worker; deployment has not been performed in this session.
 
 Two rules that follow from the MNI work and are easy to get wrong:
 
-- **A court reader has two interchangeable sources, one router.** `MniReader`
-  and the local agent both implement `CourtReaderDriver`; `resolve_capture_fonte`
-  picks between them per process. Never add a third decision point.
+- **Court-source routing has one owner.** `resolve_capture_fonte` selects MNI
+  or the local-agent route per process. Drivers must honor `CourtReaderDriver`;
+  the local-agent implementation remains incomplete. Never add a third decision point.
 - **Only confirmed MNI endpoints belong in `mni/profiles.py`.** An MNI failure
   marks the capture `failed` and does *not* fall back to the agent, so a guessed
   endpoint sends the lawyer to an error instead of the path that works.
@@ -32,27 +50,22 @@ requirements, eproc restricted to Judiciary organs), so a private CNPJ may
 simply not be granted access. Evidence and the cheap falsification test are in
 [`docs/areas/viabilidade-mercado-2026-07-29.md`](docs/areas/viabilidade-mercado-2026-07-29.md).
 
-What follows from that: **the pilot does not wait for any court authorisation.**
-DJEN/DataJud already run live and the local agent reads the case file with the
-lawyer's own credential — capture, deadline, minuta, gate and audit are all
-available today, with filing staying as `ready_to_sign` + lawyer confirmation.
-Real-pilot validation and production scheduling/observability are the critical
-path. The Playwright connectors (Plano 3 Tasks 6–9) and the MNI stay as parallel
-bets, not prerequisites.
+The upload route allows an assisted pilot without a new court integration,
+once the internal processing gaps are fixed. It does not prove court-file
+completeness. Real reading/filing via the local agent requires implementing
+and validating the handlers. Current priorities and proposed acceptance tests
+are documented in the September diagnosis and evolution plan.
 
 Use `README.md` for repository orientation and `docs/estado.md` as the source
 of truth for current status and execution order. The PRD (`docs/produto/PRD.md`)
 is strategic; files in `docs/historico/superpowers/` are historical
 design/implementation records and must not be used to infer current state.
-For market/strategy questions ("is this viable?", "what is the moat?", "which
-lane?"), read `docs/areas/rota-produto-2026-07-30.md` first, then
-`docs/areas/viabilidade-mercado-2026-07-29.md` and
-`docs/areas/modelo-garfield-2026-07-29.md` — they carry the evidence and
-supersede older strategic claims in the PRD where the two disagree. The
-2026-07-30 doc adds the finding that the CNJ is unifying case consultation and
-intercurrent filing nationally in **jus.br** (Res. CNJ 455/2022 + 624/2025),
-which demotes per-court-system connectors, and records that the confirmed MNI
-profiles do not cover the pilot court (TJTO).
+For market/strategy questions, read `docs/areas/pesquisa-mercado-2026-09-04.md`
+first. July/August research preserves historical reasoning, but its claims
+about exclusivity, prices and universal access must not be repeated without
+current evidence. Jus.br is a candidate channel whose actual capability must
+be validated for the selected court; TJTO was a historical pilot, not a newly
+confirmed target.
 
 ### Build / lint / test (run from `/backend`)
 

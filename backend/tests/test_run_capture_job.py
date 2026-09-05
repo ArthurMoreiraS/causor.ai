@@ -77,7 +77,7 @@ def test_run_capture_job_completes_and_audits(db_session, escritorio, calendar):
 
     assert job.status == "completed"
     assert job.resultado["intimacoes_novas"] == 1
-    assert job.resultado["prazos_registrados"] == 1
+    assert job.resultado["prazos_registrados"] == 0
     db_session.flush()  # session uses autoflush=False; surface pending audit rows
     audits = db_session.query(models.AuditLog).all()
     acoes = {a.acao for a in audits}

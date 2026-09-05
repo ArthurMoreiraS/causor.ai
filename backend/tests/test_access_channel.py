@@ -14,6 +14,21 @@ import pytest
 from app.connectors.access_channel import resolve_acesso_tribunal
 from app.sor import models
 
+pytestmark = pytest.mark.usefixtures("registered_test_routes")
+
+
+def test_connected_session_without_driver_is_not_operational(db_session, escritorio, monkeypatch):
+    from app.connectors import registry
+
+    monkeypatch.setattr(registry, "_REGISTRY", registry.ConnectorRegistry())
+    esc, user = escritorio
+    _agente_online(db_session, esc, user)
+    _sessao(db_session, esc, tribunal="TJTO", status="conectado")
+    access = _resolver(db_session, esc, tribunal="TJTO")
+    assert not access.ler_autos.disponivel
+    assert access.ler_autos.falta == "integracao_indisponivel"
+    assert not access.protocolar.disponivel
+
 # TJMT tem perfil MNI confirmado (1º grau); TJTO não tem — é o par que separa
 # "tribunal com canal oficial" de "tribunal só pelo computador".
 TRIBUNAL_COM_MNI = "TJMT"

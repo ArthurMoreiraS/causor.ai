@@ -490,15 +490,12 @@ def _dispatch_real_filing_to_agent(
         url_base=route.url_login if route is not None else None,
     )
 
-    pdf_bytes = render_minuta_pdf(
-        peticao.conteudo or "",
-        meta={
-            "processo": processo.numero,
-            "tipo": peticao.tipo,
-            "tribunal": processo.tribunal,
-        },
-        timbrado=load_timbrado(session, peticao.escritorio_id),
-    )
+    from app.filing.approval import snapshot_pdf, ApprovalSnapshotError
+
+    try:
+        pdf_bytes = snapshot_pdf(session, peticao)
+    except ApprovalSnapshotError as exc:
+        raise ApprovalRequiredError(str(exc)) from exc
     digest = sha256(pdf_bytes).hexdigest()
     pdf_object_key = (
         f"tenant/{peticao.escritorio_id}/filing/{peticao.id}/{digest}.pdf"
@@ -789,6 +786,7 @@ def confirm_manual_protocol(
     protocolo: str,
     comprovante_uri: str | None = None,
     credencial_id: int | None = None,
+    usuario_id: int | None = None,
 ) -> models.Peticao:
     """Record the final PJe protocol after the lawyer signs/submits externally."""
     peticao = session.get(models.Peticao, peticao_id)
@@ -805,13 +803,15 @@ def confirm_manual_protocol(
         "tipo": peticao.tipo,
         "protocolo": protocolo,
         "comprovante_uri": comprovante_uri,
-        "origem": "pje_assistido",
+        "origem": "declaracao_manual",
+        "comprovante_status": "referencia_nao_verificada" if comprovante_uri else "ausente",
     }
     # Tie the signed act to the credential used, so the audit trail records
     # which provider/mode produced the signature. No secret is stored.
     if credencial_id is not None:
         credencial = session.get(models.CredencialAssinatura, credencial_id)
-        if credencial is not None:
+        owner = session.get(models.Usuario, credencial.usuario_id) if credencial else None
+        if credencial is not None and owner and owner.escritorio_id == peticao.escritorio_id:
             detalhe["provedor"] = credencial.provedor
             detalhe["modo"] = credencial.modo
     _audit(
@@ -819,8 +819,9 @@ def confirm_manual_protocol(
         acao="peticao_protocolada",
         entidade="peticao",
         entidade_id=peticao.id,
-        ator=f"usuario:{peticao.aprovada_por}" if peticao.aprovada_por is not None else "system",
+        ator=f"usuario:{usuario_id}" if usuario_id is not None else "system",
         escritorio_id=peticao.escritorio_id,
         detalhe=detalhe,
     )
+    peticao.dossie = {**(peticao.dossie or {}), "protocolo_registrado": detalhe}
     return peticao

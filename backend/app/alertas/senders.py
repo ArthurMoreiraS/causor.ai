@@ -31,13 +31,14 @@ class ConsoleSender:
     e-mail deixaria de rodar o resto do ciclo de alertas.
     """
 
-    def enviar(self, *, destinos: list[str], assunto: str, corpo: str) -> None:
+    def enviar(self, *, destinos: list[str], assunto: str, corpo: str) -> bool:
         logger.info(
             "alerta de prazo (sem SMTP configurado) para %s | %s\n%s",
             ", ".join(destinos),
             assunto,
             corpo,
         )
+        return False  # simulação não equivale a entrega
 
 
 class SmtpSender:
@@ -59,7 +60,9 @@ class SmtpSender:
             smtp.starttls()
             if self.usuario and senha:
                 smtp.login(self.usuario, senha)
-            smtp.send_message(mensagem)
+            refused = smtp.send_message(mensagem)
+            if refused:
+                raise RuntimeError("smtp_destinatarios_recusados")
 
 
 def build_sender():

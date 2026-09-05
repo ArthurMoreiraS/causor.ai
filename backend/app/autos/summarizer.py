@@ -51,6 +51,8 @@ def validate_citations(
     documento_arquivo_id: int | None = None,
 ) -> None:
     """Confere cada citação contra o chunk persistido; levanta se inventada."""
+    if not digest.citations:
+        raise InvalidCitationError("resumo sem fonte citada")
     for citation in digest.citations:
         chunk = session.get(models.DocumentoTrecho, citation.chunk_id)
         if chunk is None:
@@ -114,25 +116,43 @@ def summarize_document(
         return resumo_row
 
     documento = session.get(models.Documento, version.documento_id)
-    numbered = "\n\n".join(
-        f"[chunk_id={chunk.id} | pagina {chunk.pagina}]\n{chunk.texto}" for chunk in chunks
-    )
-    user_prompt = (
+    prefix = (
         f"Documento: {documento.nome if documento else version.documento_id} "
         f"(tipo: {documento.tipo if documento else 'desconhecido'})\n\n"
-        f"Trechos numerados:\n\n{numbered}"
+        "Trechos numerados desta parte do documento:\n\n"
     )
 
     model_name = settings.claude_context_model
-    llm = provider or get_provider(model=model_name)
     try:
-        digest = llm.complete_structured(
-            system=_SYSTEM_PROMPT,
-            user=user_prompt,
-            schema=DocumentDigest,
-            max_tokens=3000,
+        llm = provider or get_provider(model=model_name, task="context")
+        model_name = getattr(llm, "_model", model_name)
+        batches: list[list] = [[]]
+        chars = 0
+        for chunk in chunks:
+            if chars + len(chunk.texto) > 40000 and batches[-1]:
+                batches.append([])
+                chars = 0
+            batches[-1].append(chunk)
+            chars += len(chunk.texto)
+        digests = []
+        for batch in batches:
+            numbered = "\n\n".join(
+                f"[chunk_id={chunk.id} | pagina {chunk.pagina}]\n{chunk.texto}" for chunk in batch
+            )
+            part = llm.complete_structured(
+                system=_SYSTEM_PROMPT, user=prefix + numbered,
+                schema=DocumentDigest, max_tokens=3000,
+            )
+            validate_citations(session, part, documento_arquivo_id=version.id)
+            allowed = {chunk.id for chunk in batch}
+            if any(c.chunk_id not in allowed for c in part.citations):
+                raise InvalidCitationError("citação de trecho não fornecido nesta parte")
+            digests.append(part)
+        digest = DocumentDigest(
+            resumo="\n\n".join(d.resumo for d in digests),
+            **{field: [item for d in digests for item in getattr(d, field)]
+               for field in ("fatos", "pedidos", "decisoes", "prazos", "incertezas", "citations")},
         )
-        validate_citations(session, digest, documento_arquivo_id=version.id)
     except InvalidCitationError as exc:
         resumo_row.status = "failed"
         resumo_row.error = str(exc)
@@ -141,7 +161,7 @@ def summarize_document(
         return resumo_row
     except Exception as exc:  # noqa: BLE001 - falha de LLM vira estado observável
         resumo_row.status = "failed"
-        resumo_row.error = str(exc)[:2000]
+        resumo_row.error = type(exc).__name__
         resumo_row.model = model_name
         session.flush()
         return resumo_row
@@ -154,6 +174,7 @@ def summarize_document(
         "decisoes": digest.decisoes,
         "prazos": digest.prazos,
         "incertezas": digest.incertezas,
+        "processamento": {"trechos": len(chunks), "partes": len(batches)},
     }
     resumo_row.citations = [citation.model_dump() for citation in digest.citations]
     resumo_row.model = model_name

@@ -176,7 +176,7 @@ def test_run_once_continues_after_job_failure(session_factory, db_session, escri
     )
     bad = create_job(
         db_session,
-        tipo="tipo_desconhecido",
+        tipo="captura_oab",
         entidade="escritorio",
         entidade_id=escritorio.id,
         payload={"foo": "bar"},
@@ -196,6 +196,6 @@ def test_run_once_continues_after_job_failure(session_factory, db_session, escri
         bad_fresh = sess.get(models.JobExecucao, bad.id)
         assert good_fresh.status == "completed"
         assert bad_fresh.status == "failed"
-        assert "nao suportado" in (bad_fresh.erro or "")
+        assert "payload de captura incompleto" in (bad_fresh.erro or "")
     finally:
         sess.close()

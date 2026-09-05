@@ -1,5 +1,30 @@
 # Proximos passos - MVP
 
+> **04/09/2026 — execução autorizada e implementada localmente.** O fluxo por
+> upload agora liga extração, resumos citados, contexto e minuta. O painel e o
+> gate consultam a prontidão real. Há seleção de grau, declaração justificada de
+> ausência e retomada de documentos legados. A captura deixou de fabricar prazos
+> de 15 dias; prazo incerto fica pendente e pode ser confirmado com auditoria.
+> Aprovação usa PDF persistido por hash; edição invalida aprovação. Registro
+> manual distingue ausência/referência de comprovante e identifica o declarante.
+> Console não marca alertas como entregues. Adapter Astra e harness de avaliação
+> estão disponíveis por configuração de tarefa.
+>
+> **Validação final:** 620 testes de backend passaram, 6 foram pulados; 69 testes
+> de frontend passaram, com ESLint e TypeScript. Ruff e `git diff --check` passaram.
+> O teste HTTP ponta a ponta usa provedores simulados. O build compilou e gerou
+> as páginas com valores fictícios de Supabase do CI; a montagem `standalone`
+> foi bloqueada por permissões de symlink do Windows. Não houve deploy nem
+> avaliação paga de modelo. Banco de testes: SQLite, sem homologação Postgres.
+>
+> O fundador confirmou desenvolvimento solo e ausência de acesso a qualquer
+> tribunal. Leitura/protocolo pelo agente local seguem sem handlers operacionais.
+> Leia o [registro de execução e operação](produto/execucao-2026-09-04.md), o
+> [plano de evolução](produto/plano-evolucao-2026-09-04.md), a
+> [pesquisa](areas/pesquisa-mercado-2026-09-04.md) e o
+> [diagnóstico anterior à implementação](areas/diagnostico-causor-2026-09-04.md).
+> Os registros datados abaixo não substituem este estado corrente.
+
 > **2026-08-01 — o que executar agora está em
 > [`superpowers/plans/2026-08-01-execucao-imediata.md`](superpowers/plans/2026-08-01-execucao-imediata.md)**,
 > que detalha as duas semanas seguintes do plano de 90 dias a partir da

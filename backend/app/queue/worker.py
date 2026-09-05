@@ -62,13 +62,14 @@ class _NoopDatajudClient:
 def claim_next_job(session: Session) -> models.JobExecucao | None:
     """Claim the oldest queued job: select it, mark running, and commit.
 
-    Single-worker MVP: no SKIP LOCKED. Redis/RQ replaces this claim entirely.
+    Consume apenas captura OAB; documentos têm consumidor próprio.
     """
     job = session.scalars(
         select(models.JobExecucao)
-        .where(models.JobExecucao.status == "queued")
+        .where(models.JobExecucao.status == "queued", models.JobExecucao.tipo == "captura_oab")
         .order_by(models.JobExecucao.id)
         .limit(1)
+        .with_for_update(skip_locked=True)
     ).first()
     if job is None:
         return None

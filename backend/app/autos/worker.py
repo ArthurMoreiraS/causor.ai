@@ -2,7 +2,9 @@
 
 O upload confirma e enfileira; este worker baixa do storage para arquivo
 temporário (hash em blocos de 1 MiB), respeita o teto de tamanho, extrai
-texto/OCR por página e nunca segura transação de banco durante OCR/LLM.
+texto/OCR por página. O job documental mantém seu lock até concluir: se o
+processo morrer, o rollback devolve o job à fila. Isso mantém uma transação
+durante OCR/LLM; separar por leases fica para a etapa de concorrência.
 """
 
 from __future__ import annotations
@@ -271,7 +273,14 @@ def process_due_documents(
     max_attempts: int | None = None,
     backoff_seconds: float = 1.0,
 ) -> int:
-    """Drena jobs `process_document`. Retorna a contagem processada."""
+    """Extrai, resume e reconstrói o contexto. Falha permanece retomável.
+
+    Claim e conclusão na mesma transação evitam jobs running abandonados após
+    interrupção. Resumos completos são reutilizados nas tentativas seguintes.
+    """
+    from app.autos.context import build_process_context
+    from app.autos.summarizer import summarize_document
+
     attempts_ceiling = max_attempts or settings.document_processing_attempts
     processed = 0
     while True:
@@ -280,35 +289,61 @@ def process_due_documents(
             if not jobs:
                 return processed
             job = jobs[0]
-            job_id = job.id
             documento_arquivo_id = (job.payload or {}).get("documento_arquivo_id")
-            session.commit()
-
-        for attempt in range(1, attempts_ceiling + 1):
-            try:
-                with session_factory() as session:
-                    run_document_processing_job(
+            for attempt in range(1, attempts_ceiling + 1):
+                try:
+                    version = run_document_processing_job(
                         session, documento_arquivo_id=documento_arquivo_id
                     )
-                    job = session.get(models.JobExecucao, job_id)
+                    summary = session.scalars(select(models.DocumentoResumo).where(
+                        models.DocumentoResumo.documento_arquivo_id == version.id
+                    )).first()
+                    if summary is None or summary.status != "complete":
+                        summary = summarize_document(session, version=version)
+                    if summary.status != "complete":
+                        raise DocumentProcessingError("summary_failed")
                     job.status = "completed"
                     job.resultado = {"documento_arquivo_id": documento_arquivo_id}
-                    session.commit()
-                break
-            except DocumentProcessingError as exc:
-                with session_factory() as session:
-                    job = session.get(models.JobExecucao, job_id)
+                    job.erro = None
+                    break
+                except DocumentProcessingError as exc:
                     job.status = "failed"
                     job.erro = exc.code
-                    session.commit()
-                break
-            except Exception as exc:  # noqa: BLE001 - transiente: retry com backoff
-                if attempt >= attempts_ceiling:
-                    with session_factory() as session:
-                        job = session.get(models.JobExecucao, job_id)
-                        job.status = "failed"
-                        job.erro = str(exc)[:500]
-                        session.commit()
                     break
-                time.sleep(backoff_seconds * (2 ** (attempt - 1)))
+                except Exception as exc:  # noqa: BLE001 - transiente: retry limitado
+                    if not session.is_active:
+                        raise  # erro de banco exige rollback, preservando job queued
+                    if attempt >= attempts_ceiling:
+                        job.status = "failed"
+                        job.erro = type(exc).__name__
+                        break
+                    time.sleep(backoff_seconds * (2 ** (attempt - 1)))
+            version = session.get(models.DocumentoArquivo, documento_arquivo_id)
+            if version:
+                document = session.get(models.Documento, version.documento_id)
+                process = session.get(models.Processo, document.processo_id)
+                build_process_context(session, processo=process)
+            session.commit()
         processed += 1
+
+
+def run_autos_loop(session_factory, *, idle_seconds: float = 2.0) -> None:
+    """Consumidor contínuo dos jobs de autos, separado da captura OAB."""
+    import logging
+
+    while True:
+        try:
+            processed = process_due_mni_captures(session_factory)
+            processed += process_due_documents(session_factory)
+            processed += process_due_purges(session_factory)
+        except Exception:
+            logging.getLogger(__name__).exception("autos_worker_cycle_failed")
+            processed = 0
+        if not processed:
+            time.sleep(idle_seconds)
+
+
+if __name__ == "__main__":
+    from app.sor.db import SessionLocal
+
+    run_autos_loop(SessionLocal)

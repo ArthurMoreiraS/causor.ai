@@ -119,6 +119,13 @@ def test_quote_matching_ignores_accents_and_whitespace(db_session, document_with
     validate_citations(db_session, digest)
 
 
+def test_summary_without_citations_is_rejected(db_session, document_with_chunks):
+    digest = DocumentDigest(resumo="Afirmação sem fonte", fatos=[], pedidos=[], decisoes=[],
+                            prazos=[], incertezas=[], citations=[])
+    with pytest.raises(InvalidCitationError):
+        validate_citations(db_session, digest)
+
+
 def test_citation_from_another_document_version_is_rejected(
     db_session, document_with_chunks
 ):

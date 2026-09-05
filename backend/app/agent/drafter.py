@@ -106,7 +106,10 @@ def _consolidar_contexto(
     if processo_bits:
         linhas.append("Processo — " + "; ".join(processo_bits) + ".")
 
-    prazo_txt = f"{classificacao.prazo_dias} dias ({'úteis' if classificacao.dias_uteis else 'corridos'})"
+    prazo_txt = (
+        f"{classificacao.prazo_dias} dias ({'úteis' if classificacao.dias_uteis else 'corridos'})"
+        if classificacao.prazo_dias is not None else "Pendente de revisão; não presumir vencimento"
+    )
     if prazo_fatal:
         prazo_txt += f", data fatal {prazo_fatal}"
     linhas.append(
@@ -140,6 +143,7 @@ class MinutaGerada(BaseModel):
     """Dossiê consolidado + a minuta. `minuta` vai para `peticao.conteudo`; o restante
     é apoio à decisão do advogado, guardado em `peticao.dossie`."""
 
+    llm: dict = Field(default_factory=dict)
     contexto_consolidado: str = Field(
         description=(
             "Linha do tempo objetiva do processo e a relação da intimação atual com o "
@@ -169,7 +173,7 @@ def draft_peticao(
     template_conteudo: str | None = None,
     provider: LLMProvider | None = None,
 ) -> MinutaGerada:
-    provider = provider or get_provider(model=settings.claude_draft_model)
+    provider = provider or get_provider(model=settings.claude_draft_model, task="draft")
 
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = (
@@ -194,9 +198,8 @@ def draft_peticao(
         f"Petição cabível: {classificacao.peticao_sugerida}\n"
         f"Resumo: {classificacao.resumo}\n"
         f"Confiança da classificação: {classificacao.confianca:.2f}\n\n"
-        "[PRAZO — JÁ CALCULADO, NÃO ALTERAR]\n"
-        f"{classificacao.prazo_dias} dias "
-        f"({'úteis' if classificacao.dias_uteis else 'corridos'})"
+        "[PRAZO — NÃO ALTERAR DATA CALCULADA, NÃO PRESUMIR DADOS AUSENTES]\n"
+        f"{classificacao.prazo_dias if classificacao.prazo_dias is not None else 'Não identificado; revisão necessária'} "
         f"{data_fatal_txt}\n\n"
         "[DADOS DO PROCESSO]\n"
         f"{contexto_linhas}\n\n"
@@ -219,6 +222,7 @@ def draft_peticao(
     avisos_autoridade += _autoridades_nao_verificadas(redigida.minuta, fonte)
 
     return MinutaGerada(
+        llm=getattr(provider, "last_call", {"model": getattr(provider, "_model", "test_provider")}),
         contexto_consolidado=_consolidar_contexto(
             classificacao=classificacao,
             contexto_processo=contexto,
@@ -227,6 +231,9 @@ def draft_peticao(
         ),
         analise_providencia=redigida.analise_providencia,
         minuta=redigida.minuta,
-        alertas=list(redigida.alertas) + avisos_autoridade,
+        alertas=list(redigida.alertas) + avisos_autoridade + [
+            f"Referência não fornecida ao redator: {citation}; confira a fonte antes de usar."
+            for citation in sorted(set(re.findall(r"\[DOC-\d+ p\.\d+\]", redigida.minuta)) - set(re.findall(r"\[DOC-\d+ p\.\d+\]", fonte)))
+        ],
         confianca=redigida.confianca,
     )

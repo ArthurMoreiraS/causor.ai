@@ -8,6 +8,10 @@
 | Arquivo | O que tem | Quando ler |
 |---|---|---|
 | [`estado.md`](estado.md) | Status atual e próximos passos do MVP | Antes de qualquer decisão de produto/arquitetura |
+| [`produto/execucao-2026-09-04.md`](produto/execucao-2026-09-04.md) | Implementação autorizada, validação, operação do upload e teste do Astra | Para usar e continuar a entrega de setembro |
+| [`areas/diagnostico-causor-2026-09-04.md`](areas/diagnostico-causor-2026-09-04.md) | Diagnóstico do código, lacunas entre etapas, evidências e testes | Para distinguir implementação isolada de fluxo operacional |
+| [`areas/pesquisa-mercado-2026-09-04.md`](areas/pesquisa-mercado-2026-09-04.md) | Concorrentes, fornecedores, APIs oficiais e correções das premissas antigas | Antes de escolher captura, protocolo ou posicionamento |
+| [`produto/plano-evolucao-2026-09-04.md`](produto/plano-evolucao-2026-09-04.md) | Proposta de execução solo, critérios de piloto, features e avaliação do Astra | Para decidir e executar a próxima entrega |
 | [`produto/PRD.md`](produto/PRD.md) | PRD estratégico, visão, mercado, features, roadmap | Para contexto de direção, não de implementação corrente |
 
 ## Operação

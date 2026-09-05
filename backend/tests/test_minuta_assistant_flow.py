@@ -1,9 +1,12 @@
 """Gate de contexto acionável: diz ao assistente qual passo abrir."""
 
 from datetime import datetime, timezone
+import pytest
 
 from app.sor import models
 from tests.conftest import seed_connected_court_session
+
+pytestmark = pytest.mark.usefixtures("registered_test_routes")
 
 
 def _online_agent(db_session, seeded):

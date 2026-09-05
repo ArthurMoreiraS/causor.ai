@@ -25,6 +25,9 @@ def _approved_petition(db_session, *, tribunal="TJMG", sistema="PJe"):
     db_session.add(peticao)
     db_session.flush()
     seed_filing_ready(db_session, peticao)
+    from app.filing.approval import approve_snapshot
+
+    approve_snapshot(db_session, peticao)
     return usuario, peticao
 
 

@@ -26,6 +26,15 @@ services:
       - causor_artifacts:/app/artifacts
     networks: [causor]
 
+  autos-worker:
+    image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: [.env]
+    command: python -m app.autos.worker
+    volumes:
+      - causor_artifacts:/app/artifacts
+    networks: [causor]
+
   frontend:
     container_name: causor-frontend
     image: ghcr.io/arthurmoreiras/causor-frontend:${IMAGE_TAG:-latest}

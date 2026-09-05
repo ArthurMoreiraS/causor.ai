@@ -77,6 +77,7 @@ class InstanciaStatusOut(BaseModel):
 class AutosStatusOut(BaseModel):
     processo_id: int
     instancias: list[InstanciaStatusOut]
+    contexto: dict
 
 
 class UploadTicketIn(BaseModel):
@@ -276,7 +277,96 @@ def status_autos(
                 captura=CapturaOut.model_validate(latest) if latest else None,
             )
         )
-    return AutosStatusOut(processo_id=processo.id, instancias=result)
+    from app.autos.context import _missing_reasons, latest_context
+
+    context = latest_context(session, processo=processo)
+    missing = _missing_reasons(session, processo)
+    return AutosStatusOut(
+        processo_id=processo.id, instancias=result,
+        contexto={
+            **(context.cobertura or {} if context else {}),
+            "ready": not missing, "missing": missing,
+            "id": context.id if context else None,
+        },
+    )
+
+
+class NaoAplicavelIn(BaseModel):
+    grau: str
+    justificativa: str
+
+
+@router.post("/processos/{processo_id}/autos/nao-aplicavel", response_model=CapturaOut)
+def declarar_grau_nao_aplicavel(
+    processo_id: int, payload: NaoAplicavelIn,
+    session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+):
+    process = _get_owned_processo(session, processo_id, current)
+    if payload.grau not in {"1", "2"} or not 20 <= len(payload.justificativa.strip()) <= 1000:
+        raise HTTPException(422, "Informe grau 1/2 e justificativa de 20 a 1000 caracteres")
+    instance = _resolve_or_create_instancia(session, process, payload.grau)
+    # Declaração humana não dispara leitura nem equivale a prova do tribunal.
+    latest = session.scalars(select(models.CapturaAutos).where(
+        models.CapturaAutos.processo_instancia_id == instance.id
+    ).order_by(models.CapturaAutos.generation.desc())).first()
+    if latest and latest.captured_count:
+        raise HTTPException(409, "Há documentos neste grau; revise os autos antes de declarar ausência")
+    capture = models.CapturaAutos(
+        escritorio_id=current.escritorio_id, processo_instancia_id=instance.id,
+        generation=(latest.generation + 1 if latest else 1),
+        status="queued", fonte="upload",
+    )
+    session.add(capture)
+    session.flush()
+    autos_service.mark_not_applicable(session, capture=capture, evidence={
+        "origem": "declaracao_advogado", "usuario_id": current.usuario_id,
+        "justificativa": payload.justificativa.strip(),
+    })
+    session.add(models.AuditLog(
+        escritorio_id=current.escritorio_id, ator=f"usuario:{current.usuario_id}",
+        acao="grau_nao_aplicavel_declarado", entidade="captura_autos", entidade_id=capture.id,
+        detalhe={"grau": payload.grau, "justificativa": payload.justificativa.strip()},
+    ))
+    session.commit()
+    return capture
+
+
+@router.post("/processos/{processo_id}/autos/reprocessar")
+def reprocessar_autos(
+    processo_id: int, session: Session = Depends(get_session),
+    current: CurrentUser = Depends(get_current_user),
+):
+    process = _get_owned_processo(session, processo_id, current)
+    from app.autos.context import build_process_context
+    from app.queue.jobs import create_job
+
+    session.execute(select(models.Processo.id).where(models.Processo.id == process.id).with_for_update())
+    versions = session.scalars(select(models.DocumentoArquivo).join(models.Documento).where(
+        models.Documento.processo_id == process.id, models.DocumentoArquivo.atual.is_(True)
+    )).all()
+    enqueued = 0
+    for version in versions:
+        summary = session.scalars(select(models.DocumentoResumo).where(
+            models.DocumentoResumo.documento_arquivo_id == version.id
+        )).first()
+        if version.extraction_status == "complete" and summary and summary.status == "complete":
+            continue
+        job = session.scalars(select(models.JobExecucao).where(
+            models.JobExecucao.tipo == "process_document", models.JobExecucao.entidade_id == version.id,
+        ).order_by(models.JobExecucao.id.desc())).first()
+        if job and job.status in {"queued", "running"}:
+            continue
+        if job:
+            job.status, job.erro = "queued", None
+        else:
+            create_job(session, tipo="process_document", entidade="documento_arquivo",
+                       entidade_id=version.id, payload={"documento_arquivo_id": version.id},
+                       ator=f"usuario:{current.usuario_id}")
+        enqueued += 1
+    build_process_context(session, processo=process)
+    session.commit()
+    return {"reenfileirados": enqueued}
 
 
 @router.put("/agent/captures/{capture_id}/manifest/initial", response_model=CapturaOut)
@@ -470,6 +560,28 @@ class OverrideIn(BaseModel):
 
     action: str
     justification: str
+
+
+@router.get("/documentos/{documento_id}/versoes/{versao_id}/conteudo")
+def conteudo_versao_citada(
+    documento_id: int, versao_id: int,
+    session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user),
+):
+    from fastapi.responses import Response
+
+    document = _get_owned_documento(session, documento_id, current)
+    version = session.get(models.DocumentoArquivo, versao_id)
+    if version is None or version.documento_id != document.id:
+        raise HTTPException(404, "versão não encontrada")
+    try:
+        data = get_object_store().get_bytes(version.storage_key)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, "arquivo não encontrado") from exc
+    from hashlib import sha256
+
+    if sha256(data).hexdigest() != version.sha256:
+        raise HTTPException(409, "arquivo diverge da versão citada")
+    return Response(content=data, media_type=version.mime_type)
 
 
 class OverrideOut(BaseModel):

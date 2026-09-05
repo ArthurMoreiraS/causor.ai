@@ -24,6 +24,19 @@ import app.sor.models as models  # noqa: F401,E402
 
 
 @pytest.fixture
+def registered_test_routes(monkeypatch):
+    """Matriz de sessão usa drivers fictícios explícitos; não é homologação."""
+    from app.connectors import registry
+
+    test_registry = registry.ConnectorRegistry()
+    for system, tribunal in (("EPROC", "TJTO"), ("EPROC", "TJMT"), ("PJe", "TJMT"), ("e-SAJ", "TJSP")):
+        test_registry.register_reader(system, object, tribunal=tribunal, grau="1")
+        test_registry.register_filing(system, object, tribunal=tribunal, grau="1")
+    monkeypatch.setattr(registry, "_REGISTRY", test_registry)
+    return test_registry
+
+
+@pytest.fixture
 def db_session() -> Iterator[Session]:
     # StaticPool + check_same_thread=False keeps a single shared connection so
     # the in-memory DB survives across the TestClient request thread.

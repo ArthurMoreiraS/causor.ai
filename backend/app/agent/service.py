@@ -42,6 +42,7 @@ def _contexto_processo(processo: models.Processo | None) -> dict:
         "classe": processo.classe,
         "tribunal": processo.tribunal,
         "orgao_julgador": processo.orgao_julgador,
+        "cliente": processo.cliente.nome if processo.cliente else None,
     }
 
 
@@ -267,7 +268,7 @@ def draft_from_intimacao(
     calendar: ForensicCalendar,
     datajud: DatajudClient | None = None,
     usuario_id: int | None = None,
-) -> tuple[models.Prazo, models.Peticao, ClassificacaoIntimacao]:
+) -> tuple[models.Prazo | None, models.Peticao, ClassificacaoIntimacao]:
     if not intimacao.teor:
         raise MissingIntimationTextError("intimacao has no text to classify")
 
@@ -290,14 +291,18 @@ def draft_from_intimacao(
     enriquecimento = _ensure_enriched(session, intimacao, datajud=datajud)
 
     classificacao = classify_intimacao(intimacao.teor)
-    prazo = registrar_prazo(
-        session,
-        intimacao,
-        dias=classificacao.prazo_dias,
-        calendar=calendar,
-        business_days=classificacao.dias_uteis,
-        descricao=classificacao.tipo,
-    )
+    prazo = session.scalars(select(models.Prazo).where(
+        models.Prazo.intimacao_id == intimacao.id
+    ).order_by(models.Prazo.cumprido.asc(), models.Prazo.id.desc())).first()
+    if prazo is None and classificacao.prazo_dias is not None:
+        prazo = registrar_prazo(
+            session,
+            intimacao,
+            dias=classificacao.prazo_dias,
+            calendar=calendar,
+            business_days=classificacao.dias_uteis,
+            descricao=classificacao.tipo,
+        )
     session.flush()
 
     template = _template_for(
@@ -339,10 +344,14 @@ def draft_from_intimacao(
         classificacao=classificacao,
         contexto_processo=_contexto_processo(intimacao.processo),
         historico=historico,
-        prazo_fatal=prazo.data_fatal.isoformat() if prazo.data_fatal else None,
+        prazo_fatal=prazo.data_fatal.isoformat() if prazo and prazo.data_fatal else None,
         template_conteudo=template.conteudo if template is not None else None,
     )
     alertas = list(resultado.alertas)
+    if intimacao.processo and not intimacao.processo.cliente:
+        alertas.append("Parte representada não cadastrada: confirme o cliente e o polo processual antes de usar a minuta.")
+    if prazo is None:
+        alertas.append("Prazo pendente de revisão: a comunicação não permitiu determinar um vencimento. Nenhuma data foi presumida.")
     if enriquecimento is EnriquecimentoResultado.INDISPONIVEL:
         alertas.append(
             "Contexto do processo incompleto: o DataJud (CNJ) esteve indisponível "
@@ -350,10 +359,14 @@ def draft_from_intimacao(
             "estar faltando. Rode a captura novamente mais tarde para completar."
         )
     dossie = {
+        "intimacao_id": intimacao.id,
         "contexto_consolidado": resultado.contexto_consolidado,
         "analise_providencia": resultado.analise_providencia,
         "alertas": alertas,
         "confianca": resultado.confianca,
+        "classificacao": classificacao.model_dump(),
+        "prazo_revisao_pendente": prazo is None,
+        "llm": resultado.llm,
     }
     if bundle is not None:
         from app.autos.context import latest_context
@@ -370,7 +383,7 @@ def draft_from_intimacao(
         )
     peticao = models.Peticao(
         processo_id=intimacao.processo_id,
-        prazo_id=prazo.id,
+        prazo_id=prazo.id if prazo else None,
         escritorio_id=intimacao.escritorio_id,
         tipo=classificacao.peticao_sugerida,
         conteudo=resultado.minuta,

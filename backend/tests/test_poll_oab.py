@@ -109,15 +109,13 @@ def test_poll_captures_normalizes_enriches_and_registers(db_session, escritorio,
 
     assert result.intimacoes_novas == 1
     assert result.processos_enriquecidos == 1
-    assert result.prazos_registrados == 1
+    assert result.prazos_registrados == 0
 
     intimacao = db_session.query(models.Intimacao).one()
     processo = db_session.query(models.Processo).one()
-    prazo = db_session.query(models.Prazo).one()
+    assert db_session.query(models.Prazo).count() == 0
     assert intimacao.processo_id == processo.id
     assert processo.sistema == "PJe"
-    assert prazo.data_inicio == date(2024, 9, 9)
-    assert prazo.data_fatal == date(2024, 9, 30)
     assert djen.calls[0][0] == "12345"
 
 
@@ -135,7 +133,7 @@ def test_poll_is_idempotent_on_rerun(db_session, escritorio, calendar):
     assert second.intimacoes_novas == 0
     assert second.prazos_registrados == 0
     assert db_session.query(models.Intimacao).count() == 1
-    assert db_session.query(models.Prazo).count() == 1
+    assert db_session.query(models.Prazo).count() == 0
 
 
 def test_poll_without_datajud_match_still_registers(db_session, escritorio, calendar):
@@ -149,8 +147,8 @@ def test_poll_without_datajud_match_still_registers(db_session, escritorio, cale
 
     assert result.intimacoes_novas == 1
     assert result.processos_enriquecidos == 0
-    assert result.prazos_registrados == 1
-    assert db_session.query(models.Prazo).count() == 1
+    assert result.prazos_registrados == 0
+    assert db_session.query(models.Prazo).count() == 0
 
 
 def test_poll_datajud_timeout_still_registers_deadline(db_session, escritorio, calendar):
@@ -164,10 +162,10 @@ def test_poll_datajud_timeout_still_registers_deadline(db_session, escritorio, c
 
     assert result.intimacoes_novas == 1
     assert result.processos_enriquecidos == 0
-    assert result.prazos_registrados == 1
+    assert result.prazos_registrados == 0
     assert db_session.query(models.Intimacao).count() == 1
     assert db_session.query(models.Processo).count() == 1
-    assert db_session.query(models.Prazo).count() == 1
+    assert db_session.query(models.Prazo).count() == 0
 
 
 class PagedDjen:
@@ -249,7 +247,7 @@ def test_poll_enrich_false_skips_datajud_and_is_fast(db_session, escritorio, cal
 
     assert result.intimacoes_novas == 1
     assert result.processos_enriquecidos == 0  # DataJud nao foi chamado
-    assert result.prazos_registrados == 1
+    assert result.prazos_registrados == 0
     assert datajud.calls == []  # zero chamadas DataJud
     # Processo "shell" existe mas sem andamentos nem classe
     processo = db_session.query(models.Processo).one()
@@ -323,7 +321,7 @@ def test_poll_oab_nao_fabrica_prazo_ja_vencido(db_session, escritorio, calendar)
 
     assert result.intimacoes_novas == 1
     assert result.prazos_registrados == 0
-    assert result.prazos_historicos == 1
+    assert result.prazos_historicos == 0
     assert db_session.query(models.Prazo).count() == 0
     # A intimação continua no SOR — nada é perdido, só não vira alarme.
     assert db_session.query(models.Intimacao).count() == 1

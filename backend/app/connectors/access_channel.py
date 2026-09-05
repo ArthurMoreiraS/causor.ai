@@ -59,11 +59,18 @@ def _falta(motivo: str) -> Capacidade:
 
 
 def _acesso_pelo_computador(
-    session: Session, *, escritorio_id: int, sistema: str, tribunal: str, grau: str
+    session: Session, *, escritorio_id: int, sistema: str, tribunal: str, grau: str,
+    operation: str = "reader",
 ) -> Capacidade:
     """O que falta para o computador pareado atender esta rota."""
     from app.connectors import sessions as court_sessions
     from app.connectors.assistant import has_online_agent
+    from app.connectors.registry import get_connector_registry, UnsupportedConnectorProfile
+
+    try:
+        getattr(get_connector_registry(), operation)(sistema, tribunal=tribunal, grau=grau)
+    except UnsupportedConnectorProfile:
+        return _falta("integracao_indisponivel")
 
     if not has_online_agent(session, escritorio_id):
         return _falta(FALTA_PAREAR)
@@ -119,6 +126,9 @@ def resolve_acesso_tribunal(
         tribunal=tribunal,
         grau=grau,
         ler_autos=ler_autos,
-        protocolar=pelo_computador,
+        protocolar=_acesso_pelo_computador(
+            session, escritorio_id=escritorio_id, sistema=sistema,
+            tribunal=tribunal, grau=grau, operation="filing",
+        ),
         mni_disponivel=mni_disponivel,
     )

@@ -33,12 +33,12 @@ function tomDeRisco(item: ReviewQueueItem): "risk" | "warn" | "done" | "" {
 function badgeDePrazo(item: ReviewQueueItem) {
   const dias = item.dias_para_vencer;
   if (item.status === "protocolada") {
-    return <span className="dayBadge done">Protocolada · comprovante ok</span>;
+    return <span className="dayBadge done">Protocolo registrado</span>;
   }
   if (item.status === "cumprido") {
     return <span className="dayBadge done">Prazo cumprido</span>;
   }
-  if (dias === null) return <span className="dayBadge neutral">Sem prazo</span>;
+  if (dias === null) return <span className="dayBadge neutral">Prazo a revisar</span>;
   if (dias < 0) return <span className="dayBadge risk">Vencido há {Math.abs(dias)}d</span>;
   if (dias === 0) return <span className="dayBadge risk">Vence hoje</span>;
   if (dias === 1) return <span className="dayBadge risk">Vence em 1 dia</span>;

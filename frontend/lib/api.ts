@@ -62,6 +62,12 @@ export type Prazo = {
   cumprido: boolean;
 };
 
+export async function confirmarPrazoIntimacao(intimacaoId: number, payload: {
+  data_base: string; dias: number; dias_uteis: boolean; justificativa: string; dias_sem_expediente: string[];
+}): Promise<Prazo> {
+  return request(`/intimacoes/${intimacaoId}/prazo`, { method: "POST", body: JSON.stringify(payload) });
+}
+
 /** Dossiê de apoio gerado junto com a minuta. Fica separado de `conteudo` (que
  * carrega só o texto da peça) e serve de contexto para a revisão do advogado. */
 export type Dossie = {
@@ -69,7 +75,17 @@ export type Dossie = {
   analise_providencia?: string;
   alertas?: string[];
   confianca?: number;
+  citations?: { documento_id: number; documento_arquivo_id: number; chunk_id: number; pagina: number; quote: string }[];
 };
+
+export async function baixarFonteCitada(documentoId: number, versaoId: number): Promise<Blob> {
+  const { data } = await supabase.auth.getSession();
+  const response = await fetch(`${API_BASE}/documentos/${documentoId}/versoes/${versaoId}/conteudo`, {
+    headers: withAuthHeaders({}, data.session?.access_token), cache: "no-store"
+  });
+  if (!response.ok) throw new Error(`Falha ao abrir fonte: ${response.status}`);
+  return response.blob();
+}
 
 export type Peticao = {
   id: number;
@@ -165,7 +181,7 @@ export type AuditLog = {
 export type Classificacao = {
   tipo: string;
   peticao_sugerida: string;
-  prazo_dias: number;
+  prazo_dias: number | null;
   dias_uteis: boolean;
   confianca: number;
   resumo: string;
@@ -615,7 +631,24 @@ export type AutosInstanciaStatus = {
 export type AutosStatus = {
   processo_id: number;
   instancias: AutosInstanciaStatus[];
+  contexto?: {
+    ready: boolean;
+    missing: string[];
+    documents_total?: number;
+    documents_extracted?: number;
+    documents_summarized?: number;
+  };
 };
+
+export async function declararGrauNaoAplicavel(processoId: number, grau: string, justificativa: string) {
+  return request(`/processos/${processoId}/autos/nao-aplicavel`, {
+    method: "POST", body: JSON.stringify({ grau, justificativa })
+  });
+}
+
+export async function reprocessarAutos(processoId: number) {
+  return request(`/processos/${processoId}/autos/reprocessar`, { method: "POST" });
+}
 
 export async function capturarAutos(
   processoId: number,
@@ -738,7 +771,7 @@ export type CourtLoginResult = {
 export type ProximoPasso = {
   processo_id: number;
   ready: boolean;
-  next_step: "pair_agent" | "court_login" | "capture_autos" | null;
+  next_step: "pair_agent" | "court_login" | "capture_autos" | "upload_autos" | null;
   rota: { sistema: string; tribunal: string; grau: string };
 };
 
@@ -784,7 +817,7 @@ export async function listarCoberturaConectores(): Promise<ConnectorCoverageRow[
 export type AcessoCapacidade = {
   disponivel: boolean;
   via: "oficial" | "computador" | null;
-  falta: "parear" | "logar" | "reconectar" | null;
+  falta: "parear" | "logar" | "reconectar" | "integracao_indisponivel" | null;
 };
 
 export type AcessoTribunal = {

@@ -6,6 +6,16 @@ SaaS operacional para escritórios jurídicos brasileiros. O fluxo principal é:
 
 ## Estado atual
 
+> **Revisão de 04/09/2026:** há componentes implementados que ainda não formam
+> um fluxo operacional completo. Os handlers atuais do agente local não executam
+> leitura/preparo real. A execução posterior integrou upload, extração, resumos
+> e contexto, com teste HTTP ponta a ponta usando provedores simulados.
+> A lista abaixo descreve componentes existentes, não homologação em tribunais.
+> Consulte o [diagnóstico atualizado](docs/areas/diagnostico-causor-2026-09-04.md)
+> e o [estado do projeto](docs/estado.md) antes de iniciar um piloto.
+> O [registro da execução](docs/produto/execucao-2026-09-04.md) explica operação,
+> configuração do Astra, validação e dependências externas.
+
 O MVP já possui:
 
 - captura de intimações por DJEN/Comunica e enriquecimento via DataJud;
@@ -13,17 +23,20 @@ O MVP já possui:
 - cálculo determinístico de prazos;
 - classificação, chat operacional e geração de minutas com Claude;
 - templates do escritório, fila de revisão e Gate OAB;
-- leitura íntegra dos autos com prova de completude e gate fail-closed;
-- canal oficial MNI (webservice do CNJ) para leitura dos autos no servidor,
-  com o agente local como fallback automático por processo;
-- protocolo PJe assistido até `ready_to_sign`;
+- upload por grau, extração, resumos citados e contexto integrado ao worker,
+  com gate fail-closed e retomada de documentos anteriores;
+- canal MNI para leitura no servidor, dependente de credenciamento e validação,
+  com roteamento para o agente quando não há canal MNI elegível;
+- infraestrutura de agente local e conector PJe legado; os handlers atuais de
+  leitura/preparo real ainda não estão implementados;
+- registro manual do protocolo informado pelo advogado;
 - vault local/Supabase para referências e credenciais, sem segredos no SOR;
 - jobs persistidos, captura agendada com retry e recuperação de jobs interrompidos;
 - frontend Next.js para o fluxo operacional e onboarding do piloto;
 - auditoria das mutações relevantes.
 
-O envio final ainda é feito pelo advogado no PJe/PJeOffice. O número do
-protocolo é confirmado depois no Causor.
+Na modalidade manual, o envio é feito pelo advogado no sistema do tribunal.
+O registro posterior do número no Causor não verifica por si só o comprovante.
 
 ## Estrutura
 

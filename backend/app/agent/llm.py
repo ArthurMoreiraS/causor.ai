@@ -44,6 +44,7 @@ class ClaudeProvider:
     def __init__(self, *, client=None, model: str | None = None) -> None:
         self._client = client
         self._model = model or settings.claude_model
+        self.last_call: dict = {}
 
     def _get_client(self):
         if self._client is None:
@@ -63,6 +64,9 @@ class ClaudeProvider:
     def complete_structured(
         self, *, system: str, user: str, schema: type[BaseModel], max_tokens: int = 2000
     ) -> BaseModel:
+        from hashlib import sha256
+
+        started = time.monotonic()
         response = self._get_client().messages.parse(
             model=self._model,
             max_tokens=max_tokens,
@@ -71,6 +75,13 @@ class ClaudeProvider:
             output_format=schema,
             **self._thinking_kwargs(),
         )
+        usage = getattr(response, "usage", None)
+        self.last_call = {
+            "provider": "claude", "model": getattr(response, "model", self._model),
+            "task_schema": schema.__name__, "prompt_version": sha256(system.encode()).hexdigest()[:16],
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "usage": usage.model_dump() if hasattr(usage, "model_dump") else {},
+        }
         return response.parsed_output
 
     def complete_text(self, *, system: str, user: str, max_tokens: int) -> str:
@@ -236,14 +247,21 @@ def _extract_content(data: dict) -> str:
         ) from exc
 
 
-def get_provider(*, model: str | None = None) -> LLMProvider:
+def get_provider(*, model: str | None = None, task: str | None = None) -> LLMProvider:
     """Return the LLM provider configured for the requested task.
 
     ``model`` is the Claude task model (classification/draft). When the provider
     is ``openai_compat``, ``model`` is ignored — the single ``CAUSOR_LLM_MODEL``
     handles all tasks (fine for testing).
     """
-    provider = (settings.llm_provider or "claude").strip().lower()
+    override = getattr(settings, f"llm_{task}_provider", "") if task else ""
+    provider = (override or settings.llm_provider or "claude").strip().lower()
+    if provider == "openai":
+        from app.agent.openai_responses import OpenAIResponsesProvider
+
+        return OpenAIResponsesProvider()
     if provider == "openai_compat":
         return OpenAICompatProvider()
-    return ClaudeProvider(model=model)
+    if provider == "claude":
+        return ClaudeProvider(model=model)
+    raise LLMProviderError(f"Provedor não suportado: {provider}")

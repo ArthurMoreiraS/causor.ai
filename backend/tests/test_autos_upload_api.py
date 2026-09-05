@@ -27,6 +27,108 @@ def _arquivo(nome, conteudo=PDF_OK):
     return ("arquivos", (nome, conteudo, "application/pdf"))
 
 
+def test_upload_worker_builds_context_and_retry_preserves_summary(
+    client, db_session, seeded, local_store, monkeypatch
+):
+    from pathlib import Path
+    from sqlalchemy.orm import sessionmaker
+    from app.autos.worker import process_due_documents
+    from app.autos.summarizer import DocumentDigest, ChunkCitation
+
+    class Provider:
+        calls = 0
+
+        def complete_structured(self, *, user, **kwargs):
+            import re
+            self.calls += 1
+            chunk_id = int(re.search(r"chunk_id=(\d+)", user).group(1))
+            chunk = db_session.get(models.DocumentoTrecho, chunk_id)
+            return DocumentDigest(
+                resumo="Documento de teste", fatos=[], pedidos=[], decisoes=[],
+                prazos=[], incertezas=[],
+                citations=[ChunkCitation(chunk_id=chunk_id, quote=chunk.texto[:60])],
+            )
+
+    provider = Provider()
+    monkeypatch.setattr("app.autos.summarizer.get_provider", lambda **kw: provider)
+    pdf = (Path(__file__).parent / "fixtures/pdfs/textual.pdf").read_bytes()
+    assert client.post(
+        f"/processos/{seeded.id}/autos/upload",
+        files=[_arquivo("autos.pdf", pdf)], data={"grau": "1"},
+    ).status_code == 200
+    declaration = client.post(
+        f"/processos/{seeded.id}/autos/nao-aplicavel",
+        json={"grau": "2", "justificativa": "Conferi o tribunal: não existe recurso ou autos de segundo grau."},
+    )
+    assert declaration.status_code == 200
+    before = client.get(f"/processos/{seeded.id}/autos/status").json()
+    assert before["contexto"]["ready"] is False
+    factory = sessionmaker(bind=db_session.get_bind(), expire_on_commit=False)
+    assert process_due_documents(factory, backoff_seconds=0) == 1
+    db_session.expire_all()
+    after = client.get(f"/processos/{seeded.id}/autos/status").json()
+    assert after["contexto"]["ready"] is True
+    assert after["contexto"]["documents_summarized"] == 1
+    assert process_due_documents(factory, backoff_seconds=0) == 0
+    assert provider.calls == 1
+
+    # Continua pelos endpoints usados pelo advogado, sem inserir contexto no banco.
+    from app.settings import settings
+    monkeypatch.setattr(settings, "datajud_api_key", "")
+
+    class Classifier:
+        def complete_structured(self, *, schema, **kw):
+            return schema(tipo="Contestação", peticao_sugerida="Contestação", prazo_dias=15,
+                          dias_uteis=True, confianca=0.8, resumo="Resposta à intimação")
+
+    class Drafter:
+        def complete_structured(self, *, schema, user, **kw):
+            assert "Documento de teste" in user
+            assert "[DOC-" in user
+            return schema(analise_providencia="Revisar a defesa", minuta="Proposta baseada nos autos.",
+                          alertas=[], confianca=0.8)
+
+    monkeypatch.setattr("app.agent.classifier.get_provider", lambda **kw: Classifier())
+    monkeypatch.setattr("app.agent.drafter.get_provider", lambda **kw: Drafter())
+    notice = db_session.query(models.Intimacao).first()
+    draft = client.post(f"/intimacoes/{notice.id}/draft")
+    assert draft.status_code == 200
+    petition = draft.json()["peticao"]
+    citation = petition["dossie"]["citations"][0]
+    original = client.get(f"/documentos/{citation['documento_id']}/versoes/{citation['documento_arquivo_id']}/conteudo")
+    assert original.content == pdf
+    preview = client.get(f"/peticoes/{petition['id']}/pdf")
+    assert preview.content.startswith(b"%PDF")
+    assert client.post(f"/peticoes/{petition['id']}/approve").status_code == 200
+    assert client.get(f"/peticoes/{petition['id']}/pdf").content == preview.content
+    filed = client.post(f"/peticoes/{petition['id']}/protocolar/confirmar", json={"protocolo": "DECLARACAO-TESTE"})
+    assert filed.status_code == 200
+    receipt = filed.json()["dossie"]["protocolo_registrado"]
+    assert receipt["origem"] == "declaracao_manual"
+    assert receipt["comprovante_status"] == "ausente"
+
+
+def test_general_worker_leaves_document_jobs_for_document_worker(db_session, seeded):
+    from app.queue.worker import claim_next_job
+    job = models.JobExecucao(tipo="process_document", status="queued", payload={})
+    db_session.add(job)
+    db_session.commit()
+    assert claim_next_job(db_session) is None
+    assert job.status == "queued"
+
+
+def test_retry_recovers_legacy_extraction_only_jobs(client, db_session, seeded, local_store):
+    client.post(f"/processos/{seeded.id}/autos/upload", files=[_arquivo("autos.pdf")])
+    job = db_session.query(models.JobExecucao).filter_by(tipo="process_document").one()
+    job.status = "completed"  # estado legado: só extração, sem resumo/contexto
+    db_session.commit()
+    retried = client.post(f"/processos/{seeded.id}/autos/reprocessar")
+    assert retried.json() == {"reenfileirados": 1}
+    assert client.post(f"/processos/{seeded.id}/autos/reprocessar").json() == {"reenfileirados": 0}
+    db_session.refresh(job)
+    assert job.status == "queued"
+
+
 def test_envio_registra_captura_completa(client, seeded, local_store):
     resp = client.post(
         f"/processos/{seeded.id}/autos/upload",

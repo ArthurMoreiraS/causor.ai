@@ -88,13 +88,13 @@ def test_classify_coerces_zero_prazo_to_minimum():
         tipo="x", peticao_sugerida="y", prazo_dias=0, dias_uteis=True,
         confianca=0.2, resumo="z",
     )
-    assert coerced.prazo_dias == 1
+    assert coerced.prazo_dias is None
 
     negative = ClassificacaoIntimacao(
         tipo="x", peticao_sugerida="y", prazo_dias=-3, dias_uteis=False,
         confianca=0.1, resumo="z",
     )
-    assert negative.prazo_dias == 1
+    assert negative.prazo_dias is None
 
 
 def test_draft_returns_structured_minuta():
@@ -247,7 +247,7 @@ def test_classificacao_usa_haiku_por_padrao(monkeypatch):
                 resumo="Resumo",
             )
 
-    def fake_get_provider(*, model=None):
+    def fake_get_provider(*, model=None, task=None):
         seen["model"] = model
         return Provider()
 
@@ -267,7 +267,7 @@ def test_minuta_usa_sonnet_por_padrao(monkeypatch):
         def complete_structured(self, *, system, user, schema, max_tokens=None):
             return _MINUTA_LLM
 
-    def fake_get_provider(*, model=None):
+    def fake_get_provider(*, model=None, task=None):
         seen["model"] = model
         return Provider()
 

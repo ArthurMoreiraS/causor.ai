@@ -13,6 +13,7 @@ caixa.
 from __future__ import annotations
 
 from collections import Counter
+from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Protocol
 
@@ -31,7 +32,13 @@ ROTULOS = {
 
 
 class AlertSender(Protocol):
-    def enviar(self, *, destinos: list[str], assunto: str, corpo: str) -> None: ...
+    def enviar(self, *, destinos: list[str], assunto: str, corpo: str) -> bool | None: ...
+
+
+@dataclass
+class DeliveryReport:
+    simulated: int = 0
+    failed: int = 0
 
 
 def _destinos(session: Session, escritorio_id: int) -> list[str]:
@@ -91,9 +98,11 @@ def notificar_prazos(
     sender: AlertSender,
     hoje: date | None = None,
     escritorio_id: int | None = None,
+    report: DeliveryReport | None = None,
 ) -> list[models.NotificacaoPrazo]:
     """Avisa cada escritório sobre os prazos ainda não avisados naquele nível."""
     hoje = hoje or date.today()
+    report = report or DeliveryReport()
     escritorios = session.scalars(
         select(models.Escritorio).where(
             models.Escritorio.id == escritorio_id
@@ -120,12 +129,26 @@ def notificar_prazos(
             continue
 
         try:
-            sender.enviar(
+            delivered = sender.enviar(
                 destinos=destinos,
                 assunto=montar_assunto(pendentes),
                 corpo=montar_corpo(session, pendentes),
             )
+            if delivered is False:
+                report.simulated += 1
+                session.add(models.AuditLog(
+                    escritorio_id=escritorio.id, ator="system", acao="alerta_prazo_simulado",
+                    entidade="escritorio", entidade_id=escritorio.id,
+                    detalhe={"prazos": len(pendentes)},
+                ))
+                continue
         except Exception:  # noqa: BLE001 - falha de envio não pode perder o aviso
+            report.failed += 1
+            session.add(models.AuditLog(
+                escritorio_id=escritorio.id, ator="system", acao="alerta_prazo_falhou",
+                entidade="escritorio", entidade_id=escritorio.id,
+                detalhe={"prazos": len(pendentes)},
+            ))
             continue
 
         agora = datetime.now(timezone.utc)

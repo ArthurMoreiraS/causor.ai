@@ -74,6 +74,8 @@ def resolve_next_step(
     )
     if acesso.ler_autos.disponivel:
         return "capture_autos", rota
+    if acesso.ler_autos.falta == "integracao_indisponivel":
+        return "upload_autos", rota
     if acesso.ler_autos.falta == "parear":
         return "pair_agent", rota
     return "court_login", rota

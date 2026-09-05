@@ -162,6 +162,7 @@ def mark_not_applicable(
     capture.evidence = {**(capture.evidence or {}), **evidence}
     capture.completed_at = _now()
     session.flush()
+    _refresh_context(session, capture)
     return capture
 
 
@@ -427,7 +428,16 @@ def finalize_capture(
         _transition(capture, "incomplete")
         capture.error_code = _incompleteness_code(capture, result)
     session.flush()
+    _refresh_context(session, capture)
     return capture
+
+
+def _refresh_context(session: Session, capture: models.CapturaAutos) -> None:
+    from app.autos.context import build_process_context
+
+    instance = session.get(models.ProcessoInstancia, capture.processo_instancia_id)
+    process = session.get(models.Processo, instance.processo_id)
+    build_process_context(session, processo=process)
 
 
 def _incompleteness_code(

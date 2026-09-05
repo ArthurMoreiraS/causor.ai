@@ -5,6 +5,7 @@ import { useMemo, type ReactNode } from "react";
 import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
 import { formatDate, statusLabel } from "@/lib/format";
 import { sanitizeHtml } from "@/lib/sanitize";
+import ConfirmarPrazo from "./components/ConfirmarPrazo";
 
 export type DetailSelection =
   | { kind: "processo"; id: number }
@@ -231,6 +232,7 @@ function IntimacaoDetail({
         </div>
       ) : null}
 
+      {!prazo && !offline && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} />}
       <DetailSection title="Teor da intimação">
         <TeorHtml teor={intimacao.teor} />
       </DetailSection>

@@ -6,6 +6,8 @@ import {
   AutosStatus,
   capturarAutos,
   criarOverrideContexto,
+  declararGrauNaoAplicavel,
+  reprocessarAutos,
   enviarAutos,
   statusAutos
 } from "@/lib/api";
@@ -22,6 +24,8 @@ export type ContextUiState =
   | "blocked";
 
 export function deriveUiState(status: AutosStatus | null): ContextUiState {
+  if (status?.contexto?.ready) return "ready";
+  if (status?.contexto?.missing.some((m) => m.includes("obsoleto") || m.includes("stale"))) return "stale";
   if (!status || status.instancias.length === 0) return "not_captured";
   const capturas = status.instancias.map((i) => i.captura);
   if (capturas.every((c) => c === null)) return "not_captured";
@@ -30,7 +34,8 @@ export function deriveUiState(status: AutosStatus | null): ContextUiState {
   }
   if (capturas.some((c) => c && ["incomplete", "failed"].includes(c.status))) return "incomplete";
   if (capturas.every((c) => c === null || c.status === "complete" || c.status === "not_applicable")) {
-    return "ready";
+    if (status.contexto?.missing.some((m) => m.startsWith("instancia:") || m.includes("failed"))) return "incomplete";
+    return "processing";
   }
   return "blocked";
 }
@@ -40,7 +45,7 @@ const STATE_LABEL: Record<ContextUiState, string> = {
   capturing: "Capturando autos…",
   incomplete: "Contexto incompleto",
   processing: "Processando documentos…",
-  ready: "Contexto completo",
+  ready: "Contexto disponível para revisão",
   stale: "Contexto desatualizado",
   blocked: "Bloqueado"
 };
@@ -54,6 +59,8 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
   const [justification, setJustification] = useState("");
   const [overrideOk, setOverrideOk] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
+  const [grau, setGrau] = useState("1");
+  const [absence, setAbsence] = useState("");
 
   async function reload() {
     try {
@@ -68,6 +75,8 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
 
   useEffect(() => {
     void reload();
+    const timer = window.setInterval(() => void reload(), 5000);
+    return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processoId]);
 
@@ -89,7 +98,7 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
     if (!arquivos || arquivos.length === 0) return;
     setBusy("upload");
     try {
-      await enviarAutos(processoId, Array.from(arquivos), "1");
+      await enviarAutos(processoId, Array.from(arquivos), grau);
       await reload();
     } catch (err) {
       setError(humanError(err, "Falha ao enviar os autos"));
@@ -109,6 +118,24 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
     } finally {
       setBusy(null);
     }
+  }
+
+  async function declararAusencia() {
+    setBusy("ausencia");
+    try {
+      await declararGrauNaoAplicavel(processoId, grau, absence);
+      setAbsence("");
+      await reload();
+    } catch (err) {
+      setError(humanError(err, "Falha ao registrar declaração"));
+    } finally { setBusy(null); }
+  }
+
+  async function reprocessar() {
+    setBusy("processar");
+    try { await reprocessarAutos(processoId); await reload(); }
+    catch (err) { setError(humanError(err, "Falha ao retomar processamento")); }
+    finally { setBusy(null); }
   }
 
   if (loading) {
@@ -162,12 +189,14 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
                   <span
                     className="pill"
                     title={
-                      instancia.captura.fonte === "mni"
+                      instancia.captura.fonte === "upload"
+                        ? "Arquivos e escopo declarados pelo advogado; não comprovam a íntegra do tribunal"
+                        : instancia.captura.fonte === "mni"
                         ? "Lido pelo canal oficial do tribunal, sem usar o seu computador"
                         : "Lido pelo seu computador pareado, com o seu login"
                     }
                   >
-                    {instancia.captura.fonte === "mni" ? "Direto do tribunal" : "Seu computador"}
+                    {instancia.captura.fonte === "upload" ? "Envio pelo advogado" : instancia.captura.fonte === "mni" ? "Direto do tribunal" : "Seu computador"}
                   </span>
                   <span className="contextMeta">
                     {instancia.captura.status}
@@ -192,6 +221,11 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
       )}
 
       <div className="contextActions">
+        <label>Grau dos autos
+          <select aria-label="Grau dos autos" value={grau} onChange={(e) => setGrau(e.target.value)}>
+            <option value="1">1º grau</option><option value="2">2º grau</option>
+          </select>
+        </label>
         <button
           className="toolbarButton compact"
           disabled={busy === "capturar" || uiState === "capturing"}
@@ -214,10 +248,10 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
         <button
           className="toolbarButton primary compact"
           onClick={() => {
-            if (blocked && !overrideOk) setShowWizard(true);
+            setShowWizard(true);
           }}
         >
-          Gerar minuta
+          Ver acesso ao tribunal
         </button>
         {blocked && !overrideOk && (
           <button className="toolbarButton compact" onClick={() => setShowOverride(true)}>
@@ -226,11 +260,24 @@ export default function ProcessContextStatus({ processoId }: { processoId: numbe
         )}
       </div>
 
+      <p>Envie o conjunto de arquivos do grau selecionado. Um novo envio substitui o inventário anterior desse grau.</p>
+      {status?.contexto && (
+        <p aria-live="polite">
+          {status.contexto.documents_extracted ?? 0} documentos extraídos · {status.contexto.documents_summarized ?? 0} resumidos de {status.contexto.documents_total ?? 0} recebidos.
+        </p>
+      )}
+      {blocked && <button className="toolbarButton compact" disabled={!!busy} onClick={() => void reprocessar()}>Retomar processamento com falha</button>}
+      <details>
+        <summary>O processo não possui autos no {grau}º grau</summary>
+        <p>Declare somente após conferir. A justificativa ficará registrada com seu usuário.</p>
+        <textarea aria-label="Justificativa da ausência de autos" value={absence} onChange={(e) => setAbsence(e.target.value)} />
+        <button disabled={!!busy || absence.trim().length < 20} onClick={() => void declararAusencia()}>Registrar declaração</button>
+      </details>
+
       {blocked && !overrideOk && (
         <p className="contextBlockedReason">
-          Minuta e protocolo ficam bloqueados até a captura integral dos autos ser
-          comprovada (enumeração conferida, arquivos verificados por hash, texto
-          extraído e resumos citados).
+          O contexto ainda possui pendências. Confira os graus, os arquivos e o processamento.
+          O envio manual declara o escopo recebido; não comprova a íntegra dos autos no tribunal.
         </p>
       )}
 

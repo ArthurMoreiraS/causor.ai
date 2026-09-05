@@ -118,7 +118,7 @@ def test_capture_oab_defers_datajud_enrichment(client, seeded, monkeypatch):
     assert resp.status_code == 200
     body = resp.json()
     assert body["intimacoes_novas"] == 1
-    assert body["prazos_registrados"] == 1
+    assert body["prazos_registrados"] == 0
     assert body["processos_enriquecidos"] == 0
     assert spy.calls == []  # DataJud não foi chamado durante a captura
 
@@ -487,8 +487,8 @@ def test_gerar_minuta_creates_prazo_and_draft(client, db_session, seeded):
     assert body["peticao"]["status"] == "rascunho"
     assert body["peticao"]["conteudo"] == "MINUTA"
     assert body["peticao"]["dossie"]["analise_providencia"] == "analise"
-    assert body["peticao"]["dossie"]["alertas"] == ["revisar"]
-    assert body["prazo"]["dias"] == 15
+    assert "revisar" in body["peticao"]["dossie"]["alertas"]
+    assert body["prazo"]["dias"] == 15  # reutiliza o prazo em aberto
     assert body["classificacao"]["peticao_sugerida"] == "Contestacao"
 
 
@@ -1073,7 +1073,8 @@ def test_confirmar_protocolo_pje_marca_protocolada_e_audita(client, db_session, 
 
     audit = db_session.query(models.AuditLog).filter_by(acao="peticao_protocolada").one()
     assert audit.detalhe["protocolo"] == "PJE-2026-0001"
-    assert audit.detalhe["origem"] == "pje_assistido"
+    assert audit.detalhe["origem"] == "declaracao_manual"
+    assert audit.detalhe["comprovante_status"] == "referencia_nao_verificada"
 
 
 def test_confirmar_protocolo_com_credencial_audita_provedor_modo(client, db_session, seeded):

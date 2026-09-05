@@ -82,7 +82,10 @@ def _current_versions(
 def compute_source_fingerprint(
     captures: list[models.CapturaAutos], versions: list[models.DocumentoArquivo]
 ) -> str:
-    source_parts = [c.final_fingerprint or "" for c in captures] + [v.sha256 for v in versions]
+    source_parts = [
+        f"{c.processo_instancia_id}:{c.generation}:{c.status}:{c.final_fingerprint or ''}"
+        for c in captures
+    ] + [f"{v.id}:{v.sha256}" for v in versions]
     return sha256("\n".join(sorted(source_parts)).encode("utf-8")).hexdigest()
 
 
@@ -90,6 +93,10 @@ def build_process_context(
     session: Session, *, processo: models.Processo
 ) -> models.ContextoProcesso:
     """Constrói (e persiste) o contexto do processo com prova de cobertura."""
+    # Serializa a publicação de contextos do mesmo processo em Postgres.
+    session.execute(select(models.Processo.id).where(
+        models.Processo.id == processo.id
+    ).with_for_update())
     missing: list[str] = []
     captures_ok: list[models.CapturaAutos] = []
     versions: list[models.DocumentoArquivo] = []
@@ -113,6 +120,7 @@ def build_process_context(
             if capture is None:
                 missing.append(f"instancia:{grau}:sem_captura")
                 continue
+            captures_ok.append(capture)
             if capture.status == "not_applicable":
                 if not capture.evidence:
                     missing.append(f"instancia:{grau}:not_applicable_sem_evidencia")
@@ -120,7 +128,6 @@ def build_process_context(
             if capture.status != "complete":
                 missing.append(f"instancia:{grau}:captura_{capture.status}")
                 continue
-            captures_ok.append(capture)
             versions.extend(_current_versions(session, capture))
 
     documents_total = len(versions)
@@ -165,6 +172,9 @@ def build_process_context(
 
         nome = documento.nome if documento else str(version.documento_id)
         consolidated_blocks.append(f"[{label}] {nome}: {resumo.resumo}")
+        for field, values in (resumo.dados or {}).items():
+            if isinstance(values, list) and values:
+                consolidated_blocks.append(f"[{label}] {field}: " + " | ".join(str(v) for v in values))
         for citation in resumo.citations or []:
             chunk = session.get(models.DocumentoTrecho, citation.get("chunk_id"))
             pagina = chunk.pagina if chunk else None
@@ -179,6 +189,8 @@ def build_process_context(
             )
             excerpt_blocks.append(f"[{label} p.{pagina}] \"{citation.get('quote')}\"")
 
+    if not versions:
+        missing.append("documentos:nenhum_arquivo")
     status = "ready" if not missing else "building"
     fingerprint = compute_source_fingerprint(captures_ok, versions)
 
@@ -200,6 +212,14 @@ def build_process_context(
     )
     contexto_consolidado = "\n\n".join([header, *consolidated_blocks]) if not missing else None
 
+    previous = latest_context(session, processo=processo)
+    if (
+        previous is not None and previous.source_fingerprint == fingerprint
+        and previous.cobertura == cobertura and previous.citations == citations
+        and previous.inventario == inventario
+        and previous.contexto_consolidado == contexto_consolidado
+    ):
+        return previous
     contexto = models.ContextoProcesso(
         escritorio_id=processo.escritorio_id,
         processo_id=processo.id,
@@ -227,9 +247,10 @@ def current_fingerprint(session: Session, *, processo: models.Processo) -> str:
     ).all()
     for instancia in instancias:
         capture = _latest_capture(session, instancia)
-        if capture is not None and capture.status == "complete":
+        if capture is not None:
             captures.append(capture)
-            versions.extend(_current_versions(session, capture))
+            if capture.status == "complete":
+                versions.extend(_current_versions(session, capture))
     return compute_source_fingerprint(captures, versions)
 
 
@@ -245,7 +266,7 @@ def latest_context(
 
 
 def _bundle_from_row(contexto: models.ContextoProcesso) -> ContextBundle:
-    inventory_lines = ["Inventário integral dos autos (100% dos arquivos atuais):"]
+    inventory_lines = ["Inventário dos arquivos recebidos no escopo declarado:"]
     for item in contexto.inventario:
         inventory_lines.append(
             f"- [DOC-{item['documento_id']}] {item.get('nome')} "

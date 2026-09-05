@@ -15,7 +15,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
-from app.autos.context import latest_context
+from app.autos.context import _missing_reasons
 from app.capture.court_routing import resolve_route
 from app.connectors import sessions as court_sessions
 from app.connectors.access_channel import resolve_acesso_tribunal
@@ -43,8 +43,7 @@ def proximo_passo(
     processo = session.get(models.Processo, processo_id)
     if processo is None or processo.escritorio_id != current.escritorio_id:
         raise HTTPException(status_code=404, detail="processo nao encontrado")
-    contexto = latest_context(session, processo=processo)
-    ready = contexto is not None and contexto.status == "ready"
+    ready = not _missing_reasons(session, processo)
     next_step, rota = resolve_next_step(
         session, processo=processo, context_ready=ready
     )

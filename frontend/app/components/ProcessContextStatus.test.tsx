@@ -56,7 +56,7 @@ test("shows missing documents and opens the access wizard from Gerar minuta", as
   expect(screen.getByText(/2 documentos pendentes/)).toBeInTheDocument();
 
   // Bloqueado: "Gerar minuta" abre o assistente de acesso em vez de redigir direto.
-  fireEvent.click(screen.getByRole("button", { name: "Gerar minuta" }));
+  fireEvent.click(screen.getByRole("button", { name: "Ver acesso ao tribunal" }));
   expect(
     await screen.findByLabelText("Assistente de acesso ao tribunal")
   ).toBeInTheDocument();
@@ -113,7 +113,12 @@ test("state derivation covers capture lifecycle", () => {
         }
       ]
     })
-  ).toBe("ready");
+  ).toBe("processing");
+});
+
+test("uses server readiness and reports stale context even after capture", () => {
+  expect(deriveUiState({ processo_id: 1, instancias: [], contexto: { ready: true, missing: [] } })).toBe("ready");
+  expect(deriveUiState({ processo_id: 1, instancias: [], contexto: { ready: false, missing: ["contexto:fingerprint_obsoleto"] } })).toBe("stale");
 });
 
 // O envio dos autos pelo proprio advogado e o unico caminho de captura que nao

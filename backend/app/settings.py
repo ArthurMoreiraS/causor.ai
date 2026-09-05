@@ -72,6 +72,11 @@ class Settings(BaseSettings):
     # OpenAI-compat, Ollama local). So cobre o pipeline classificar+gerar minuta
     # (LLMProvider); o chat agentic continua no Claude.
     llm_provider: str = "claude"  # "claude" | "openai_compat"
+    llm_draft_provider: str = ""  # override por tarefa: openai | claude | openai_compat
+    llm_classification_provider: str = ""
+    llm_context_provider: str = ""
+    openai_model: str = "gpt-6-astra"
+    openai_reasoning_effort: str = "low"
     llm_base_url: str = ""  # ex.: "https://api.groq.com/openai/v1" ou "http://localhost:11434/v1"
     llm_api_key: str = ""  # "" para Ollama local; chave do provedor para Groq/OpenRouter
     llm_model: str = ""  # ex.: "llama-3.3-70b-versatile" (Groq) ou "llama3.1:8b" (Ollama)

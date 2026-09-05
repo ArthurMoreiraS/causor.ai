@@ -78,7 +78,7 @@ test("calls onReady when the context becomes ready", async () => {
   renderWizard(onReady);
 
   await waitFor(() => expect(onReady).toHaveBeenCalled());
-  expect(await screen.findByText(/Contexto completo/)).toBeInTheDocument();
+  expect(await screen.findByText(/Contexto disponível para revisão/)).toBeInTheDocument();
 });
 
 // O wizard repete a consulta a cada 4s. Sem trava, cada volta do polling

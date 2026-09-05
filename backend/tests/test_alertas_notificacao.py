@@ -73,6 +73,15 @@ def esc(db_session):
     return _escritorio(db_session, "Piloto")
 
 
+def test_console_does_not_consume_delivery_deduplication(db_session, esc):
+    from app.alertas.senders import ConsoleSender
+
+    _prazo(db_session, esc, data_fatal=HOJE)
+    assert notificar_prazos(db_session, sender=ConsoleSender(), hoje=HOJE) == []
+    assert db_session.query(models.NotificacaoPrazo).count() == 0
+    assert len(notificar_prazos(db_session, sender=SenderFalso(), hoje=HOJE)) == 1
+
+
 def test_envia_um_aviso_com_os_prazos_do_escritorio(db_session, esc):
     _prazo(db_session, esc, data_fatal=HOJE, descricao="Contestação")
     sender = SenderFalso()

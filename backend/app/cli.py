@@ -14,7 +14,7 @@ from datetime import date, timedelta
 
 from sqlalchemy import select
 
-from app.alertas.notificacao import notificar_prazos
+from app.alertas.notificacao import DeliveryReport, notificar_prazos
 from app.alertas.senders import build_sender
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
@@ -513,12 +513,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "notificar-prazos":
+        report = DeliveryReport()
         hoje = date.fromisoformat(args.hoje) if args.hoje else date.today()
         session = SessionLocal()
         try:
             enviadas = notificar_prazos(
                 session,
                 sender=build_sender(),
+                report=report,
                 hoje=hoje,
                 escritorio_id=args.escritorio,
             )
@@ -529,7 +531,8 @@ def main(argv: list[str] | None = None) -> int:
         finally:
             session.close()
         print(f"Alertas de prazo enviados: {len(enviadas)}")
-        return 0
+        print(f"Simulados: {report.simulated}; falhas: {report.failed}")
+        return int(bool(report.failed or report.simulated))
 
     if args.command == "dossie-oab":
         hoje = date.fromisoformat(args.hoje) if args.hoje else date.today()

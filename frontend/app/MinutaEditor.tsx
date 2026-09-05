@@ -1,8 +1,8 @@
 "use client";
 
 import { Check, Copy, Download, Loader2, RotateCcw, Save, X } from "lucide-react";
-import { useState } from "react";
-import { baixarPeticaoPdf, type Peticao, type Prazo, type Processo } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { baixarPeticaoPdf, baixarFonteCitada, type Peticao, type Prazo, type Processo } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 
@@ -28,6 +28,17 @@ export default function MinutaEditor({
   const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const dirty = text !== serverContent;
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
+  useEffect(() => () => {
+    if (sourceUrl) URL.revokeObjectURL(sourceUrl.split("#")[0]);
+  }, [sourceUrl]);
+
+  async function abrirFonte(doc: number, version: number, page: number) {
+    try {
+      const blob = await baixarFonteCitada(doc, version);
+      setSourceUrl(`${URL.createObjectURL(blob)}#page=${page}`);
+    } catch (err) { setDownloadError(humanError(err, "Falha ao abrir a fonte")); }
+  }
 
   async function baixarPdf() {
     setDownloading(true);
@@ -131,6 +142,17 @@ export default function MinutaEditor({
             spellCheck
             disabled={locked}
           />
+
+          {!!dossie?.citations?.length && <section aria-label="Fontes dos autos">
+            <h3>Fontes dos autos</h3>
+            <ul>{dossie.citations.map((citation, index) => <li key={`${citation.chunk_id}-${index}`}>
+              <button className="toolbarButton compact" onClick={() => void abrirFonte(citation.documento_id, citation.documento_arquivo_id, citation.pagina)}>
+                DOC-{citation.documento_id} · página {citation.pagina}
+              </button>
+              <blockquote>{citation.quote}</blockquote>
+            </li>)}</ul>
+            {sourceUrl && <iframe title="Documento citado" src={sourceUrl} style={{ width: "100%", height: 520 }} />}
+          </section>}
 
           <div className="editorFooter">
             <div className="editorFooterLeft">

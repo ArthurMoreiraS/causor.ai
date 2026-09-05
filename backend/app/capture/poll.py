@@ -1,12 +1,8 @@
 """poll_oab — orchestrate one capture cycle for an OAB registration.
 
-Pipeline per communication: DJEN capture -> normalize (dedup) -> DataJud
-enrich -> register a provisional deadline. Clients and the calendar are
-injected for testability; the CLI wires the real ones.
-
-The deadline length (``dias_default``) is a provisional placeholder: precise
-classification of the act (how many days, business vs. calendar) is the agent
-layer's job. The deterministic engine computes the date once the length is set.
+Pipeline per communication: DJEN capture -> normalize (dedup) -> optional
+DataJud enrichment. Capture creates no deadline: it does not know the duration
+or applicable rule. Legacy ``dias_default`` is accepted but ignored.
 """
 
 from __future__ import annotations
@@ -20,7 +16,6 @@ from sqlalchemy.orm import Session
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
 from app.capture.normalize import enrich_processo, normalize_intimacao
-from app.capture.registrar import registrar_prazo
 from app.prazo_engine.calendar import ForensicCalendar
 
 
@@ -118,7 +113,6 @@ def poll_oab(
             "historico_completo=True."
         )
 
-    hoje = hoje or date.today()
     result = PollResult()
 
     iterador = _iter_comunicacoes(
@@ -157,15 +151,8 @@ def poll_oab(
                 if intimacao.processo_id is None:
                     intimacao.processo_id = processo.id
 
-        prazo = registrar_prazo(
-            session, intimacao, dias=dias_default, calendar=calendar, vigente_em=hoje
-        )
-        if prazo is None:
-            # Publicação antiga: o prazo provisório já venceria. A intimação fica
-            # no SOR (o advogado ainda pode ler e minutar), mas não vira alarme.
-            result.prazos_historicos += 1
-            continue
-        session.flush()
-        result.prazos_registrados += 1
+        # Captura não conhece duração, termo inicial nem providência aplicável.
+        # A comunicação fica disponível para triagem, sem vencimento inventado.
+        # dias_default permanece aceito somente por compatibilidade de clientes.
 
     return result

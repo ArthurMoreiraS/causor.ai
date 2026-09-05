@@ -30,6 +30,9 @@ function rotulo(cap: AcessoCapacidade): { pronto: boolean; texto: string } {
   if (cap.falta === "reconectar") {
     return { pronto: false, texto: "a sessão expirou — entre no tribunal de novo" };
   }
+  if (cap.falta === "integracao_indisponivel") {
+    return { pronto: false, texto: "automação ainda indisponível para este tribunal" };
+  }
   if (cap.falta === "parear") {
     return { pronto: false, texto: "pareie o seu computador abaixo" };
   }

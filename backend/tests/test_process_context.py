@@ -161,7 +161,7 @@ def test_ready_bundle_has_inventory_and_citation_labels(
     build_process_context(db_session, processo=complete_extracted_process)
     bundle = get_ready_context(db_session, processo=complete_extracted_process)
     assert bundle is not None
-    assert "Inventário integral" in bundle.inventory_text
+    assert "Inventário dos arquivos recebidos" in bundle.inventory_text
     assert "[DOC-" in bundle.cited_excerpts
     assert bundle.source_fingerprint
 
@@ -246,7 +246,7 @@ def test_draft_uses_context_bundle_and_never_leaks_vault(
     )
 
     historico = captured_prompt["historico"]
-    assert "Inventário integral" in historico
+    assert "Inventário dos arquivos recebidos" in historico
     assert "[DOC-" in historico
     # Todos os resumos entram no input do redator.
     assert historico.count("Documento resumido para teste.") == 3

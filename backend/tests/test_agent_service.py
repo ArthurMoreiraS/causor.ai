@@ -74,7 +74,8 @@ def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):
     assert peticao.conteudo == "MINUTA"
     assert peticao.dossie["contexto_consolidado"] == "contexto"
     assert peticao.dossie["analise_providencia"] == "analise"
-    assert peticao.dossie["alertas"] == ["revisar qualificacao"]
+    assert "revisar qualificacao" in peticao.dossie["alertas"]
+    assert any("Parte representada" in aviso for aviso in peticao.dossie["alertas"])
     assert peticao.dossie["confianca"] == 0.77
     assert peticao.processo_id == proc.id
 
@@ -356,7 +357,8 @@ def test_draft_no_enrichment_alert_when_process_not_found(db_session):
             datajud=EmptyDatajud(),
         )
 
-    assert peticao.dossie["alertas"] == ["revisar qualificacao"]  # nenhum alerta extra
+    assert "revisar qualificacao" in peticao.dossie["alertas"]
+    assert not any("DataJud" in aviso for aviso in peticao.dossie["alertas"])
 
 
 def test_draft_does_not_reenrich_when_process_already_has_andamentos(db_session):

@@ -98,7 +98,7 @@ class DraftRequest(BaseModel):
 
 
 class DraftResponse(BaseModel):
-    prazo: PrazoOut
+    prazo: PrazoOut | None
     peticao: PeticaoOut
     classificacao: dict
 
@@ -112,9 +112,18 @@ class EditPeticaoRequest(BaseModel):
 class RevisarPrazoRequest(BaseModel):
     descricao: str | None = None
     data_inicio: date | None = None
-    dias: int | None = None
+    dias: int | None = Field(default=None, ge=1, le=3650)
     dias_uteis: bool | None = None
     data_fatal: date | None = None
+
+
+class ConfirmarPrazoRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    data_base: date
+    dias: int = Field(ge=1, le=3650)
+    dias_uteis: bool
+    justificativa: str = Field(min_length=20, max_length=1000)
+    dias_sem_expediente: list[date] = Field(default_factory=list, max_length=730)
 
 
 class CaptureOabRequest(BaseModel):
