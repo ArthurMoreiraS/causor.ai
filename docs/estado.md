@@ -1,12 +1,16 @@
 # Proximos passos - MVP
 
-> **04/09/2026 — Postgres, recuperação e auditoria em validação.** Nova etapa
+> **04/09/2026 — Postgres, recuperação e auditoria implantados (`12b5709`).** A etapa
 > adiciona CI com Postgres 16/17 e migrações reais; proteção de `audit_log`
 > contra UPDATE/DELETE/TRUNCATE; preservação de eventos na limpeza de OAB/demo;
 > retomada auditada de jobs documentais legados, sem tomar jobs bloqueados.
-> Protocolo judicial fica fora da recuperação por tempo. Publicação aguardando
-> CI/deploy. Limites: OCR/LLM ainda mantêm uma transação; administradores do
-> banco podem alterar DDL. Veja o [registro](produto/execucao-2026-09-04.md).
+> Protocolo judicial fica fora da recuperação por tempo. CI aprovado: **640
+> testes gerais backend, 14 cenários em cada Postgres (16/17), 70 frontend**,
+> lint e build. Migração `a4d9e2c7b6f1` aplicada e quatro serviços verificados
+> na VPS. [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33937823777).
+> Limites: OCR/LLM ainda mantêm uma transação; administradores do banco podem
+> alterar DDL. Próximo bloco: leases/checkpoints, transações curtas e rejeição
+> de resultados de workers que perderam a posse. Veja o [registro](produto/execucao-2026-09-04.md).
 
 > **04/09/2026 — continuação com push autorizado.** `bb75395` está na `main`;
 > CI/Linux aprovado, incluindo o build de produção. O deploy antigo deu falso
