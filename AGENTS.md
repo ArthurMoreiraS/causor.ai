@@ -32,7 +32,10 @@ The current local-agent handlers do not execute reading or filing. The **MNI
 channel** (`connectors/mni/`) has a server-side reader implementation, subject
 to credentials and live validation. Upload now runs through extraction,
 summarization and context construction in the autos worker. The production
-Compose declares that worker; deployment has not been performed in this session.
+Compose declares that worker. The first authorized push passed Linux CI, but
+the old deploy workflow falsely succeeded after denied image pulls. The
+follow-up fixes registry authentication, failure handling and Compose release
+synchronization. Consult `docs/estado.md` for the verified deployment status.
 
 Two rules that follow from the MNI work and are easy to get wrong:
 

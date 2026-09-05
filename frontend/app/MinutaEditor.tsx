@@ -143,8 +143,12 @@ export default function MinutaEditor({
             disabled={locked}
           />
 
-          {!!dossie?.citations?.length && <section aria-label="Fontes dos autos">
-            <h3>Fontes dos autos</h3>
+          {!!dossie?.citations?.length && <section aria-label="Fontes enviadas ao redator">
+            <h3>Fontes enviadas ao redator</h3>
+            {dossie.selecao_contexto && <p>
+              {dossie.selecao_contexto.excerpts_selected} de {dossie.selecao_contexto.excerpts_total} excertos
+              {" · Inventário e resumos dos documentos preservados."}
+            </p>}
             <ul>{dossie.citations.map((citation, index) => <li key={`${citation.chunk_id}-${index}`}>
               <button className="toolbarButton compact" onClick={() => void abrirFonte(citation.documento_id, citation.documento_arquivo_id, citation.pagina)}>
                 DOC-{citation.documento_id} · página {citation.pagina}

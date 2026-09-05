@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
+from app.agent.context_selection import DraftContextBudgetError
 from app.alertas.radar import prazos_em_alerta
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.auth.tenant import get_owned_or_404, tenant_select
@@ -1377,6 +1378,9 @@ def create_app() -> FastAPI:
             )
         except MissingIntimationTextError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+        except DraftContextBudgetError as exc:
+            session.rollback()
+            raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
         except ContextNotReadyError:
             # Gate fail-closed do contexto: vira 409 estruturado no handler.
             session.rollback()

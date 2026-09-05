@@ -15,12 +15,14 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.agent.classifier import ClassificacaoIntimacao, classify_intimacao
+from app.agent.context_selection import ensure_budget, select_draft_context
 from app.agent.drafter import draft_peticao
 from app.capture.datajud import DatajudClient
 from app.capture.normalize import enrich_processo
 from app.capture.registrar import registrar_prazo
 from app.prazo_engine.calendar import ForensicCalendar
 from app.sor import models
+from app.settings import settings
 
 # Caps to keep the drafting prompt bounded. The SOR can hold long histories; we
 # inject the most recent, relevant slice and flag truncation to the model.
@@ -271,6 +273,7 @@ def draft_from_intimacao(
 ) -> tuple[models.Prazo | None, models.Peticao, ClassificacaoIntimacao]:
     if not intimacao.teor:
         raise MissingIntimationTextError("intimacao has no text to classify")
+    ensure_budget(intimacao.teor, settings.draft_prompt_max_bytes)
 
     # Gate fail-closed: nenhuma chamada de LLM antes de provar que o contexto
     # do processo está completo e atual (ou de consumir um override do
@@ -319,35 +322,47 @@ def draft_from_intimacao(
         from app.autos.context import get_ready_context
 
         bundle = get_ready_context(session, processo=intimacao.processo)
+    selection = None
     if bundle is not None:
-        historico = "\n\n".join(
-            parte
-            for parte in (
-                bundle.consolidated_text,
-                bundle.inventory_text,
-                f"Excertos citáveis dos autos:\n{bundle.cited_excerpts}"
-                if bundle.cited_excerpts
-                else None,
-                _historico_processo(
-                    session, intimacao.processo, intimacao_atual_id=intimacao.id
-                ),
-            )
-            if parte
+        selection = select_draft_context(
+            bundle,
+            query=f"{intimacao.teor}\n{classificacao.resumo}\n{classificacao.peticao_sugerida}",
+            timeline=_historico_processo(
+                session, intimacao.processo, intimacao_atual_id=intimacao.id
+            ),
+            max_bytes=settings.draft_history_max_bytes,
         )
+        historico = selection.text
     else:
         historico = _historico_processo(
             session, intimacao.processo, intimacao_atual_id=intimacao.id
         )
 
+    # A new interpretation must not overwrite a deadline already in the SOR.
+    draft_classification = classificacao
+    deadline_differs = prazo is not None and (
+        classificacao.prazo_dias != prazo.dias or classificacao.dias_uteis != prazo.dias_uteis
+    )
+    if prazo is not None:
+        draft_classification = classificacao.model_copy(update={
+            "prazo_dias": prazo.dias, "dias_uteis": prazo.dias_uteis,
+        })
     resultado = draft_peticao(
         intimacao_texto=intimacao.teor,
-        classificacao=classificacao,
+        classificacao=draft_classification,
         contexto_processo=_contexto_processo(intimacao.processo),
         historico=historico,
         prazo_fatal=prazo.data_fatal.isoformat() if prazo and prazo.data_fatal else None,
         template_conteudo=template.conteudo if template is not None else None,
     )
     alertas = list(resultado.alertas)
+    if selection is not None:
+        alertas.extend(selection.warnings)
+    if deadline_differs:
+        alertas.append(
+            "A sugestão de prazo da IA diverge do prazo cadastrado. A minuta usa "
+            "a duração, a contagem e a data cadastradas; confira a divergência antes de aprovar."
+        )
     if intimacao.processo and not intimacao.processo.cliente:
         alertas.append("Parte representada não cadastrada: confirme o cliente e o polo processual antes de usar a minuta.")
     if prazo is None:
@@ -366,6 +381,10 @@ def draft_from_intimacao(
         "confianca": resultado.confianca,
         "classificacao": classificacao.model_dump(),
         "prazo_revisao_pendente": prazo is None,
+        "prazo_utilizado": {
+            "id": prazo.id, "dias": prazo.dias, "dias_uteis": prazo.dias_uteis,
+            "data_fatal": prazo.data_fatal.isoformat() if prazo.data_fatal else None,
+        } if prazo else None,
         "llm": resultado.llm,
     }
     if bundle is not None:
@@ -377,7 +396,8 @@ def draft_from_intimacao(
                 "contexto_id": bundle.contexto_id,
                 "source_fingerprint": bundle.source_fingerprint,
                 "inventario": contexto_row.inventario if contexto_row else [],
-                "citations": list(bundle.citations),
+                "citations": list(selection.citations),
+                "selecao_contexto": selection.metadata,
                 "cobertura": contexto_row.cobertura if contexto_row else {},
             }
         )

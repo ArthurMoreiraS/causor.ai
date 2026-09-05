@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from unittest.mock import patch
 
 import httpx
+import pytest
 
 from app.agent.classifier import ClassificacaoIntimacao
 from app.agent.drafter import MinutaGerada
@@ -27,6 +28,30 @@ _MINUTA = MinutaGerada(
     alertas=["revisar qualificacao"],
     confianca=0.77,
 )
+
+
+@pytest.mark.parametrize("suggested_days,suggested_business", [(5, False), (None, True)])
+def test_draft_uses_persisted_deadline_even_if_classification_differs(
+    db_session, seeded, suggested_days, suggested_business
+):
+    notice = db_session.query(models.Intimacao).filter_by(processo_id=seeded.id).first()
+    classification = ClassificacaoIntimacao(
+        tipo="Ciência", peticao_sugerida="Manifestação", prazo_dias=suggested_days,
+        dias_uteis=suggested_business, confianca=0.5, resumo="Revisar ato.",
+    )
+    with (
+        patch("app.agent.service.classify_intimacao", return_value=classification),
+        patch("app.agent.service.draft_peticao", return_value=_MINUTA) as drafter,
+    ):
+        deadline, petition, result = _draft_ready(db_session, notice, calendar=build_calendar([2024]))
+    assert deadline.dias == 15
+    assert drafter.call_args.kwargs["classificacao"].prazo_dias == 15
+    assert drafter.call_args.kwargs["classificacao"].dias_uteis is True
+    assert drafter.call_args.kwargs["prazo_fatal"] == "2024-09-30"
+    assert result.prazo_dias == suggested_days
+    assert petition.dossie["classificacao"]["prazo_dias"] == suggested_days
+    assert petition.dossie["prazo_utilizado"]["id"] == deadline.id
+    assert any("diverge" in warning for warning in petition.dossie["alertas"])
 
 
 def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):

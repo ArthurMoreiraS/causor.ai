@@ -3,6 +3,13 @@ import { gateContexto, humanError, mniErrorMessage, UNREACHABLE } from "./errors
 
 const FALLBACK = "Falha ao carregar credenciais";
 
+test("limite do contexto explica que os autos estao preservados", () => {
+  const body = '{"detail":{"code":"draft_context_budget_exceeded"}}';
+  const message = humanError(new Error(body), FALLBACK);
+  expect(message).toMatch(/capacidade/i);
+  expect(message).toMatch(/preservados/i);
+});
+
 test("mensagem util do backend passa direto", () => {
   expect(humanError(new Error("Credencial revogada"), FALLBACK)).toBe("Credencial revogada");
 });

@@ -257,3 +257,8 @@ def test_draft_uses_context_bundle_and_never_leaks_vault(
     assert peticao.dossie["contexto_id"]
     assert peticao.dossie["source_fingerprint"]
     assert len(peticao.dossie["inventario"]) == 3
+    selection = peticao.dossie["selecao_contexto"]
+    assert selection["excerpts_selected"] == len(peticao.dossie["citations"])
+    assert selection["input_bytes"] == len(historico.encode("utf-8"))
+    for citation in peticao.dossie["citations"]:
+        assert citation["quote"] in historico

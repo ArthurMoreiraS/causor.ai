@@ -1,5 +1,19 @@
 # Proximos passos - MVP
 
+> **04/09/2026 — continuação com push autorizado.** `bb75395` está na `main`;
+> CI/Linux aprovado, incluindo o build de produção. O deploy antigo deu falso
+> sucesso: download das imagens recusado pelo registro, seguido de `/health`
+> da versão anterior. O script corrigido autentica com token temporário, para
+> em falhas, sincroniza o Compose e confere as imagens dos quatro serviços.
+> Implantação da correção ainda precisa de confirmação no próximo workflow.
+>
+> Redação com inventário/resumos preservados, seleção lexical de excertos,
+> limites explícitos e fontes enviadas registradas no dossiê. Divergência entre
+> prazo da IA e prazo cadastrado fica sinalizada; redação usa o cadastrado.
+> Validação local: 630 testes backend + 5 do deploy; 70 frontend, lint e tipos.
+> Próxima etapa interna: Postgres/recuperação e auditoria. Veja os limites e
+> configurações no [registro de execução](produto/execucao-2026-09-04.md).
+
 > **04/09/2026 — execução autorizada e implementada localmente.** O fluxo por
 > upload agora liga extração, resumos citados, contexto e minuta. O painel e o
 > gate consultam a prontidão real. Há seleção de grau, declaração justificada de

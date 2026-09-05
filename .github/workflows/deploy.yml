@@ -6,9 +6,13 @@ on:
     types: [completed]
     branches: [main]
 
+concurrency:
+  group: causor-production
+  cancel-in-progress: false
+
 jobs:
   build-push:
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,19 +61,23 @@ jobs:
   deploy:
     needs: build-push
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: GHCR_USER,GHCR_TOKEN,IMAGE_TAG
           script: |
+            set -eu
             cd /opt/causor
-            export IMAGE_TAG=${{ github.event.workflow_run.head_sha }}
-            echo "IMAGE_TAG=$IMAGE_TAG" > .image_tag.env
-            docker compose --env-file .env --env-file .image_tag.env pull
-            docker compose --env-file .env --env-file .image_tag.env run --rm migrate
-            docker compose --env-file .env --env-file .image_tag.env up -d
-            sleep 15
-            curl -fsS https://api.causorai.com/health
+            curl -fsS "https://raw.githubusercontent.com/ArthurMoreiraS/causor.ai/$IMAGE_TAG/infra/deploy.sh" -o deploy.candidate.sh
+            bash deploy.candidate.sh

@@ -12,10 +12,13 @@ raciocina sobre esse contexto local, nunca "consulta" sistemas externos.
 from __future__ import annotations
 
 import re
+import json
+from hashlib import sha256
 
 from pydantic import BaseModel, Field
 
 from app.agent.classifier import ClassificacaoIntimacao
+from app.agent.context_selection import ensure_budget
 from app.agent.llm import LLMProvider, get_provider
 from app.settings import settings
 
@@ -173,8 +176,6 @@ def draft_peticao(
     template_conteudo: str | None = None,
     provider: LLMProvider | None = None,
 ) -> MinutaGerada:
-    provider = provider or get_provider(model=settings.claude_draft_model, task="draft")
-
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = (
         "\n".join(f"- {k}: {v}" for k, v in contexto.items()) or "- (sem metadados)"
@@ -191,6 +192,10 @@ def draft_peticao(
         else ""
     )
     data_fatal_txt = f" · data fatal: {prazo_fatal}" if prazo_fatal else ""
+    duration_txt = (
+        f"{classificacao.prazo_dias} dias ({'úteis' if classificacao.dias_uteis else 'corridos'})"
+        if classificacao.prazo_dias is not None else "Não identificado; revisão necessária"
+    )
 
     prompt = (
         "[CLASSIFICAÇÃO DA INTIMAÇÃO]\n"
@@ -199,8 +204,7 @@ def draft_peticao(
         f"Resumo: {classificacao.resumo}\n"
         f"Confiança da classificação: {classificacao.confianca:.2f}\n\n"
         "[PRAZO — NÃO ALTERAR DATA CALCULADA, NÃO PRESUMIR DADOS AUSENTES]\n"
-        f"{classificacao.prazo_dias if classificacao.prazo_dias is not None else 'Não identificado; revisão necessária'} "
-        f"{data_fatal_txt}\n\n"
+        f"{duration_txt}{data_fatal_txt}\n\n"
         "[DADOS DO PROCESSO]\n"
         f"{contexto_linhas}\n\n"
         f"{historico_bloco}"
@@ -212,6 +216,9 @@ def draft_peticao(
         "dado ausente, inconsistência ou ponto que exija revisão humana."
     )
 
+    measured_input = _SYSTEM + prompt + json.dumps(_MinutaRedigida.model_json_schema(), ensure_ascii=False)
+    ensure_budget(measured_input, settings.draft_prompt_max_bytes)
+    provider = provider or get_provider(model=settings.claude_draft_model, task="draft")
     redigida = provider.complete_structured(
         system=_SYSTEM, user=prompt, schema=_MinutaRedigida, max_tokens=8000
     )
@@ -222,7 +229,10 @@ def draft_peticao(
     avisos_autoridade += _autoridades_nao_verificadas(redigida.minuta, fonte)
 
     return MinutaGerada(
-        llm=getattr(provider, "last_call", {"model": getattr(provider, "_model", "test_provider")}),
+        llm={**getattr(provider, "last_call", {"model": getattr(provider, "_model", "test_provider")}),
+             "input_bytes": len(measured_input.encode("utf-8")),
+             "input_sha256": sha256(measured_input.encode("utf-8")).hexdigest(),
+             "input_max_bytes": settings.draft_prompt_max_bytes},
         contexto_consolidado=_consolidar_contexto(
             classificacao=classificacao,
             contexto_processo=contexto,

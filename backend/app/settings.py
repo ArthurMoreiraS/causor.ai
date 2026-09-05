@@ -8,6 +8,7 @@ This module only holds infra/config knobs.
 from pathlib import Path
 
 from dotenv import load_dotenv
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -151,6 +152,10 @@ class Settings(BaseSettings):
     # ready com fingerprint atual e não mais velho que esta janela (a menos
     # que nada novo tenha chegado do tribunal desde então).
     context_freshness_hours: int = 24
+
+    # UTF-8 byte limits, not token counts; size for the configured model.
+    draft_history_max_bytes: int = Field(default=120000, ge=1000)
+    draft_prompt_max_bytes: int = Field(default=180000, ge=5000)
 
 
 settings = Settings()

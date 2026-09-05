@@ -71,6 +71,7 @@ export async function confirmarPrazoIntimacao(intimacaoId: number, payload: {
 /** Dossiê de apoio gerado junto com a minuta. Fica separado de `conteudo` (que
  * carrega só o texto da peça) e serve de contexto para a revisão do advogado. */
 export type Dossie = {
+  selecao_contexto?: { excerpts_total: number; excerpts_selected: number; excerpts_omitted: number };
   contexto_consolidado?: string;
   analise_providencia?: string;
   alertas?: string[];

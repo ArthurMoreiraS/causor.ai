@@ -117,6 +117,10 @@ export function humanError(err: unknown, fallback: string): string {
     const code = bodyErrorCode(raw);
     if (code === "internal_error") return SERVER_FAULT;
     if (code === GATE_CONTEXTO_CODE) return GATE_CONTEXTO_MESSAGE;
+    if (code === "draft_context_budget_exceeded") {
+      return "O conteúdo necessário para esta minuta excede a capacidade configurada. " +
+        "Os autos foram preservados. Solicite um ajuste de capacidade ao responsável pelo Causor.";
+    }
     // Erro de domínio com código canônico e mensagem própria: dizer o que
     // fazer vale mais que o fallback genérico da tela.
     if (code && MNI_MESSAGES[code]) return MNI_MESSAGES[code];
