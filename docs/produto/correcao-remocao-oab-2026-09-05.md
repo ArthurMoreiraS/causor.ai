@@ -39,3 +39,13 @@ removido e job próprio retido sem intimações). Depois: 20 testes direcionados
 de limpeza/auditoria/tarefas passaram; outros 22 cenários de OAB/auditoria da
 API também passaram, com Ruff aprovado. Seis cenários novos entram na matriz
 PostgreSQL 16/17 do CI. Nenhuma OAB real foi removida pelo agente.
+
+O [CI da versão ad9bfb6](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33945481355)
+aprovou **676 testes gerais backend, 42 em cada PostgreSQL (16/17), 75 frontend**,
+lint, tipos e build Linux. Os 48 testes pulados na suíte geral correspondem
+aos 42 PostgreSQL executados separadamente e aos seis cenários opt-in.
+
+O [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33945546116)
+concluiu em 05/09 às 01h53 (Brasília), verificando a versão exata `ad9bfb6`
+no backend, worker, autos-worker e frontend, todos saudáveis. O usuário pode
+repetir a remoção na aplicação; não foi executada uma exclusão em sua conta.
