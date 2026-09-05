@@ -56,11 +56,7 @@ def _audit(
 
 
 def _wipe_previous_demo(session: Session, escritorio: models.Escritorio) -> None:
-    """Remove every row from a previous seed run, including its audit trail.
-
-    Demo data is synthetic by definition; replacing its audit entries keeps the
-    panel coherent without touching real (non-demo) escritorios.
-    """
+    """Replace operational demo rows; preserve the previous audit trail."""
 
     processo_ids = list(
         session.scalars(
@@ -90,17 +86,9 @@ def _wipe_previous_demo(session: Session, escritorio: models.Escritorio) -> None
         )
     )
 
-    audit_conditions = [models.AuditLog.escritorio_id == escritorio.id]
-    for entidade, ids in (
-        ("peticao", peticao_ids),
-        ("processo", processo_ids),
-        ("job_execucao", job_ids),
-    ):
-        if ids:
-            audit_conditions.append(
-                (models.AuditLog.entidade == entidade) & models.AuditLog.entidade_id.in_(ids)
-            )
-    session.execute(delete(models.AuditLog).where(or_(*audit_conditions)))
+    _audit(session, acao="demo_reset", entidade="escritorio", entidade_id=escritorio.id,
+           ator="system", escritorio_id=escritorio.id,
+           detalhe={"processos_substituidos": len(processo_ids)})
 
     if job_ids:
         session.execute(

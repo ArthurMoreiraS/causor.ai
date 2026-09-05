@@ -143,6 +143,7 @@ class Settings(BaseSettings):
     document_max_bytes: int = 262144000  # 250 MiB por arquivo de autos
     document_processing_attempts: int = 3
     document_processing_concurrency: int = 1
+    document_recovery_after_minutes: int = Field(default=60, ge=1)
 
     # Consulta oficial MNI (SOAP consultarProcesso) rodando no backend.
     mni_timeout_seconds: float = 60.0  # timeout por chamada SOAP ao MNI

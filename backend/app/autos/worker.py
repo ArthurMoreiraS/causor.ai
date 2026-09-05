@@ -10,6 +10,7 @@ durante OCR/LLM; separar por leases fica para a etapa de concorrência.
 from __future__ import annotations
 
 from hashlib import sha256
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 import tempfile
 import time
@@ -267,6 +268,38 @@ def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[mode
     return jobs
 
 
+def recover_stale_document_jobs(
+    session: Session, *, older_than_minutes: int, now: datetime | None = None, limit: int = 100,
+) -> list[models.JobExecucao]:
+    """Recover committed legacy `running` rows, excluding currently locked work.
+
+    Current workers hold the job lock until completion. Their crash rolls back
+    the claim automatically. Only document processing is safe to requeue here;
+    court filing and uncertain external operations are never recovered by age.
+    """
+    if older_than_minutes <= 0 or limit <= 0:
+        raise ValueError("recovery age and batch size must be positive")
+    cutoff = (now or datetime.now(timezone.utc)) - timedelta(minutes=older_than_minutes)
+    jobs = list(session.scalars(select(models.JobExecucao).where(
+        models.JobExecucao.tipo == "process_document", models.JobExecucao.status == "running",
+        models.JobExecucao.updated_at <= cutoff,
+    ).order_by(models.JobExecucao.id).limit(limit).with_for_update(skip_locked=True)))
+    for job in jobs:
+        payload = job.payload or {}
+        version_id = payload.get("documento_arquivo_id")
+        version = session.get(models.DocumentoArquivo, version_id) if isinstance(version_id, int) else None
+        document = session.get(models.Documento, version.documento_id) if version else None
+        session.add(models.AuditLog(
+            escritorio_id=document.escritorio_id if document else payload.get("escritorio_id"),
+            ator="system", acao="document_job_recovered", entidade="job_execucao", entidade_id=job.id,
+            detalhe={"previous_status": "running", "previous_updated_at": job.updated_at.isoformat()},
+        ))
+        job.status = "queued"
+        job.erro = None
+    session.flush()
+    return jobs
+
+
 def process_due_documents(
     session_factory,
     *,
@@ -282,6 +315,11 @@ def process_due_documents(
     from app.autos.summarizer import summarize_document
 
     attempts_ceiling = max_attempts or settings.document_processing_attempts
+    with session_factory() as recovery_session:
+        recover_stale_document_jobs(
+            recovery_session, older_than_minutes=settings.document_recovery_after_minutes,
+        )
+        recovery_session.commit()
     processed = 0
     while True:
         with session_factory() as session:

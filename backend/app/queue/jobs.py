@@ -374,10 +374,18 @@ def fail_stale_running_jobs(
     older_than_minutes: int,
     now: datetime | None = None,
 ) -> list[models.JobExecucao]:
-    """Fail jobs left running after a worker/process interruption."""
+    """Fail stale OAB captures only. Never infer the outcome of a filing.
+
+    Document jobs have a separate recovery path that honors their row locks.
+    """
+    if older_than_minutes <= 0:
+        raise ValueError("older_than_minutes must be positive")
     now = now or _utcnow()
     cutoff = now - timedelta(minutes=older_than_minutes)
-    stmt = select(models.JobExecucao).where(models.JobExecucao.status == "running")
+    stmt = select(models.JobExecucao).where(
+        models.JobExecucao.status == "running", models.JobExecucao.tipo == "captura_oab",
+        models.JobExecucao.updated_at <= cutoff,
+    ).with_for_update(skip_locked=True)
     stale: list[models.JobExecucao] = []
     for job in session.scalars(stmt):
         updated_at = job.updated_at

@@ -1,5 +1,13 @@
 # Proximos passos - MVP
 
+> **04/09/2026 — Postgres, recuperação e auditoria em validação.** Nova etapa
+> adiciona CI com Postgres 16/17 e migrações reais; proteção de `audit_log`
+> contra UPDATE/DELETE/TRUNCATE; preservação de eventos na limpeza de OAB/demo;
+> retomada auditada de jobs documentais legados, sem tomar jobs bloqueados.
+> Protocolo judicial fica fora da recuperação por tempo. Publicação aguardando
+> CI/deploy. Limites: OCR/LLM ainda mantêm uma transação; administradores do
+> banco podem alterar DDL. Veja o [registro](produto/execucao-2026-09-04.md).
+
 > **04/09/2026 — continuação com push autorizado.** `bb75395` está na `main`;
 > CI/Linux aprovado, incluindo o build de produção. O deploy antigo deu falso
 > sucesso: download das imagens recusado pelo registro, seguido de `/health`

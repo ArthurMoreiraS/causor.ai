@@ -39,14 +39,16 @@ def test_upload_worker_builds_context_and_retry_preserves_summary(
         calls = 0
 
         def complete_structured(self, *, user, **kwargs):
-            import re
             self.calls += 1
+            import re
             chunk_id = int(re.search(r"chunk_id=(\d+)", user).group(1))
-            chunk = db_session.get(models.DocumentoTrecho, chunk_id)
+            # A provider only sees the prompt, never another transaction's
+            # uncommitted chunks (SQLite's shared connection used to hide this).
+            quote = user.split("]\n", 1)[1].split("\n\n[chunk_id=", 1)[0][:60]
             return DocumentDigest(
                 resumo="Documento de teste", fatos=[], pedidos=[], decisoes=[],
                 prazos=[], incertezas=[],
-                citations=[ChunkCitation(chunk_id=chunk_id, quote=chunk.texto[:60])],
+                citations=[ChunkCitation(chunk_id=chunk_id, quote=quote)],
             )
 
     provider = Provider()

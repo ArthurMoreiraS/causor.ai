@@ -7,8 +7,8 @@ audit_log.
 Design notes:
 - Column types stay portable (SQLite for unit tests, Postgres in prod).
 - Timestamps are timezone-aware UTC.
-- ``audit_log`` is append-only by convention (no update/delete in app code);
-  immutability is enforced operationally at the DB/grant level.
+- ``audit_log`` has PostgreSQL triggers blocking UPDATE/DELETE/TRUNCATE.
+  Database owners/admins can change DDL; this is not tamper-proof against them.
 """
 
 from __future__ import annotations

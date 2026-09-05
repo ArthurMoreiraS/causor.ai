@@ -204,25 +204,6 @@ def _job_matches_oab(job: models.JobExecucao, *, oab: str, uf: str) -> bool:
     )
 
 
-def _audit_matches_oab_or_entities(
-    audit: models.AuditLog,
-    *,
-    oab: str,
-    uf: str,
-    entity_ids: dict[str, set[int]],
-) -> bool:
-    detalhe = audit.detalhe if isinstance(audit.detalhe, dict) else {}
-    if (
-        "".join(ch for ch in str(detalhe.get("oab") or "") if ch.isdigit())
-        == "".join(ch for ch in oab if ch.isdigit())
-        and str(detalhe.get("uf") or "").upper() == uf.upper()
-    ):
-        return True
-    if audit.entidade and audit.entidade_id is not None:
-        return audit.entidade_id in entity_ids.get(audit.entidade, set())
-    return False
-
-
 def _purge_oab_data(
     session: Session,
     *,
@@ -327,17 +308,8 @@ def _purge_oab_data(
         "peticao": target_peticao_ids,
         "processo": target_process_ids,
     }
-    audit_ids = [
-        audit.id
-        for audit in session.scalars(
-            select(models.AuditLog).where(models.AuditLog.escritorio_id == escritorio_id)
-        )
-        if _audit_matches_oab_or_entities(audit, oab=oab, uf=uf, entity_ids=entity_ids)
-    ]
-    if audit_ids:
-        counts["auditoria"] = session.execute(
-            delete(models.AuditLog).where(models.AuditLog.id.in_(audit_ids))
-        ).rowcount or 0
+    # Audit records survive operational cleanup, including references to rows
+    # removed below. The endpoint records a new cleanup event instead.
 
     job_ids = [
         job.id
@@ -792,6 +764,9 @@ def create_app() -> FastAPI:
             if purge
             else {}
         )
+        _audit(session, acao="oab_removida", entidade="oab_monitorada", entidade_id=oab.id,
+               ator_id=current.usuario_id, escritorio_id=current.escritorio_id,
+               detalhe={"purge": purge, "counts": counts, "auditoria_preservada": True})
         session.delete(oab)
         session.commit()
         return OabRemovalResultOut(

@@ -58,6 +58,15 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
+    # Integration tests and controlled maintenance may supply a connection.
+    # This also keeps migrations inside the caller's isolated test schema.
+    supplied_connection = config.attributes.get("connection")
+    if supplied_connection is not None:
+        context.configure(connection=supplied_connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
+        return
+
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
