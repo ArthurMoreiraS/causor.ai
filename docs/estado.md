@@ -5,12 +5,15 @@
 > sucesso: download das imagens recusado pelo registro, seguido de `/health`
 > da versão anterior. O script corrigido autentica com token temporário, para
 > em falhas, sincroniza o Compose e confere as imagens dos quatro serviços.
-> Implantação da correção ainda precisa de confirmação no próximo workflow.
+> **Implantação confirmada de `69ac8cb`:** login no registro bem-sucedido,
+> quatro serviços iniciados, imagens conferidas e API saudável. O worker de
+> autos foi criado na VPS. [Logs do deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33932711859).
 >
 > Redação com inventário/resumos preservados, seleção lexical de excertos,
 > limites explícitos e fontes enviadas registradas no dossiê. Divergência entre
 > prazo da IA e prazo cadastrado fica sinalizada; redação usa o cadastrado.
-> Validação local: 630 testes backend + 5 do deploy; 70 frontend, lint e tipos.
+> Validação no CI/Linux: **635 testes backend, 6 pulados; 70 frontend**,
+> lint, tipos e build de produção aprovados.
 > Próxima etapa interna: Postgres/recuperação e auditoria. Veja os limites e
 > configurações no [registro de execução](produto/execucao-2026-09-04.md).
 
