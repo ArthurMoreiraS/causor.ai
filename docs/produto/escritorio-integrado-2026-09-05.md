@@ -177,7 +177,15 @@ também passaram em execução dedicada, incluindo abertura da minuta de origem.
 Há testes de integração HTTP e de interação dos componentes com APIs simuladas.
 
 A migração `a6c2e8f4b0d3` cria a tabela de tarefas e depende de
-`a5f1b7d3c9e2`. A matriz do CI deve validar 36 cenários em cada PostgreSQL
-(16/17), incluindo migração real, deduplicação concorrente e preservação da
-tarefa após remover uma origem. Build Linux e implantação aguardam o push.
+`a5f1b7d3c9e2`. O [CI da versão c0e18fb](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33944040745)
+aprovou **36 cenários em cada PostgreSQL (16/17)**, incluindo migração real,
+deduplicação concorrente e preservação da tarefa após remover uma origem.
+Backend, frontend e build de produção no Linux também passaram.
 Esses testes não substituem a verificação visual e o piloto com o advogado.
+
+**Implantação confirmada em 05/09 às 01h21 (Brasília):** o
+[deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33944092928)
+aplicou `a6c2e8f4b0d3` e verificou a versão exata `c0e18fb` nos quatro
+serviços (backend, worker, autos-worker e frontend), todos saudáveis.
+O escopo atual termina nessa primeira expansão; os demais módulos da tabela
+continuam no plano, com aceites próprios.

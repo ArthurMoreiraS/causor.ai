@@ -1,12 +1,16 @@
 # Proximos passos - MVP
 
-> **05/09 — expansão para escritório integrado em validação local.** A visão
+> **05/09 — escritório integrado: primeira expansão implantada (`c0e18fb`).** A visão
 > autorizada agora inclui atendimento, agenda, documentos, honorários e portal,
 > em entregas sucessivas ligadas ao mesmo cliente/caso. A primeira entrega
 > adiciona Clientes e Tarefas persistentes, associações com processo/intimação/
 > alerta da minuta, responsável, data interna, controle de versão e auditoria.
 > A sidebar foi ampliada e organizada por rotina; minutas `em_revisao` voltam
 > à fila de aprovação. Não há navegador disponível para validação visual.
+> CI aprovado: **670 testes gerais backend, 36 em cada PostgreSQL (16/17),
+> 75 frontend**, lint, tipos e build Linux. Migração `a6c2e8f4b0d3` aplicada;
+> imagens e saúde dos quatro serviços verificadas em 05/09 às 01h21 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33944092928).
 > Veja o [mapa de módulos e ordem de execução](produto/escritorio-integrado-2026-09-05.md).
 > O próximo bloco continua sendo a revisão dos cinco casos pelo advogado;
 > exemplos reais e homologação de tribunal permanecem pendentes.
