@@ -9,6 +9,8 @@ it("mantém na navegação do MVP o fluxo jurídico sem acesso judicial ou proto
   expect(visible).not.toContain("protocolos");
   expect(visible).not.toContain("conectores");
   expect(visible).toContain("assistente");
+  expect(NAV_GROUPS.find(group => group.label === "Escritório")?.items).toContain("assistente");
+  expect(NAV_GROUPS.find(group => group.label === "Produção jurídica")?.items).not.toContain("assistente");
 });
 
 function intimacao(id: number, processoId: number | null): Intimacao {
