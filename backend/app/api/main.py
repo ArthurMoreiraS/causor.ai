@@ -390,6 +390,10 @@ def create_app() -> FastAPI:
     app.include_router(connector_router)
     app.include_router(mni_router)
     app.include_router(office_router)
+    from app.api.work_routes import router as work_router
+    app.include_router(work_router)
+    from app.api.package_routes import router as package_router
+    app.include_router(package_router)
     from app.api.document_routes import router as document_router
     app.include_router(document_router)
 
@@ -563,7 +567,7 @@ def create_app() -> FastAPI:
                 {
                     "key": "filing",
                     "label": "Protocolo",
-                    "detail": "Conector PJe/e-SAJ",
+                    "detail": "Rota a validar por tribunal",
                     "status": "planned",
                 },
             ],
@@ -572,24 +576,24 @@ def create_app() -> FastAPI:
                     "key": "djen",
                     "name": "DJEN",
                     "detail": "captura oficial de comunicações",
-                    "status": "online",
+                    "status": "implemented",
                 },
                 {
                     "key": "datajud",
                     "name": "DataJud",
                     "detail": "metadados e andamentos processuais",
-                    "status": "online",
+                    "status": "implemented",
                 },
                 {
                     "key": "pje",
                     "name": "PJe",
-                    "detail": "protocolo assistido por Playwright",
-                    "status": "pilot",
+                    "detail": "rota específica por tribunal, ainda sem homologação",
+                    "status": "validation",
                 },
                 {
                     "key": "esaj",
                     "name": "e-SAJ",
-                    "detail": "próximo conector de tribunal",
+                    "detail": "rota judicial não homologada",
                     "status": "planned",
                 },
             ],
@@ -1399,6 +1403,15 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
+        session.execute(select(models.Processo.id).where(models.Processo.id == peticao.processo_id).with_for_update())
+        session.refresh(peticao)
+        work_id = (peticao.dossie or {}).get("trabalho_id")
+        if work_id:
+            active = session.scalar(select(models.TentativaProtocolo.id).join(models.PacoteProtocolo).where(
+                models.PacoteProtocolo.trabalho_id == work_id,
+                models.TentativaProtocolo.status.not_in(["cancelado", "falha_confirmada"])).limit(1))
+            if active:
+                raise HTTPException(409, "Existe uma tentativa de envio. Reconcilie o resultado antes de alterar a minuta.")
         if peticao.status in {"protocolada", "protocolando"}:
             raise HTTPException(
                 status_code=409, detail="petição em envio ou protocolada não pode ser editada"
@@ -1420,6 +1433,7 @@ def create_app() -> FastAPI:
             if "conteudo" in alteracoes or "status" in alteracoes:
                 dossie = dict(peticao.dossie or {})
                 dossie.pop("pdf_snapshot", None)
+                dossie["revisao_conteudo"] = dossie.get("revisao_conteudo", 0) + 1
                 peticao.dossie = dossie
                 peticao.aprovada_por = None
             _audit(
@@ -1449,7 +1463,11 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=409, detail="petição em envio ou já protocolada")
         from app.filing.approval import approve_snapshot
 
-        snapshot = approve_snapshot(session, peticao)
+        try:
+            snapshot = approve_snapshot(session, peticao)
+        except ValueError as exc:
+            session.rollback()
+            raise HTTPException(409, str(exc)) from exc
         peticao.status = "aprovada"
         peticao.aprovada_por = current.usuario_id
         _audit(
@@ -1473,7 +1491,9 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
-        get_owned_or_404(session, models.Peticao, peticao_id, current)
+        petition = get_owned_or_404(session, models.Peticao, peticao_id, current)
+        if (petition.dossie or {}).get("trabalho_id"):
+            raise HTTPException(409, "Abra o trabalho e aprove o pacote completo para acompanhar o envio externo.")
         credencial_id = payload.credencial_id if payload is not None else None
         try:
             # Roteia qualquer sistema pelo driver (sandbox na demo; PJe real no
@@ -1510,7 +1530,9 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Peticao:
-        get_owned_or_404(session, models.Peticao, peticao_id, current)
+        petition = get_owned_or_404(session, models.Peticao, peticao_id, current)
+        if (petition.dossie or {}).get("trabalho_id"):
+            raise HTTPException(409, "Registre o envio e confira o comprovante na tentativa do trabalho.")
         try:
             peticao = confirm_manual_protocol(
                 session,
@@ -1562,6 +1584,9 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> ChatResponse:
         contexto = None
+        work = get_owned_or_404(session, models.TrabalhoJuridico, payload.trabalho_id, current) if payload.trabalho_id else None
+        if work and payload.processo_id and work.processo_id != payload.processo_id:
+            raise HTTPException(422, "Trabalho e processo não correspondem")
         if payload.processo_id is not None:
             proc = get_owned_or_404(session, models.Processo, payload.processo_id, current)
             if proc is not None:
@@ -1573,15 +1598,18 @@ def create_app() -> FastAPI:
                     "sistema": proc.sistema,
                 }
         try:
+            from app.agent.chat_tools import execute_scoped_read_tool
             result = chat_with_assistant(
                 [m.model_dump() for m in payload.messages],
                 session=session,
                 contexto_processo=contexto,
+                resumo_contexto=f"Trabalho em foco: #{work.id}. Consulte consultar_trabalho antes de responder sobre documentos ou ações." if work else None,
+                read_tool_runner=lambda db, name, args: execute_scoped_read_tool(db, name, args, current=current, work_id=work.id if work else None),
             )
         except Exception as exc:  # noqa: BLE001 - chamada de IA pode falhar
             raise HTTPException(
                 status_code=503,
-                detail=f"assistente indisponível: {exc}",
+                detail="Assistente indisponível. Tente novamente; nenhuma ação foi confirmada automaticamente.",
             ) from exc
         return ChatResponse(**result)
 

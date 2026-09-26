@@ -218,6 +218,10 @@ def test_dashboard_operacional(client, seeded):
         "filing",
     ]
     assert {connector["key"] for connector in body["connectors"]} >= {"djen", "datajud", "pje"}
+    connector_by_key = {connector["key"]: connector for connector in body["connectors"]}
+    assert connector_by_key["djen"]["status"] == "implemented"
+    assert connector_by_key["datajud"]["status"] == "implemented"
+    assert connector_by_key["pje"]["status"] == "validation"
 
 
 def test_dashboard_operacional_expoe_vencidos_e_aprovadas(client, db_session, seeded):
@@ -632,14 +636,14 @@ def test_editar_peticao_inexistente_retorna_404(client):
 def test_chat_retorna_reply_e_propostas(client, db_session, seeded, monkeypatch):
     def fake_chat(messages, *, session, **kwargs):
         return {
-            "reply": "Você tem 1 prazo pendente; quer gerar a minuta?",
+            "reply": "Você tem 1 prazo pendente; quer abrir o trabalho?",
             "proposed_actions": [
                 {
-                    "tipo": "gerar_minuta",
-                    "label": "Gerar minuta",
-                    "endpoint": "/intimacoes/1/draft",
-                    "metodo": "POST",
-                    "payload": {"intimacao_id": 1},
+                    "tipo": "abrir_trabalho",
+                    "label": "Abrir trabalho para revisão",
+                    "endpoint": "/trabalhos/1",
+                    "metodo": "GET",
+                    "payload": {"trabalho_id": 1},
                 }
             ],
             "tool_trace": [{"ferramenta": "listar_prazos", "input": {}}],
@@ -651,7 +655,7 @@ def test_chat_retorna_reply_e_propostas(client, db_session, seeded, monkeypatch)
     assert resp.status_code == 200
     body = resp.json()
     assert "prazo" in body["reply"].lower()
-    assert body["proposed_actions"][0]["tipo"] == "gerar_minuta"
+    assert body["proposed_actions"][0]["tipo"] == "abrir_trabalho"
     assert body["tool_trace"][0]["ferramenta"] == "listar_prazos"
 
 

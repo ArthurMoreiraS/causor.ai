@@ -11,6 +11,7 @@ from pathlib import Path
 import httpx
 
 from app.storage.objects import UploadTicket
+from app.local_agent import AGENT_VERSION
 
 
 class AgentApiError(RuntimeError):
@@ -36,14 +37,18 @@ class AgentApiClient:
             raise AgentApiError(f"pairing failed: HTTP {response.status_code}")
         return response.json()
 
-    def claim(self) -> dict | None:
-        response = self._client.post("/agent/commands/claim")
+    def claim(self, supported_types: list[str] | None = None) -> dict | None:
+        response = self._client.post("/agent/commands/claim", json={"supported_types": supported_types or [], "version": AGENT_VERSION})
         self._raise_for_status(response, "claim")
         return response.json()
 
     def heartbeat(self, command_id: int) -> None:
         response = self._client.post(f"/agent/commands/{command_id}/heartbeat")
         self._raise_for_status(response, "heartbeat")
+
+    def checkpoint(self, command_id: int, stage: str) -> None:
+        response = self._client.post(f"/agent/commands/{command_id}/checkpoint", json={"stage": stage})
+        self._raise_for_status(response, "checkpoint")
 
     def complete(self, command_id: int, resultado: dict) -> None:
         response = self._client.post(

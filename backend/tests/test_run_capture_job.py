@@ -2,6 +2,7 @@
 
 from datetime import date
 
+import httpx
 import pytest
 
 from app.capture.djen import ComunicacaoDTO
@@ -197,6 +198,37 @@ def test_run_capture_job_windowed_is_idempotent_across_windows(db_session, escri
     # dedup dentro do normalize: mesma fonte -> 1 intimacao apenas
     assert db_session.query(models.Intimacao).count() == 1
     assert job.resultado["intimacoes_novas"] == 1
+
+
+def test_windowed_capture_stops_at_failed_djen_window_and_preserves_partial(
+    db_session, escritorio, calendar,
+):
+    class FailsSecondWindow(FakeDjen):
+        def consultar(self, oab, uf, **kw):
+            self.calls.append((oab, uf, kw))
+            if len(self.calls) == 2:
+                request = httpx.Request("GET", "https://comunica.example/comunicacao")
+                raise httpx.HTTPStatusError("403", request=request, response=httpx.Response(403, request=request))
+            return [_comunicacao()]
+
+    job = create_job(
+        db_session, tipo="captura_oab", entidade="escritorio", entidade_id=escritorio.id,
+        payload={"oab": "12345", "uf": "SP", "escritorio_id": escritorio.id,
+                 "data_inicio": "2024-01-01", "data_fim": "2024-01-31"},
+    )
+    djen = FailsSecondWindow([])
+    run_capture_oab_job(
+        db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar,
+        batch_days=15, commit_each=lambda session: session.flush(),
+    )
+
+    assert len(djen.calls) == 2
+    assert job.status == "failed"
+    assert job.resultado["intimacoes_novas"] == 1
+    assert job.resultado["windows_done"] == 2
+    assert job.resultado["windows_total"] == 3
+    assert job.erro == "DJEN HTTP 403"
+    assert db_session.query(models.Intimacao).count() == 1
 
 
 def test_run_capture_oab_job_honra_datas_do_payload(db_session, escritorio, calendar):

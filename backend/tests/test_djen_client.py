@@ -70,6 +70,7 @@ def test_consultar_sends_oab_query_params(httpx_mock, client):
     assert request.url.params["numeroOab"] == "12345"
     assert request.url.params["ufOab"] == "SP"
     assert request.url.params["dataDisponibilizacaoInicio"] == "2024-09-01"
+    assert request.url.params["itensPorPagina"] == "100"
 
 
 def test_consultar_preserves_raw_payload(httpx_mock, client):

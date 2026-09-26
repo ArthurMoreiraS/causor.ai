@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, Send, ShieldCheck } from "lucide-react";
+import { CheckCircle2, FilePenLine } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Peticao } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -12,24 +12,22 @@ export default function GateOabView({
   busy,
   offline,
   onApprove,
-  onFile
+  onOpenEditor
 }: {
   rows: PeticaoRow[];
   busy: string | null;
   offline: boolean;
   onApprove: (peticao: Peticao) => void;
-  onFile: (peticao: Peticao) => void;
+  onOpenEditor: (peticao: Peticao) => void;
 }) {
   const awaiting = rows.filter((row) => ["rascunho", "em_revisao"].includes(row.peticao.status));
   const cleared = rows.filter((row) => row.peticao.status === "aprovada");
-  const filed = rows.filter((row) => row.peticao.status === "protocolada");
 
   return (
     <section className="gateView">
       <div className="gateSummary">
         <CommandStat label="Aguardando revisão" value={awaiting.length} detail="revisão humana" />
-        <CommandStat label="Liberadas" value={cleared.length} detail="prontas para protocolo" />
-        <CommandStat label="Protocoladas" value={filed.length} detail="ato finalizado" />
+        <CommandStat label="Revisadas" value={cleared.length} detail="aprovadas pelo advogado" />
       </div>
 
       <section className="gateLanes">
@@ -43,24 +41,13 @@ export default function GateOabView({
           onPrimary={onApprove}
         />
         <GateLane
-          title="Liberadas para protocolo"
+          title="Minutas aprovadas"
           rows={cleared}
           busy={busy}
           offline={offline}
-          primaryLabel="Preparar protocolo"
-          primaryIcon={<Send size={15} />}
-          onPrimary={onFile}
-          primary
-        />
-        <GateLane
-          title="Protocoladas"
-          rows={filed}
-          busy={busy}
-          offline={offline}
-          primaryLabel="Protocolada"
-          primaryIcon={<ShieldCheck size={15} />}
-          onPrimary={() => undefined}
-          readonly
+          primaryLabel="Ver minuta"
+          primaryIcon={<FilePenLine size={15} />}
+          onPrimary={onOpenEditor}
         />
       </section>
     </section>
@@ -76,7 +63,6 @@ function GateLane({
   primaryIcon,
   onPrimary,
   primary = false,
-  readonly = false
 }: {
   title: string;
   rows: PeticaoRow[];
@@ -86,7 +72,6 @@ function GateLane({
   primaryIcon: ReactNode;
   onPrimary: (peticao: Peticao) => void;
   primary?: boolean;
-  readonly?: boolean;
 }) {
   return (
     <section className="gateLane">
@@ -105,7 +90,7 @@ function GateLane({
             <small>{prazo ? `Vence em ${formatDate(prazo.data_fatal)}` : "Sem prazo vinculado"}</small>
             <button
               className={primary ? "toolbarButton primary" : "toolbarButton"}
-              disabled={readonly || offline || busy === `approve-${peticao.id}` || busy === `file-${peticao.id}`}
+              disabled={offline || busy === `approve-${peticao.id}`}
               onClick={() => onPrimary(peticao)}
             >
               {primaryIcon}

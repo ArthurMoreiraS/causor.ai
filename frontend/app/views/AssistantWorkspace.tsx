@@ -40,7 +40,7 @@ export default function AssistantWorkspace({
   const [error, setError] = useState<string | null>(null);
 
   const turns = conversation.turns;
-  const pending = conversation.pending;
+  const pending = conversation.pending.filter((action) => action.tipo === "abrir_trabalho");
   const messageCount = turns.length;
   const activePreview = useMemo(() => getConversationPreview(conversation), [conversation]);
   const visibleHistory = history.slice(0, 8);
@@ -110,7 +110,7 @@ export default function AssistantWorkspace({
               content: resp.reply || "Recebi a solicitação e preparei os próximos passos."
             }
           ],
-          pending: resp.proposed_actions
+          pending: resp.proposed_actions.filter((action) => action.tipo === "abrir_trabalho")
         })
       );
     } catch (err) {
@@ -130,7 +130,7 @@ export default function AssistantWorkspace({
           pending: pending.filter((item) => item !== action),
           turns: [
             ...turns,
-            { role: "assistant", content: `Ação executada: ${action.label}.` }
+            { role: "assistant", content: "Trabalho aberto para conferir contexto, fontes e próximos passos." }
           ]
         })
       );
@@ -149,23 +149,23 @@ export default function AssistantWorkspace({
     },
     {
       icon: MessageSquare,
-      title: "Intimações sem minuta",
-      prompt: "Mostre as intimações sem minuta."
+      title: "Entender intimação",
+      prompt: "Ajude-me a interpretar uma intimação. Peça o número ou o teor antes de concluir."
     },
     {
       icon: ShieldCheck,
-      title: "Aprovação OAB",
-      prompt: "Quais minutas aguardam aprovação OAB?"
+      title: "Conferir fontes",
+      prompt: "Como devo conferir documentos e fontes antes de usar uma minuta?"
     },
     {
       icon: ListChecks,
-      title: "Plano de trabalho",
-      prompt: "Monte meu plano de trabalho para hoje."
+      title: "Próximos passos",
+      prompt: "Ajude-me a organizar os próximos passos de um trabalho jurídico que eu indicar."
     },
     {
       icon: Search,
-      title: "Processos parados",
-      prompt: "Quais processos estão sem próxima ação?"
+      title: "Consultar processo",
+      prompt: "Ajude-me a consultar um processo. Peça o número CNJ para localizar os dados."
     }
   ];
 
@@ -261,9 +261,9 @@ export default function AssistantWorkspace({
               <div className="assistantIntro">
                 <span className="assistantIntroBadge">
                   <Sparkles size={15} />
-                  Pronto para operar
+                  Apoio ao trabalho
                 </span>
-                <h3>Escolha uma ação ou pergunte livremente.</h3>
+                <h3>Pergunte sobre seus casos e próximos passos.</h3>
               </div>
               <div className="promptSuggestions" aria-label="Perguntas sugeridas">
                 {suggestions.map((suggestion) => {
@@ -366,7 +366,8 @@ export default function AssistantWorkspace({
 function getConversationPreview(conversation: AssistantConversation) {
   const lastTurn = conversation.turns.at(-1);
   if (lastTurn) return lastTurn.content;
-  if (conversation.pending.length > 0) return `${conversation.pending.length} ação pendente`;
+  const pendingCount = conversation.pending.filter((action) => action.tipo === "abrir_trabalho").length;
+  if (pendingCount > 0) return `${pendingCount} ação pendente`;
   return "Pronta para uma nova análise operacional.";
 }
 

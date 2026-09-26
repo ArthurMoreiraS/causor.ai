@@ -125,7 +125,7 @@ def test_worker_marks_unextractable_pdf_as_failed(
     data = b"%PDF-1.4\ncorpo corrompido sem estrutura\n%%EOF\n"
     version = _confirmed_version(db_session, instance, object_store, data)
 
-    def _raise(_):
+    def _raise(_, **kwargs):
         raise PdfExtractionError("page 1 has no extractable text")
 
     monkeypatch.setattr("app.autos.worker.extract_pdf_pages", _raise)

@@ -46,7 +46,7 @@ class PollResult:
     djen_erro: str | None = None
 
 
-def _iter_comunicacoes(djen: DjenClient, *, oab: str, uf: str, data_inicio: date | None, data_fim: date | None, itens_por_pagina: int = 50):
+def _iter_comunicacoes(djen: DjenClient, *, oab: str, uf: str, data_inicio: date | None, data_fim: date | None, itens_por_pagina: int = 100):
     """Itera todas as paginas do DJEN ate esgotar.
 
     Uma falha de rede/timeout/5xx numa pagina interrompe a iteracao: as
@@ -81,7 +81,7 @@ def poll_oab(
     dias_default: int = 15,
     data_inicio: date | None = None,
     data_fim: date | None = None,
-    itens_por_pagina: int = 50,
+    itens_por_pagina: int = 100,
     enrich: bool = True,
     historico_completo: bool = False,
     hoje: date | None = None,
@@ -126,7 +126,8 @@ def poll_oab(
             break
         except httpx.HTTPError as exc:
             result.djen_indisponivel = True
-            result.djen_erro = str(exc)[:500]
+            status = exc.response.status_code if isinstance(exc, httpx.HTTPStatusError) else None
+            result.djen_erro = f"DJEN HTTP {status}" if status else "DJEN indisponível por falha de rede"
             return result
 
         intimacao = normalize_intimacao(session, comunicacao, escritorio_id=escritorio_id)

@@ -14,15 +14,17 @@ export default function MinutaEditor({
   onSave,
   onCreateTask,
   onOpenEvidence,
+  onContinue,
   onClose
 }: {
   peticao: Peticao;
   processo: Processo | null;
   prazo: Prazo | null;
   busy: boolean;
-  onSave: (content: string) => void;
+  onSave: (content: string) => Promise<boolean>;
   onCreateTask?: (alerta: string, index: number) => void;
   onOpenEvidence?: (documentoId: number, versaoId: number, pagina: number) => void;
+  onContinue?: () => void;
   onClose: () => void;
 }) {
   const serverContent = peticao.conteudo ?? "";
@@ -30,12 +32,56 @@ export default function MinutaEditor({
   const [copied, setCopied] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const dirty = text !== serverContent;
+  const pending = busy || saving;
   const [sourceUrl, setSourceUrl] = useState<string | null>(null);
   useEffect(() => () => {
     if (sourceUrl) URL.revokeObjectURL(sourceUrl.split("#")[0]);
   }, [sourceUrl]);
+  useEffect(() => {
+    if (!dirty) return;
+    const protect = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", protect);
+    return () => window.removeEventListener("beforeunload", protect);
+  }, [dirty]);
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1]?.getAttribute("aria-labelledby") !== "minutaEditorTitle") return;
+      event.preventDefault();
+      if (pending) return;
+      if (dirty) setConfirmClose(true);
+      else onClose();
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [dirty, onClose, pending]);
+
+  function requestClose() {
+    if (pending) return;
+    if (dirty) setConfirmClose(true);
+    else onClose();
+  }
+
+  async function save(close = false) {
+    if (pending || locked) return;
+    setSaving(true);
+    setDownloadError(null);
+    try {
+      if (await onSave(text)) {
+        setConfirmClose(false);
+        if (close) onClose();
+      } else {
+        setDownloadError("Não foi possível salvar. Sua edição continua aberta.");
+      }
+    } catch (err) {
+      setDownloadError(humanError(err, "Não foi possível salvar. Sua edição continua aberta."));
+    } finally { setSaving(false); }
+  }
 
   async function abrirFonte(doc: number, version: number, page: number) {
     if (onOpenEvidence) { onOpenEvidence(doc, version, page); return; }
@@ -83,21 +129,31 @@ export default function MinutaEditor({
   }
 
   return (
-    <div className="drawerOverlay" onClick={onClose}>
-      <aside className="detailDrawer wide" onClick={(e) => e.stopPropagation()}>
+    <div className="drawerOverlay" onClick={requestClose}>
+      <aside className="detailDrawer wide" role="dialog" aria-modal="true" aria-labelledby="minutaEditorTitle" onClick={(e) => e.stopPropagation()}>
         <header className="detailDrawerHead">
           <span className="sectionKicker">Editor de minuta</span>
-          <button className="iconButton" onClick={onClose} aria-label="Fechar">
+          <button className="iconButton" onClick={requestClose} disabled={pending} aria-label="Fechar revisão">
             <X size={15} />
           </button>
         </header>
 
         <div className="detailBody">
-          <h2 className="detailTitle">{peticao.tipo ?? "Petição"}</h2>
+          <h2 className="detailTitle" id="minutaEditorTitle">{peticao.tipo ?? "Petição"}</h2>
           <p className="detailSub">
             {processo?.numero ?? `Processo #${peticao.processo_id}`}
             {prazo ? ` · prazo ${formatDate(prazo.data_fatal)}` : ""}
           </p>
+
+          {confirmClose ? <div className="editorNotice" role="alert">
+            <strong>Você tem alterações não salvas.</strong>
+            <p>Salve a minuta antes de sair ou descarte o texto alterado.</p>
+            <div className="editorFooterLeft">
+              <button className="toolbarButton compact" onClick={() => setConfirmClose(false)}>Continuar editando</button>
+              <button className="toolbarButton compact" onClick={onClose}>Descartar e sair</button>
+              <button className="toolbarButton primary compact" disabled={pending} onClick={() => void save(true)}>Salvar e sair</button>
+            </div>
+          </div> : null}
 
           {locked ? (
             <div className="editorNotice">
@@ -140,12 +196,14 @@ export default function MinutaEditor({
             </section>
           ) : null}
 
+          <label className="srOnly" htmlFor="minutaContent">Conteúdo da minuta</label>
           <textarea
+            id="minutaContent"
             className="minutaTextarea"
             value={text}
             onChange={(e) => setText(e.target.value)}
             spellCheck
-            disabled={locked}
+            disabled={locked || pending}
           />
 
           {!!dossie?.citations?.length && <section aria-label="Fontes enviadas ao redator">
@@ -171,7 +229,7 @@ export default function MinutaEditor({
               </button>
               <button
                 className="toolbarButton compact"
-                disabled={downloading || dirty}
+                disabled={downloading || dirty || pending}
                 title={dirty ? "Salve a minuta antes de baixar o PDF" : undefined}
                 onClick={() => void baixarPdf()}
               >
@@ -181,21 +239,22 @@ export default function MinutaEditor({
               {dirty ? (
                 <button
                   className="toolbarButton compact"
-                  onClick={() => setText(serverContent)}
+                  onClick={() => { setText(serverContent); setConfirmClose(false); }}
                 >
                   <RotateCcw size={14} />
                   Descartar alterações
                 </button>
               ) : null}
             </div>
-            <button
-              className="toolbarButton primary"
-              disabled={!dirty || locked || busy}
-              onClick={() => onSave(text)}
-            >
-              {busy ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
-              Salvar minuta
-            </button>
+            <div className="editorFooterLeft">
+              <button className="toolbarButton primary" disabled={!dirty || locked || pending} onClick={() => void save()}>
+                {pending ? <Loader2 className="spin" size={14} /> : <Save size={14} />}
+                Salvar minuta
+              </button>
+              {onContinue && !locked ? <button className="toolbarButton" disabled={dirty || pending} onClick={onContinue}>
+                {dossie?.trabalho_id ? "Continuar no trabalho" : "Revisão e aprovação"}
+              </button> : null}
+            </div>
           </div>
           {downloadError ? (
             <small className="settingsHint vaultError" role="alert">

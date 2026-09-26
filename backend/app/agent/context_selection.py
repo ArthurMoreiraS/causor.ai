@@ -59,7 +59,8 @@ def _excerpt(citation: dict) -> str:
 
 
 def select_draft_context(
-    bundle: ContextBundle, *, query: str, timeline: str | None = None, max_bytes: int
+    bundle: ContextBundle, *, query: str, timeline: str | None = None, max_bytes: int,
+    pinned_chunk_ids: tuple[int, ...] = (),
 ) -> DraftContextSelection:
     citations = list({
         (c["documento_id"], c["documento_arquivo_id"], c["chunk_id"], c.get("quote")): c
@@ -73,6 +74,7 @@ def select_draft_context(
     for index in ranked:
         representatives.setdefault(citations[index]["documento_id"], index)
     selected = set(representatives.values())
+    selected.update(i for i, c in enumerate(citations) if c["chunk_id"] in pinned_chunk_ids)
     excerpts = [_excerpt(c) for c in citations]
     scope = (
         "[ESCOPO DA REDAÇÃO]\nInventário e resumos preservados integralmente. "

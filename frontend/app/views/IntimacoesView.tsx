@@ -1,6 +1,5 @@
 "use client";
 
-import { Loader2, Sparkles } from "lucide-react";
 import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
@@ -9,18 +8,16 @@ import { DeadlineBadge, Empty } from "../components/ui";
 
 export default function IntimacoesView({
   rows,
-  busy,
   offline,
   onOpen,
   onCreateTask,
-  onGenerateDraft
+  onPrepareWork
 }: {
   rows: IntimacaoRow[];
-  busy: string | null;
   offline: boolean;
   onOpen: (intimacaoId: number) => void;
   onCreateTask?: (intimacao: Intimacao) => void;
-  onGenerateDraft: (intimacaoId: number) => void;
+  onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
 }) {
   return (
     <section className="dataTable inboxTable">
@@ -66,18 +63,13 @@ export default function IntimacoesView({
               onClick={e => { e.stopPropagation(); onCreateTask(intimacao); }}>Criar tarefa</button> : null}
             <button
               className="toolbarButton compact"
-              disabled={busy === `draft-${intimacao.id}` || offline}
+              disabled={offline}
               onClick={(e) => {
                 e.stopPropagation();
-                onGenerateDraft(intimacao.id);
+                onPrepareWork(intimacao.id, processo?.id ?? intimacao.processo_id ?? null, prazo?.id ?? null);
               }}
             >
-              {busy === `draft-${intimacao.id}` ? (
-                <Loader2 className="spin" size={15} />
-              ) : (
-                <Sparkles size={15} />
-              )}
-              Minutar
+              Preparar trabalho
             </button>
           </div>
         </article>

@@ -382,6 +382,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     processo_id: int | None = None
+    trabalho_id: int | None = Field(None, ge=1)
 
 
 class ProposedAction(BaseModel):

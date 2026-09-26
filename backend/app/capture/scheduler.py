@@ -62,7 +62,9 @@ def run_capture_for_oab(
     today = today or date.today()
     now = now or _utcnow()
     lookback = timedelta(days=settings.capture_lookback_days)
-    base = oab.cursor_data or today
+    # Keep the original start during an outage, including before the first
+    # successful capture. Otherwise a multi-day 403 would silently lose days.
+    base = oab.cursor_data or min(oab.created_at.date(), today)
     data_inicio = base - lookback
 
     job = create_job(
@@ -87,8 +89,9 @@ def run_capture_for_oab(
         data_inicio=data_inicio,
         data_fim=today,
     )
-    oab.ultima_captura_em = now
-    oab.cursor_data = today
+    if job.status == "completed":
+        oab.ultima_captura_em = now
+        oab.cursor_data = today
     return job
 
 
@@ -147,16 +150,11 @@ def run_capture_for_oab_resilient(
                 today=today,
                 now=now,
             )
-            # poll_oab engole falhas transientes do DJEN (5xx/timeout apos os
-            # retries internos do DjenClient) e retorna o parcial com
-            # djen_indisponivel=True. Aceitamos o parcial como sucesso: o que
-            # foi capturado fica salvo e o proximo ciclo agendado complementa
-            # (dedup idempotente). Retentar imediatamente nao ajuda quando o
-            # DJEN esta realmente fora; so adiciona carga. Erros transientes de
-            # DB (OperationalError) ainda retentam pelo except abaixo.
+            # Preserve any captured items, but report a source failure and keep
+            # the cursor so the next run retries the incomplete interval.
             job.resultado = {**(job.resultado or {}), "tentativas": attempt}
             session.commit()
-            return ResilientCaptureResult(job=job, attempts=attempt, succeeded=True)
+            return ResilientCaptureResult(job=job, attempts=attempt, succeeded=job.status == "completed")
         except RETRYABLE_CAPTURE_ERRORS as exc:
             session.rollback()
             last_error = exc

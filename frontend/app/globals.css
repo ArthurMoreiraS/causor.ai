@@ -1,3 +1,19 @@
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-400.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/Inter-700.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
 /* Tokens espelhando a landing (causor-landing/index.html). */
 :root {
   --bg: #ffffff;
@@ -1815,7 +1831,13 @@ h2 {
   background: var(--ok-bg);
 }
 
-.connector.pilot small {
+.connector.implemented small {
+  color: var(--ink-soft);
+  background: var(--chip);
+}
+
+.connector.pilot small,
+.connector.validation small {
   color: var(--warn);
   background: var(--warn-bg);
 }
@@ -1895,12 +1917,6 @@ h2 {
 .pill.ativa {
   color: var(--ok);
   background: var(--ok-bg);
-}
-
-.pill.sistemaPje {
-  color: var(--ok);
-  background: var(--ok-bg);
-  border: 1px solid var(--accent-border);
 }
 
 .pill.sistemaOutro {

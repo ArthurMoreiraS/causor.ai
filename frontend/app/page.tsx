@@ -15,7 +15,6 @@ import {
   HelpCircle,
   Loader2,
   Search,
-  Send,
   Settings,
   SlidersHorizontal,
   Sparkles,
@@ -35,7 +34,6 @@ import {
   Peticao,
   Prazo,
   ProposedAction,
-  protocolarPeticaoAsync,
   removerOabMonitorada,
   revisarPrazo,
   ReviewQueueItem,
@@ -58,7 +56,6 @@ import AcessoTribunalWizard from "./components/AcessoTribunalWizard";
 import FiltersPanel from "./components/FiltersPanel";
 import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
-import ProtocolarModal from "./components/ProtocolarModal";
 import RadarBell from "./components/RadarBell";
 import { useToast } from "./components/Toast";
 import UfSearchSelect from "./components/UfSearchSelect";
@@ -75,12 +72,15 @@ import IntimacoesView from "./views/IntimacoesView";
 import PeticoesView from "./views/PeticoesView";
 import PrazosView from "./views/PrazosView";
 import ProcessosView from "./views/ProcessosView";
+import TrabalhosView from "./views/TrabalhosView";
+import { obterTrabalho } from "@/lib/work-api";
 import { useRequireAuth } from "./AuthProvider";
 import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
 import { gateContexto, humanError } from "@/lib/errors";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import { computeDashboardMetrics } from "@/lib/metrics";
+import { captureFailureMessage } from "@/lib/capture-outcome";
 import {
   daysUntil,
   matchesQuery,
@@ -93,7 +93,6 @@ import {
   buildIntimacaoRows,
   buildProcessoRows,
   buildProcessoRowsFromLists,
-  CONNECTORS_FALLBACK,
   mergeById,
   STATUS_MATCH,
   StatusKey,
@@ -124,6 +123,7 @@ export default function Home() {
   const { loading: authLoading, session, signOut } = useRequireAuth();
   const toast = useToast();
   const [data, setData] = useState<DashboardData>(emptyData);
+  const [loadingData, setLoadingData] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setCurrentView] = useState<ViewKey>("dashboard");
@@ -151,11 +151,9 @@ export default function Home() {
     tipo: string;
     confianca: number;
   } | null>(null);
-  const [lastProtocolo, setLastProtocolo] = useState<{
-    tipo: string | null;
-    protocolo: string;
-  } | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
+  const [workProcessId, setWorkProcessId] = useState<number | undefined>();
+  const [workOrigin, setWorkOrigin] = useState<{ intimacaoId: number; prazoId: number | null } | undefined>();
   const [oabForm, setOabForm] = useState<{ open: boolean; oab: string; uf: string }>({
     open: false,
     oab: "",
@@ -167,7 +165,6 @@ export default function Home() {
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
   const [editorPeticao, setEditorPeticao] = useState<Peticao | null>(null);
-  const [protocolarTarget, setProtocolarTarget] = useState<Peticao | null>(null);
   // Minuta barrada pelo gate de contexto: guarda a intimação para refazê-la
   // sozinha assim que o assistente terminar de buscar os autos.
   const [gateAssistente, setGateAssistente] = useState<{
@@ -220,13 +217,15 @@ export default function Home() {
 
   async function refresh() {
     setError(null);
+    setLoadingData(true);
     try {
-      setData(await loadDashboard());
+      const updated = await loadDashboard();
+      setData(updated);
       setRefreshTick((tick) => tick + 1);
     } catch (err) {
       setError(humanError(err, "Não foi possível carregar o Causor"));
-      setData(emptyData);
-    }
+      setData(previous => ({ ...previous, backendOffline: true }));
+    } finally { setLoadingData(false); }
   }
 
   /** `onError` devolve `true` quando a tela já tratou a falha — aí o toast
@@ -276,6 +275,21 @@ export default function Home() {
     );
   }
 
+  function prepareWorkFromNotice(intimacaoId: number, processoId: number | null, prazoId: number | null) {
+    if (!processoId) {
+      setDetail({ kind: "intimacao", id: intimacaoId });
+      toast({ kind: "error", title: "Processo não vinculado", description: "Confira a intimação e vincule o processo antes de preparar o trabalho." });
+      return;
+    }
+    setDetail(null);
+    setWorkOrigin({ intimacaoId, prazoId });
+    setWorkProcessId(processoId);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("trabalho");
+    window.history.replaceState(null, "", url);
+    setView("trabalhos");
+  }
+
   async function runCaptureOab() {
     const oab = oabForm.oab.trim();
     const uf = oabForm.uf.trim().toUpperCase();
@@ -285,14 +299,21 @@ export default function Home() {
     setCaptureContext({ oab, uf });
     try {
       const result = await rodarCapturaOab(oab, uf);
-      setCaptureResult(result);
-      setOabForm((f) => ({ ...f, open: false }));
       await loadOabsMonitoradas();
       await refresh();
+      const captureFailure = captureFailureMessage(result);
+      if (captureFailure) {
+        const message = captureFailure;
+        setError(message);
+        toast({ kind: "error", title: "Falha na fonte DJEN", description: message });
+        return;
+      }
+      setCaptureResult(result);
+      setOabForm((f) => ({ ...f, open: false }));
       toast({
         kind: "success",
         title: "Captura concluída",
-        description: `${result.intimacoes_novas} intimações novas, ${result.prazos_registrados} prazos registrados. Processos são enriquecidos ao gerar a minuta.`
+        description: `${result.intimacoes_novas} intimações novas. Confira a origem e o prazo antes de preparar o trabalho.`
       });
     } catch (err) {
       const message = humanError(err, "A captura por OAB não foi concluída");
@@ -307,14 +328,14 @@ export default function Home() {
     setBusy(`remove-oab-${oab.id}`);
     setError(null);
     try {
-      await removerOabMonitorada(oab.id, true);
+      await removerOabMonitorada(oab.id, false);
       await loadOabsMonitoradas();
       await refresh();
       setOabToRemove(null);
       toast({
         kind: "success",
         title: `OAB ${oab.oab}/${oab.uf} removida`,
-        description: "Os dados capturados por ela foram apagados."
+        description: "O monitoramento foi encerrado. Intimações e processos já registrados foram preservados."
       });
     } catch (err) {
       const message = humanError(err, "A OAB não foi removida");
@@ -327,46 +348,24 @@ export default function Home() {
 
   async function confirmAssistantAction(action: ProposedAction) {
     const { payload } = action;
-    if (action.tipo === "gerar_minuta") {
-      // Aqui o erro real precisa continuar subindo (o assistente registra a
-      // falha na conversa); só o gate de contexto vira assistente.
-      const intimacaoId = Number(payload.intimacao_id);
-      try {
-        await gerarMinuta(intimacaoId, calendarYears);
-      } catch (err) {
-        const gate = gateContexto(err);
-        if (!gate) throw err;
-        setGateAssistente({ intimacaoId, processoId: gate.processo_id });
-      }
-    } else if (action.tipo === "marcar_prazo_cumprido")
-      await cumprirPrazo(Number(payload.prazo_id));
-    else if (action.tipo === "aprovar_peticao") await aprovarPeticao(Number(payload.peticao_id));
-    else throw new Error(`Ação desconhecida: ${action.tipo}`);
-    await refresh();
+    if (action.tipo === "abrir_trabalho") {
+      const work = await obterTrabalho(Number(payload.trabalho_id));
+      const url = new URL(window.location.href); url.searchParams.set("trabalho", String(work.id)); window.history.replaceState(null, "", url);
+      setWorkProcessId(work.processo_id || undefined); setView("trabalhos"); return;
+    }
+    throw new Error("Essa ação não faz parte do MVP. Abra o trabalho e confira as fontes antes de continuar.");
   }
 
   function editarPrazo(prazo: Prazo) {
     setPrazoEdit(prazo);
   }
 
-  function protocolar(peticao: Peticao) {
-    setProtocolarTarget(peticao);
-  }
-
-  async function confirmarProtocolo() {
-    const peticao = protocolarTarget;
-    if (!peticao) return;
-    await runAction(`file-${peticao.id}`, async () => {
-      const job = await protocolarPeticaoAsync(peticao.id);
-      const protocolo = job.resultado?.protocolo;
-      setLastProtocolo({
-        tipo: peticao.tipo,
-        protocolo: protocolo
-          ? String(protocolo)
-          : `Preparado para assinatura · job #${job.id}`
-      });
-    });
-    setProtocolarTarget(null);
+  function continueFromPetition(peticao: Peticao) {
+    if (peticao.dossie?.trabalho_id) {
+      const url = new URL(window.location.href); url.searchParams.set("trabalho", String(peticao.dossie.trabalho_id));
+      window.history.replaceState(null, "", url); setWorkProcessId(peticao.processo_id); setView("trabalhos"); return;
+    }
+    setView("gate");
   }
 
   async function salvarRevisaoPrazo(patch: PrazoPatch) {
@@ -389,7 +388,7 @@ export default function Home() {
   const metrics = useMemo(() => computeDashboardMetrics(data), [data]);
 
   const reviewQueue = useMemo<ReviewQueueItem[]>(() => {
-    if (data.reviewQueue?.length) return data.reviewQueue;
+    if (data.reviewQueue !== undefined) return data.reviewQueue;
     return data.intimacoes.map((intimacao) => {
       const prazo = data.prazos.find((p) => p.intimacao_id === intimacao.id) ?? null;
       const processo = data.processos.find((p) => p.id === intimacao.processo_id) ?? null;
@@ -409,7 +408,7 @@ export default function Home() {
             ? "protocolada"
           : peticao?.status === "aprovada"
             ? "pronta_para_protocolo"
-            : peticao?.status === "rascunho"
+            : peticao?.status === "rascunho" || peticao?.status === "em_revisao"
               ? "minuta_em_revisao"
               : prazo
                 ? "prazo_calculado"
@@ -701,7 +700,7 @@ export default function Home() {
   }
 
   const offline = Boolean(data.backendOffline);
-  const operationalConnectors = data.operational?.connectors ?? CONNECTORS_FALLBACK;
+  const operationalConnectors = data.operational?.connectors ?? [];
 
   // Identidade real da sessão no rodapé da sidebar (e-mail + iniciais).
   const userEmail = session?.user?.email ?? null;
@@ -820,8 +819,9 @@ export default function Home() {
           <div className="notice">
             <AlertTriangle size={18} />
             <span>
-              Backend offline — exibindo apenas dados persistidos já carregados. As ações ficam
-              desativadas até o servidor da API responder em {API_BASE_LABEL}.
+              Não foi possível atualizar os dados. As informações disponíveis podem estar desatualizadas.
+              <button className="toolbarButton compact" disabled={loadingData} onClick={() => void refresh()}>Tentar novamente</button>
+              <details><summary>Detalhes da conexão</summary>Servidor: {API_BASE_LABEL}</details>
             </span>
           </div>
         ) : null}
@@ -844,29 +844,12 @@ export default function Home() {
               {captureResult.prazos_historicos
                 ? ` ${captureResult.prazos_historicos} intimações são antigas e não geraram prazo (o vencimento provisório já teria passado).`
                 : ""}{" "}
-              Os dados completos do processo são carregados ao gerar a minuta.
+              O prazo exige conferência; os autos dependem dos documentos recebidos.
             </span>
             <button
               className="dismiss-notice"
               onClick={() => setCaptureResult(null)}
               aria-label="Fechar aviso de captura"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        ) : null}
-
-        {lastProtocolo ? (
-          <div className="notice success">
-            <CheckCircle2 size={18} />
-            <span>
-              Fluxo de protocolo atualizado: {lastProtocolo.tipo ?? "petição"} — referência{" "}
-              <strong className="mono">{lastProtocolo.protocolo}</strong>. Registrado na auditoria.
-            </span>
-            <button
-              className="dismiss-notice"
-              onClick={() => setLastProtocolo(null)}
-              aria-label="Fechar aviso de protocolo"
             >
               <X size={16} />
             </button>
@@ -926,6 +909,10 @@ export default function Home() {
             offline={offline}
             onConfirmAction={confirmAssistantAction}
           />
+        ) : view === "trabalhos" ? (
+          <TrabalhosView key={`${workProcessId || "all"}-${workOrigin?.intimacaoId || "manual"}`} processos={data.processos} offline={offline} initialProcessId={workProcessId} initialOrigin={workOrigin} refreshKey={refreshTick}
+            onChanged={() => void refresh()} onDocuments={id => { setDocumentContext({ processId: id }); setView("documentos"); }}
+            onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }} />
         ) : view === "clientes" ? (
           <ClientesView offline={offline} processos={data.processos} refreshKey={refreshTick} onChanged={() => void refresh()}
             onOpenProcess={id => setDetail({ kind: "processo", id })} onNewTask={openTask} />
@@ -996,27 +983,13 @@ export default function Home() {
                     Aprovadas
                     <span className="tabCount">{statusCounts.aprovadas}</span>
                   </button>
-                  <button
-                    className={`statusTab ${statusFilter === "protocoladas" ? "active" : ""}`}
-                    aria-pressed={statusFilter === "protocoladas"}
-                    onClick={() => setStatusFilter("protocoladas")}
-                  >
-                    <Send size={15} />
-                    Protocoladas
-                    <span className="tabCount">{statusCounts.protocoladas}</span>
-                  </button>
                 </section>
                 <FilaDoDiaView
                   key={statusFilter}
                   items={dashboardWorklist}
-                  busy={busy}
                   offline={offline}
-                  onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
+                  onPrepareWork={item => prepareWorkFromNotice(item.intimacao.id, item.processo?.id ?? item.intimacao.processo_id, item.prazo?.id ?? null)}
                   onOpenEditor={(peticao) => setEditorPeticao(peticao)}
-                  onApprove={(peticao) =>
-                    runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))
-                  }
-                  onFile={protocolar}
                   onNavigate={setView}
                 />
               </>
@@ -1069,6 +1042,7 @@ export default function Home() {
 
           {view === "processos" ? (
             <ProcessosView
+              onPrepareWork={id => { setWorkOrigin(undefined); setWorkProcessId(id); const url = new URL(window.location.href); url.searchParams.delete("trabalho"); window.history.replaceState(null, "", url); setView("trabalhos"); }}
               rows={processoRows}
               total={data.processosResumo?.total}
               loaded={data.processosResumo?.items.length}
@@ -1078,10 +1052,9 @@ export default function Home() {
           {view === "intimacoes" ? (
             <IntimacoesView
               rows={intimacaoRows}
-              busy={busy}
               offline={offline}
               onOpen={(id) => setDetail({ kind: "intimacao", id })}
-              onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
+              onPrepareWork={prepareWorkFromNotice}
               onCreateTask={intimacao => openTask({ titulo: "", intimacao_id: intimacao.id, tipo: "providencia" }, intimacao.numero_processo || "Intimação selecionada")}
             />
           ) : null}
@@ -1108,7 +1081,7 @@ export default function Home() {
               busy={busy}
               offline={offline}
               onApprove={(peticao) => runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))}
-              onFile={protocolar}
+              onOpenEditor={setEditorPeticao}
             />
           ) : null}
         </section>
@@ -1148,6 +1121,7 @@ export default function Home() {
                   </span>
                 </div>
               ) : null}
+              {error ? <small className="settingsHint vaultError" role="alert">{error}</small> : null}
               <div className="modalListBlock">
                 <strong>OABs monitoradas</strong>
                 {oabsMonitoradas.length === 0 ? (
@@ -1170,7 +1144,7 @@ export default function Home() {
                           {busy === `remove-oab-${oab.id}` ? (
                             <Loader2 className="spin" size={14} />
                           ) : null}
-                          Remover
+                          Parar monitoramento
                         </button>
                       </div>
                     ))}
@@ -1215,11 +1189,11 @@ export default function Home() {
             </div>
             <div className="confirmBody">
               <span className="settingsLabel" id="removeCapturedOabTitle">
-                Remover OAB {oabToRemove.oab}/{oabToRemove.uf}?
+                Parar monitoramento da OAB {oabToRemove.oab}/{oabToRemove.uf}?
               </span>
               <p>
-                Esta ação apaga intimações, prazos, processos e petições capturados por essa OAB.
-                A operação não pode ser desfeita.
+                A OAB deixará de ser consultada automaticamente. Intimações, prazos,
+                processos e documentos já registrados serão preservados.
               </p>
               {error ? (
                 <small className="settingsHint vaultError" role="alert">
@@ -1242,7 +1216,7 @@ export default function Home() {
                 icon={<AlertTriangle size={14} />}
                 onClick={() => void removeCapturedOab(oabToRemove)}
               >
-                Remover definitivamente
+                Parar monitoramento
               </LoadingButton>
             </div>
           </Modal>
@@ -1281,7 +1255,7 @@ export default function Home() {
             onDocuments={() => { const id = detail.kind === "processo" ? detail.id : data.intimacoes.find(i => i.id === detail.id)?.processo_id;
               setDocumentContext(id ? { processId: id } : null); setDetail(null); setView("documentos"); }}
             onSelect={setDetail}
-            onGenerateDraft={(intimacaoId) => minutar(intimacaoId)}
+            onPrepareWork={prepareWorkFromNotice}
             onOpenPeticao={(peticao) => {
               setDetail(null);
               setEditorPeticao(peticao);
@@ -1290,18 +1264,6 @@ export default function Home() {
               setDetail(null);
               editarPrazo(prazo);
             }}
-          />
-        ) : null}
-
-        {protocolarTarget ? (
-          <ProtocolarModal
-            peticao={protocolarTarget}
-            processo={
-              data.processos.find((p) => p.id === protocolarTarget.processo_id) ?? null
-            }
-            busy={busy === `file-${protocolarTarget.id}`}
-            onConfirm={() => void confirmarProtocolo()}
-            onClose={() => setProtocolarTarget(null)}
           />
         ) : null}
 
@@ -1328,6 +1290,7 @@ export default function Home() {
 
         {editorPeticao ? (
           <MinutaEditor
+            key={editorPeticao.id}
             peticao={editorPeticao}
             processo={data.processos.find((p) => p.id === editorPeticao.processo_id) ?? null}
             prazo={data.prazos.find((p) => p.id === editorPeticao.prazo_id) ?? null}
@@ -1336,12 +1299,23 @@ export default function Home() {
             onCreateTask={(alerta, index) => openTask({ titulo: "Conferir pendência da minuta", descricao: alerta,
               tipo: "revisao", processo_id: editorPeticao.processo_id, peticao_id: editorPeticao.id,
               alerta_indice: index, alerta_texto_esperado: alerta }, "Pendência identificada na revisão da minuta")}
-            onSave={(content) =>
-              runAction(`save-pet-${editorPeticao.id}`, async () => {
+            onSave={async (content) => {
+              setBusy(`save-pet-${editorPeticao.id}`);
+              try {
                 const updated = await editarPeticao(editorPeticao.id, { conteudo: content });
                 setEditorPeticao(updated);
-              })
-            }
+                await refresh();
+                toast({ kind: "success", title: "Minuta salva" });
+                return true;
+              } catch (err) {
+                toast({ kind: "error", title: humanError(err, "Não foi possível salvar a minuta") });
+                return false;
+              } finally { setBusy(null); }
+            }}
+            onContinue={() => {
+              continueFromPetition(editorPeticao);
+              setEditorPeticao(null);
+            }}
             onClose={() => setEditorPeticao(null)}
           />
         ) : null}

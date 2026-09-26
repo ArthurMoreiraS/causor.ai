@@ -9,10 +9,11 @@ segredos de tribunal.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from hashlib import sha256 as sha256_digest
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -200,12 +201,20 @@ def parear_agente(
     return PairOut(installation=InstallationOut.model_validate(installation), token=token)
 
 
+class ClaimIn(BaseModel):
+    supported_types: list[str] = Field(default_factory=list, max_length=30)
+    version: str | None = Field(None, min_length=1, max_length=40)
+
+
 @router.post("/agent/commands/claim", response_model=CommandOut | None)
 def reivindicar_comando(
+    payload: ClaimIn | None = None,
     session: Session = Depends(get_session),
     installation: models.AgentInstallation = Depends(get_agent_principal),
 ) -> models.AgentCommand | None:
-    command = service.claim_next_command(session, installation=installation)
+    if payload and payload.version:
+        installation.version = payload.version
+    command = service.claim_next_command(session, installation=installation, supported_types=payload.supported_types if payload else None)
     session.commit()
     return command
 
@@ -215,9 +224,29 @@ def _load_owned_command(
     command_id: int,
     installation: models.AgentInstallation,
 ) -> models.AgentCommand:
-    command = session.get(models.AgentCommand, command_id)
+    command = session.scalar(select(models.AgentCommand).where(models.AgentCommand.id == command_id).with_for_update().execution_options(populate_existing=True))
     if command is None or command.escritorio_id != installation.escritorio_id:
         raise HTTPException(status_code=404, detail="comando nao encontrado")
+    return command
+
+
+class CheckpointIn(BaseModel):
+    stage: Literal["prepared", "awaiting_intervention", "submitting"]
+
+
+@router.post("/agent/commands/{command_id}/checkpoint", response_model=CommandOut)
+def checkpoint(command_id: int, payload: CheckpointIn, session: Session = Depends(get_session),
+               installation: models.AgentInstallation = Depends(get_agent_principal)):
+    command = _load_owned_command(session, command_id, installation)
+    try:
+        service.checkpoint_command(session, command=command, installation=installation, stage=payload.stage)
+    except AgentCommandOwnershipError as exc:
+        raise HTTPException(404, "comando não encontrado") from exc
+    except AgentCommandTransitionError as exc:
+        raise HTTPException(409, str(exc)) from exc
+    _audit(session, escritorio_id=command.escritorio_id, ator=f"agent:{installation.id}",
+           acao="agent_execution_checkpoint", entidade="agent_command", entidade_id=command.id, detalhe={"stage": payload.stage})
+    session.commit()
     return command
 
 

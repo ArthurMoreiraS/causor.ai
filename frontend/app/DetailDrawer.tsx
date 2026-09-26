@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, FilePenLine, Loader2, Sparkles, X } from "lucide-react";
+import { CalendarDays, FilePenLine, X } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
 import { formatDate, statusLabel } from "@/lib/format";
@@ -23,7 +23,7 @@ export default function DetailDrawer({
   onCreateTask,
   onDocuments,
   onSelect,
-  onGenerateDraft,
+  onPrepareWork,
   onOpenPeticao,
   onEditPrazo
 }: {
@@ -38,7 +38,7 @@ export default function DetailDrawer({
   onCreateTask?: () => void;
   onDocuments?: () => void;
   onSelect: (sel: DetailSelection) => void;
-  onGenerateDraft: (intimacaoId: number) => void;
+  onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
   onOpenPeticao: (peticao: Peticao) => void;
   onEditPrazo: (prazo: Prazo) => void;
 }) {
@@ -80,10 +80,9 @@ export default function DetailDrawer({
             intimacao={intimacao}
             processo={processos.find((p) => p.id === intimacao.processo_id) ?? null}
             prazo={prazos.find((p) => p.intimacao_id === intimacao.id) ?? null}
-            busy={busy}
             offline={offline}
             onSelect={onSelect}
-            onGenerateDraft={onGenerateDraft}
+            onPrepareWork={onPrepareWork}
           />
         ) : null}
 
@@ -201,18 +200,16 @@ function IntimacaoDetail({
   intimacao,
   processo,
   prazo,
-  busy,
   offline,
   onSelect,
-  onGenerateDraft
+  onPrepareWork
 }: {
   intimacao: Intimacao;
   processo: Processo | null;
   prazo: Prazo | null;
-  busy: string | null;
   offline: boolean;
   onSelect: (sel: DetailSelection) => void;
-  onGenerateDraft: (intimacaoId: number) => void;
+  onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
 }) {
   return (
     <div className="detailBody">
@@ -246,15 +243,10 @@ function IntimacaoDetail({
       <div className="detailActions">
         <button
           className="toolbarButton primary"
-          disabled={offline || busy === `draft-${intimacao.id}`}
-          onClick={() => onGenerateDraft(intimacao.id)}
+          disabled={offline}
+          onClick={() => onPrepareWork(intimacao.id, processo?.id ?? intimacao.processo_id, prazo?.id ?? null)}
         >
-          {busy === `draft-${intimacao.id}` ? (
-            <Loader2 className="spin" size={15} />
-          ) : (
-            <Sparkles size={15} />
-          )}
-          Gerar minuta
+          Preparar trabalho
         </button>
         {processo ? (
           <button

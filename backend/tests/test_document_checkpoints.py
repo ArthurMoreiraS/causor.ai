@@ -55,9 +55,9 @@ def test_io_runs_without_sessions_and_stale_results_cannot_publish(
 
     real_extract = worker.extract_pdf_pages
 
-    def extract(data):
+    def extract(data, **kwargs):
         probe("extraction")
-        return real_extract(data)
+        return real_extract(data, **kwargs)
 
     class Provider:
         def complete_structured(self, *, user, **kwargs):
@@ -106,5 +106,5 @@ def test_background_heartbeat_renews_with_its_own_short_session(db_session, monk
         heartbeat.check()
     with factory() as session:
         expiry = session.get(models.JobExecucao, job_id).lease_expires_at
-        assert expiry.replace(tzinfo=timezone.utc) > previous
+        assert expiry.replace(tzinfo=expiry.tzinfo or timezone.utc) > previous.replace(tzinfo=previous.tzinfo or timezone.utc)
         assert worker.recover_stale_document_jobs(session, older_than_minutes=60) == []

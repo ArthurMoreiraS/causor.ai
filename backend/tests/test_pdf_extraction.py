@@ -42,3 +42,24 @@ def test_text_sha256_is_deterministic(textual_pdf_bytes):
     first = extract_pdf_pages(textual_pdf_bytes)
     second = extract_pdf_pages(textual_pdf_bytes)
     assert first.text_sha256 == second.text_sha256
+
+
+def test_partial_failure_preserves_good_pages_and_retries_only_failed_page(monkeypatch):
+    import fitz
+    with fitz.open() as doc:
+        doc.new_page()
+        doc.new_page()
+        data = doc.tobytes()
+    responses = iter(["Texto OCR da primeira página", ""])
+    monkeypatch.setattr("app.autos.extraction._ocr_image", lambda image: next(responses))
+    with pytest.raises(PdfExtractionError) as failure:
+        extract_pdf_pages(data)
+    cache = failure.value.diagnostics
+    assert [p["status"] for p in cache] == ["complete", "failed"]
+    calls = []
+    monkeypatch.setattr("app.autos.extraction._ocr_image", lambda image: calls.append(True) or "Texto recuperado da segunda página")
+    result = extract_pdf_pages(data, cached_pages=cache)
+    assert len(calls) == 1
+    assert result.page_count == 2
+    assert result.pages[0].text == "Texto OCR da primeira página"
+    assert result.pages[1].page == 2

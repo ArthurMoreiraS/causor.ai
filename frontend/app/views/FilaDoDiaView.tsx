@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckCircle2, FilePenLine, Loader2, Send, Sparkles, Table2 } from "lucide-react";
+import { FilePenLine, Table2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Peticao, ReviewQueueItem } from "@/lib/api";
 import { formatDate } from "@/lib/format";
@@ -46,27 +46,17 @@ function badgeDePrazo(item: ReviewQueueItem) {
   return <span className="dayBadge neutral">Vence em {dias} dias</span>;
 }
 
-function usaPje(item: ReviewQueueItem): boolean {
-  return item.processo?.sistema?.toLowerCase() === "pje";
-}
-
 export default function FilaDoDiaView({
   items,
-  busy,
   offline,
-  onGenerateDraft,
+  onPrepareWork,
   onOpenEditor,
-  onApprove,
-  onFile,
   onNavigate
 }: {
   items: ReviewQueueItem[];
-  busy: string | null;
   offline: boolean;
-  onGenerateDraft: (intimacaoId: number) => void;
+  onPrepareWork: (item: ReviewQueueItem) => void;
   onOpenEditor: (peticao: Peticao) => void;
-  onApprove: (peticao: Peticao) => void;
-  onFile: (peticao: Peticao) => void;
   onNavigate: (view: ViewKey) => void;
 }) {
   const [page, setPage] = useState(0);
@@ -88,7 +78,7 @@ export default function FilaDoDiaView({
   const visible = ordered.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
 
   function acaoPrincipal(item: ReviewQueueItem) {
-    const { peticao, intimacao } = item;
+    const { peticao } = item;
     if (item.status === "cumprido" && !peticao) return null;
     if (peticao?.status === "protocolada") {
       return (
@@ -101,12 +91,11 @@ export default function FilaDoDiaView({
     if (peticao?.status === "aprovada") {
       return (
         <button
-          className="toolbarButton primary"
-          disabled={offline || busy === `file-${peticao.id}`}
-          onClick={() => onFile(peticao)}
+          className="toolbarButton"
+          disabled={offline}
+          onClick={() => onOpenEditor(peticao)}
         >
-          {busy === `file-${peticao.id}` ? <Loader2 className="spin" size={15} /> : <Send size={15} />}
-          {usaPje(item) ? "Preparar PJe" : "Registrar protocolo"}
+          <FilePenLine size={15} /> Ver minuta
         </button>
       );
     }
@@ -114,11 +103,10 @@ export default function FilaDoDiaView({
       return (
         <button
           className="toolbarButton primary"
-          disabled={offline || busy === `approve-${peticao.id}`}
-          onClick={() => onApprove(peticao)}
+          disabled={offline}
+          onClick={() => onOpenEditor(peticao)}
         >
-          {busy === `approve-${peticao.id}` ? <Loader2 className="spin" size={15} /> : <CheckCircle2 size={15} />}
-          Aprovar
+          <FilePenLine size={15} /> Revisar minuta
         </button>
       );
     }
@@ -133,11 +121,10 @@ export default function FilaDoDiaView({
     return (
       <button
         className="toolbarButton primary"
-        disabled={offline || busy === `draft-${intimacao.id}`}
-        onClick={() => onGenerateDraft(intimacao.id)}
+        disabled={offline}
+        onClick={() => onPrepareWork(item)}
       >
-        {busy === `draft-${intimacao.id}` ? <Loader2 className="spin" size={15} /> : <Sparkles size={15} />}
-        Gerar minuta
+        Preparar trabalho
       </button>
     );
   }

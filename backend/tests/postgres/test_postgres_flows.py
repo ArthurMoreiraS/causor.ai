@@ -34,9 +34,9 @@ def test_document_restart_preserves_transaction_and_reuses_completed_extraction(
     extraction_calls = []
     real_extract = worker.extract_pdf_pages
 
-    def extract(data):
+    def extract(data, **kwargs):
         extraction_calls.append(1)
-        return real_extract(data)
+        return real_extract(data, **kwargs)
 
     class Provider:
         calls = 0

@@ -25,8 +25,9 @@ export default function HelpModal({
           <ol className="helpSteps">
             <li><strong>Captura por OAB</strong> — puxa intimações do DJEN e metadados do DataJud.</li>
             <li><strong>Prazo</strong> — calculado por motor determinístico (dias úteis, feriados, recesso).</li>
-            <li><strong>Minuta</strong> — a IA classifica e redige; você revisa.</li>
-            <li><strong>Revisão e aprovação</strong> — confira a peça antes de autorizar o protocolo.</li>
+            <li><strong>Documentos e trabalhos</strong> — reúna autos e documentos do cliente, declare o que falta e registre a providência.</li>
+            <li><strong>Minuta</strong> — confira fatos, páginas citadas e alertas antes de usar o texto.</li>
+            <li><strong>Revisão e aprovação</strong> — salve a versão revisada e obtenha a liberação humana.</li>
             <li><strong>Clientes</strong> — cadastre a parte representada, vincule seus processos e crie tarefas de atendimento.</li>
             <li><strong>Tarefas e pendências</strong> — acompanhe providências e transforme alertas das minutas em tarefas com responsável.</li>
           </ol>
@@ -40,9 +41,9 @@ export default function HelpModal({
           </ul>
         </div>
         <div className="settingsGroup">
-          <span className="settingsLabel">Conectores</span>
+          <span className="settingsLabel">Fontes de captura</span>
           <div className="connectorGrid compactConnectors">
-            {connectors.map((c) => (
+            {connectors.filter(c => c.key === "djen" || c.key === "datajud").map((c) => (
               <article className={`connector ${c.status}`} key={c.name}>
                 <div>
                   <strong>{c.name}</strong>

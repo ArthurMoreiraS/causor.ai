@@ -1,11 +1,11 @@
 import type { ViewKey } from "./views";
 
-/** Only functioning destinations belong in the menu; future modules live in the product plan. */
+/** MVP: show the case intake, context, drafting, and human review path. */
 export const NAV_GROUPS: { label: string; items: ViewKey[] }[] = [
   { label: "Trabalho diário", items: ["dashboard", "tarefas", "intimacoes", "prazos"] },
   { label: "Escritório", items: ["clientes", "processos", "documentos"] },
-  { label: "Produção jurídica", items: ["assistente", "peticoes", "templates", "gate", "protocolos"] },
-  { label: "Administração", items: ["conectores", "auditoria", "onboarding"] }
+  { label: "Produção jurídica", items: ["trabalhos", "assistente", "peticoes", "templates", "gate"] },
+  { label: "Administração", items: ["auditoria", "onboarding"] }
 ];
 
 export function viewFromHash(hash: string): ViewKey {

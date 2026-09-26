@@ -50,8 +50,8 @@ const STATE_LABEL: Record<ContextUiState, string> = {
   blocked: "Bloqueado"
 };
 
-export default function ProcessContextStatus({ processoId, onReceiveDocuments, receivingDisabled = false }: {
-  processoId: number; onReceiveDocuments?: () => void; receivingDisabled?: boolean;
+export default function ProcessContextStatus({ processoId, onReceiveDocuments, receivingDisabled = false, assistedOnly = false }: {
+  processoId: number; onReceiveDocuments?: () => void; receivingDisabled?: boolean; assistedOnly?: boolean;
 }) {
   const [status, setStatus] = useState<AutosStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -228,13 +228,13 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
             <option value="1">1º grau</option><option value="2">2º grau</option>
           </select>
         </label>
-        <button
+        {!assistedOnly ? <button
           className="toolbarButton compact"
           disabled={busy === "capturar" || uiState === "capturing"}
           onClick={() => void capturar()}
         >
           {uiState === "not_captured" ? "Capturar autos" : "Retentar pendências"}
-        </button>
+        </button> : null}
         {onReceiveDocuments ? <button className="toolbarButton compact" disabled={receivingDisabled} onClick={onReceiveDocuments}>Receber documentos</button> : <label className="toolbarButton compact contextUpload">
           {busy === "upload" ? <Loader2 className="spin" size={13} /> : <Upload size={13} />}
           Enviar os autos
@@ -247,15 +247,15 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
             onChange={(event) => void enviar(event.target.files)}
           />
         </label>}
-        <button
+        {!assistedOnly ? <button
           className="toolbarButton primary compact"
           onClick={() => {
             setShowWizard(true);
           }}
         >
           Ver acesso ao tribunal
-        </button>
-        {blocked && !overrideOk && (
+        </button> : null}
+        {!assistedOnly && blocked && !overrideOk && (
           <button className="toolbarButton compact" onClick={() => setShowOverride(true)}>
             <ShieldAlert size={13} /> Liberar excepcionalmente
           </button>
@@ -294,7 +294,7 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
         />
       )}
 
-      {showOverride && (
+      {!assistedOnly && showOverride && (
         <div className="contextOverride" role="dialog" aria-label="Liberação excepcional">
           <p className="contextOverrideWarning">
             ⚠ A peça gerada sem o contexto completo pode omitir fatos dos autos. A

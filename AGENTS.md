@@ -8,6 +8,18 @@ here; do not duplicate them elsewhere.
 
 ## Repository status
 
+**2026-09-25 product direction — read first.** After the legal advisor meeting,
+the founder prioritized OAB publication capture, auditable deadlines, complete
+and reviewable case context, a useful draft, and human review. Manual upload is
+the immediate path for case files; automatic case-file collection must be
+validated against a real-case inventory before it is promised. Clients,
+documents, and legal works stay in the product. Filing and court-specific
+automation are secondary; PJe is one system among several, never a universal
+court route. The founder rejected the condensed “Hoje” UI and requested the
+previous informative overview and module navigation. Current execution order
+and acceptance criteria are in
+[`docs/produto/direcao-pos-reuniao-2026-09-25.md`](docs/produto/direcao-pos-reuniao-2026-09-25.md).
+
 **2026-09-04 factual correction — read first.** The code review in
 [`docs/areas/diagnostico-causor-2026-09-04.md`](docs/areas/diagnostico-causor-2026-09-04.md)
 supersedes readiness claims below where they conflict: local-agent read/filing
@@ -89,8 +101,8 @@ On Linux/macOS use `.venv/bin/python` / `.venv/bin/alembic` instead of the `Scri
 before making product or architecture decisions.
 Decisions already settled with the user (do not re-litigate without being asked):
 - Market: Brazil; initial customer: small/medium law firms (solo to ~50 lawyers).
-- First workflow: end-to-end case operations — **capture intimation → compute deadline → draft petition → file (protocol)**.
-- The moat is **provable execution**, not publication monitoring (a commodity already served by Astrea, Projuris, Legal One, Digesto, Escavador) — and no longer "we file", because doc9/Task.doc9 already runs ~600k automated court operations a month and the OAB's own marketplace (iJUD) sells multi-court filing from R$ 19,90/month. What nobody sells: **completeness proof of the case file + deterministic auditable deadline + immutable trail of human supervision**. Filing is the last mile, executed by the local agent under the lawyer's own credential. See [`docs/areas/viabilidade-mercado-2026-07-29.md`](docs/areas/viabilidade-mercado-2026-07-29.md) and [`docs/areas/modelo-garfield-2026-07-29.md`](docs/areas/modelo-garfield-2026-07-29.md).
+- First value to prove: **capture an OAB publication or accept a manual demand → calculate/review the deadline → gather and scope case files → draft with cited evidence → human review**. Filing is a later lane, not a gate for the first pilot.
+- Product advantage to test: reliable reconstruction of the case, explicit gaps, auditable deadlines, cited drafting, and human supervision. Do not claim universal court-file completeness or competitive exclusivity without evidence. See the September market research and the direction document above.
 
 ## What this product is
 
@@ -134,7 +146,7 @@ These define the architecture; violating them breaks the product's viability or 
 
 - **TDD, especially for `prazo_engine`.** Deadline math must have unit tests for edge cases (recess, local holidays, business-day counting) before implementation. Target ≥99% correct deadline calculation on tested cases.
 - Each component has a single responsibility and is testable in isolation (see the layout above).
-- Build order: MVP vertical slice first (1 court + the single end-to-end flow with the gate), then connector expansion, then additional agents, then multi-tenant/billing/scale. Don't broaden scope ahead of this order without being asked.
+- Build order: prove one authorized case through manual upload, cited draft, and lawyer review; then compare an automatic collection route against that case's inventory. Expand court connectors and filing only after the core value is measured. Keep the human approval gate for any irreversible action.
 
 ## External API references (verified)
 

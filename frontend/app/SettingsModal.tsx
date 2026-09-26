@@ -1,22 +1,18 @@
 "use client";
 
-import { AlertTriangle, Landmark, RotateCcw, SlidersHorizontal, Radar, UserCog, X } from "lucide-react";
+import { AlertTriangle, RotateCcw, SlidersHorizontal, Radar, UserCog, X } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import type { Settings } from "@/lib/settings";
-import AcessoTribunaisPanel from "./components/AcessoTribunaisPanel";
-import AgentSection from "./components/AgentSection";
-import VaultSection from "./components/VaultSection";
 import CaptureTab from "./components/settings/CaptureTab";
 import ProfileTab from "./components/settings/ProfileTab";
 import { InfoHint, Modal } from "./components/ui";
 
-type TabId = "perfil" | "captura" | "tribunais" | "avancado";
+type TabId = "perfil" | "captura" | "avancado";
 
 const TABS: Array<{ id: TabId; label: string; icon: ReactNode; hint: string }> = [
   { id: "perfil", label: "Perfil", icon: <UserCog size={15} />, hint: "Dados do escritório e papel timbrado" },
   { id: "captura", label: "Captura", icon: <Radar size={15} />, hint: "OABs monitoradas e padrões" },
-  { id: "tribunais", label: "Tribunais", icon: <Landmark size={15} />, hint: "Como o Causor entra em cada tribunal" },
   { id: "avancado", label: "Avançado", icon: <SlidersHorizontal size={15} />, hint: "Ajustes finos e reset" }
 ];
 
@@ -79,18 +75,6 @@ export default function SettingsModal({
               onUpdate={onUpdate}
               onOabChanged={onOabChanged}
             />
-          ) : null}
-
-          {tab === "tribunais" ? (
-            <>
-              <p className="settingsLead">
-                O Causor entra no tribunal pelo seu computador, com o seu login. Pareie
-                uma vez: é o que permite ler os autos e protocolar.
-              </p>
-              <AcessoTribunaisPanel offline={offline} />
-              <AgentSection offline={offline} />
-              <VaultSection offline={offline} />
-            </>
           ) : null}
 
           {tab === "avancado" ? (

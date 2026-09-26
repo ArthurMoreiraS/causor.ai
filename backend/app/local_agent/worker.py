@@ -11,6 +11,7 @@ import threading
 import time
 
 from app.local_agent.client import AgentApiClient
+from app.local_agent.guard import CommandGuard, GuardedHandler, ResultUncertain
 
 HEARTBEAT_SECONDS = 20.0
 
@@ -32,7 +33,9 @@ class AgentWorker:
 
     def run_once(self) -> bool:
         """Reivindica e executa um comando. Retorna False se a fila está vazia."""
-        command = self._client.claim()
+        supported = [name for name, handler in self._handlers.items()
+                     if name not in {"prepare_filing", "submit_filing"} or isinstance(handler, GuardedHandler)]
+        command = self._client.claim(supported_types=supported)
         if not command:
             return False
         command_id = command["id"]
@@ -46,26 +49,39 @@ class AgentWorker:
             return True
 
         stop_heartbeat = threading.Event()
+        lost = threading.Event()
+        guard = CommandGuard(self._client, command_id, lost)
 
         def _heartbeat_loop() -> None:
             while not stop_heartbeat.wait(HEARTBEAT_SECONDS):
                 try:
                     self._client.heartbeat(command_id)
-                except Exception:  # noqa: BLE001 - heartbeat é best-effort
+                except Exception:
+                    lost.set()
                     return
 
         beat = threading.Thread(target=_heartbeat_loop, daemon=True)
         beat.start()
         try:
-            resultado = handler(command["payload"])
-        except Exception as exc:  # noqa: BLE001 - falha vira comando failed
+            guard.check()
+            if command["tipo"] in {"prepare_filing", "submit_filing"} and not isinstance(handler, GuardedHandler):
+                raise RuntimeError("Filing handler must enforce ownership at each stage")
+            resultado = handler(command["payload"], guard) if isinstance(handler, GuardedHandler) else handler(command["payload"])
+            guard.check()
+            self._client.complete(command_id, resultado)
+        except Exception as exc:
             stop_heartbeat.set()
             beat.join(timeout=1.0)
-            self._client.fail(command_id, "handler_error", str(exc)[:2000])
+            code = "result_uncertain" if guard.submitted or isinstance(exc, ResultUncertain) else "ownership_lost" if lost.is_set() else "handler_error"
+            try:
+                # Errors from court pages may contain secrets; only controlled messages leave the machine.
+                self._client.fail(command_id, code, "Execução interrompida; consulte o estado antes de retomar.")
+            except Exception:
+                # The durable pre-submit checkpoint remains on the server. Never retry submit here.
+                pass
             return True
         stop_heartbeat.set()
         beat.join(timeout=1.0)
-        self._client.complete(command_id, resultado)
         return True
 
     def run_forever(self, *, idle_seconds: float = 5.0) -> None:

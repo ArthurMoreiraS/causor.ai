@@ -5,7 +5,7 @@ import { NAV_GROUPS } from "@/lib/navigation";
 import { VIEW_LABEL, type ViewKey } from "@/lib/views";
 import { NavGroup, NavItem } from "./ui";
 
-const ICONS = { dashboard: HomeIcon, tarefas: ListTodo, intimacoes: Inbox, prazos: Clock3,
+const ICONS = { dashboard: HomeIcon, tarefas: ListTodo, trabalhos: FilePenLine, intimacoes: Inbox, prazos: Clock3,
   clientes: Users, processos: Scale, documentos: BookOpen, assistente: MessageCircle, peticoes: FilePenLine, templates: BookOpen,
   gate: ShieldCheck, protocolos: Send, conectores: Workflow, auditoria: Table2, onboarding: CheckCircle2 };
 

@@ -75,6 +75,7 @@ export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpen
           {task.cliente_nome ? <span>{task.cliente_nome}</span> : null}</div>
         {task.origem_texto ? <details className="officeOrigin"><summary>Alerta que originou a pendência</summary><p>{task.origem_texto}</p></details> : null}
         <div className="officeActions">
+          {task.trabalho_id ? <a className="toolbarButton compact" href={`/?trabalho=${task.trabalho_id}#trabalhos`}>Retomar trabalho</a> : null}
           {onDocuments ? <button className="toolbarButton compact" disabled={offline} onClick={() => onDocuments(task)}>Documentos da pendência</button> : null}
           {task.processo_id ? <button className="toolbarButton compact" onClick={() => onOpenProcess(task.processo_id!)}>{task.processo_numero || "Abrir processo"}</button> : null}
           {task.intimacao_id ? <button className="toolbarButton compact" onClick={() => onOpenNotice(task.intimacao_id!)}>Intimação de origem</button> : null}

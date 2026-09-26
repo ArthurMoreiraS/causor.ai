@@ -234,7 +234,11 @@ export function Modal({
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // Only the top dialog handles keys when a source/task opens above it.
+      const dialogs = document.querySelectorAll('[role="dialog"][aria-modal="true"]');
+      if (dialogs[dialogs.length - 1] !== cardRef.current) return;
       if (e.key === "Escape") {
+        e.preventDefault();
         onClose();
         return;
       }
@@ -258,7 +262,7 @@ export function Modal({
       if (e.shiftKey && (active === first || active === card)) {
         e.preventDefault();
         last.focus();
-      } else if (!e.shiftKey && active === last) {
+      } else if (!e.shiftKey && (active === last || active === card)) {
         e.preventDefault();
         first.focus();
       }
@@ -413,14 +417,14 @@ export function FeatureTile({
 }: {
   icon: ReactNode;
   label: string;
-  value: number;
+  value?: number;
   onClick: () => void;
 }) {
   return (
     <button className="featureTile" onClick={onClick}>
       <span>{icon}</span>
       <strong>{label}</strong>
-      <small>{value}</small>
+      {value !== undefined ? <small>{value}</small> : null}
     </button>
   );
 }

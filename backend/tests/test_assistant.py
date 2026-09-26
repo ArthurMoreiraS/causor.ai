@@ -53,12 +53,12 @@ def test_loop_executa_ferramenta_de_leitura_e_responde():
 def test_loop_intercepta_acao_como_proposta_sem_executar():
     client = FakeClient(
         [
-            [_tool_block("gerar_minuta", {"intimacao_id": 7})],
-            [_text_block("Preparei a proposta de minuta para sua confirmacao.")],
+            [_tool_block("abrir_trabalho", {"trabalho_id": 7})],
+            [_text_block("Preparei a abertura do trabalho para sua confirmacao.")],
         ]
     )
     result = assistant.chat_with_assistant(
-        [{"role": "user", "content": "Gere a minuta da intimacao 7"}],
+        [{"role": "user", "content": "Abra o trabalho 7"}],
         client=client,
         session=object(),
         read_tool_runner=_read_tool,
@@ -66,8 +66,8 @@ def test_loop_intercepta_acao_como_proposta_sem_executar():
 
     assert len(result["proposed_actions"]) == 1
     action = result["proposed_actions"][0]
-    assert action["tipo"] == "gerar_minuta"
-    assert action["endpoint"] == "/intimacoes/7/draft"
+    assert action["tipo"] == "abrir_trabalho"
+    assert action["endpoint"] == "/trabalhos/7"
     assert "confirmacao" in result["reply"].lower()
 
 

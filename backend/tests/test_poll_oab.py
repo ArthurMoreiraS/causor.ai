@@ -233,6 +233,22 @@ def test_poll_empty_djen_returns_no_pages_beyond_first(db_session, escritorio, c
     assert djen.calls[0][2] == 1
 
 
+def test_poll_reports_djen_403_without_exposing_oab_in_error(db_session, escritorio, calendar):
+    class ForbiddenDjen:
+        def consultar(self, oab, uf, **kw):
+            request = httpx.Request("GET", f"https://comunica.example/comunicacao?numeroOab={oab}")
+            raise httpx.HTTPStatusError("403 Forbidden", request=request, response=httpx.Response(403, request=request))
+
+    result = poll_oab(
+        db_session, oab="123456", uf="SP", escritorio_id=escritorio.id,
+        djen=ForbiddenDjen(), datajud=FakeDatajud({}), calendar=calendar, **JANELA,
+    )
+
+    assert result.djen_indisponivel is True
+    assert result.djen_erro == "DJEN HTTP 403"
+    assert "123456" not in result.djen_erro
+
+
 def test_poll_enrich_false_skips_datajud_and_is_fast(db_session, escritorio, calendar):
     """enrich=False: captura intimações + prazos mas NAO chama DataJud.
     O processo fica como "shell" (numero/tribunal), enriquecido on-demand na minuta."""

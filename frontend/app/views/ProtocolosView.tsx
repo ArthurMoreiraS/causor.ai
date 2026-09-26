@@ -13,6 +13,7 @@ import {
 import { humanError } from "@/lib/errors";
 import { formatDate } from "@/lib/format";
 import { EmptyState, Skeleton } from "../components/ui";
+import AssistedHistory from "../components/AssistedHistory";
 
 /** Rótulos legíveis dos passos que o agente executa (evidence.states). */
 const STEP_LABELS: Record<string, string> = {
@@ -32,14 +33,14 @@ function extrairHandoff(job: JobExecucao): SignatureHandoff | null {
   return handoff;
 }
 
-/** PJe base URL the connector recorded, when automation actually ran. */
+/** URL registered by the connector that handled this specific job. */
 function extrairBaseUrl(job: JobExecucao): string | null {
   const evidence = (job.resultado?.evidence ?? null) as Record<string, unknown> | null;
   const baseUrl = evidence?.base_url;
   return typeof baseUrl === "string" && baseUrl ? baseUrl : null;
 }
 
-/** Close the loop: the lawyer signed/filed in PJe and registers the protocol. */
+/** Close the loop after the lawyer signs/files in the court system. */
 function RegistrarProtocoloForm({
   peticaoId,
   credencialId,
@@ -84,7 +85,7 @@ function RegistrarProtocoloForm({
         <input
           value={numero}
           onChange={(e) => setNumero(e.target.value)}
-          placeholder="ex.: PJE-2026-000123"
+          placeholder="Número informado pelo tribunal"
           disabled={busy}
         />
       </label>
@@ -167,12 +168,12 @@ export default function ProtocolosView({
 
   return (
     <section className="protocolSurface">
+      <AssistedHistory refreshKey={refreshKey} offline={offline} />
       <div className="protocolHead">
         <div>
-          <strong>Jobs de protocolo</strong>
+          <strong>Histórico de integrações e registros anteriores</strong>
           <span className="protocolHint">
-            PJe assistido prepara até ready_to_sign; sistemas sem conector dedicado usam registro
-            operacional com gate humano e eventos de auditoria.
+            Registros anteriores preservam seu método original. Uma declaração manual não equivale à conferência de um comprovante.
           </span>
         </div>
         <button className="toolbarButton compact" disabled={offline || busy} onClick={() => void reload()}>
@@ -292,7 +293,7 @@ export default function ProtocolosView({
                   {baseUrl ? (
                     <a className="toolbarButton compact" href={baseUrl} target="_blank" rel="noreferrer">
                       <ExternalLink size={14} />
-                      Abrir PJe/PJeOffice
+                      Abrir sistema do tribunal
                     </a>
                   ) : null}
                 </div>

@@ -198,7 +198,7 @@ export default function ProfileTab({
       <section className="settingsSection">
         <div className="settingsSectionHead">
           <h4>Papel timbrado</h4>
-          <p>Usado no PDF que acompanha o protocolo. Uma linha aqui é uma linha no papel.</p>
+          <p>Dados visuais do escritório usados nos documentos exportados. Uma linha aqui é uma linha no papel.</p>
         </div>
 
         <div className="settingsLogoRow">

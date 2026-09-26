@@ -1,6 +1,6 @@
 "use client";
 
-import { Bot, CheckCircle2, Clock3, FilePenLine, Inbox, MessageCircle, Scale, Search, Send, ShieldCheck } from "lucide-react";
+import { BookOpen, Bot, CheckCircle2, Clock3, FilePenLine, Inbox, MessageCircle, Scale, Search, ShieldCheck, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ConnectorStatus } from "@/lib/api";
 import { connectorStatusLabel, formatDate } from "@/lib/format";
@@ -49,6 +49,7 @@ export default function HomeDashboard({
     month: "long",
     year: "numeric"
   }).format(new Date());
+  const captureSources = operationalConnectors.filter(connector => connector.key === "djen" || connector.key === "datajud");
   const agentCycle = [
     {
       label: "Captura",
@@ -63,22 +64,22 @@ export default function HomeDashboard({
       icon: <Clock3 size={15} />
     },
     {
+      label: "Contexto",
+      detail: "autos e documentos",
+      status: "queued",
+      icon: <BookOpen size={15} />
+    },
+    {
       label: "Minuta",
       detail: `${metrics.drafts} em revisão`,
       status: metrics.drafts > 0 ? "review" : "queued",
       icon: <FilePenLine size={15} />
     },
     {
-      label: "Aprovação",
+      label: "Revisão",
       detail: `${metrics.approved} liberada${metrics.approved === 1 ? "" : "s"}`,
       status: metrics.approved > 0 ? "active" : metrics.drafts > 0 ? "review" : "queued",
       icon: <ShieldCheck size={15} />
-    },
-    {
-      label: "PJe assistido",
-      detail: metrics.approved > 0 ? "aguardando ready_to_sign" : "sem peça liberada",
-      status: metrics.approved > 0 ? "waiting" : "queued",
-      icon: <Send size={15} />
     },
     {
       label: "Auditoria",
@@ -131,9 +132,9 @@ export default function HomeDashboard({
         <CommandStat label="Prazos" value={metrics.pending} detail="pendentes" />
         <CommandStat
           label="Prazos em dia"
-          value={`${metrics.compliance}%`}
+          value={metrics.pending + metrics.overdue ? `${metrics.compliance}%` : "—"}
           detail={`${metrics.overdue} vencido(s)`}
-          tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : "ok"}
+          tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : metrics.pending > 0 ? "ok" : undefined}
         />
       </div>
 
@@ -141,11 +142,11 @@ export default function HomeDashboard({
         <header>
           <div>
             <span className="sectionKicker">Ciclo do agente</span>
-            <strong>Da captura ao protocolo assistido</strong>
+            <strong>Da captura à peça revisada</strong>
           </div>
           <span className={`cycleHealth ${metrics.highRisk > 0 ? "risk" : "ok"}`}>
             <Bot size={14} />
-            {metrics.highRisk > 0 ? "atenção em prazos" : "operação estável"}
+            {offline ? "dados indisponíveis" : metrics.highRisk > 0 ? "atenção em prazos" : "acompanhe cada etapa"}
           </span>
         </header>
         <div className="agentCycle">
@@ -160,9 +161,11 @@ export default function HomeDashboard({
                     ? "intimacoes"
                     : step.label === "Prazo"
                       ? "prazos"
-                      : step.label === "Minuta"
+                    : step.label === "Contexto"
+                        ? "documentos"
+                    : step.label === "Minuta"
                         ? "peticoes"
-                        : step.label === "Aprovação" || step.label === "PJe assistido"
+                        : step.label === "Revisão"
                           ? "gate"
                           : "auditoria"
                 )
@@ -201,9 +204,9 @@ export default function HomeDashboard({
           </div>
         </Panel>
 
-        <Panel title="Saúde operacional" action={offline ? "offline" : "online"}>
+        <Panel title="Fontes de captura" action={offline ? "offline" : captureSources.length ? "estado informado" : "sem leitura"}>
           <div className="connectorGrid compactConnectors">
-            {operationalConnectors.map((connector) => (
+            {captureSources.map((connector) => (
               <article className={`connector ${connector.status}`} key={connector.name}>
                 <div>
                   <strong>{connector.name}</strong>
@@ -212,6 +215,7 @@ export default function HomeDashboard({
                 <small>{connectorStatusLabel(connector.status)}</small>
               </article>
             ))}
+            {!captureSources.length ? <p>Estado das fontes indisponível. Consulte Integrações para verificar cada fonte.</p> : null}
           </div>
         </Panel>
       </section>
@@ -223,6 +227,9 @@ export default function HomeDashboard({
             <FeatureTile icon={<Clock3 size={16} />} label="Prazos" value={metrics.pending} onClick={() => onNavigate("prazos")} />
             <FeatureTile icon={<FilePenLine size={16} />} label="Minutas" value={metrics.drafts + metrics.approved} onClick={() => onNavigate("peticoes")} />
             <FeatureTile icon={<ShieldCheck size={16} />} label="Revisão e aprovação" value={metrics.approved} onClick={() => onNavigate("gate")} />
+            <FeatureTile icon={<Users size={16} />} label="Clientes" onClick={() => onNavigate("clientes")} />
+            <FeatureTile icon={<BookOpen size={16} />} label="Documentos" onClick={() => onNavigate("documentos")} />
+            <FeatureTile icon={<FilePenLine size={16} />} label="Trabalhos" onClick={() => onNavigate("trabalhos")} />
           </div>
       </Panel>
     </section>

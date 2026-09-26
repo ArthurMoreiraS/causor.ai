@@ -26,9 +26,7 @@ export function sistemaBadge(sistema: string | null | undefined): {
   className: string;
   title: string;
 } {
-  // Rótulo compacto para a coluna "Sistema" das tabelas; a modalidade de
-  // protocolo (automatizado/manual) é redundante (derivada do sistema e já
-  // sinalizada pela cor) e fica no title/hover para não estourar a célula.
+  // O sistema informado é um dado do processo, sem promessa de acesso ou envio.
   if (!sistema) {
     return {
       label: "Não identificado",
@@ -36,13 +34,12 @@ export function sistemaBadge(sistema: string | null | undefined): {
       title: "Sistema não identificado"
     };
   }
-  if (sistema.trim().toLowerCase() === "pje") {
-    return { label: "PJe", className: "sistemaPje", title: "PJe · protocolo automatizado" };
-  }
-  return { label: sistema, className: "sistemaOutro", title: `${sistema} · protocolo manual` };
+  return { label: sistema, className: "sistemaOutro", title: `${sistema} · sistema informado para este processo` };
 }
 
 export function connectorStatusLabel(status: string) {
+  if (status === "implemented") return "implementado";
+  if (status === "validation") return "em validação";
   if (status === "online") return "ativo";
   if (status === "pilot") return "piloto";
   if (status === "planned") return "planejado";

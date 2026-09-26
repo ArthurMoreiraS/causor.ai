@@ -7,21 +7,21 @@ import {
   FilePenLine,
   Loader2,
   Search,
-  Send,
   ShieldCheck,
-  UserRound,
-  Workflow
+  UserRound
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   carregarUsuarioAtual,
   CurrentUser,
   DashboardData,
+  listarDocumentos,
   listarOabsMonitoradas,
   listarTemplates,
   OabMonitorada,
   TemplatePeticao
 } from "@/lib/api";
+import { listarTrabalhos } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
 import type { ViewKey } from "@/lib/views";
 
@@ -47,6 +47,8 @@ export default function OnboardingView({
   const [me, setMe] = useState<CurrentUser | null>(null);
   const [oabs, setOabs] = useState<OabMonitorada[]>([]);
   const [templates, setTemplates] = useState<TemplatePeticao[]>([]);
+  const [documentsTotal, setDocumentsTotal] = useState(0);
+  const [worksTotal, setWorksTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,15 +61,19 @@ export default function OnboardingView({
       }
       setLoading(true);
       try {
-        const [user, monitored, officeTemplates] = await Promise.all([
+        const [user, monitored, officeTemplates, documents, works] = await Promise.all([
           carregarUsuarioAtual(),
           listarOabsMonitoradas(),
-          listarTemplates()
+          listarTemplates(),
+          listarDocumentos({ limit: 1 }),
+          listarTrabalhos()
         ]);
         if (cancelled) return;
         setMe(user);
         setOabs(monitored);
         setTemplates(officeTemplates);
+        setDocumentsTotal(documents.total);
+        setWorksTotal(works.total);
         setError(null);
       } catch (err) {
         if (!cancelled) {
@@ -85,16 +91,10 @@ export default function OnboardingView({
 
   const firstDraft = data.peticoes.find((p) => p.status === "rascunho" || p.status === "em_revisao");
   const approved = data.peticoes.some((p) => p.status === "aprovada" || p.status === "protocolada");
-  const filed = data.peticoes.some((p) => p.status === "protocolada");
   const hasOab = oabs.some((oab) => oab.ativo);
   const hasCapture = data.intimacoes.length > 0;
   const hasDeadline = data.prazos.length > 0;
   const hasTemplate = templates.some((template) => template.ativo);
-
-  const progress = useMemo(() => {
-    const checks = [Boolean(me), hasOab, hasCapture, hasDeadline, hasTemplate, Boolean(firstDraft), approved];
-    return Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  }, [approved, firstDraft, hasCapture, hasDeadline, hasOab, hasTemplate, me]);
 
   const steps = [
     {
@@ -129,6 +129,26 @@ export default function OnboardingView({
     },
     {
       icon: <BookOpen size={16} />,
+      title: "Documentos recebidos",
+      detail: documentsTotal > 0
+        ? `${documentsTotal} documento(s) no escritório. Confira origem, páginas e cobertura antes de redigir.`
+        : "Envie os autos disponíveis e os documentos do cliente. Registre o que falta.",
+      done: documentsTotal > 0,
+      action: "Abrir documentos",
+      onClick: () => onNavigate("documentos")
+    },
+    {
+      icon: <FilePenLine size={16} />,
+      title: "Trabalho jurídico",
+      detail: worksTotal > 0
+        ? `${worksTotal} trabalho(s) cadastrado(s), com providência e parte representada.`
+        : "Inicie uma providência a partir de uma intimação ou de um processo cadastrado manualmente.",
+      done: worksTotal > 0,
+      action: "Abrir trabalhos",
+      onClick: () => onNavigate("trabalhos")
+    },
+    {
+      icon: <BookOpen size={16} />,
       title: "Templates do escritorio",
       detail: hasTemplate
         ? `${templates.filter((template) => template.ativo).length} template(s) ativo(s)`
@@ -142,39 +162,20 @@ export default function OnboardingView({
       title: "Primeira minuta",
       detail: firstDraft
         ? `${firstDraft.tipo ?? "Minuta"} em ${firstDraft.status}`
-        : "Gere uma minuta a partir de uma intimacao capturada.",
+        : "Prepare uma minuta a partir de um trabalho com documentos e fontes conferíveis.",
       done: Boolean(firstDraft),
-      action: "Ver intimacoes",
-      onClick: () => onNavigate("intimacoes")
+      action: "Abrir trabalhos",
+      onClick: () => onNavigate("trabalhos")
     },
     {
       icon: <ShieldCheck size={16} />,
       title: "Revisão e aprovação",
       detail: approved
-        ? "Ja existe minuta aprovada ou protocolada."
+        ? "Já existe minuta aprovada pelo advogado."
         : "Aprove a primeira minuta no módulo Revisão e aprovação.",
       done: approved,
       action: "Abrir gate",
       onClick: () => onNavigate("gate")
-    },
-    {
-      icon: <Send size={16} />,
-      title: "Protocolo assistido",
-      detail: filed
-        ? "Ja existe protocolo registrado."
-        : "Prepare PJe ate ready_to_sign e registre o numero final.",
-      done: filed,
-      action: "Ver protocolos",
-      onClick: () => onNavigate("protocolos")
-    },
-    {
-      icon: <Workflow size={16} />,
-      title: "Acesso aos tribunais",
-      detail:
-        "Pareie o computador do advogado; o login do tribunal abre pelo assistente ao gerar a minuta e serve leitura e protocolo.",
-      done: false,
-      action: "Conectores",
-      onClick: () => onNavigate("conectores")
     }
   ];
 
@@ -185,14 +186,11 @@ export default function OnboardingView({
           <span className="sectionKicker">Onboarding de piloto</span>
           <h2>Ativacao do primeiro escritorio</h2>
           <p>
-            Use este checklist para sair de conta provisionada ate primeira fila,
-            minuta, gate e protocolo assistido.
+            Prepare a entrada do primeiro caso, confira documentos e prazos,
+            gere uma minuta e registre a revisão humana.
           </p>
         </div>
-        <div className="onboardingScore">
-          {loading ? <Loader2 className="spin" size={18} /> : <strong>{progress}%</strong>}
-          <span>ativacao</span>
-        </div>
+        {loading ? <div className="onboardingScore" role="status"><Loader2 className="spin" size={18} /><span>Atualizando etapas</span></div> : null}
       </div>
 
       {offline ? <div className="notice">Backend offline. O onboarding precisa da API.</div> : null}

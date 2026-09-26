@@ -93,7 +93,7 @@ def request_court_login(
         usuario_id=usuario_id,
         tipo="open_court_login",
         idempotency_key=(
-            f"court-login:{sistema.casefold()}:{tribunal.upper()}:{grau}:"
+            f"court-login:{usuario_id}:{sistema.casefold()}:{tribunal.upper()}:{grau}:"
             f"{_now().strftime('%Y-%m-%dT%H')}"
         ),
         payload={
@@ -204,7 +204,7 @@ def request_session_check(
         usuario_id=usuario_id,
         tipo="check_court_session",
         idempotency_key=(
-            f"court-check:{sistema.casefold()}:{tribunal.upper()}:{grau}:"
+            f"court-check:{usuario_id}:{sistema.casefold()}:{tribunal.upper()}:{grau}:"
             f"{_now().strftime('%Y-%m-%dT%H')}"
         ),
         payload={

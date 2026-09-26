@@ -52,7 +52,7 @@ it("abre a minuta de origem e mantém a tarefa pendente se a conclusão falhar",
 it("mantém minutas em revisão na fila de aprovação", () => {
   const row = { peticao: { id: 8, processo_id: 2, tipo: "Manifestação", status: "em_revisao" } } as PeticaoRow;
   const approve = vi.fn();
-  render(<GateOabView rows={[row]} busy={null} offline={false} onApprove={approve} onFile={vi.fn()} />);
+  render(<GateOabView rows={[row]} busy={null} offline={false} onApprove={approve} onOpenEditor={vi.fn()} />);
   fireEvent.click(screen.getByRole("button", { name: "Aprovar" }));
   expect(approve).toHaveBeenCalledWith(row.peticao);
 });

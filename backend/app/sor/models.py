@@ -131,6 +131,65 @@ class Processo(TimestampMixin, Base):
     )
 
 
+class TrabalhoJuridico(TimestampMixin, Base):
+    """A persistent legal task; the judicial notice and deadline are optional."""
+
+    __tablename__ = "trabalho_juridico"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    processo_id: Mapped[int | None] = mapped_column(ForeignKey("processo.id", ondelete="SET NULL"), index=True)
+    intimacao_id: Mapped[int | None] = mapped_column(ForeignKey("intimacao.id", ondelete="SET NULL"))
+    prazo_id: Mapped[int | None] = mapped_column(ForeignKey("prazo.id", ondelete="SET NULL"))
+    peticao_id: Mapped[int | None] = mapped_column(ForeignKey("peticao.id", ondelete="SET NULL"))
+    responsavel_id: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))
+    providencia: Mapped[str] = mapped_column(String(255), nullable=False)
+    instrucoes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    grau: Mapped[str] = mapped_column(String(4), default="1", nullable=False)
+    polo: Mapped[str | None] = mapped_column(String(100))
+    versao: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    escopo: Mapped[dict | None] = mapped_column(JSON)
+    evidencias: Mapped[dict | None] = mapped_column(JSON)
+
+
+class PacoteProtocolo(TimestampMixin, Base):
+    __tablename__ = "pacote_protocolo"
+    __table_args__ = (UniqueConstraint("trabalho_id", "versao", name="uq_pacote_trabalho_versao"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    trabalho_id: Mapped[int | None] = mapped_column(ForeignKey("trabalho_juridico.id", ondelete="SET NULL"), index=True)
+    peticao_id: Mapped[int | None] = mapped_column(ForeignKey("peticao.id", ondelete="SET NULL"))
+    versao: Mapped[int] = mapped_column(Integer, nullable=False)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    dados: Mapped[dict] = mapped_column(JSON, nullable=False)
+    aprovada_por: Mapped[int | None] = mapped_column(ForeignKey("usuario.id", ondelete="SET NULL"))
+    aprovada_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class TentativaProtocolo(TimestampMixin, Base):
+    __tablename__ = "tentativa_protocolo"
+    __table_args__ = (UniqueConstraint("escritorio_id", "idempotency_key", name="uq_tentativa_key"),)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    pacote_id: Mapped[int] = mapped_column(ForeignKey("pacote_protocolo.id"), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    canal: Mapped[str] = mapped_column(String(30), nullable=False, default="externo")
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="aguardando_envio_externo")
+    versao: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    dados: Mapped[dict | None] = mapped_column(JSON)
+
+
+class ComprovanteProtocolo(TimestampMixin, Base):
+    __tablename__ = "comprovante_protocolo"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    tentativa_id: Mapped[int] = mapped_column(ForeignKey("tentativa_protocolo.id"), nullable=False, index=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    storage_key: Mapped[str] = mapped_column(String(1024), nullable=False)
+    nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    status: Mapped[str] = mapped_column(String(40), nullable=False, default="recebido")
+    dados: Mapped[dict | None] = mapped_column(JSON)
+
+
 class ProcessoInstancia(TimestampMixin, Base):
     """One degree (1º/2º grau) of a processo in a specific court system.
 
@@ -506,6 +565,7 @@ class DocumentoArquivo(TimestampMixin, Base):
     text_sha256: Mapped[str | None] = mapped_column(String(64))
     extraction_status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
     extraction_error: Mapped[str | None] = mapped_column(Text)
+    extraction_pages: Mapped[list | None] = mapped_column(JSON)
     atual: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
 
 
@@ -677,6 +737,7 @@ class Tarefa(TimestampMixin, Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
     titulo: Mapped[str] = mapped_column(String(255), nullable=False)
+    trabalho_id: Mapped[int | None] = mapped_column(ForeignKey("trabalho_juridico.id", ondelete="SET NULL"), index=True)
     descricao: Mapped[str | None] = mapped_column(Text)
     tipo: Mapped[str] = mapped_column(String(30), default="providencia", nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="aberta", nullable=False)

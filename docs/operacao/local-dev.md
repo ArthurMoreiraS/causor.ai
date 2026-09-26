@@ -4,7 +4,11 @@
 > [`RODAR-LOCAL.md`](../../RODAR-LOCAL.md) na raiz do repo. Este documento cobre
 > o setup completo (primeira instalação), troubleshooting e captura agendada.
 
-Este caminho sobe o Causor ponta a ponta sem exigir Postgres local.
+O caminho atual usa PostgreSQL. Em 25/09, o fundador autorizou o banco Supabase
+compartilhado para desenvolvimento local; ele está na revisão `b0d6e2f8a4c7`.
+O `frontend/.env.local` usa uma chave pública validada do mesmo projeto.
+Consulte [RODAR-LOCAL.md](../../RODAR-LOCAL.md) para o login e o limite do
+armazenamento de PDFs em disco local.
 
 ## Uso diario
 
@@ -15,7 +19,7 @@ Terminal 1:
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m alembic current
 .\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
@@ -23,7 +27,7 @@ Terminal 2:
 
 ```powershell
 cd frontend
-pnpm dev
+pnpm.cmd dev
 ```
 
 Valide `http://localhost:8000/health` e abra `http://localhost:3000`.
@@ -37,9 +41,9 @@ cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 Copy-Item .env.example .env
-$env:CAUSOR_DATABASE_URL="sqlite:///./causor_dev.db"
+# Configure CAUSOR_DATABASE_URL=postgresql+psycopg://... para o banco autorizado.
+# Rode upgrade head apenas se a revisão consultada estiver atrás da revisão atual.
 .\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe -m app.cli seed-demo
 # Opcional: habilita a geracao de minuta com o Claude. Sem isso, o botao
 # "Gerar minuta" responde 503 com mensagem clara (o resto do fluxo funciona).
 $env:ANTHROPIC_API_KEY="sk-ant-..."
@@ -53,15 +57,8 @@ API:
 - `http://localhost:8000/review/queue`
 - `POST http://localhost:8000/capture/oab`
 
-Se `alembic upgrade head` falhar com `table escritorio already exists`, seu
-SQLite local foi criado antes de o Alembic versionar o schema. Preserve os dados
-carimbando a revisao inicial e depois aplique as migrations faltantes:
-
-```powershell
-.\.venv\Scripts\python.exe -m alembic stamp 40748db8885f
-.\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe -m app.cli seed-demo
-```
+Não use SQLite para validar as migrações deste checkout: a revisão
+`b7d5e9f3a2c1` usa uma alteração de constraint que SQLite não suporta.
 
 ## Frontend
 
@@ -69,8 +66,8 @@ Em outro terminal:
 
 ```powershell
 cd frontend
-pnpm install
-pnpm dev
+pnpm.cmd install
+pnpm.cmd dev
 ```
 
 App:
@@ -115,7 +112,7 @@ Pare o dev server e limpe o cache:
 
 ```powershell
 Remove-Item -LiteralPath .\.next -Recurse -Force
-pnpm dev
+pnpm.cmd dev
 ```
 
 Nao rode `pnpm build` enquanto `pnpm dev` estiver aberto; isso pode invalidar o `.next` do servidor de desenvolvimento.

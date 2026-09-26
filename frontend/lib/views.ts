@@ -12,6 +12,7 @@ export type ViewKey =
   | "dashboard"
   | "clientes"
   | "tarefas"
+  | "trabalhos"
   | "documentos"
   | "onboarding"
   | "assistente"
@@ -38,6 +39,7 @@ export const VIEW_LABEL: Record<ViewKey, string> = {
   dashboard: "Visão geral",
   clientes: "Clientes",
   tarefas: "Tarefas e pendências",
+  trabalhos: "Trabalhos",
   documentos: "Documentos e evidências",
   onboarding: "Configuração inicial",
   templates: "Modelos de peças",
@@ -53,10 +55,10 @@ export const VIEW_LABEL: Record<ViewKey, string> = {
 };
 
 export const CONNECTORS_FALLBACK = [
-  { key: "djen", name: "DJEN", detail: "captura oficial", status: "online" },
-  { key: "datajud", name: "DataJud", detail: "andamentos e metadados", status: "online" },
-  { key: "pje", name: "PJe", detail: "protocolo assistido", status: "pilot" },
-  { key: "esaj", name: "e-SAJ", detail: "próximo conector", status: "planned" }
+  { key: "djen", name: "DJEN", detail: "captura oficial", status: "implemented" },
+  { key: "datajud", name: "DataJud", detail: "andamentos e metadados", status: "implemented" },
+  { key: "pje", name: "PJe", detail: "rota específica sem homologação", status: "validation" },
+  { key: "esaj", name: "e-SAJ", detail: "rota não homologada", status: "planned" }
 ];
 
 /** Linha da view de Processos: processo + próximo prazo + contagens + tipos

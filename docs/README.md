@@ -7,6 +7,10 @@
 
 | Arquivo | O que tem | Quando ler |
 |---|---|---|
+| [`produto/direcao-pos-reuniao-2026-09-25.md`](produto/direcao-pos-reuniao-2026-09-25.md) | Direção após a reunião: captura, prazo, contexto, minuta e revisão; UI anterior restaurada | Antes de decidir prioridade de produto ou interface |
+| [`produto/marco-caso-real-2026-09-25.md`](produto/marco-caso-real-2026-09-25.md) | Um caso autorizado, documentos disponíveis, fontes, tempo e qualidade da minuta | Ao preparar e avaliar o primeiro caso real |
+| [`produto/entrega-contexto-protocolo-2026-09-21.md`](produto/entrega-contexto-protocolo-2026-09-21.md) | Trabalho manual, evidências, pacote/comprovante, executor com simuladores e demonstração isolada | Para operar e implantar a entrega local de contexto e protocolo assistido |
+| [`produto/plano-contexto-protocolo-2026-09-20.md`](produto/plano-contexto-protocolo-2026-09-20.md) | Plano executável sem acesso a tribunal: trabalho, evidências, minuta, pacote, comprovante e executor | Para a próxima sequência de implementação; contém aceites e dependências, não entregas concluídas |
 | [`estado.md`](estado.md) | Status atual e próximos passos do MVP | Antes de qualquer decisão de produto/arquitetura |
 | [`produto/execucao-2026-09-04.md`](produto/execucao-2026-09-04.md) | Implementação autorizada, validação, operação do upload e teste do Astra | Para usar e continuar a entrega de setembro |
 | [`areas/diagnostico-causor-2026-09-04.md`](areas/diagnostico-causor-2026-09-04.md) | Diagnóstico do código, lacunas entre etapas, evidências e testes | Para distinguir implementação isolada de fluxo operacional |

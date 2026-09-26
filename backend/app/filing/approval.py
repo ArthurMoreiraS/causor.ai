@@ -20,8 +20,9 @@ def _inputs(session, petition):
         "conteudo": petition.conteudo or "", "tipo": petition.tipo,
         "processo": process.numero, "tribunal": process.tribunal,
         "sistema": process.sistema, "orgao": process.orgao_julgador,
-        "grau": "1", "anexos": [],
+        "grau": (petition.dossie or {}).get("grau", "1"), "anexos": [],
         "source_fingerprint": (petition.dossie or {}).get("source_fingerprint"),
+        "revisao_conteudo": (petition.dossie or {}).get("revisao_conteudo", 0),
         "timbrado": asdict(letterhead) if letterhead else None,
     }
     if data["timbrado"] and data["timbrado"]["logo"]:
@@ -42,12 +43,24 @@ def prepare_snapshot(session, petition) -> dict:
     key = f"tenant/{petition.escritorio_id}/filing/{petition.id}/{digest}.pdf"
     get_object_store().put_bytes(key, pdf, "application/pdf")
     snapshot = {"input_sha256": fingerprint, "pdf_sha256": digest, "object_key": key,
-                "grau": "1", "anexos": [], "aprovado": False}
+                "grau": (petition.dossie or {}).get("grau", "1"), "anexos": [], "aprovado": False}
     petition.dossie = {**(petition.dossie or {}), "pdf_snapshot": snapshot}
     return snapshot
 
 
 def approve_snapshot(session, petition) -> dict:
+    work_id = (petition.dossie or {}).get("trabalho_id")
+    if work_id:
+        from app.sor import models
+        from app.agent.work_service import require_current_evidence
+        work = session.get(models.TrabalhoJuridico, work_id)
+        if work is None or work.peticao_id != petition.id or work.escritorio_id != petition.escritorio_id:
+            raise ApprovalSnapshotError("A minuta não é a versão atual deste trabalho")
+        _, evidence = require_current_evidence(session, work)
+        if (not evidence.get("conferida")
+                or evidence["work_fingerprint"] != petition.dossie.get("work_fingerprint")
+                or evidence["source_fingerprint"] != petition.dossie.get("source_fingerprint")):
+            raise ApprovalSnapshotError("Confira novamente o contexto e gere a minuta do trabalho atual")
     snapshot = {**prepare_snapshot(session, petition), "aprovado": True}
     petition.dossie = {**(petition.dossie or {}), "pdf_snapshot": snapshot}
     return snapshot

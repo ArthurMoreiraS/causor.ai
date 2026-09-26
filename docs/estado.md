@@ -1,5 +1,56 @@
 # Proximos passos - MVP
 
+> **26/09 — captura em produção diagnosticada.** Auditoria do banco mostra
+> HTTP 403 do DJEN em duas tentativas de 22/09, ambas sem intimações. Hoje não
+> há OAB monitorada nem dados capturados após remoções com limpeza. O checkout
+> local corrige o falso aviso de sucesso, preserva dados ao parar monitoramento,
+> mantém o cursor em falhas e usa paginação conforme o Swagger atual. O bloqueio
+> 403 exige diagnóstico de rede na VPS; confirmar o deploy antes de considerar
+> as correções ativas em produção.
+> O Compose não declara o cron periódico; verificar se existe agendamento
+> externo. [Evidência e roteiro](produto/diagnostico-captura-producao-2026-09-26.md).
+
+> **25/09 — direção após a reunião jurídica e revisão da interface.** O fundador
+> rejeitou a interface condensada “Hoje” e pediu a volta da Visão geral
+> informativa, da navegação por módulos e do tema claro anterior. O checkout
+> local restaura esse desenho, mantém Clientes, Documentos e Trabalhos e passa
+> a organizar o ciclo visível em captura, prazo, contexto, minuta e revisão.
+> Na lista de intimações, “Preparar trabalho” leva a intimação e o prazo
+> vinculados ao formulário de trabalho; a providência é definida pela pessoa e
+> a minuta depende da conferência dos documentos e das fontes.
+> Trabalhos e Assistente Causor estão visíveis; ações de envio judicial e
+> acesso automático aos autos não aparecem no caminho principal do MVP. O
+> Assistente consulta os dados e abre um trabalho, sem oferecer atalho para
+> gerar ou aprovar uma peça fora da conferência das fontes. O percurso
+> sintético no navegador cobre upload, escopo, evidências, minuta e retomada;
+> isso ainda não valida a qualidade jurídica com um caso real.
+> PJe/protocolo ficam fora da interface do MVP até validação de uma rota
+> judicial específica.
+> O próximo marco é um caso real autorizado, upload manual dos autos disponíveis,
+> fontes conferidas e minuta avaliada pelo advogado com tempo e erros registrados.
+> [Direção e ordem de execução](produto/direcao-pos-reuniao-2026-09-25.md).
+> O fundador autorizou usar o PostgreSQL compartilhado no desenvolvimento local.
+> Em 25/09, as três migrações aditivas foram aplicadas: revisão
+> `b0d6e2f8a4c7`, com contagens das tabelas existentes preservadas. A chave
+> pública de Auth local foi corrigida; API `/health` e tela `/login` responderam
+> localmente. Ainda falta o fundador confirmar a entrada com sua senha. PDFs
+> gravados pelo backend local ficam no disco local
+> e não estarão disponíveis para a API implantada. [Marco e ficha de avaliação](produto/marco-caso-real-2026-09-25.md).
+
+> **21/09 — contexto e protocolo assistido implementados localmente.**
+> Cadastro de processo/cliente e trabalho sem intimação fictícia; declaração
+> de escopo/índice de peças; diagnóstico e retomada de OCR por página;
+> evidências buscadas nos textos originais; revisão e tarefas vinculadas;
+> pacote versionado com destino/anexos; tentativa externa e comprovante
+> conferido pelo advogado. Assistente consulta o trabalho com isolamento;
+> executor 0.2.0 tem identidade/destinação, capacidades e proteção contra
+> repetição após envio incerto. O percurso sintético passou no navegador,
+> inclusive comprovante divergente e retomada móvel. Migrações aditivas até
+> `b0d6e2f8a4c7` testadas em PostgreSQL local descartável. À data deste
+> registro, produção permanecia no último deploy registrado abaixo. Leitura/assinatura/
+> envio judicial real continuam dependentes de implementação e homologação.
+> [Entrega, validação e operação](produto/entrega-contexto-protocolo-2026-09-21.md).
+
 > **05/09 — Documentos e evidências implantado (`7aacbf2`).**
 > Biblioteca por processo, versões históricas, resumo, busca em trechos e PDF
 > citado. Recebimento por tarefa preserva a versão exata e deixa a pendência

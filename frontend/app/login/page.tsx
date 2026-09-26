@@ -22,16 +22,25 @@ export default function LoginPage() {
     event.preventDefault();
     setBusy(true);
     setError(null);
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    });
-    setBusy(false);
-    if (signInError) {
-      setError("E-mail ou senha inválidos.");
-      return;
+    try {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+      if (signInError) {
+        setError(
+          signInError.code === "invalid_credentials"
+            ? "E-mail ou senha inválidos."
+            : "Não foi possível autenticar. Verifique a configuração local do Supabase e tente novamente."
+        );
+        return;
+      }
+      router.push("/");
+    } catch {
+      setError("Não foi possível conectar ao Supabase Auth. Tente novamente em instantes.");
+    } finally {
+      setBusy(false);
     }
-    router.push("/");
   }
 
   return (

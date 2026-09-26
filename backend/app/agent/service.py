@@ -15,7 +15,8 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.agent.classifier import ClassificacaoIntimacao, classify_intimacao
-from app.agent.context_selection import ensure_budget, select_draft_context
+from app.agent.context_selection import ensure_budget
+from app.agent.evidence import select_evidence
 from app.agent.drafter import draft_peticao
 from app.capture.datajud import DatajudClient
 from app.capture.normalize import enrich_processo
@@ -324,8 +325,8 @@ def draft_from_intimacao(
         bundle = get_ready_context(session, processo=intimacao.processo)
     selection = None
     if bundle is not None:
-        selection = select_draft_context(
-            bundle,
+        selection = select_evidence(
+            session, processo=intimacao.processo, bundle=bundle,
             query=f"{intimacao.teor}\n{classificacao.resumo}\n{classificacao.peticao_sugerida}",
             timeline=_historico_processo(
                 session, intimacao.processo, intimacao_atual_id=intimacao.id

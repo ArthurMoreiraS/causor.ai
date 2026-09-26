@@ -13,7 +13,7 @@ from app.local_agent import config as agent_config
 from app.local_agent.client import AgentApiClient, AgentApiError
 from app.local_agent.worker import AgentWorker
 
-AGENT_VERSION = "0.1.0"
+from app.local_agent import AGENT_VERSION
 
 
 def _cmd_pair(args: argparse.Namespace) -> int:

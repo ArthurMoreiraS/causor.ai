@@ -113,9 +113,8 @@ def test_cli_capture_due_runs(db_session, monkeypatch):
     assert job.status == "completed"
 
 
-def test_cli_capture_due_accepts_partial_when_djen_down(db_session, monkeypatch):
-    """DJEN sempre fora: scheduler aceita parcial (djen_indisponivel=True),
-    rc=0, job completed com flag de indisponibilidade."""
+def test_cli_capture_due_reports_failure_when_djen_down(db_session, monkeypatch):
+    """The scheduler must alert when the source fails, even with partial data."""
     import httpx
 
     import app.cli as cli
@@ -144,9 +143,9 @@ def test_cli_capture_due_accepts_partial_when_djen_down(db_session, monkeypatch)
 
     rc = cli.main(["capture-due", "--max-attempts", "2", "--backoff-seconds", "0"])
 
-    assert rc == 0
+    assert rc == 1
     job = db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").one()
-    assert job.status == "completed"
+    assert job.status == "failed"
     assert job.resultado.get("djen_indisponivel") is True
 
 

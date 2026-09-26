@@ -79,7 +79,7 @@ class DjenClient:
         data_inicio: date | None = None,
         data_fim: date | None = None,
         pagina: int = 1,
-        itens_por_pagina: int = 50,
+        itens_por_pagina: int = 100,
     ) -> list[ComunicacaoDTO]:
         params: dict[str, str | int] = {
             "numeroOab": oab,

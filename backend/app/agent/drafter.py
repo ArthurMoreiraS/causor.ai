@@ -175,6 +175,7 @@ def draft_peticao(
     prazo_fatal: str | None = None,
     template_conteudo: str | None = None,
     provider: LLMProvider | None = None,
+    source_kind: str = "intimacao",
 ) -> MinutaGerada:
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = (
@@ -198,8 +199,8 @@ def draft_peticao(
     )
 
     prompt = (
-        "[CLASSIFICAÇÃO DA INTIMAÇÃO]\n"
-        f"Tipo do ato: {classificacao.tipo}\n"
+        ("[PROVIDÊNCIA INFORMADA PELO ADVOGADO — SEM INTIMAÇÃO PRESUMIDA]\n" if source_kind == "trabalho" else "[CLASSIFICAÇÃO DA INTIMAÇÃO]\n")
+        + f"Tipo do ato: {classificacao.tipo}\n"
         f"Petição cabível: {classificacao.peticao_sugerida}\n"
         f"Resumo: {classificacao.resumo}\n"
         f"Confiança da classificação: {classificacao.confianca:.2f}\n\n"
@@ -209,7 +210,7 @@ def draft_peticao(
         f"{contexto_linhas}\n\n"
         f"{historico_bloco}"
         f"{template_bloco}"
-        "[TEOR DA INTIMAÇÃO ATUAL]\n"
+        "[INSTRUÇÕES E COMUNICAÇÃO FORNECIDAS]\n"
         f"{intimacao_texto}\n\n"
         f"Tarefa: redija a minuta da {classificacao.peticao_sugerida} aderente ao "
         "momento processual, à luz do contexto acima. Registre em `alertas` qualquer "

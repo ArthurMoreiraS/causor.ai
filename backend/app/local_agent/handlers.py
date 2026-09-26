@@ -203,6 +203,4 @@ def default_handlers() -> dict:
     return {
         "open_court_login": handle_open_court_login,
         "check_court_session": handle_check_court_session,
-        "read_process": handle_read_process,
-        "prepare_filing": handle_prepare_filing,
     }

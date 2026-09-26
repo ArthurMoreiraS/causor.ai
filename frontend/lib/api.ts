@@ -33,6 +33,7 @@ export type TarefaInput = {
   alerta_texto_esperado?: string | null; responsavel_id?: number | null;
 };
 export type Tarefa = TarefaInput & {
+  trabalho_id?: number | null;
   id: number; tipo: TarefaTipo; status: TarefaStatus; prioridade: "normal" | "alta" | "urgente";
   versao: number; origem: string; origem_texto: string | null; concluida_em: string | null;
   processo_numero: string | null; cliente_nome: string | null; responsavel_nome: string | null;
@@ -60,6 +61,7 @@ export function criarTarefa(payload: TarefaInput): Promise<Tarefa> {
 export function obterPeticao(id: number): Promise<Peticao> { return request(`/peticoes/${id}`); }
 export function obterTarefa(id: number): Promise<Tarefa> { return request(`/tarefas/${id}`); }
 export type DocumentoVersao = {
+  paginas_diagnostico?: { page: number; status: string; ocr: boolean; chars?: number; error?: string }[];
   id: number; sha256: string; mime_type: string; size_bytes: number; paginas: number | null;
   atual: boolean; extracao: string; resumo_status: string; created_at: string;
 };
@@ -136,6 +138,7 @@ export async function confirmarPrazoIntimacao(intimacaoId: number, payload: {
 /** Dossiê de apoio gerado junto com a minuta. Fica separado de `conteudo` (que
  * carrega só o texto da peça) e serve de contexto para a revisão do advogado. */
 export type Dossie = {
+  trabalho_id?: number;
   selecao_contexto?: { excerpts_total: number; excerpts_selected: number; excerpts_omitted: number };
   contexto_consolidado?: string;
   analise_providencia?: string;
@@ -202,6 +205,8 @@ export type CaptureResult = {
   intimacoes_novas: number;
   processos_enriquecidos: number;
   prazos_registrados: number;
+  djen_indisponivel?: boolean;
+  djen_erro?: string | null;
   // Intimações antigas capturadas cujo prazo provisório já estaria vencido: são
   // gravadas, mas não geram prazo (evita parede de alarme falso no painel de
   // risco). Opcional porque backend anterior à mudança não envia o campo.
@@ -401,7 +406,7 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").r
 // Acima disso é preciso paginação server-side de verdade.
 const LIST_PAGE_LIMIT = 5000;
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const headers = withAuthHeaders(
@@ -427,6 +432,16 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(detail || `Request failed: ${response.status}`);
   }
   return response.json() as Promise<T>;
+}
+
+/** Authenticated binary/multipart transport; callers never receive a public storage URL. */
+export async function resourceRequest(path: string, init?: RequestInit): Promise<Response> {
+  const { data } = await supabase.auth.getSession();
+  const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store",
+    headers: withAuthHeaders((init?.headers as Record<string, string>) || {}, data.session?.access_token) });
+  if (response.status === 401) throw new Error("Sessão expirada. Entre novamente.");
+  if (!response.ok) throw new Error(await response.text() || `Falha: ${response.status}`);
+  return response;
 }
 
 async function requestOptional<T>(path: string): Promise<T | undefined> {
@@ -944,11 +959,12 @@ export async function cumprirPrazo(prazoId: number): Promise<void> {
 
 export async function enviarMensagemChat(
   messages: ChatTurn[],
-  processoId?: number
+  processoId?: number,
+  trabalhoId?: number
 ): Promise<ChatResponse> {
   return request<ChatResponse>("/chat", {
     method: "POST",
-    body: JSON.stringify({ messages, processo_id: processoId ?? null })
+    body: JSON.stringify({ messages, processo_id: processoId ?? null, trabalho_id: trabalhoId ?? null })
   });
 }
 

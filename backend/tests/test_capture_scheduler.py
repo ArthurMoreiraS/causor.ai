@@ -105,13 +105,14 @@ def test_run_capture_for_oab_advances_cursor_and_captures(db_session, escritorio
     assert kw["data_fim"] == today
 
 
-def test_resilient_capture_accepts_partial_when_djen_unavailable(
+def test_resilient_capture_preserves_partial_but_reports_failure_and_keeps_cursor(
     db_session, escritorio, calendar
 ):
-    """DJEN fora: poll_oab preserva o parcial e marca djen_indisponivel=True.
-    O scheduler aceita como sucesso (parcial) e nao retenta — o proximo ciclo
-    agendado complementa (dedup idempotente)."""
-    oab = models.OabMonitorada(escritorio_id=escritorio.id, oab="12345", uf="SP")
+    """DJEN fora: preserve partial data and retry the same window next cycle."""
+    oab = models.OabMonitorada(
+        escritorio_id=escritorio.id, oab="12345", uf="SP",
+        created_at=datetime(2024, 9, 10, tzinfo=timezone.utc),
+    )
     db_session.add(oab)
     db_session.commit()
 
@@ -137,12 +138,23 @@ def test_resilient_capture_accepts_partial_when_djen_unavailable(
         today=date(2024, 9, 10),
     )
 
-    assert result.succeeded is True
-    assert result.attempts == 1  # nao retenta DJEN; aceita parcial
-    assert result.job.status == "completed"
+    assert result.succeeded is False
+    assert result.attempts == 1
+    assert result.job.status == "failed"
     assert result.job.resultado["djen_indisponivel"] is True
     assert sleeps == []  # nao houve retry externo
     assert db_session.query(models.Intimacao).count() == 0
+    assert oab.cursor_data is None
+    assert oab.ultima_captura_em is None
+
+    # Outage lasting longer than the ordinary lookback must not lose the
+    # original start date when the next scheduler run retries this OAB.
+    next_djen = FakeDjen([])
+    run_capture_for_oab(
+        db_session, oab, djen=next_djen, datajud=FakeDatajud(), calendar=calendar,
+        today=date(2024, 9, 20),
+    )
+    assert next_djen.calls[0][2]["data_inicio"] == date(2024, 9, 7)
 
 
 def test_resilient_capture_records_failure_on_db_operational_error(

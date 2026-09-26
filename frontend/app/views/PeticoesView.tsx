@@ -18,7 +18,7 @@ export default function PeticoesView({
   return (
     <section className="redactionBoard">
       <p className="surfaceCaption">
-        Revise e edite o conteúdo das minutas. A aprovação e o protocolo acontecem no{" "}
+        Revise e edite o conteúdo das minutas. A aprovação humana acontece em{" "}
         <button className="linkButton" onClick={onGoToGate}>
           Revisão e aprovação
         </button>

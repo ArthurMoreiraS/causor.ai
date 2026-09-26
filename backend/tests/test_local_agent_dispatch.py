@@ -33,10 +33,16 @@ def _approved_petition(db_session, *, tribunal="TJMG", sistema="PJe"):
 
 def test_real_filing_enqueues_local_agent_without_opening_browser(db_session, monkeypatch):
     usuario, peticao = _approved_petition(db_session)
-    seed_connected_court_session(
+    installation = models.AgentInstallation(escritorio_id=usuario.escritorio_id, usuario_id=usuario.id,
+        nome="Executor de teste", ativo=True, token_hash="e" * 64)
+    db_session.add(installation)
+    db_session.flush()
+    state = seed_connected_court_session(
         db_session, escritorio_id=peticao.escritorio_id, sistema="PJe",
         tribunal="TJMG", grau="1",
     )
+    state.installation_id = installation.id
+    db_session.flush()
     monkeypatch.setattr(
         "app.connectors.pje.session.PjeBrowserSession.__enter__",
         lambda self: (_ for _ in ()).throw(AssertionError("server opened browser")),
@@ -55,6 +61,7 @@ def test_real_filing_enqueues_local_agent_without_opening_browser(db_session, mo
     assert command.payload["peticao_id"] == peticao.id
     assert command.payload["submit"] is False
     assert command.payload["pdf_object_key"]
+    assert command.installation_id == installation.id
     assert "storage_state" not in command.payload
     # não marca protocolada até o agente confirmar
     db_session.refresh(peticao)

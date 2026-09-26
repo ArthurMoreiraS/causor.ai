@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { Intimacao, Peticao, Prazo, Processo, ProcessoResumoLista, ReviewQueueItem } from "@/lib/api";
 import { buildIntimacaoRows, buildProcessoRows, buildProcessoRowsFromLists, mergeById } from "./views";
+import { NAV_GROUPS } from "./navigation";
+
+it("mantém na navegação do MVP o fluxo jurídico sem acesso judicial ou protocolo", () => {
+  const visible = NAV_GROUPS.flatMap(group => group.items);
+  expect(visible).toEqual(expect.arrayContaining(["dashboard", "intimacoes", "processos", "prazos", "clientes", "documentos", "trabalhos", "peticoes", "gate"]));
+  expect(visible).not.toContain("protocolos");
+  expect(visible).not.toContain("conectores");
+  expect(visible).toContain("assistente");
+});
 
 function intimacao(id: number, processoId: number | null): Intimacao {
   return {

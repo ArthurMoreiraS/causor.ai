@@ -31,10 +31,11 @@ export default function ProtocolarModal({
       <div className="protocolarAviso">
         <AlertTriangle size={16} />
         <span>
-          O Causor abre o {sistema ?? "sistema do tribunal"}, localiza o processo, anexa a
-          minuta e conclui o protocolo, capturando o número e o comprovante. A sessão do
-          tribunal usada é a que você conectou no cofre; o certificado/PIN nunca entra no
-          Causor. Este é o ato irreversível do fluxo — você o aprova aqui, no gate.
+          O envio pelo executor depende de uma integração disponível para este tribunal.
+          A solicitação só será concluída quando houver confirmação do resultado.
+          Se a integração estiver indisponível, baixe o PDF aprovado, envie no tribunal
+          e registre o resultado em Protocolos. Conectar o computador não habilita
+          automaticamente leitura ou envio.
         </span>
       </div>
 
@@ -65,7 +66,7 @@ export default function ProtocolarModal({
           disabled={busy}
           onClick={() => onConfirm()}
         >
-          Confirmar e protocolar
+          Solicitar envio pela integração
         </LoadingButton>
       </div>
     </Modal>

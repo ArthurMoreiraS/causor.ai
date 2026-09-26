@@ -6,9 +6,7 @@ import { connectorStatusLabel } from "@/lib/format";
 
 const CONNECTOR_NOTES: Record<string, string> = {
   djen: "Captura oficial de intimações via Comunica/DJEN — sem scraping.",
-  datajud: "Metadados e movimentos de processo via API pública do CNJ.",
-  pje: "Protocolo assistido: prepara peça, anexos e checkpoint ready_to_sign; assinatura e envio final seguem no PJe/PJeOffice.",
-  esaj: "Próximo conector após o piloto PJe."
+  datajud: "Metadados e movimentos de processo via API pública do CNJ."
 };
 
 export default function ConectoresView({
@@ -21,7 +19,7 @@ export default function ConectoresView({
   return (
     <section className="connectorsSurface">
       <div className="connectorGrid large">
-        {connectors.map((connector) => (
+        {connectors.filter(connector => connector.key === "djen" || connector.key === "datajud").map((connector) => (
           <article className={`connector ${connector.status}`} key={connector.key}>
             <div>
               <strong>{connector.name}</strong>
@@ -37,10 +35,11 @@ export default function ConectoresView({
         <article className="securityCard">
           <ShieldCheck size={18} />
           <div>
-            <strong>APIs oficiais antes de scraping</strong>
+            <strong>Fontes com escopo definido</strong>
             <span>
-              A captura usa DJEN/Comunica e DataJud. Automação de portal (Playwright) é reservada
-              para a ação de protocolo, sempre com fallback humano.
+              DJEN/Comunica traz publicações e DataJud traz metadados. Nenhuma das duas
+              fontes comprova o inteiro teor dos autos; documentos recebidos exigem
+              conferência de origem e cobertura.
             </span>
           </div>
         </article>
@@ -49,9 +48,9 @@ export default function ConectoresView({
           <div>
             <strong>Acesso aos tribunais</strong>
             <span>
-              O login do tribunal roda no computador do advogado e nunca sai dele; o
-              Causor guarda só o estado “conectado”. Gerencie em Configurações →
-              Tribunais.
+              Leitura e envio dependem de uma rota autorizada para o tribunal e a
+              instância do caso. Consulte o estado em Configurações → Tribunais;
+              parear um computador, sozinho, não comprova essa capacidade.
             </span>
           </div>
         </article>

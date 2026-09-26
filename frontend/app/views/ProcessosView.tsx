@@ -13,13 +13,15 @@ export default function ProcessosView({
   rows,
   total,
   loaded,
-  onOpen
+  onOpen,
+  onPrepareWork
 }: {
   rows: ProcessoRow[];
   // `total`/`loaded` vêm de /processos/resumo (total real vs. itens carregados).
   total?: number;
   loaded?: number;
   onOpen: (id: number) => void;
+  onPrepareWork?: (id?: number) => void;
 }) {
   // Paginação só de renderização: milhares de linhas não vão todas ao DOM.
   const [page, setPage] = useState(0);
@@ -39,6 +41,7 @@ export default function ProcessosView({
 
   return (
     <section className="dataTable processTable">
+      {onPrepareWork ? <div className="officeToolbar"><button className="toolbarButton primary" onClick={() => onPrepareWork()}>Novo processo / trabalho</button></div> : null}
       <div className="dataHead" aria-hidden="true">
         <span>Processo</span>
         <span>Órgão julgador</span>
@@ -77,6 +80,7 @@ export default function ProcessosView({
               <DeadlineBadge prazo={proximoPrazo} />
             </div>
             <div className="dataRowEnd">
+              {onPrepareWork ? <button className="toolbarButton compact" onClick={event => { event.stopPropagation(); onPrepareWork(processo.id); }}>Preparar trabalho</button> : null}
               <button
                 className="toolbarButton compact"
                 title="Contexto dos autos (captura, extração e gate)"
@@ -90,7 +94,7 @@ export default function ProcessosView({
             </div>
           </article>
           {contextoAberto === processo.id ? (
-            <ProcessContextStatus processoId={processo.id} />
+            <ProcessContextStatus processoId={processo.id} assistedOnly />
           ) : null}
         </Fragment>
       ))}

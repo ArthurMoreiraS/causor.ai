@@ -16,6 +16,7 @@ def version_out(version, summary=None):
     return {"id": version.id, "sha256": version.sha256, "mime_type": version.mime_type,
         "size_bytes": version.size_bytes, "paginas": version.page_count, "atual": version.atual,
         "extracao": version.extraction_status, "resumo_status": summary.status if summary else "pending",
+        "paginas_diagnostico": [{k: v for k, v in p.items() if k != "text"} for p in version.extraction_pages or []],
         "created_at": version.created_at}
 
 

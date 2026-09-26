@@ -249,18 +249,19 @@ def run_capture_oab_job(
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
-        mark_completed(
-            session,
-            job,
-            {
+        outcome = {
                 "intimacoes_novas": result.intimacoes_novas,
                 "processos_enriquecidos": result.processos_enriquecidos,
                 "prazos_registrados": result.prazos_registrados,
                 "prazos_historicos": result.prazos_historicos,
                 "djen_indisponivel": result.djen_indisponivel,
                 "djen_erro": result.djen_erro,
-            },
-        )
+            }
+        if result.djen_indisponivel:
+            job.resultado = outcome
+            mark_failed(session, job, result.djen_erro or "DJEN indisponível")
+        else:
+            mark_completed(session, job, outcome)
         return job
 
     windows = list(_windows(data_inicio, data_fim, batch_days))  # type: ignore[arg-type]
@@ -307,6 +308,12 @@ def run_capture_oab_job(
             "djen_indisponivel": djen_indisponivel,
             "djen_erro": djen_erro,
         }
+        if partial.djen_indisponivel:
+            mark_failed(session, job, djen_erro or "DJEN indisponível")
+            session.flush()
+            if commit_each is not None:
+                commit_each(session)
+            return job
         session.flush()
         if commit_each is not None:
             commit_each(session)
@@ -469,7 +476,9 @@ def _dispatch_real_filing_to_agent(
         tribunal=tribunal,
         grau=grau,
     )
-    if estado is None or estado.status != "conectado":
+    installation = session.get(models.AgentInstallation, estado.installation_id) if estado and estado.installation_id else None
+    if (estado is None or estado.status != "conectado" or installation is None or not installation.ativo
+            or installation.escritorio_id != peticao.escritorio_id or installation.usuario_id != peticao.aprovada_por):
         job = create_job(
             session,
             tipo="protocolo_peticao",
@@ -530,6 +539,7 @@ def _dispatch_real_filing_to_agent(
         escritorio_id=peticao.escritorio_id,
         usuario_id=peticao.aprovada_por,
         tipo="prepare_filing",
+        target_installation_id=installation.id,
         idempotency_key=f"filing:peticao:{peticao.id}:{digest[:16]}",
         payload={
             "peticao_id": peticao.id,

@@ -76,7 +76,7 @@ export default function DocumentosView({ processos, offline, initialProcessId, i
     </select></label><label>Buscar documento<input value={query} placeholder="Nome do arquivo" maxLength={200} onChange={e => { setQuery(e.target.value); setOffset(0); }} /></label>
       <button className="toolbarButton" disabled={offline || loading} onClick={() => setTick(v => v + 1)}>Atualizar</button></div>
     {processId && !offline ? <ProcessContextStatus key={`${processId}-${tick}`} processoId={Number(processId)}
-      onReceiveDocuments={() => setUpload(true)} receivingDisabled={receivingDisabled} /> : null}
+      onReceiveDocuments={() => setUpload(true)} receivingDisabled={receivingDisabled} assistedOnly /> : null}
     {error ? <p role="alert" className="officeError">{error}</p> : null}
     {loading ? <p role="status">Carregando documentos…</p> : null}
     <div className="officeList" aria-busy={loading}>

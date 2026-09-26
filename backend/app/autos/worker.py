@@ -26,9 +26,10 @@ from app.storage.objects import ObjectStore, get_object_store
 
 
 class DocumentProcessingError(RuntimeError):
-    def __init__(self, code: str, detail: str | None = None):
+    def __init__(self, code: str, detail: str | None = None, *, diagnostics: list | None = None):
         super().__init__(detail or code)
         self.code = code
+        self.diagnostics = diagnostics or []
 
 
 def _hash_file(path: Path) -> str:
@@ -59,6 +60,9 @@ def run_document_processing_job(
     except DocumentProcessingError as exc:
         version.extraction_status = "failed"
         version.extraction_error = str(exc)[:2000]
+        if exc.diagnostics:
+            version.extraction_pages = exc.diagnostics
+            version.page_count = len(exc.diagnostics)
         session.flush()
         raise
     persist_extraction(session, version, result)
@@ -85,9 +89,9 @@ def extract_document(version: models.DocumentoArquivo, *, object_store=None):
             raise DocumentProcessingError("hash_mismatch")
 
         try:
-            return extract_pdf_pages(tmp_path.read_bytes())
+            return extract_pdf_pages(tmp_path.read_bytes(), cached_pages=version.extraction_pages)
         except PdfExtractionError as exc:
-            raise DocumentProcessingError("extraction_failed", str(exc)) from exc
+            raise DocumentProcessingError("extraction_failed", str(exc), diagnostics=exc.diagnostics) from exc
     finally:
         if tmp_path is not None:
             tmp_path.unlink(missing_ok=True)
@@ -98,6 +102,7 @@ def persist_extraction(session: Session, version: models.DocumentoArquivo, resul
     version.text_sha256 = result.text_sha256
     version.extraction_status = "complete"
     version.extraction_error = None
+    version.extraction_pages = [{"page": p.page, "status": "complete", "ocr": p.ocr, "chars": len(p.text)} for p in result.pages]
     _persist_pages(session, version, result)
     session.flush()
 
@@ -323,6 +328,9 @@ def _process_document_stages(session_factory, job_id: int, token: str, version_i
                 if current and current.extraction_status != "complete":
                     current.extraction_status = "failed"
                     current.extraction_error = str(exc)[:2000]
+                    if exc.diagnostics:
+                        current.extraction_pages = exc.diagnostics
+                        current.page_count = len(exc.diagnostics)
                 check_expiry(session, job)
                 session.commit()
             raise
