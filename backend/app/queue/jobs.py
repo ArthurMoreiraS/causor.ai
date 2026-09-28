@@ -183,6 +183,25 @@ def _windows(data_inicio: date, data_fim: date, batch_days: int):
         cursor = end + timedelta(days=1)
 
 
+def _advance_manual_oab_cursor(
+    session: Session, job: models.JobExecucao, data_inicio: date | None, data_fim: date | None,
+) -> None:
+    """Only a complete manual capture advances an existing monitored OAB."""
+    monitored_id = (job.payload or {}).get("oab_monitorada_id")
+    if (
+        job.status != "completed" or job.entidade != "escritorio"
+        or not isinstance(monitored_id, int) or data_inicio is None or data_fim is None
+        or data_inicio > data_fim or data_fim > date.today()
+    ):
+        return
+    monitored = session.get(models.OabMonitorada, monitored_id)
+    if monitored is None or not monitored.ativo or monitored.escritorio_id != job.entidade_id:
+        return
+    if monitored.cursor_data is None or data_fim > monitored.cursor_data:
+        monitored.cursor_data = data_fim
+    monitored.ultima_captura_em = datetime.now(timezone.utc)
+
+
 def run_capture_oab_job(
     session: Session,
     job_id: int,
@@ -193,6 +212,7 @@ def run_capture_oab_job(
     data_inicio: date | None = None,
     data_fim: date | None = None,
     dias_default: int = 15,
+    enrich: bool = True,
     batch_days: int | None = None,
     commit_each: Callable[[Session], None] | None = None,
     hoje: date | None = None,
@@ -245,6 +265,7 @@ def run_capture_oab_job(
             datajud=datajud,
             calendar=calendar,
             dias_default=dias_default,
+            enrich=enrich,
             hoje=hoje,
             data_inicio=data_inicio,
             data_fim=data_fim,
@@ -262,6 +283,7 @@ def run_capture_oab_job(
             mark_failed(session, job, result.djen_erro or "DJEN indisponível")
         else:
             mark_completed(session, job, outcome)
+        _advance_manual_oab_cursor(session, job, data_inicio, data_fim)
         return job
 
     windows = list(_windows(data_inicio, data_fim, batch_days))  # type: ignore[arg-type]
@@ -279,6 +301,7 @@ def run_capture_oab_job(
             datajud=datajud,
             calendar=calendar,
             dias_default=dias_default,
+            enrich=enrich,
             hoje=hoje,
             data_inicio=w_start,
             data_fim=w_end,
@@ -333,6 +356,7 @@ def run_capture_oab_job(
             "djen_erro": djen_erro,
         },
     )
+    _advance_manual_oab_cursor(session, job, data_inicio, data_fim)
     return job
 
 

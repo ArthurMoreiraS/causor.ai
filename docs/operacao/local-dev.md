@@ -13,7 +13,7 @@ armazenamento de PDFs em disco local.
 ## Uso diario
 
 Com `backend/.env`, `frontend/.env.local`, a venv e as dependencias ja
-configuradas, abra dois terminais na raiz do repositorio.
+configuradas, abra três terminais na raiz do repositorio.
 
 Terminal 1:
 
@@ -24,6 +24,16 @@ cd backend
 ```
 
 Terminal 2:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m app.cli worker
+```
+
+O worker consome jobs OAB do banco configurado. No banco compartilhado, só
+execute capturas autorizadas; não use jobs reais para testar alterações.
+
+Terminal 3:
 
 ```powershell
 cd frontend
@@ -55,7 +65,8 @@ API:
 - `http://localhost:8000/health`
 - `http://localhost:8000/dashboard/operational`
 - `http://localhost:8000/review/queue`
-- `POST http://localhost:8000/capture/oab`
+- `POST http://localhost:8000/jobs/capture/oab` (cadastro e enfileiramento)
+- `GET http://localhost:8000/jobs/{id}` (acompanhamento)
 
 Não use SQLite para validar as migrações deste checkout: a revisão
 `b7d5e9f3a2c1` usa uma alteração de constraint que SQLite não suporta.
@@ -74,7 +85,10 @@ App:
 
 - `http://localhost:3000`
 
-O botao `Captura por OAB` executa `POST /capture/oab` e grava somente retornos reais das APIs configuradas.
+O botão `Captura por OAB` cria um job persistente em `POST /jobs/capture/oab`.
+O botão permite fechar o modal e voltar ao acompanhamento. Sem o worker do
+segundo terminal, o job permanece aguardando execução. O endpoint síncrono
+`POST /capture/oab` permanece disponível para clientes legados.
 
 ## Captura agendada
 

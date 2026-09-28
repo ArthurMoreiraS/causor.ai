@@ -1,5 +1,23 @@
 # Proximos passos - MVP
 
+> **28/09 — acompanhamento da captura implementado, publicação pendente.** A consulta somente leitura
+> feita em 27/09 encontrou uma captura concluída com 601 intimações novas;
+> havia 601 intimações e 350 processos no banco. O monitoramento foi removido
+> nove segundos antes de a captura terminar, por isso não havia OAB cadastrada.
+> Uma consulta DJEN limitada feita da máquina local respondeu HTTP 200.
+> Isso atualiza o diagnóstico abaixo: o 403 histórico não explica sozinho a
+> tela presa atual. O frontend aguarda captura síncrona e refresh sem timeout.
+> A correção usa a fila persistente, estados de acompanhamento, timeout e
+> retomada após perda de resposta, com chave de idempotência e isolamento por
+> escritório. Fechar o modal não cancela o job. O resultado aparece antes do
+> refresh do dashboard; enriquecimento DataJud ocorre separadamente. CI e deploy anteriores (`cd96bbf`) foram
+> confirmados como aprovados; a nova correção ainda não foi publicada.
+> Validação local: 719 testes backend aprovados (73 ignorados), 105 frontend,
+> lint, tipos e build aprovados. Modal verificado em DOM; navegador e captura
+> autenticada real após a mudança ainda não verificados.
+> [Plano e verificação](desenvolvimento/planos/2026-09-27-captura-oab-responsiva.md)
+> e [diagnóstico atualizado](produto/diagnostico-captura-producao-2026-09-26.md).
+
 > **26/09 — captura em produção diagnosticada.** Auditoria do banco mostra
 > HTTP 403 do DJEN em duas tentativas de 22/09, ambas sem intimações. Hoje não
 > há OAB monitorada nem dados capturados após remoções com limpeza. O checkout

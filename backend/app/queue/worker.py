@@ -14,21 +14,59 @@ the API surface — only the claim/dispatch plumbing here.
 from __future__ import annotations
 
 import time
+import logging
+from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
+from threading import Lock, Semaphore
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
+from app.capture.enrich import run_enrichment_backfill
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
-from app.queue.jobs import get_job, mark_failed, run_capture_oab_job
+from app.queue.jobs import fail_stale_running_jobs, get_job, mark_failed, run_capture_oab_job
 from app.settings import settings
 from app.sor import models
 from app.sor.db import SessionLocal
+
+logger = logging.getLogger(__name__)
+_backfill_executor = ThreadPoolExecutor(max_workers=2, thread_name_prefix="causor-backfill")
+_backfill_slots = Semaphore(2)
+_backfill_lock = Lock()
+_backfill_offices: set[int] = set()
+
+
+def _schedule_enrichment(escritorio_id: int) -> bool:
+    """At most two detached backfills, coalesced per office; capture never waits."""
+    with _backfill_lock:
+        if escritorio_id in _backfill_offices or not _backfill_slots.acquire(blocking=False):
+            return False
+        _backfill_offices.add(escritorio_id)
+
+    def work() -> None:
+        try:
+            run_enrichment_backfill(escritorio_id)
+        except Exception:
+            logger.exception("backfill apos captura falhou (escritorio=%s)", escritorio_id)
+        finally:
+            with _backfill_lock:
+                _backfill_offices.discard(escritorio_id)
+                _backfill_slots.release()
+
+    try:
+        _backfill_executor.submit(work)
+    except Exception:
+        with _backfill_lock:
+            _backfill_offices.discard(escritorio_id)
+            _backfill_slots.release()
+        logger.exception("nao foi possivel iniciar backfill (escritorio=%s)", escritorio_id)
+        return False
+    return True
 
 
 def _utcnow_naive() -> date:
@@ -96,19 +134,24 @@ def dispatch(
         payload = job.payload or {}
         data_inicio = _parse_date(payload.get("data_inicio"))
         data_fim = _parse_date(payload.get("data_fim"))
-        run_capture_oab_job(
+        completed = run_capture_oab_job(
             session,
             job.id,
             djen=clients.djen,
             datajud=clients.datajud,
             calendar=clients.calendar,
             dias_default=int(payload.get("dias_default", 15)),
+            enrich=payload.get("enrich") is not False,
             data_inicio=data_inicio,
             data_fim=data_fim,
             batch_days=batch_days,
             commit_each=commit_each,
         )
         session.commit()
+        # Publish terminal capture status before the optional, throttled DataJud
+        # backfill. It owns a fresh session and cannot undo the capture result.
+        if completed.status == "completed" and payload.get("enrich") is False and settings.datajud_api_key:
+            _schedule_enrichment(payload["escritorio_id"])
         return
 
     mark_failed(session, job, f"tipo de job nao suportado pelo worker: {job.tipo}")
@@ -132,6 +175,9 @@ def run_once(
 ) -> int:
     """Drain all currently-queued jobs. Returns the number of jobs processed."""
     processed = 0
+    with session_factory() as recovery_session:
+        fail_stale_running_jobs(recovery_session, older_than_minutes=settings.job_stale_minutes)
+        recovery_session.commit()
     while True:
         session = session_factory()
         try:

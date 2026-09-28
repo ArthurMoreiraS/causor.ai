@@ -1,6 +1,6 @@
 # Rodar o Causor localmente
 
-Guia rápido para subir **backend** (FastAPI) e **frontend** (Next.js) na sua máquina.
+Guia rápido para subir **backend** (FastAPI), **worker de captura** e **frontend** (Next.js) na sua máquina.
 Comandos em **PowerShell** (Windows).
 
 ## Pré-requisitos
@@ -49,7 +49,23 @@ python -m venv .venv
 
 ---
 
-## 2. Frontend — http://localhost:3000
+## 2. Worker de captura OAB
+
+Em outro terminal, na pasta `backend/`, rode:
+
+```powershell
+cd backend
+.\.venv\Scripts\python.exe -m app.cli worker
+```
+
+O botão Captura por OAB cadastra a OAB e cria um job persistente. Sem este
+worker, o job fica aguardando execução; a tela permite acompanhar e verificar
+novamente. Com o banco compartilhado, este worker pode consumir jobs da conta
+real: use apenas para uma captura que você autorizou, nunca como teste isolado.
+
+---
+
+## 3. Frontend — http://localhost:3000
 
 Em **outro terminal**, na pasta `frontend/`:
 
@@ -76,12 +92,12 @@ no banco. Não coloque senha nem `service_role` no frontend.
 
 ---
 
-## 3. Agente local (leitura/protocolo autenticados no tribunal)
+## 4. Agente local (experimental, sem homologação de leitura/protocolo)
 
-O backend hospedado **nunca** abre navegador de tribunal. Quem executa
-Playwright com a sessão do advogado é o **agente local**, pareado uma vez por
-computador. Gere o código em Configurações → "Agente local" (expira em 10
-minutos) e rode:
+O agente local de tribunal é experimental. Os handlers de leitura e protocolo
+autenticados ainda não foram homologados. Ele não é necessário para a captura
+OAB via DJEN. Para experimentar o pareamento, gere o código em Configurações →
+"Agente local" (expira em 10 minutos) e rode:
 
 ```powershell
 cd backend
@@ -94,9 +110,9 @@ $PAIRING_CODE = "copie-o-codigo-exibido-no-Causor"
 .\.venv\Scripts\python.exe -m app.local_agent run
 ```
 
-O token fica no keyring do Windows; a sessão do tribunal fica no perfil
-Playwright em `%LOCALAPPDATA%\Causor\profiles` (fora do Git). Comandos de
-leitura/protocolo autenticados só executam com o agente online (`run`).
+O token fica no keyring do Windows; o perfil Playwright fica em
+`%LOCALAPPDATA%\Causor\profiles` (fora do Git). O pareamento não comprova
+execução funcional de leitura ou protocolo judicial.
 
 ---
 
@@ -127,4 +143,5 @@ Stop-Process -Id <PID> -Force
 | Serviço  | Comando                                                                          | URL                   |
 |----------|----------------------------------------------------------------------------------|-----------------------|
 | Backend  | `.venv\Scripts\python.exe -m uvicorn app.api.main:app --port 8000 --reload`       | http://localhost:8000 |
+| Worker de captura | `.venv\Scripts\python.exe -m app.cli worker` | jobs OAB |
 | Frontend | `pnpm dev`                                                                        | http://localhost:3000 |

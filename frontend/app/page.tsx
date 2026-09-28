@@ -37,8 +37,10 @@ import {
   removerOabMonitorada,
   revisarPrazo,
   ReviewQueueItem,
-  rodarCapturaOab
+  JobExecucao
 } from "@/lib/api";
+import { useOabCapture } from "./useOabCapture";
+import { captureProgress, captureResultFromJob } from "@/lib/oab-capture";
 import AuditPanel from "./AuditPanel";
 import SidebarNavigation from "./components/SidebarNavigation";
 import TarefaDialog from "./components/TarefaDialog";
@@ -160,6 +162,22 @@ export default function Home() {
     uf: "SP"
   });
   const [oabsMonitoradas, setOabsMonitoradas] = useState<OabMonitorada[]>([]);
+  const capture = useOabCapture(session?.user?.id ?? null, () => {
+    void loadOabsMonitoradas();
+  }, (job: JobExecucao) => {
+    const result = captureResultFromJob(job);
+    setCaptureContext({ oab: String(job.payload?.oab ?? ""), uf: String(job.payload?.uf ?? "") });
+    if (job.status === "completed") {
+      setCaptureResult(result);
+      setOabForm((f) => ({ ...f, open: false }));
+      toast({ kind: "success", title: "Captura concluída", description: `${result.intimacoes_novas} intimações novas. Confira a origem e o prazo antes de preparar o trabalho.` });
+    } else {
+      const message = captureFailureMessage(result) ?? job.erro ?? "A captura não foi concluída.";
+      setError(message);
+      toast({ kind: "error", title: "Captura não concluída", description: message });
+    }
+    void refresh();
+  });
   const [oabToRemove, setOabToRemove] = useState<OabMonitorada | null>(null);
   const { settings, update: updateSettings, reset: resetSettings } = useSettings();
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
@@ -209,10 +227,13 @@ export default function Home() {
     setOabForm((f) => ({
       ...f,
       open: true,
-      oab: f.oab || settings.defaultOab,
-      uf: f.uf || validUf
+      oab: capture.job && ["queued", "running"].includes(capture.job.status)
+        ? String(capture.job.payload?.oab ?? f.oab) : f.oab || settings.defaultOab,
+      uf: capture.job && ["queued", "running"].includes(capture.job.status)
+        ? String(capture.job.payload?.uf ?? validUf) : f.uf || validUf
     }));
     void loadOabsMonitoradas();
+    if (capture.phase === "lost" || !capture.job) void capture.check();
   }
 
   async function refresh() {
@@ -291,37 +312,9 @@ export default function Home() {
   }
 
   async function runCaptureOab() {
-    const oab = oabForm.oab.trim();
-    const uf = oabForm.uf.trim().toUpperCase();
-    setBusy("capture");
     setError(null);
     setCaptureResult(null);
-    setCaptureContext({ oab, uf });
-    try {
-      const result = await rodarCapturaOab(oab, uf);
-      await loadOabsMonitoradas();
-      await refresh();
-      const captureFailure = captureFailureMessage(result);
-      if (captureFailure) {
-        const message = captureFailure;
-        setError(message);
-        toast({ kind: "error", title: "Falha na fonte DJEN", description: message });
-        return;
-      }
-      setCaptureResult(result);
-      setOabForm((f) => ({ ...f, open: false }));
-      toast({
-        kind: "success",
-        title: "Captura concluída",
-        description: `${result.intimacoes_novas} intimações novas. Confira a origem e o prazo antes de preparar o trabalho.`
-      });
-    } catch (err) {
-      const message = humanError(err, "A captura por OAB não foi concluída");
-      setError(message);
-      toast({ kind: "error", title: "Captura não concluída", description: message });
-    } finally {
-      setBusy(null);
-    }
+    await capture.submit(oabForm.oab.trim(), oabForm.uf.trim().toUpperCase());
   }
 
   async function removeCapturedOab(oab: OabMonitorada) {
@@ -717,6 +710,9 @@ export default function Home() {
         ? userMeta.name
         : null;
   const greetingName = rawUserName?.trim().split(/\s+/)[0] ?? null;
+  const captureLabel = capture.job
+    ? `OAB ${String(capture.job.payload?.oab ?? "?")}/${String(capture.job.payload?.uf ?? "?")}`
+    : "OAB informada";
 
   if (authLoading || !session) {
     return (
@@ -1090,9 +1086,7 @@ export default function Home() {
         {oabForm.open ? (
           <div
             className="modalOverlay"
-            onClick={() => {
-              if (busy !== "capture") setOabForm((f) => ({ ...f, open: false }));
-            }}
+            onClick={() => setOabForm((f) => ({ ...f, open: false }))}
           >
             <div className="modalCard" onClick={(e) => e.stopPropagation()}>
               <h3>Captura por OAB</h3>
@@ -1100,6 +1094,7 @@ export default function Home() {
                 OAB
                 <input
                   value={oabForm.oab}
+                  disabled={capture.phase === "sending"}
                   onChange={(e) => setOabForm((f) => ({ ...f, oab: e.target.value }))}
                   placeholder="Número da OAB"
                 />
@@ -1108,18 +1103,27 @@ export default function Home() {
                 UF
                 <UfSearchSelect
                   value={oabForm.uf}
-                  disabled={busy === "capture"}
+                  disabled={capture.phase === "sending"}
                   onChange={(uf) => setOabForm((f) => ({ ...f, uf }))}
                 />
               </label>
-              {busy === "capture" ? (
+              {capture.phase !== "idle" ? (
                 <div className="captureFeedback" role="status" aria-live="polite">
-                  <Loader2 className="spin" size={14} />
+                  {["sending", "queued", "running"].includes(capture.phase) ? <Loader2 className="spin" size={14} aria-hidden="true" /> : null}
                   <span>
-                    Capturando intimações para OAB {oabForm.oab.trim() || "informada"}/
-                    {oabForm.uf}. Isso pode levar alguns instantes.
+                    {capture.phase === "sending" ? "Registrando OAB e solicitando captura..." : null}
+                    {capture.phase === "queued" ? `${captureLabel}: aguardando início da consulta.` : null}
+                    {capture.phase === "running" ? `${captureLabel}: consulta em andamento. ${capture.job ? captureProgress(capture.job) ?? "Aguardando confirmação do primeiro período." : ""}` : null}
+                    {capture.phase === "completed" && capture.job ? `${captureLabel}: captura concluída, ${captureResultFromJob(capture.job).intimacoes_novas} intimações novas e ${captureResultFromJob(capture.job).prazos_registrados} prazos registrados.` : null}
+                    {capture.phase === "failed" && capture.job ? `${captureLabel}: captura falhou. ${captureFailureMessage(captureResultFromJob(capture.job)) ?? capture.job.erro ?? "Consulte o histórico."}` : null}
+                    {capture.phase === "lost" ? `Acompanhamento interrompido${capture.job ? ` para ${captureLabel}` : ""}. ${capture.trackingError ?? "Verifique novamente; o trabalho pode continuar no servidor."}` : null}
+                    {capture.phase === "queued" && capture.job && capture.now - new Date(capture.job.created_at).getTime() > 30000 ? " A consulta ainda não começou. Você pode fechar e acompanhar depois." : null}
+                    {capture.phase === "running" && capture.job && capture.now - new Date(capture.job.updated_at).getTime() > 30000 ? " Ainda não há progresso confirmado. Você pode fechar e acompanhar depois." : null}
                   </span>
                 </div>
+              ) : null}
+              {capture.phase !== "idle" && capture.phase !== "sending" ? (
+                <button className="toolbarButton compact" onClick={() => void capture.check()}>Verificar agora</button>
               ) : null}
               {error ? <small className="settingsHint vaultError" role="alert">{error}</small> : null}
               <div className="modalListBlock">
@@ -1154,22 +1158,23 @@ export default function Home() {
               <div className="modalActions">
                 <button
                   className="toolbarButton"
-                  disabled={busy === "capture"}
                   onClick={() => setOabForm((f) => ({ ...f, open: false }))}
                 >
-                  Cancelar
+                  Fechar
                 </button>
                 <LoadingButton
                   className="toolbarButton primary"
-                  loading={busy === "capture"}
+                  loading={capture.phase === "sending"}
                   disabled={
                     !oabForm.oab.trim() ||
-                    busy === "capture" ||
+                    capture.phase === "sending" ||
+                    (["queued", "running"].includes(capture.phase) && capture.job != null &&
+                      String(capture.job.payload?.oab) === oabForm.oab.trim() && String(capture.job.payload?.uf) === oabForm.uf) ||
                     !BRASIL_UFS.some((uf) => uf.sigla === oabForm.uf)
                   }
                   onClick={() => void runCaptureOab()}
                 >
-                  {busy === "capture" ? "Capturando..." : "Capturar"}
+                  {capture.phase === "sending" ? "Registrando..." : "Capturar"}
                 </LoadingButton>
               </div>
             </div>

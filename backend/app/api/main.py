@@ -10,13 +10,14 @@ from __future__ import annotations
 import base64
 import binascii
 import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-from sqlalchemy import delete, func, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
@@ -100,6 +101,16 @@ from app.capture.court_routing import resolve_route
 def _default_calendar_years() -> list[int]:
     year = datetime.now(timezone.utc).year
     return [year - 1, year, year + 1]
+
+
+def _normalizar_oab(oab: str, uf: str) -> tuple[str, str]:
+    numero = re.sub(r"[\s.\-/]", "", oab).upper()
+    estado = uf.strip().upper()
+    if not numero or len(numero) > 20 or not numero.isalnum():
+        raise HTTPException(status_code=422, detail="numero da OAB invalido")
+    if len(estado) != 2 or not estado.isalpha():
+        raise HTTPException(status_code=422, detail="UF da OAB invalida")
+    return numero, estado
 
 
 def _audit(
@@ -638,10 +649,94 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.JobExecucao:
+        # Cadastro e job sao uma transacao; lock no escritorio serializa pedidos
+        # concorrentes pela mesma OAB em PostgreSQL.
+        session.scalar(
+            select(models.Escritorio.id)
+            .where(models.Escritorio.id == current.escritorio_id)
+            .with_for_update()
+        )
+        oab_numero, uf = _normalizar_oab(payload.oab, payload.uf)
+        if payload.request_id:
+            prior = session.scalars(
+                select(models.JobExecucao).where(
+                    models.JobExecucao.tipo == "captura_oab",
+                    or_(
+                        and_(models.JobExecucao.entidade == "escritorio",
+                             models.JobExecucao.entidade_id == current.escritorio_id),
+                        and_(models.JobExecucao.entidade == "oab_monitorada",
+                             models.JobExecucao.entidade_id.in_(
+                                 select(models.OabMonitorada.id).where(
+                                     models.OabMonitorada.escritorio_id == current.escritorio_id,
+                                 )
+                             )),
+                    ),
+                ).order_by(models.JobExecucao.id.desc())
+            )
+            for existing in prior:
+                previous = existing.payload or {}
+                request_ids = [previous.get("request_id"), *(previous.get("request_ids") or [])]
+                if payload.request_id in request_ids:
+                    if not (
+                        (existing.entidade == "escritorio" and existing.entidade_id == current.escritorio_id)
+                        or (
+                            existing.entidade == "oab_monitorada"
+                            and existing.entidade_id is not None
+                            and (monitor := session.get(models.OabMonitorada, existing.entidade_id)) is not None
+                            and monitor.escritorio_id == current.escritorio_id
+                        )
+                    ):
+                        continue
+                    if previous.get("oab") != oab_numero or previous.get("uf") != uf:
+                        raise HTTPException(status_code=409, detail="identificador ja usado para outra OAB")
+                    return existing
+        cadastro = session.scalar(
+            select(models.OabMonitorada).where(
+                models.OabMonitorada.escritorio_id == current.escritorio_id,
+                models.OabMonitorada.oab == oab_numero,
+                models.OabMonitorada.uf == uf,
+            )
+        )
+        if cadastro is None:
+            cadastro = models.OabMonitorada(
+                escritorio_id=current.escritorio_id, oab=oab_numero,
+                uf=uf, intervalo_horas=12, ativo=True,
+            )
+            session.add(cadastro)
+            session.flush()
+        else:
+            cadastro.ativo = True
+
+        active = session.scalars(
+            select(models.JobExecucao).where(
+                models.JobExecucao.tipo == "captura_oab",
+                models.JobExecucao.status.in_(("queued", "running")),
+                models.JobExecucao.entidade_id.in_((current.escritorio_id, cadastro.id)),
+            ).order_by(models.JobExecucao.id.desc())
+        )
+        for existing in active:
+            if existing.entidade == "escritorio" and existing.entidade_id != current.escritorio_id:
+                continue
+            if existing.entidade == "oab_monitorada" and existing.entidade_id != cadastro.id:
+                continue
+            if existing.entidade not in ("escritorio", "oab_monitorada"):
+                continue
+            previous = existing.payload or {}
+            if (str(previous.get("oab", "")).strip().upper(), str(previous.get("uf", "")).strip().upper()) == (oab_numero, uf):
+                if payload.request_id and payload.request_id != previous.get("request_id"):
+                    existing.payload = {
+                        **previous,
+                        "request_ids": [*(previous.get("request_ids") or []), payload.request_id],
+                    }
+                session.commit()
+                session.refresh(existing)
+                return existing
         # Sem janela no payload, quem executar o job varre o histórico inteiro da
         # OAB no DJEN. O default limitado é gravado aqui, no momento da criação,
         # para que o executor não dependa de o chamador lembrar de repassá-lo.
         dados = payload.model_dump(mode="json")
+        dados["oab"] = oab_numero
+        dados["uf"] = uf
         if dados.get("data_inicio") is None:
             data_fim = payload.data_fim or date.today()
             dados["data_inicio"] = (
@@ -654,7 +749,7 @@ def create_app() -> FastAPI:
             tipo="captura_oab",
             entidade="escritorio",
             entidade_id=current.escritorio_id,
-            payload={**dados, "escritorio_id": current.escritorio_id},
+            payload={**dados, "escritorio_id": current.escritorio_id, "oab_monitorada_id": cadastro.id, "enrich": False},
             ator=f"usuario:{current.usuario_id}",
         )
         session.commit()
@@ -726,11 +821,12 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.OabMonitorada:
+        oab_numero, uf = _normalizar_oab(payload.oab, payload.uf)
         existing = session.scalar(
             select(models.OabMonitorada).where(
                 models.OabMonitorada.escritorio_id == current.escritorio_id,
-                models.OabMonitorada.oab == payload.oab,
-                models.OabMonitorada.uf == payload.uf,
+                models.OabMonitorada.oab == oab_numero,
+                models.OabMonitorada.uf == uf,
             )
         )
         if existing is not None:
@@ -741,8 +837,8 @@ def create_app() -> FastAPI:
             return existing
         oab = models.OabMonitorada(
             escritorio_id=current.escritorio_id,
-            oab=payload.oab,
-            uf=payload.uf,
+            oab=oab_numero,
+            uf=uf,
             intervalo_horas=payload.intervalo_horas,
             ativo=True,
         )

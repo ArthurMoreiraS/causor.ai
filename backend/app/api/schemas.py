@@ -130,6 +130,7 @@ class ConfirmarPrazoRequest(BaseModel):
 class CaptureOabRequest(BaseModel):
     oab: str
     uf: str
+    request_id: str | None = Field(default=None, min_length=8, max_length=80)
     dias_default: int = 15
     data_inicio: date | None = None
     data_fim: date | None = None

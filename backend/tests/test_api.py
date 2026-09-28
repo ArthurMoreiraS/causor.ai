@@ -727,6 +727,108 @@ def test_criar_e_consultar_job_captura_oab(client, db_session, seeded):
     assert [row["id"] for row in visible_audit] == [audit.id]
 
 
+def test_captura_job_cadastra_normaliza_e_reusa_ativo(client, db_session, seeded):
+    first = client.post("/jobs/capture/oab", json={"oab": " 123.456 ", "uf": "sp"})
+    assert first.status_code == 200
+    job = first.json()
+    assert job["payload"]["oab"] == "123456"
+    assert job["payload"]["uf"] == "SP"
+    monitored = client.get("/capturas/oab").json()
+    assert len(monitored) == 1
+    assert (monitored[0]["oab"], monitored[0]["uf"]) == ("123456", "SP")
+    second = client.post("/jobs/capture/oab", json={"oab": "123456", "uf": "SP"})
+    assert second.status_code == 200
+    assert second.json()["id"] == job["id"]
+    assert db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").count() == 1
+
+
+def test_captura_job_mesma_chave_retorna_concluido_sem_repetir(client, db_session, seeded):
+    request = {"oab": "12345", "uf": "SP", "request_id": "tentativa-12345"}
+    first = client.post("/jobs/capture/oab", json=request).json()
+    persisted = db_session.get(models.JobExecucao, first["id"])
+    persisted.status = "completed"
+    db_session.commit()
+    second = client.post("/jobs/capture/oab", json=request)
+    assert second.status_code == 200
+    assert second.json()["id"] == first["id"]
+    assert client.post("/jobs/capture/oab", json={**request, "oab": "88888"}).status_code == 409
+    assert db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").count() == 1
+
+
+def test_replay_apos_remocao_nao_reativa_oab(client, db_session, seeded):
+    request = {"oab": "12345", "uf": "SP", "request_id": "tentativa-removida"}
+    first = client.post("/jobs/capture/oab", json=request).json()
+    monitored = db_session.query(models.OabMonitorada).filter_by(oab="12345").one()
+    monitored.ativo = False
+    db_session.get(models.JobExecucao, first["id"]).status = "completed"
+    db_session.commit()
+    assert client.post("/jobs/capture/oab", json=request).json()["id"] == first["id"]
+    db_session.refresh(monitored)
+    assert monitored.ativo is False
+
+
+def test_replay_de_chave_alias_apos_conclusao_reutiliza_job(client, db_session, seeded):
+    first = client.post("/jobs/capture/oab", json={"oab": "12345", "uf": "SP", "request_id": "tentativa-A"}).json()
+    second_request = {"oab": "12345", "uf": "SP", "request_id": "tentativa-B"}
+    assert client.post("/jobs/capture/oab", json=second_request).json()["id"] == first["id"]
+    db_session.get(models.JobExecucao, first["id"]).status = "completed"
+    db_session.commit()
+    assert client.post("/jobs/capture/oab", json=second_request).json()["id"] == first["id"]
+    assert db_session.query(models.JobExecucao).filter_by(tipo="captura_oab").count() == 1
+
+
+def test_replay_alias_de_job_legado_monitorado_respeita_tenant(client, db_session, seeded):
+    monitored = models.OabMonitorada(
+        escritorio_id=seeded.escritorio_id, oab="12345", uf="SP", intervalo_horas=12, ativo=True,
+    )
+    other = models.Escritorio(nome="Outro")
+    db_session.add_all([monitored, other])
+    db_session.flush()
+    foreign = models.OabMonitorada(
+        escritorio_id=other.id, oab="99999", uf="SP", intervalo_horas=12, ativo=True,
+    )
+    db_session.add(foreign)
+    db_session.flush()
+    legacy = models.JobExecucao(
+        tipo="captura_oab", status="completed", entidade="oab_monitorada", entidade_id=monitored.id,
+        payload={"oab": "12345", "uf": "SP", "escritorio_id": seeded.escritorio_id,
+                 "request_ids": ["alias-legado"]},
+    )
+    hidden = models.JobExecucao(
+        tipo="captura_oab", status="completed", entidade="oab_monitorada", entidade_id=foreign.id,
+        payload={"oab": "99999", "uf": "SP", "escritorio_id": other.id,
+                 "request_ids": ["alias-outro"]},
+    )
+    db_session.add_all([legacy, hidden])
+    db_session.commit()
+    response = client.post("/jobs/capture/oab", json={"oab": "12345", "uf": "SP", "request_id": "alias-legado"})
+    assert response.status_code == 200
+    assert response.json()["id"] == legacy.id
+    response = client.post("/jobs/capture/oab", json={"oab": "99999", "uf": "SP", "request_id": "alias-outro"})
+    assert response.status_code == 200
+    assert response.json()["id"] != hidden.id
+
+
+def test_captura_job_reusa_running_mas_novo_apos_fim_e_isola_tenant(client, db_session, seeded):
+    first = client.post("/jobs/capture/oab", json={"oab": "12345", "uf": "SP"}).json()
+    own = db_session.get(models.JobExecucao, first["id"])
+    own.status = "running"
+    db_session.commit()
+    assert client.post("/jobs/capture/oab", json={"oab": "12345", "uf": "SP"}).json()["id"] == first["id"]
+    own.status = "failed"
+    db_session.commit()
+    retry = client.post("/jobs/capture/oab", json={"oab": "12345", "uf": "SP"}).json()
+    assert retry["id"] != first["id"]
+    other = models.Escritorio(nome="Outro")
+    db_session.add(other)
+    db_session.flush()
+    db_session.add(models.JobExecucao(tipo="captura_oab", status="queued", entidade="escritorio", entidade_id=other.id,
+                                     payload={"oab": "888", "uf": "SP", "escritorio_id": other.id}))
+    db_session.commit()
+    assert client.post("/jobs/capture/oab", json={"oab": "888", "uf": "SP"}).json()["id"] != first["id"]
+    assert any(item["oab"] == "888" for item in client.get("/capturas/oab").json())
+
+
 def test_consultar_job_inexistente_retorna_404(client, seeded):
     resp = client.get("/jobs/999999")
     assert resp.status_code == 404

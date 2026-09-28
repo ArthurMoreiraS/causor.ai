@@ -8,7 +8,7 @@ import pytest
 from app.capture.djen import ComunicacaoDTO
 from app.capture.poll import UnboundedCaptureError
 from app.prazo_engine.factory import build_calendar
-from app.queue.jobs import JobError, create_job, run_capture_oab_job
+from app.queue.jobs import JobError, _advance_manual_oab_cursor, create_job, run_capture_oab_job
 from app.sor import models
 
 
@@ -279,3 +279,29 @@ def test_run_capture_oab_job_sem_janela_falha_alto(db_session, escritorio, calen
         )
 
     assert djen.calls == []
+
+
+def test_manual_cursor_so_avanca_com_janela_concluida_e_valida(db_session, escritorio):
+    monitored = models.OabMonitorada(
+        escritorio_id=escritorio.id, oab="12345", uf="SP", intervalo_horas=12, ativo=True,
+    )
+    db_session.add(monitored)
+    db_session.flush()
+    job = create_job(
+        db_session, tipo="captura_oab", entidade="escritorio", entidade_id=escritorio.id,
+        payload={"oab_monitorada_id": monitored.id},
+    )
+    job.status = "completed"
+    start, end = date(2024, 1, 1), date(2024, 1, 10)
+    _advance_manual_oab_cursor(db_session, job, start, end)
+    assert monitored.cursor_data == end
+    _advance_manual_oab_cursor(db_session, job, start, date.today().replace(year=date.today().year + 1))
+    _advance_manual_oab_cursor(db_session, job, end, start)
+    assert monitored.cursor_data == end
+    job.status = "failed"
+    _advance_manual_oab_cursor(db_session, job, start, date(2024, 2, 1))
+    assert monitored.cursor_data == end
+    job.status = "completed"
+    monitored.ativo = False
+    _advance_manual_oab_cursor(db_session, job, start, date(2024, 2, 1))
+    assert monitored.cursor_data == end

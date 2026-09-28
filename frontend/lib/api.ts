@@ -434,6 +434,35 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return response.json() as Promise<T>;
 }
 
+/** Short control requests must never leave capture UI waiting indefinitely. */
+export async function controlRequest<T>(path: string, init?: RequestInit, timeoutMs = 12000): Promise<T> {
+  const controller = new AbortController();
+  const timeout = new Promise<never>((_, reject) => {
+    const id = setTimeout(() => {
+      controller.abort();
+      reject(new Error("Tempo de resposta excedido. Verifique a captura novamente."));
+    }, timeoutMs);
+    controller.signal.addEventListener("abort", () => clearTimeout(id), { once: true });
+  });
+  const operation = (async () => {
+    const { data } = await supabase.auth.getSession();
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      signal: controller.signal,
+      cache: "no-store",
+      headers: withAuthHeaders({ "Content-Type": "application/json", ...((init?.headers as Record<string, string>) ?? {}) }, data.session?.access_token)
+    });
+    if (response.status === 401) throw new Error("Sessão expirada. Entre novamente.");
+    if (!response.ok) throw new Error(await response.text() || `Falha: ${response.status}`);
+    return response.json() as Promise<T>;
+  })();
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    controller.abort();
+  }
+}
+
 /** Authenticated binary/multipart transport; callers never receive a public storage URL. */
 export async function resourceRequest(path: string, init?: RequestInit): Promise<Response> {
   const { data } = await supabase.auth.getSession();
@@ -446,7 +475,7 @@ export async function resourceRequest(path: string, init?: RequestInit): Promise
 
 async function requestOptional<T>(path: string): Promise<T | undefined> {
   try {
-    return await request<T>(path);
+    return await controlRequest<T>(path, undefined, 20000);
   } catch (err) {
     console.warn(`Endpoint opcional indisponível: ${path}`, err);
     return undefined;
@@ -455,7 +484,7 @@ async function requestOptional<T>(path: string): Promise<T | undefined> {
 
 async function requestList<T>(path: string): Promise<{ data: T[]; failed: boolean }> {
   try {
-    return { data: await request<T[]>(path), failed: false };
+    return { data: await controlRequest<T[]>(path, undefined, 20000), failed: false };
   } catch (err) {
     console.warn(`Falha ao carregar ${path}`, err);
     return { data: [], failed: true };
@@ -566,7 +595,21 @@ export async function carregarAlertas(): Promise<AlertaPrazo[]> {
 }
 
 export async function listarOabsMonitoradas(): Promise<OabMonitorada[]> {
-  return request<OabMonitorada[]>("/capturas/oab");
+  return controlRequest<OabMonitorada[]>("/capturas/oab");
+}
+
+export function iniciarCapturaOab(oab: string, uf: string, requestId: string): Promise<JobExecucao> {
+  return controlRequest<JobExecucao>("/jobs/capture/oab", {
+    method: "POST", body: JSON.stringify({ oab, uf, request_id: requestId })
+  });
+}
+
+export function consultarCapturaOab(jobId: number): Promise<JobExecucao> {
+  return controlRequest<JobExecucao>(`/jobs/${jobId}`);
+}
+
+export function listarCapturasOab(): Promise<JobExecucao[]> {
+  return controlRequest<JobExecucao[]>("/jobs?tipo=captura_oab&limit=200");
 }
 
 export async function listarUsuarios(escritorioId?: number): Promise<Usuario[]> {

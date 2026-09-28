@@ -160,6 +160,32 @@ describe("API client critical workflows", () => {
     ]);
   });
 
+  it("bounds a pending auth session before enqueueing or polling capture", async () => {
+    getSession.mockImplementation(() => new Promise(() => {}));
+    vi.useFakeTimers();
+    try {
+      const { iniciarCapturaOab } = await import("./api");
+      const pending = iniciarCapturaOab("249340", "SP", "attempt-123456");
+      const rejected = expect(pending).rejects.toThrow("Tempo de resposta excedido");
+      await vi.advanceTimersByTimeAsync(12000);
+      await rejected;
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("bounds a pending response body on capture status", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, status: 200, json: () => new Promise(() => {})
+    })));
+    vi.useFakeTimers();
+    try {
+      const { consultarCapturaOab } = await import("./api");
+      const pending = consultarCapturaOab(42);
+      const rejected = expect(pending).rejects.toThrow("Tempo de resposta excedido");
+      await vi.advanceTimersByTimeAsync(12000);
+      await rejected;
+    } finally { vi.useRealTimers(); }
+  });
+
   it("resolves the current user and includes it when reviewing a deadline", async () => {
     const prazo = {
       id: 8,

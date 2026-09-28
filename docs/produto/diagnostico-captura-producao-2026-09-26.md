@@ -1,5 +1,32 @@
 # Diagnóstico da captura por OAB em produção — 26/09/2026
 
+## Atualização de 27/09: captura concluída com interface ainda aguardando
+
+Nova consulta somente leitura ao banco compartilhado encontrou uma captura
+concluída às 23h28min18s UTC de 27/09, com 601 intimações novas e sem erro DJEN
+registrado. As contagens observadas eram 601 intimações e 350 processos.
+Havia zero OAB monitorada: a auditoria registra remoção da OAB às 23h28min09s,
+nove segundos antes do término da captura. A captura em andamento continuou
+após a remoção. Não havia job de captura, pois a interface usa a rota síncrona.
+
+Uma consulta direta limitada a um dia e uma página, feita desta máquina em
+27/09, recebeu HTTP 200 do DJEN em aproximadamente um segundo, com 12
+resultados na consulta e cinco itens retornados. Nenhum teor foi impresso ou
+persistido nessa verificação. `/health` e `/openapi.json` da API de produção
+também responderam HTTP 200; a API já expõe criação e consulta de jobs.
+Essas observações não identificam a causa dos HTTP 403 históricos nem validam
+a rede da VPS continuamente.
+
+A revisão do frontend encontrou esperas sem timeout na sessão, na requisição
+de captura e nas atualizações auxiliares. O estado ocupado só termina após
+recarregar as OABs e todo o dashboard. Portanto, mesmo uma captura concluída
+pode continuar aparecendo como em processamento se uma leitura posterior não
+resolver. A correção em execução usa os jobs persistentes já existentes,
+timeout de acompanhamento e resultado terminal independente do refresh.
+O CSS também respeita `prefers-reduced-motion`: um ícone parado por essa
+preferência não comprova interrupção da captura. A nova indicação de estado
+precisa funcionar sem depender da animação.
+
 ## Evidência observada
 
 Consulta **somente leitura** ao PostgreSQL compartilhado em 26/09:

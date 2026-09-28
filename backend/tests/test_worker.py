@@ -1,6 +1,7 @@
 """TDD for the in-process job worker (claim + dispatch + drain)."""
 
 import pytest
+from threading import Event
 from sqlalchemy.orm import sessionmaker
 
 from app.capture.djen import ComunicacaoDTO
@@ -121,6 +122,42 @@ def test_dispatch_captura_oab_executes_and_marks_completed(db_session, escritori
     job_fresh = db_session.get(models.JobExecucao, job.id)
     assert job_fresh.status == "completed"
     assert job_fresh.resultado["intimacoes_novas"] == 1
+
+
+def test_manual_backfill_lento_nao_bloqueia_proxima_captura(
+    db_session, escritorio, calendar, monkeypatch,
+):
+    from app.queue import worker
+
+    started, release = Event(), Event()
+
+    def slow_backfill(office_id):
+        assert office_id == escritorio.id
+        started.set()
+        release.wait(3)
+        raise RuntimeError("DataJud indisponivel")
+
+    monkeypatch.setattr(worker, "run_enrichment_backfill", slow_backfill)
+    monkeypatch.setattr(worker.settings, "datajud_api_key", "fake-test-key")
+    jobs = []
+    for oab in ("123", "456"):
+        row = create_job(
+            db_session, tipo="captura_oab", entidade="escritorio", entidade_id=escritorio.id,
+            payload={"oab": oab, "uf": "SP", "escritorio_id": escritorio.id,
+                     "data_inicio": "2024-09-01", "data_fim": "2024-09-02", "enrich": False},
+        )
+        jobs.append(row)
+    db_session.commit()
+    clients = WorkerClients(djen=FakeDjen([]), datajud=FakeDatajud(), calendar=calendar)
+    try:
+        dispatch(db_session, jobs[0], clients)
+        assert started.wait(2)
+        dispatch(db_session, jobs[1], clients)
+        db_session.refresh(jobs[0])
+        db_session.refresh(jobs[1])
+        assert [row.status for row in jobs] == ["completed", "completed"]
+    finally:
+        release.set()
 
 
 def test_run_once_drains_all_queued_jobs(session_factory, db_session, escritorio, calendar):
