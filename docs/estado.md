@@ -1,6 +1,19 @@
 # Proximos passos - MVP
 
-> **28/09 — acompanhamento da captura implementado, publicação pendente.** A consulta somente leitura
+> **29/09 — captura implantada; feedback e revisão de prazos em correção.**
+> O commit `cab194d` passou no CI (backend, frontend, PostgreSQL 16 e 17) e
+> no deploy em 28/09. API `/health` 200 e OpenAPI com `request_id` conferidos.
+> O fundador confirmou recebimento de intimações/processos. Consulta READ ONLY
+> de 29/09: 614 intimações, 359 processos, zero prazos e uma OAB ativa; último
+> job concluído com 13 intimações novas e 7/7 janelas, sem erro DJEN.
+> A captura não dispara cálculo: duração, data base e calendário são conferidos
+> no endpoint de revisão de prazo. Tornar esse caminho visível e atualizar o
+> painel após confirmação, corrigir Novo trabalho e animação de carregamento.
+> Correções implementadas e revisadas localmente: 115 testes frontend, lint,
+> tipos e 4 regressões backend aprovados. CI/deploy deste complemento pendentes.
+> [Plano atual](desenvolvimento/planos/2026-09-29-captura-trabalho-prazo.md).
+
+> **28/09 — acompanhamento da captura implementado.** A consulta somente leitura
 > feita em 27/09 encontrou uma captura concluída com 601 intimações novas;
 > havia 601 intimações e 350 processos no banco. O monitoramento foi removido
 > nove segundos antes de a captura terminar, por isso não havia OAB cadastrada.
@@ -10,11 +23,13 @@
 > A correção usa a fila persistente, estados de acompanhamento, timeout e
 > retomada após perda de resposta, com chave de idempotência e isolamento por
 > escritório. Fechar o modal não cancela o job. O resultado aparece antes do
-> refresh do dashboard; enriquecimento DataJud ocorre separadamente. CI e deploy anteriores (`cd96bbf`) foram
-> confirmados como aprovados; a nova correção ainda não foi publicada.
+> refresh do dashboard; enriquecimento DataJud ocorre separadamente.
+> [CI cab194d](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36493631376)
+> e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36493774462).
 > Validação local: 719 testes backend aprovados (73 ignorados), 105 frontend,
 > lint, tipos e build aprovados. Modal verificado em DOM; navegador e captura
-> autenticada real após a mudança ainda não verificados.
+> autenticada automatizada após a mudança ainda não verificados; fundador
+> confirmou manualmente o recebimento dos dados.
 > [Plano e verificação](desenvolvimento/planos/2026-09-27-captura-oab-responsiva.md)
 > e [diagnóstico atualizado](produto/diagnostico-captura-producao-2026-09-26.md).
 

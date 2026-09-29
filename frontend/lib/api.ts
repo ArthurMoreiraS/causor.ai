@@ -405,28 +405,102 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000").r
 // Carregamos a base inteira até este teto (alvo ~3k/conta; `le=5000` no backend).
 // Acima disso é preciso paginação server-side de verdade.
 const LIST_PAGE_LIMIT = 5000;
+const AUTH_REFRESH_TIMEOUT_MS = 8000;
+
+let refreshInFlight: { userId: string | undefined; promise: Promise<string | null> } | null = null;
+let signOutInFlight: Promise<void> | null = null;
+
+async function expireLocalSession(): Promise<void> {
+  if (!signOutInFlight) {
+    const attempt = supabase.auth.signOut({ scope: "local" }).then(() => undefined, () => undefined);
+    signOutInFlight = attempt;
+    void attempt.then(() => { if (signOutInFlight === attempt) signOutInFlight = null; });
+  }
+  await signOutInFlight;
+}
+
+function changedAccount(originalUserId: string | undefined, currentUserId: string | undefined): boolean {
+  return originalUserId !== currentUserId;
+}
+
+async function recoverRejectedToken(rejectedToken: string | undefined, originalUserId: string | undefined): Promise<string | null> {
+  while (refreshInFlight && refreshInFlight.userId !== originalUserId) {
+    await refreshInFlight.promise.catch(() => undefined);
+  }
+  if (!refreshInFlight) {
+    let timedOut = false;
+    const attempt = (async () => {
+      try {
+        const session = (await supabase.auth.getSession()).data.session;
+        if (timedOut) return null;
+        if (changedAccount(originalUserId, session?.user?.id)) throw new Error("Conta alterada durante a solicitação.");
+        const current = session?.access_token;
+        if (current && current !== rejectedToken) return current;
+        const { data, error } = await supabase.auth.refreshSession();
+        if (timedOut) return null;
+        if (changedAccount(originalUserId, data.session?.user?.id)) throw new Error("Conta alterada durante a solicitação.");
+        const refreshed = data.session?.access_token;
+        if (error) throw new Error("Não foi possível renovar a sessão. Tente novamente.");
+        if (!error && refreshed && refreshed !== rejectedToken) return refreshed;
+      } catch (error) {
+        if (timedOut) return null;
+        if (error instanceof Error && error.message === "Conta alterada durante a solicitação.") throw error;
+        throw new Error("Não foi possível renovar a sessão. Tente novamente.");
+      }
+      // Local scope leaves the user's other devices signed in. The auth event
+      // clears AuthProvider, whose protected pages navigate to /login.
+      const latestUserId = (await supabase.auth.getSession()).data.session?.user?.id;
+      if (timedOut) return null;
+      if (changedAccount(originalUserId, latestUserId)) throw new Error("Conta alterada durante a solicitação.");
+      await expireLocalSession();
+      return null;
+    })();
+    let timeoutId: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => {
+        timedOut = true;
+        reject(new Error("Não foi possível renovar a sessão. Tente novamente."));
+      }, AUTH_REFRESH_TIMEOUT_MS);
+    });
+    const bounded = Promise.race([attempt, timeout]);
+    const pending = { userId: originalUserId, promise: bounded };
+    refreshInFlight = pending;
+    void bounded.then(() => { clearTimeout(timeoutId); if (refreshInFlight === pending) refreshInFlight = null; },
+      () => { clearTimeout(timeoutId); if (refreshInFlight === pending) refreshInFlight = null; });
+  }
+  return refreshInFlight.promise;
+}
+
+async function fetchWithAuth(path: string, init: RequestInit, token: string | undefined, json: boolean, userId?: string): Promise<Response> {
+  const send = (accessToken: string | undefined) => fetch(`${API_BASE}${path}`, {
+    ...init,
+    cache: "no-store",
+    headers: withAuthHeaders({ ...(json ? { "Content-Type": "application/json" } : {}),
+      ...((init.headers as Record<string, string>) ?? {}) }, accessToken)
+  });
+  let response = await send(token);
+  if (response.status === 401) {
+    const replacement = await recoverRejectedToken(token, userId);
+    if (replacement) {
+      const currentUserId = (await supabase.auth.getSession()).data.session?.user?.id;
+      if (changedAccount(userId, currentUserId)) throw new Error("Conta alterada durante a solicitação.");
+      response = await send(replacement);
+    }
+    if (response.status === 401 || !replacement) {
+      if (replacement) {
+        const currentUserId = (await supabase.auth.getSession()).data.session?.user?.id;
+        if (changedAccount(userId, currentUserId)) throw new Error("Conta alterada durante a solicitação.");
+        await expireLocalSession();
+      }
+      throw new Error("Sessão expirada. Entre novamente.");
+    }
+  }
+  return response;
+}
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  const headers = withAuthHeaders(
-    {
-      "Content-Type": "application/json",
-      ...((init?.headers as Record<string, string>) ?? {})
-    },
-    token
-  );
-  const response = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers,
-    cache: "no-store"
-  });
-  if (response.status === 401) {
-    if (typeof window !== "undefined") {
-      window.location.href = "/login";
-    }
-    throw new Error("Sessão expirada");
-  }
+  const response = await fetchWithAuth(path, init ?? {}, data.session?.access_token, true, data.session?.user?.id);
   if (!response.ok) {
     const detail = await response.text();
     throw new Error(detail || `Request failed: ${response.status}`);
@@ -446,13 +520,7 @@ export async function controlRequest<T>(path: string, init?: RequestInit, timeou
   });
   const operation = (async () => {
     const { data } = await supabase.auth.getSession();
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...init,
-      signal: controller.signal,
-      cache: "no-store",
-      headers: withAuthHeaders({ "Content-Type": "application/json", ...((init?.headers as Record<string, string>) ?? {}) }, data.session?.access_token)
-    });
-    if (response.status === 401) throw new Error("Sessão expirada. Entre novamente.");
+    const response = await fetchWithAuth(path, { ...init, signal: controller.signal }, data.session?.access_token, true, data.session?.user?.id);
     if (!response.ok) throw new Error(await response.text() || `Falha: ${response.status}`);
     return response.json() as Promise<T>;
   })();
@@ -466,9 +534,7 @@ export async function controlRequest<T>(path: string, init?: RequestInit, timeou
 /** Authenticated binary/multipart transport; callers never receive a public storage URL. */
 export async function resourceRequest(path: string, init?: RequestInit): Promise<Response> {
   const { data } = await supabase.auth.getSession();
-  const response = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store",
-    headers: withAuthHeaders((init?.headers as Record<string, string>) || {}, data.session?.access_token) });
-  if (response.status === 401) throw new Error("Sessão expirada. Entre novamente.");
+  const response = await fetchWithAuth(path, init ?? {}, data.session?.access_token, false, data.session?.user?.id);
   if (!response.ok) throw new Error(await response.text() || `Falha: ${response.status}`);
   return response;
 }

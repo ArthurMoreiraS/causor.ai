@@ -59,6 +59,8 @@ export default function IntimacoesView({
             {peticao ? statusLabel(peticao.status) : "Sem minuta"}
           </span>
           <div className="dataRowEnd">
+            {!prazo ? <button type="button" className="toolbarButton compact" disabled={offline}
+              onClick={e => { e.stopPropagation(); onOpen(intimacao.id); }}>Revisar e calcular prazo</button> : null}
             {onCreateTask ? <button type="button" className="toolbarButton compact" disabled={offline}
               onClick={e => { e.stopPropagation(); onCreateTask(intimacao); }}>Criar tarefa</button> : null}
             <button

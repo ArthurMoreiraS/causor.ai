@@ -1,6 +1,6 @@
 # Captura por OAB com acompanhamento e recuperação
 
-Estado: revisão local concluída; CI e publicação pendentes.
+Estado: implantado (`cab194d`) em 28/09; feedback adicional em plano de 29/09.
 
 ## Contexto e escopo
 
@@ -101,3 +101,10 @@ navegador e validação da nova captura autenticada em produção permanecem pen
 
 O HTTP 403 observado em produção em 22/09 é histórico; não prova a resposta
 atual nem sua causa.
+
+CI 36493631376 aprovado (backend, frontend, PostgreSQL 16/17), deploy 36493774462
+aprovado. O script confere imagem exata dos quatro serviços e /health. Consulta
+externa confirmou /health 200 e request_id no esquema publicado. O fundador
+confirmou captura de intimações/processos; READ ONLY de 29/09 encontrou job
+concluído, 7/7 janelas e 13 intimações novas. Ausência de prazo é a separação
+deliberada entre captura e revisão de contagem; UX dessa etapa no plano seguinte.

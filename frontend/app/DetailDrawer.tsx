@@ -25,7 +25,8 @@ export default function DetailDrawer({
   onSelect,
   onPrepareWork,
   onOpenPeticao,
-  onEditPrazo
+  onEditPrazo,
+  onPrazoConfirmed
 }: {
   selection: DetailSelection;
   processos: Processo[];
@@ -41,6 +42,7 @@ export default function DetailDrawer({
   onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
   onOpenPeticao: (peticao: Peticao) => void;
   onEditPrazo: (prazo: Prazo) => void;
+  onPrazoConfirmed?: (prazo: Prazo) => void;
 }) {
   const processo =
     selection.kind === "processo" ? processos.find((p) => p.id === selection.id) ?? null : null;
@@ -83,6 +85,7 @@ export default function DetailDrawer({
             offline={offline}
             onSelect={onSelect}
             onPrepareWork={onPrepareWork}
+            onPrazoConfirmed={onPrazoConfirmed}
           />
         ) : null}
 
@@ -202,7 +205,8 @@ function IntimacaoDetail({
   prazo,
   offline,
   onSelect,
-  onPrepareWork
+  onPrepareWork,
+  onPrazoConfirmed
 }: {
   intimacao: Intimacao;
   processo: Processo | null;
@@ -210,6 +214,7 @@ function IntimacaoDetail({
   offline: boolean;
   onSelect: (sel: DetailSelection) => void;
   onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
+  onPrazoConfirmed?: (prazo: Prazo) => void;
 }) {
   return (
     <div className="detailBody">
@@ -235,7 +240,7 @@ function IntimacaoDetail({
         </div>
       ) : null}
 
-      {!prazo && !offline && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} />}
+      {!prazo && !offline && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} onConfirmed={onPrazoConfirmed} />}
       <DetailSection title="Teor da intimação">
         <TeorHtml teor={intimacao.teor} />
       </DetailSection>

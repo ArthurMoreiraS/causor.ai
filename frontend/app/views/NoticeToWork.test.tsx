@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { IntimacaoRow } from "@/lib/views";
 import { listarClientes } from "@/lib/api";
@@ -49,4 +49,31 @@ it("cria o trabalho com a origem capturada, sem presumir a providência", async 
   await waitFor(() => expect(criarTrabalho).toHaveBeenCalledWith(expect.objectContaining({
     processo_id: 4, intimacao_id: 8, prazo_id: 9, providencia: "Manifestar sobre o laudo"
   })));
+});
+
+it("abre um formulário limpo e ignora a retomada antiga que chega depois", async () => {
+  const oldUrl = window.location.href;
+  window.history.replaceState(null, "", "?trabalho=42");
+  let resolveOld!: (value: Awaited<ReturnType<typeof obterTrabalho>>) => void;
+  vi.mocked(obterTrabalho).mockReturnValue(new Promise(resolve => { resolveOld = resolve; }));
+  vi.mocked(listarClientes).mockResolvedValue({ total: 0, items: [] });
+  vi.mocked(listarTrabalhos).mockResolvedValue({ total: 0, items: [] });
+  try {
+    render(<TrabalhosView processos={[notice.processo!]} offline={false} onChanged={vi.fn()} onDocuments={vi.fn()} onOpenDraft={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText("Providência"), { target: { value: "Rascunho" } });
+    fireEvent.click(screen.getByRole("button", { name: "Novo trabalho" }));
+    expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("");
+    expect((screen.getByLabelText("Processo") as HTMLSelectElement).value).toBe("");
+    expect(window.location.search).not.toContain("trabalho");
+    expect(document.activeElement?.id).toBe("work-objective");
+    await act(async () => { resolveOld({ id: 42, processo_id: 4, providencia: "Trabalho antigo" } as Awaited<ReturnType<typeof obterTrabalho>>); });
+    expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("");
+  } finally { window.history.replaceState(null, "", oldUrl); }
+});
+
+it("mostra a revisão de prazo diretamente na intimação sem prazo", () => {
+  const open = vi.fn();
+  render(<IntimacoesView rows={[{ ...notice, prazo: null }]} offline={false} onOpen={open} onPrepareWork={vi.fn()} />);
+  fireEvent.click(screen.getByRole("button", { name: "Revisar e calcular prazo" }));
+  expect(open).toHaveBeenCalledWith(8);
 });

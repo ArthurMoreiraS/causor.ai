@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { criarCliente, listarClientes, type Cliente, type Processo } from "@/lib/api";
 import { atualizarTrabalho, criarProcesso, criarTrabalho, listarTrabalhos, obterTrabalho, type Trabalho } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
@@ -11,10 +11,11 @@ import WorkScope from "../components/WorkScope";
 import WorkAssistant from "../components/WorkAssistant";
 import { LoadingButton } from "../components/ui";
 
-export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, refreshKey = 0 }: {
+export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, refreshKey = 0, focusOnOpen = false }: {
   processos: Processo[]; offline: boolean; initialProcessId?: number; initialOrigin?: { intimacaoId: number; prazoId: number | null }; onChanged: () => void;
   onDocuments: (id: number) => void; onOpenDraft: (id: number) => void;
   refreshKey?: number;
+  focusOnOpen?: boolean;
 }) {
   const [works, setWorks] = useState<Trabalho[]>([]);
   const [total, setTotal] = useState(0);
@@ -38,18 +39,30 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   const [error, setError] = useState<string | null>(null);
   const [receiving, setReceiving] = useState(false);
   const [revision, setRevision] = useState(0);
+  const selectionVersion = useRef(0);
+  const formRef = useRef<HTMLFormElement>(null);
   const processOptions = localProcess && !processos.some(p => p.id === localProcess.id) ? [localProcess, ...processos] : processos;
   const dirty = Boolean(work && (purpose !== work.providencia || instructions !== work.instrucoes || degree !== work.grau || party !== (work.polo || "")));
 
   const selectWork = useCallback((value: Trabalho | null) => {
+    selectionVersion.current += 1;
     setOrigin(undefined);
     setWork(value); setPurpose(value?.providencia || ""); setInstructions(value?.instrucoes || "");
     setDegree(value?.grau === "2" ? "2" : "1"); setParty(value?.polo || "");
-    setProcess(String(value?.processo_id || initialProcessId || "")); setError(null); setNewProcess(false);
+    setProcess(String(value?.processo_id || "")); setError(null); setNewProcess(false);
+    setNumber(""); setCourt(""); setClient(""); setClientQuery(""); setNewClientName("");
     const url = new URL(window.location.href);
     if (value) url.searchParams.set("trabalho", String(value.id)); else url.searchParams.delete("trabalho");
     window.history.replaceState(null, "", url);
-  }, [initialProcessId]);
+  }, []);
+
+  function startNewWork() {
+    selectWork(null);
+    formRef.current?.scrollIntoView?.({ block: "start" });
+    formRef.current?.focus({ preventScroll: true });
+  }
+
+  useEffect(() => { if (focusOnOpen) formRef.current?.focus({ preventScroll: true }); }, [focusOnOpen]);
 
   useEffect(() => {
     let active = true;
@@ -66,9 +79,10 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   }, [clientQuery]);
   useEffect(() => {
     let active = true;
+    const version = selectionVersion.current;
     const id = Number(new URLSearchParams(window.location.search).get("trabalho"));
-    if (id > 0) obterTrabalho(id).then(value => { if (active) selectWork(value); })
-      .catch(err => { if (active) setError(humanError(err, "Não foi possível retomar o trabalho")); });
+    if (id > 0) obterTrabalho(id).then(value => { if (active && version === selectionVersion.current) selectWork(value); })
+      .catch(err => { if (active && version === selectionVersion.current) setError(humanError(err, "Não foi possível retomar o trabalho")); });
     return () => { active = false; };
   }, [selectWork]);
   useEffect(() => {
@@ -114,7 +128,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
 
   return <section className="legalWorkspace" aria-label="Preparar trabalho jurídico">
     <header className="officeToolbar"><div><h2>Preparar trabalho</h2><p>Defina a providência, confira os documentos e as fontes, depois revise a minuta.</p></div>
-      <button className="toolbarButton" disabled={busy || offline} onClick={() => selectWork(null)}>Novo trabalho</button></header>
+      <button className="toolbarButton" disabled={busy || offline} onClick={startNewWork}>Novo trabalho</button></header>
     {error ? <p role="alert" className="officeError">{error}</p> : null}
     <div className="legalWorkLayout"><aside className="legalWorkList" aria-label="Trabalhos salvos">
       {works.map(item => <button key={item.id} className={`legalWorkItem ${work?.id === item.id ? "active" : ""}`} disabled={busy}
@@ -135,7 +149,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
           {work.evidencias ? <button type="button" onClick={() => jumpToStage("work-draft")}>Minuta</button> : <span>Minuta pendente</span>}
         </nav>
       </> : null}
-      <form id="work-objective" tabIndex={-1} className="officeForm workStageAnchor" onSubmit={save}>
+      <form ref={formRef} id="work-objective" tabIndex={-1} className="officeForm workStageAnchor" onSubmit={save}>
         <h3>1. Objetivo e parte representada</h3>
         {!work && origin ? <p className="officeHint">Intimação #{origin.intimacaoId} vinculada{origin.prazoId ? ` · prazo #${origin.prazoId} a revisar` : " · sem prazo vinculado"}. A providência depende da sua análise.</p> : null}
         {!work ? <label className="workCheckboxLabel"><input type="checkbox" checked={newProcess} disabled={busy} onChange={e => setNewProcess(e.target.checked)} /> Cadastrar processo manualmente</label> : null}

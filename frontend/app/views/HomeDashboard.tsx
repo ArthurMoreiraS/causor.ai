@@ -9,6 +9,7 @@ import { CommandStat, DeadlineBadge, Empty, FeatureTile, LoadingButton, Panel } 
 
 export default function HomeDashboard({
   metrics,
+  unlinkedNotices,
   prazoRows,
   operationalConnectors,
   offline,
@@ -30,6 +31,7 @@ export default function HomeDashboard({
     withoutDraft: number;
     compliance: number;
   };
+  unlinkedNotices: number;
   prazoRows: PrazoRow[];
   operationalConnectors: ConnectorStatus[];
   offline: boolean;
@@ -59,8 +61,8 @@ export default function HomeDashboard({
     },
     {
       label: "Prazo",
-      detail: `${metrics.pending} pendente${metrics.pending === 1 ? "" : "s"}`,
-      status: metrics.pending > 0 ? "active" : metrics.captured > 0 ? "complete" : "queued",
+      detail: unlinkedNotices > 0 ? `${unlinkedNotices} sem prazo vinculado` : `${metrics.pending} pendente${metrics.pending === 1 ? "" : "s"}`,
+      status: metrics.pending > 0 || unlinkedNotices > 0 ? "active" : metrics.captured > 0 ? "complete" : "queued",
       icon: <Clock3 size={15} />
     },
     {
@@ -108,6 +110,8 @@ export default function HomeDashboard({
                 )}.`
               : "A fila está sem vencimentos pendentes no momento."}
           </p>
+          {unlinkedNotices > 0 ? <p className="heroPriority">{unlinkedNotices} intimações sem prazo vinculado. Confira o teor e o fundamento antes de calcular.
+            <button type="button" className="toolbarButton compact" onClick={() => onNavigate("intimacoes")}>Revisar intimações</button></p> : null}
         </div>
         <div className="quickActions">
           <LoadingButton

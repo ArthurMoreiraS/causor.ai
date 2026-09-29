@@ -156,6 +156,16 @@ export default function Home() {
   const [refreshTick, setRefreshTick] = useState(0);
   const [workProcessId, setWorkProcessId] = useState<number | undefined>();
   const [workOrigin, setWorkOrigin] = useState<{ intimacaoId: number; prazoId: number | null } | undefined>();
+  const [newWorkKey, setNewWorkKey] = useState(0);
+  function startNewWork() {
+    setWorkProcessId(undefined);
+    setWorkOrigin(undefined);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("trabalho");
+    window.history.replaceState(null, "", url);
+    setNewWorkKey(value => value + 1);
+    setView("trabalhos");
+  }
   const [oabForm, setOabForm] = useState<{ open: boolean; oab: string; uf: string }>({
     open: false,
     oab: "",
@@ -766,7 +776,7 @@ export default function Home() {
           </button>
         </div>
 
-        <SidebarNavigation view={view} onNavigate={setView} />
+        <SidebarNavigation view={view} onNavigate={setView} onNewWork={startNewWork} />
 
         <div className="sidebarFooter">
           <NavItem
@@ -841,6 +851,8 @@ export default function Home() {
                 ? ` ${captureResult.prazos_historicos} intimações são antigas e não geraram prazo (o vencimento provisório já teria passado).`
                 : ""}{" "}
               O prazo exige conferência; os autos dependem dos documentos recebidos.
+              {captureResult.intimacoes_novas > captureResult.prazos_registrados ? " Há intimações sem prazo vinculado; revise cada comunicação antes de definir uma contagem." : ""}
+              <button type="button" className="toolbarButton compact" onClick={() => setView("intimacoes")}>Revisar intimações</button>
             </span>
             <button
               className="dismiss-notice"
@@ -906,7 +918,7 @@ export default function Home() {
             onConfirmAction={confirmAssistantAction}
           />
         ) : view === "trabalhos" ? (
-          <TrabalhosView key={`${workProcessId || "all"}-${workOrigin?.intimacaoId || "manual"}`} processos={data.processos} offline={offline} initialProcessId={workProcessId} initialOrigin={workOrigin} refreshKey={refreshTick}
+          <TrabalhosView key={`${workProcessId || "all"}-${workOrigin?.intimacaoId || "manual"}-${newWorkKey}`} processos={data.processos} offline={offline} initialProcessId={workProcessId} initialOrigin={workOrigin} refreshKey={refreshTick} focusOnOpen={newWorkKey > 0}
             onChanged={() => void refresh()} onDocuments={id => { setDocumentContext({ processId: id }); setView("documentos"); }}
             onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }} />
         ) : view === "clientes" ? (
@@ -941,6 +953,7 @@ export default function Home() {
         ) : view === "dashboard" ? (
           <HomeDashboard
             metrics={metrics}
+            unlinkedNotices={data.intimacoes.filter(item => !prazosPool.some(prazo => prazo.intimacao_id === item.id)).length}
             prazoRows={prazoRows.slice(0, 5)}
             operationalConnectors={operationalConnectors}
             offline={offline}
@@ -1269,6 +1282,7 @@ export default function Home() {
               setDetail(null);
               editarPrazo(prazo);
             }}
+            onPrazoConfirmed={() => { void refresh(); }}
           />
         ) : null}
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { confirmarPrazoIntimacao, type Prazo } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 
-export default function ConfirmarPrazo({ intimacaoId }: { intimacaoId: number }) {
+export default function ConfirmarPrazo({ intimacaoId, onConfirmed }: { intimacaoId: number; onConfirmed?: (prazo: Prazo) => void }) {
   const [base, setBase] = useState("");
   const [dias, setDias] = useState("");
   const [uteis, setUteis] = useState(true);
@@ -16,16 +16,18 @@ export default function ConfirmarPrazo({ intimacaoId }: { intimacaoId: number })
   async function confirmar() {
     setBusy(true); setError(null);
     try {
-      setResult(await confirmarPrazoIntimacao(intimacaoId, {
+      const prazo = await confirmarPrazoIntimacao(intimacaoId, {
         data_base: base, dias: Number(dias), dias_uteis: uteis, justificativa: reason,
         dias_sem_expediente: excecoes.split(/[\s,;]+/).filter(Boolean)
-      }));
+      });
+      setResult(prazo);
+      onConfirmed?.(prazo);
     } catch (err) { setError(humanError(err, "Falha ao confirmar prazo")); }
     finally { setBusy(false); }
   }
-  if (result) return <p role="status">Prazo registrado: {result.data_fatal.split("-").reverse().join("/")}. Atualize a lista para vê-lo no painel.</p>;
+  if (result) return <p role="status">Prazo registrado: {result.data_fatal.split("-").reverse().join("/")}.</p>;
   return <details>
-    <summary>Prazo a revisar — confirmar contagem</summary>
+    <summary>Revisar e calcular prazo</summary>
     <p>Use esta contagem quando forem aplicáveis o calendário nacional e o recesso cível. Informe os dias sem expediente e as suspensões locais que faltarem.</p>
     <label>Data base confirmada (excluída da contagem)<input type="date" value={base} onChange={(e) => setBase(e.target.value)} /></label>
     <label>Duração em dias<input type="number" min={1} max={3650} value={dias} onChange={(e) => setDias(e.target.value)} /></label>

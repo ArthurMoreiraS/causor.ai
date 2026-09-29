@@ -5147,6 +5147,14 @@ h2 {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .captureFeedback .spin {
+    animation: capturePulse 2s ease-in-out infinite !important;
+  }
+}
+
+@keyframes capturePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
 }
 
 /* ============================================================
