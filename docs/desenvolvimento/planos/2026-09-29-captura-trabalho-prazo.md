@@ -1,6 +1,6 @@
 # Captura: feedback, novo trabalho e revisão de prazo
 
-Estado: revisão local concluída; CI e publicação pendentes.
+Estado: implantado (`83e4914`); cálculo automático pós-captura não faz parte desta correção.
 
 ## Evidência e objetivo
 
@@ -70,3 +70,10 @@ O encerramento por 401 usa escopo local, conforme
 - Coordenador revisou o diff e executou `pnpm.cmd check`: lint, tipos e 115 testes
   aprovados. Backend: 4 testes de regressão do cálculo/confirmação aprovados.
   Build ficará no CI; nenhum build foi executado na .next do servidor dev ativo.
+
+## Publicação verificada
+
+Commit 83e4914 na main. CI 36575280431 aprovado em backend, frontend/build e
+PostgreSQL 16/17. Deploy 36575485494 aprovado; script confere imagem exata de
+backend, worker, autos-worker e frontend. API pública /health respondeu 200.
+Sem validação visual nesta sessão e sem criar prazos reais durante testes.

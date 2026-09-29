@@ -1,6 +1,6 @@
 # Proximos passos - MVP
 
-> **29/09 — captura implantada; feedback e revisão de prazos em correção.**
+> **29/09 — feedback, Novo trabalho e revisão de prazos implantados (`83e4914`).**
 > O commit `cab194d` passou no CI (backend, frontend, PostgreSQL 16 e 17) e
 > no deploy em 28/09. API `/health` 200 e OpenAPI com `request_id` conferidos.
 > O fundador confirmou recebimento de intimações/processos. Consulta READ ONLY
@@ -10,7 +10,12 @@
 > no endpoint de revisão de prazo. Tornar esse caminho visível e atualizar o
 > painel após confirmação, corrigir Novo trabalho e animação de carregamento.
 > Correções implementadas e revisadas localmente: 115 testes frontend, lint,
-> tipos e 4 regressões backend aprovados. CI/deploy deste complemento pendentes.
+> tipos e 4 regressões backend aprovados. [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36575280431)
+> (backend, frontend, PostgreSQL 16/17) e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36575485494).
+> API externa `/health` 200 após implantação. Browser indisponível nesta sessão.
+> A captura continua sem calcular automaticamente: a revisão humana informa
+> duração, data base e exceções ao calendário para o motor existente. Extração
+> automática dos parâmetros e validação jurídica de casos reais seguem pendentes.
 > [Plano atual](desenvolvimento/planos/2026-09-29-captura-trabalho-prazo.md).
 
 > **28/09 — acompanhamento da captura implementado.** A consulta somente leitura
