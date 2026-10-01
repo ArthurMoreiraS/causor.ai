@@ -1,5 +1,6 @@
 from datetime import date
 
+import pytest
 from sqlalchemy import select
 
 from app.agent.deadline_interpretation import DeadlineInterpretation
@@ -232,3 +233,85 @@ def test_official_raw_class_is_available_before_datajud_enrichment(db_session, m
     assert seen["fonte"] == "DJEN"
     assert seen["classe"] == "Procedimento Comum Cível"
     assert db_session.query(models.Prazo).count() == 1
+
+
+def test_statutory_rule_calculates_and_records_proof_without_replacing_human_review(db_session, client):
+    office, _ = _seed(db_session)
+    text = ("Intime-se o apelado para apresentar contrarrazões de apelação. "
+            "Conforme art. 1.010, § 1º, do CPC.")
+    notice = models.Intimacao(escritorio_id=office.id, fonte="DJEN", fonte_id="legal-1",
+        teor=text, data_disponibilizacao=date(2026, 9, 25))
+    db_session.add(notice)
+    db_session.flush()
+    from app.prazo_engine.pipeline import enqueue_analysis
+
+    job = enqueue_analysis(db_session, notice)
+    db_session.commit()
+    mark_running(db_session, job)
+    db_session.commit()
+
+    def interpret(_text):
+        return DeadlineInterpretation(status="prazo", regime="cpc_civel_djen",
+            unidade="dias_uteis", termo="publicacao_djen", confianca=.97,
+            origem_duracao="regra_legal", regra_id="cpc_1010_1",
+            comando=text.split(" Conforme")[0], citacao_normativa=text.split("Conforme ")[-1])
+
+    run_analysis(db_session, job, interpreter=interpret)
+    prazo = db_session.scalar(select(models.Prazo).where(models.Prazo.intimacao_id == notice.id))
+    assert prazo.dias == 15 and prazo.revisao_status == "calculado_a_revisar"
+    proof = memory(db_session.get(models.Intimacao, notice.id))
+    assert proof["origem_duracao"] == "regra_legal"
+    assert proof["regra_id"] == "cpc_1010_1"
+    assert proof["regra_versao"] and proof["fonte_normativa"].startswith("https://www.planalto.gov.br/")
+    assert proof["comando_literal"] in text and proof["citacao_normativa_literal"] in text
+    assert proof["evidencia"] == proof["comando_literal"]
+    assert proof["fundamento"] == "CPC art. 1010, § 1; 15 dias úteis"
+    assert "feriados_e_suspensoes_locais_nao_homologados" in proof["calendario"]
+    assert enqueue_analysis(db_session, notice) is None
+    assert db_session.query(models.Prazo).filter_by(intimacao_id=notice.id).count() == 1
+    confirmation = client.post(f"/intimacoes/{notice.id}/prazo", json={
+        "data_base": "2026-09-28", "dias": 15, "dias_uteis": True,
+        "justificativa": "Advogado conferiu a fonte e o calendário local.",
+        "dias_sem_expediente": []})
+    assert confirmation.status_code == 200, confirmation.text
+    assert confirmation.json()["id"] == prazo.id
+    assert enqueue_analysis(db_session, notice) is None
+    assert db_session.query(models.Prazo).filter_by(intimacao_id=notice.id).count() == 1
+
+
+@pytest.mark.parametrize("special_source", ["raw_class", "process_organ"])
+def test_official_juizado_metadata_blocks_even_supported_notice_text(db_session, special_source):
+    office, _ = _seed(db_session)
+    text = ("Intime-se o apelado para apresentar contrarrazões de apelação. "
+            "Conforme art. 1.010, § 1º, do CPC.")
+    process = None
+    if special_source == "process_organ":
+        process = models.Processo(escritorio_id=office.id, numero="0000002-00.2026.8.26.0100",
+            classe="Procedimento Comum Cível", orgao_julgador="Juizado Especial Cível")
+        db_session.add(process)
+        db_session.flush()
+    notice = models.Intimacao(escritorio_id=office.id, fonte="DJEN",
+        fonte_id=f"special-{special_source}", processo_id=process.id if process else None,
+        teor=text, data_disponibilizacao=date(2026, 9, 25),
+        payload={"nomeClasse": "Procedimento do Juizado Especial Cível"}
+        if special_source == "raw_class" else {})
+    db_session.add(notice)
+    db_session.flush()
+    from app.prazo_engine.pipeline import enqueue_analysis
+
+    job = enqueue_analysis(db_session, notice)
+    db_session.commit()
+    mark_running(db_session, job)
+    db_session.commit()
+
+    def interpret(_text):
+        return DeadlineInterpretation(status="prazo", regime="cpc_civel_djen",
+            unidade="dias_uteis", termo="publicacao_djen", confianca=.97,
+            origem_duracao="regra_legal", regra_id="cpc_1010_1",
+            comando=text.split(" Conforme")[0], citacao_normativa=text.split("Conforme ")[-1])
+
+    run_analysis(db_session, job, interpreter=interpret)
+    record = memory(db_session.get(models.Intimacao, notice.id))
+    assert record["status"] == "pendente"
+    assert "regime especial" in record["motivo"]
+    assert db_session.query(models.Prazo).filter_by(intimacao_id=notice.id).count() == 0

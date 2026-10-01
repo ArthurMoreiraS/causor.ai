@@ -4,6 +4,7 @@ from app.agent.deadline_interpretation import DeadlineInterpretation, supported
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.djen import compute_djen_civil_deadline
 from app.prazo_engine.factory import build_calendar
+from app.prazo_engine.legal_rules import resolve_statutory_duration
 
 
 def _calendars(years=range(2024, 2028)):
@@ -66,3 +67,61 @@ def test_explicit_holiday_delays_count_not_publication():
         publication_calendar=publication, counting_calendar=counting)
     assert result.publicacao == date(2026, 9, 28)
     assert result.primeiro_dia == result.data_fatal == date(2026, 9, 30)
+
+
+def _statutory(text, *, rule="cpc_1010_1", command=None, citation=None, **changes):
+    return DeadlineInterpretation(**(dict(
+        status="prazo", regime="cpc_civel_djen", unidade="dias_uteis",
+        termo="publicacao_djen", confianca=.97, origem_duracao="regra_legal",
+        regra_id=rule, comando=command or text.split(" Conforme")[0],
+        citacao_normativa=citation or text.split("Conforme ")[-1],
+    ) | changes))
+
+
+def test_supported_statutory_rules_derive_catalog_days():
+    cases = [
+        ("Intime-se o apelado para apresentar contrarrazões de apelação. Conforme art. 1.010, § 1º, do CPC.",
+         "cpc_1010_1", 15),
+        ("Intime-se o embargado para manifestar-se sobre os embargos de declaração. Conforme art. 1.023, § 2º, do CPC.",
+         "cpc_1023_2", 5),
+        ("Intime-se a parte contrária para manifestar-se sobre os documentos novos juntados. Conforme art. 437, § 1º, do CPC.",
+         "cpc_437_1", 15),
+    ]
+    for text, rule, days in cases:
+        result = _statutory(text, rule=rule)
+        assert supported(result, text)[0]
+        assert resolve_statutory_duration(result, text).days == days
+
+
+def test_statutory_rule_fails_closed_without_literal_command_and_citation():
+    text = "Intime-se o apelado para apresentar contrarrazões de apelação. Conforme art. 1.010, § 1º, do CPC."
+    for changed_text, changes in [
+        ("Citado art. 1.010, § 1º, do CPC.", {}),
+        (text.replace("contrarrazões de apelação", "razões de apelação"), {}),
+        (text.replace("1.010", "1.023"), {}),
+        (text, {"comando": "comando inventado"}),
+        (text, {"citacao_normativa": "art. 999"}),
+        (text, {"dias": 10}),
+        (text + " Prazo judicial de 10 dias úteis.", {}),
+        (text + " Prazo judicial de sete dias úteis.", {}),
+        (text + " Prazo em dobro para a Fazenda Pública.", {}),
+        (text + " Contagem da intimação pessoal.", {}),
+        (text + " Também manifeste-se sobre a perícia.", {}),
+        ("Transcrição da decisão anterior: " + text, {}),
+        ("A parte sustenta: “" + text + "” Aguarde-se.", {}),
+        ("Não " + text, {}),
+        (text + " Procedimento no Juizado Especial, Lei 9.099.", {}),
+        (text + " Aplica-se a CLT.", {}),
+        (text + " Trata-se de processo criminal.", {}),
+        (text.replace("§ 1º", "§ 2º"), {}),
+        (text.replace("Conforme art. 1.010, § 1º", "Conforme art. 1.010; art. 1.023, § 1º"), {}),
+    ]:
+        assert not supported(_statutory(text, **changes), changed_text)[0]
+
+
+def test_document_extension_and_ambiguous_parties_remain_pending():
+    text = ("Intime-se a parte contrária para manifestar-se sobre os documentos novos juntados. "
+            "Conforme art. 437, § 1º, do CPC. Defiro dilação do prazo nos termos do § 2º.")
+    assert not supported(_statutory(text, rule="cpc_437_1"), text)[0]
+    appeal = "Intime-se o apelado para apresentar contrarrazões de apelação. Conforme art. 1.010, § 1º, do CPC."
+    assert not supported(_statutory(appeal, multiplas_partes=True), appeal)[0]

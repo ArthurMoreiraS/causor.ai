@@ -14,6 +14,7 @@ from app.agent.deadline_interpretation import DeadlineInterpretation, interpret_
 from app.prazo_engine.djen import compute_djen_civil_deadline
 from app.prazo_engine.factory import build_calendar
 from app.prazo_engine.calendar import ForensicCalendar
+from app.prazo_engine.legal_rules import resolve_statutory_duration, special_regime_in_official_context
 from app.sor import models
 
 KEY = "_causor_prazo"
@@ -96,7 +97,8 @@ def run_analysis(
     context = {
         "fonte": notice.fonte, "tipo_comunicacao": notice.tipo_comunicacao or "",
         "tribunal": notice.tribunal or "", "classe": (notice.processo.classe or str(raw.get("nomeClasse") or "")) if notice.processo else str(raw.get("nomeClasse") or ""),
-        "orgao": str(raw.get("nomeOrgao") or ""),
+        "orgao": " ".join(filter(None, (str(raw.get("nomeOrgao") or ""),
+                                          notice.processo.orgao_julgador if notice.processo else None))),
     }
     session.commit()  # release the read transaction during a potentially slow LLM call
     try:
@@ -134,12 +136,27 @@ def run_analysis(
         return
 
     valid, reason = supported(interpretation, text)
+    if valid and special_regime_in_official_context(context["classe"], context["orgao"]):
+        valid = False
+        reason = "Classe ou órgão oficial indica regime especial; revise o prazo"
+    legal_rule = resolve_statutory_duration(interpretation, text) if valid and interpretation.origem_duracao == "regra_legal" else None
+    duration = legal_rule.days if legal_rule is not None else interpretation.dias
     record = {
         "status": "pendente", "job_id": job.id, "regra": RULE,
-        "regime": interpretation.regime, "dias": interpretation.dias,
+        "regime": interpretation.regime, "dias": duration,
+        "origem_duracao": "regra_legal" if legal_rule else (
+            "judicial_expressa" if valid else interpretation.origem_duracao),
+        "regra_id": legal_rule.rule_id if legal_rule else None,
+        "regra_versao": legal_rule.version if legal_rule else None,
+        "fonte_normativa": legal_rule.source_url if legal_rule else None,
+        "comando_literal": interpretation.comando if legal_rule else None,
+        "citacao_normativa_literal": interpretation.citacao_normativa if legal_rule else None,
         "unidade": interpretation.unidade, "termo": interpretation.termo,
-        "evidencia": interpretation.evidencia if interpretation.evidencia and interpretation.evidencia in text else None,
-        "fundamento": interpretation.fundamento, "confianca": interpretation.confianca,
+        "evidencia": (interpretation.comando if legal_rule else
+                      interpretation.evidencia if interpretation.evidencia and interpretation.evidencia in text else None),
+        "fundamento": (f"CPC art. {legal_rule.article}, § {legal_rule.paragraph}; "
+                       f"{legal_rule.days} dias úteis" if legal_rule else interpretation.fundamento),
+        "confianca": interpretation.confianca,
         "motivo": reason, "calendario": "nacional+recesso_CPC; feriados_e_suspensoes_locais_nao_homologados",
         "fonte_sha256": snapshot_hash,
     }
@@ -159,7 +176,7 @@ def run_analysis(
                 holidays=publication_calendar._holidays)  # publication is not suspended by CPC recess
             count_calendar = build_calendar(years)
             result = compute_djen_civil_deadline(
-                notice.data_disponibilizacao, interpretation.dias,
+                notice.data_disponibilizacao, duration,
                 publication_calendar=publication_calendar, counting_calendar=count_calendar,
                 publication=notice.data_publicacao,
             )

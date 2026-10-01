@@ -1,14 +1,32 @@
 # Proximos passos - MVP
 
-> **01/10 — preparação do contexto revisada localmente.** Trabalhos reúne
+> **01/10 — duração legal de prazo implementada e revisada localmente.**
+> Catálogo inicial restrito a três atos CPC: contrarrazões de apelação,
+> manifestação do embargado e manifestação sobre novos documentos. Exige
+> comando atual e artigo/parágrafo literais no teor; a duração vem do catálogo,
+> com fonte normativa, versão e prova guardadas na memória. Prazo judicial
+> expresso conserva seu caminho. Regime especial em classe/órgão oficial,
+> comando anterior, ambiguidade ou conflito permanecem como exceção explicada.
+> Executor: 753 testes backend aprovados/82 ignorados antes das últimas guardas,
+> 21 testes finais direcionados e Ruff aprovados. Coordenador revisou os cinco
+> arquivos e repetiu 27 testes de interpretação/captura/matemática, aprovados.
+> Calendários locais ainda não homologados: resultados automáticos continuam
+> identificados como calculados a revisar. Não houve teste jurídico com casos
+> reais nem reprocessamento da produção. Próximo bloco em execução: integrar
+> intimação atual e histórico à análise dos autos e descartar minuta se a fonte
+> ou o prazo mudar durante a geração.
+
+> **01/10 — preparação do contexto implantada (`602de50`).** Trabalhos reúne
 > Objetivo, Documentos e contexto, Minuta e revisão. Processo capturado permite
 > vincular/cadastrar cliente; envio herda processo e grau. Campos de objetivo,
 > índice e perguntas são protegidos durante atualização/navegação; respostas
 > antigas não publicam em outro trabalho. Alterar perguntas/fontes impede usar
 > conferência anterior. Inventário distingue versões recebidas de texto extraído.
 > Executor: lint, tipos e 144 testes frontend aprovados. Coordenador revisou o
-> diff e repetiu 28 regressões, aprovadas. Ainda sem deploy deste bloco e sem
-> conferência visual real. Segue implementação do catálogo restrito de regras
+> diff e repetiu 33 regressões, aprovadas. [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36914544310)
+> e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36914779203):
+> SHA conferido nos quatro serviços e saúde normal registrada pelo deploy.
+> Sem conferência visual real. Segue implementação do catálogo restrito de regras
 > CPC para duração legal, mantendo cálculo determinístico e motivos de exceção.
 
 > **01/10 — isolamento dos arquivos por ambiente implantado (`45ff3dd`).**
