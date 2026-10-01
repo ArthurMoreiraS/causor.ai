@@ -366,7 +366,8 @@ def confirm_document_upload(
             tipo="process_document",
             entidade="documento_arquivo",
             entidade_id=version.id,
-            payload={"documento_arquivo_id": version.id, "escritorio_id": capture.escritorio_id},
+            payload={"documento_arquivo_id": version.id, "escritorio_id": capture.escritorio_id,
+                     "store_id": object_store.store_id},
             ator="agent",
         )
 

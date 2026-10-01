@@ -255,18 +255,51 @@ def process_due_mni_captures(session_factory) -> int:
         processed += 1
 
 
-def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[models.JobExecucao]:
-    stmt = (
-        select(models.JobExecucao)
-        .where(
-            models.JobExecucao.tipo == "process_document",
-            models.JobExecucao.status == "queued",
-        )
-        .order_by(models.JobExecucao.id)
-        .limit(limit)
-        .with_for_update(skip_locked=True)
-    )
-    jobs = list(session.scalars(stmt))
+def _accessible_document_job(session: Session, job: models.JobExecucao, store: ObjectStore) -> bool:
+    payload = job.payload or {}
+    store_id = payload.get("store_id")
+    if store_id is not None:
+        return store_id == store.store_id
+    version_id = payload.get("documento_arquivo_id") or job.entidade_id
+    version = session.get(models.DocumentoArquivo, version_id) if isinstance(version_id, int) else None
+    return bool(version and store.exists(version.storage_key))
+
+
+def _accessible_jobs(session: Session, criteria, *, limit: int, store: ObjectStore):
+    """Page without locks; lock only eligible candidates and validate them again."""
+    found = []
+    cursor = 0
+    while len(found) < limit:
+        batch = list(session.scalars(
+            select(models.JobExecucao).where(*criteria, models.JobExecucao.id > cursor)
+            .order_by(models.JobExecucao.id).limit(max(limit, 100))
+        ))
+        if not batch:
+            break
+        for job in batch:
+            cursor = job.id
+            if not _accessible_document_job(session, job, store):
+                continue
+            locked = session.scalar(
+                select(models.JobExecucao).where(
+                    *criteria, models.JobExecucao.id == job.id,
+                ).with_for_update(skip_locked=True).execution_options(populate_existing=True)
+            )
+            if locked is not None and _accessible_document_job(session, locked, store):
+                found.append(locked)
+                if len(found) == limit:
+                    break
+    return found
+
+
+def claim_due_processing_jobs(
+    session: Session, *, limit: int = 10, object_store: ObjectStore | None = None,
+) -> list[models.JobExecucao]:
+    store = object_store or get_object_store()
+    jobs = _accessible_jobs(session, (
+        models.JobExecucao.tipo == "process_document",
+        models.JobExecucao.status == "queued",
+    ), limit=limit, store=store)
     for job in jobs:
         job.status = "running"
         job.lease_token = str(uuid4())
@@ -276,18 +309,20 @@ def claim_due_processing_jobs(session: Session, *, limit: int = 10) -> list[mode
 
 
 def recover_stale_document_jobs(
-    session: Session, *, older_than_minutes: int, now: datetime | None = None, limit: int = 100,
+    session: Session, *, older_than_minutes: int, now: datetime | None = None,
+    limit: int = 100, object_store: ObjectStore | None = None,
 ) -> list[models.JobExecucao]:
     """Recover expired leases or old legacy jobs, excluding locked checkpoints."""
     if older_than_minutes <= 0 or limit <= 0:
         raise ValueError("recovery age and batch size must be positive")
     now = now or database_now(session)
     cutoff = now - timedelta(minutes=older_than_minutes)
-    jobs = list(session.scalars(select(models.JobExecucao).where(
+    store = object_store or get_object_store()
+    jobs = _accessible_jobs(session, (
         models.JobExecucao.tipo == "process_document", models.JobExecucao.status == "running",
         or_(models.JobExecucao.lease_expires_at <= now,
             and_(models.JobExecucao.lease_expires_at.is_(None), models.JobExecucao.updated_at <= cutoff)),
-    ).order_by(models.JobExecucao.id).limit(limit).with_for_update(skip_locked=True)))
+    ), limit=limit, store=store)
     for job in jobs:
         payload = job.payload or {}
         version_id = payload.get("documento_arquivo_id")
@@ -306,7 +341,10 @@ def recover_stale_document_jobs(
     return jobs
 
 
-def _process_document_stages(session_factory, job_id: int, token: str, version_id: int, heartbeat) -> None:
+def _process_document_stages(
+    session_factory, job_id: int, token: str, version_id: int, heartbeat,
+    object_store: ObjectStore,
+) -> None:
     from app.autos.summarizer import generate_summary, load_summary_input, persist_summary
 
     with session_factory() as session:
@@ -317,7 +355,7 @@ def _process_document_stages(session_factory, job_id: int, token: str, version_i
         session.expunge(version)
     if version.extraction_status not in {"complete", "unsupported_mime"}:
         try:
-            result = extract_document(version)
+            result = extract_document(version, object_store=object_store)
         except DocumentProcessingError as exc:
             heartbeat.check()
             with session_factory() as session:
@@ -411,15 +449,17 @@ def process_due_documents(
 ) -> int:
     """Drain documents with renewable leases and durable extraction/summary checkpoints."""
     attempts_ceiling = max_attempts or settings.document_processing_attempts
+    store = get_object_store()
     with session_factory() as recovery_session:
         recover_stale_document_jobs(
             recovery_session, older_than_minutes=settings.document_recovery_after_minutes,
+            object_store=store,
         )
         recovery_session.commit()
     processed = 0
     while True:
         with session_factory() as session:
-            jobs = claim_due_processing_jobs(session, limit=1)
+            jobs = claim_due_processing_jobs(session, limit=1, object_store=store)
             if not jobs:
                 return processed
             job = jobs[0]
@@ -432,7 +472,9 @@ def process_due_documents(
                 for attempt in range(1, attempts_ceiling + 1):
                     heartbeat.check()
                     try:
-                        _process_document_stages(session_factory, job_id, token, documento_arquivo_id, heartbeat)
+                        _process_document_stages(
+                            session_factory, job_id, token, documento_arquivo_id, heartbeat, store,
+                        )
                         error = None
                         break
                     except LeaseLost:

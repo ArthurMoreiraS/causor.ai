@@ -1,5 +1,23 @@
 # Proximos passos - MVP
 
+> **01/10 — correções de OAB, formulários e análise de prazos implantadas (`cd09869`).**
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36814603047):
+> backend, frontend com build Linux e PostgreSQL 16/17. O primeiro CI encontrou
+> apenas uma expectativa desatualizada da versão de migração; corrigida antes
+> do deploy. [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36814744430)
+> verificou o SHA completo em backend, worker, autos-worker e frontend. API
+> externa `/health` 200 e rota `/capturas/oab/remover-dados` presentes após deploy.
+> O feedback de captura fica condicionado ao cadastro ativo; remoção limpa dados
+> exclusivos e preserva registros com autoria/revisão humana ou outra OAB ativa.
+> Nenhuma limpeza real foi executada como teste. A captura inicia análise de prazo
+> assíncrona; casos suportados geram sugestão a revisar, casos incertos conservam
+> motivo pendente. Isso não comprova acerto jurídico dos casos reais.
+> Validação local desta entrega: 742 testes backend e 132 frontend, lint e tipos.
+> Conferência visual real permanece pendente por falta de navegador conectado.
+> Retomada a etapa de contexto manual: primeiro isolar jobs de documentos pelo
+> storage acessível, pois local e produção usam o mesmo banco e discos distintos;
+> depois corrigir cliente, destino do upload e preservação dos campos de contexto.
+
 > **29/09 — execução do fluxo simplificado autorizada.** Após novos relatos do
 > fundador, as correções anteriores de navegação/layout não são consideradas
 > suficientes. O plano reúne correção dos formulários e entradas em Trabalhos,

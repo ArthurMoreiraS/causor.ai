@@ -10,7 +10,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from hashlib import sha256 as sha256_digest
 from pathlib import Path, PurePosixPath
+import os
+import time
 from typing import Protocol
+from uuid import UUID, uuid4
+
+from botocore.exceptions import ClientError
 
 import boto3
 
@@ -47,6 +52,11 @@ class DownloadTicket:
 
 
 class ObjectStore(Protocol):
+    @property
+    def store_id(self) -> str: ...
+
+    def exists(self, key: str) -> bool: ...
+
     def put_bytes(self, key: str, data: bytes, content_type: str) -> StoredObject: ...
 
     def get_bytes(self, key: str) -> bytes: ...
@@ -72,6 +82,33 @@ def _safe_key(key: str) -> str:
 class LocalObjectStore:
     def __init__(self, root: str | Path):
         self.root = Path(root).resolve()
+        self.root.mkdir(parents=True, exist_ok=True)
+        marker = self.root / ".causor-store-id"
+        try:
+            descriptor = os.open(marker, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            with os.fdopen(descriptor, "w", encoding="ascii") as handle:
+                handle.write(str(uuid4()))
+                handle.flush()
+                os.fsync(handle.fileno())
+        for _ in range(100):
+            identity = marker.read_text(encoding="ascii").strip()
+            if identity:
+                break
+            time.sleep(0.01)
+        else:
+            raise RuntimeError("object store identity marker is empty")
+        try:
+            identity = str(UUID(identity))
+        except ValueError as exc:
+            raise RuntimeError("object store identity marker is invalid") from exc
+        self.store_id = f"local:{identity}"
+
+    def exists(self, key: str) -> bool:
+        safe = _safe_key(key)
+        return (self.root / safe).is_file()
 
     def put_bytes(self, key: str, data: bytes, content_type: str) -> StoredObject:
         safe = _safe_key(key)
@@ -128,6 +165,17 @@ class S3ObjectStore:
             aws_access_key_id=settings.object_store_access_key,
             aws_secret_access_key=settings.object_store_secret_key,
         )
+        identity = "\0".join((settings.object_store_endpoint or "aws", self.bucket, settings.object_store_region))
+        self.store_id = f"s3:{sha256_digest(identity.encode()).hexdigest()}"
+
+    def exists(self, key: str) -> bool:
+        try:
+            self.client.head_object(Bucket=self.bucket, Key=_safe_key(key))
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+                return False
+            raise
+        return True
 
     def put_bytes(self, key: str, data: bytes, content_type: str) -> StoredObject:
         safe = _safe_key(key)
@@ -143,7 +191,12 @@ class S3ObjectStore:
 
     def get_bytes(self, key: str) -> bytes:
         safe = _safe_key(key)
-        response = self.client.get_object(Bucket=self.bucket, Key=safe)
+        try:
+            response = self.client.get_object(Bucket=self.bucket, Key=safe)
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+                raise FileNotFoundError(safe) from exc
+            raise
         return response["Body"].read()
 
     def download_to(self, key: str, destination: Path) -> None:

@@ -5,13 +5,17 @@ import pytest
 from app.autos.worker import recover_stale_document_jobs
 from app.queue.jobs import fail_stale_running_jobs
 from app.sor import models
+from app.storage.objects import LocalObjectStore
 
 
-def test_recovery_only_requeues_old_document_jobs_and_audits(db_session, seeded):
+def test_recovery_only_requeues_old_document_jobs_and_audits(db_session, seeded, tmp_path):
     now = datetime.now(timezone.utc)
     old = now - timedelta(hours=2)
+    store = LocalObjectStore(tmp_path)
     jobs = [models.JobExecucao(tipo=kind, status=status, updated_at=when,
-                              payload={"escritorio_id": seeded.escritorio_id})
+                              payload={"escritorio_id": seeded.escritorio_id,
+                                       "store_id": store.store_id} if kind == "process_document"
+                              else {"escritorio_id": seeded.escritorio_id})
             for kind, status, when in [
                 ("process_document", "running", old),
                 ("process_document", "running", now),
@@ -21,7 +25,8 @@ def test_recovery_only_requeues_old_document_jobs_and_audits(db_session, seeded)
             ]]
     db_session.add_all(jobs)
     db_session.flush()
-    assert recover_stale_document_jobs(db_session, older_than_minutes=60, now=now) == [jobs[0]]
+    assert recover_stale_document_jobs(db_session, older_than_minutes=60, now=now,
+                                       object_store=store) == [jobs[0]]
     assert [j.status for j in jobs] == ["queued", "running", "failed", "running", "running"]
     event = db_session.query(models.AuditLog).filter_by(acao="document_job_recovered").one()
     assert event.entidade_id == jobs[0].id

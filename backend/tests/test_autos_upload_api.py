@@ -27,6 +27,60 @@ def _arquivo(nome, conteudo=PDF_OK):
     return ("arquivos", (nome, conteudo, "application/pdf"))
 
 
+def test_store_isolation_legacy_access_and_missing_file_feedback(
+    client, db_session, seeded, local_store, monkeypatch, tmp_path,
+):
+    from app.autos.worker import claim_due_processing_jobs, recover_stale_document_jobs
+    from app.storage.objects import LocalObjectStore
+
+    assert client.post(f"/processos/{seeded.id}/autos/upload", files=[_arquivo("autos.pdf")],
+                       data={"grau": "1"}).status_code == 200
+    version = db_session.query(models.DocumentoArquivo).one()
+    job = db_session.query(models.JobExecucao).filter_by(tipo="process_document").one()
+    own = LocalObjectStore(local_store)
+    foreign = LocalObjectStore(tmp_path / "foreign")
+    assert job.payload["store_id"] == own.store_id
+    assert claim_due_processing_jobs(db_session, object_store=foreign) == []
+    assert job.status == "queued"
+    assert claim_due_processing_jobs(db_session, object_store=own) == [job]
+
+    job.status = "running"
+    job.lease_expires_at = None
+    from datetime import datetime, timedelta, timezone
+    job.updated_at = datetime.now(timezone.utc) - timedelta(hours=2)
+    db_session.flush()
+    assert recover_stale_document_jobs(db_session, older_than_minutes=60,
+                                       object_store=foreign) == []
+    assert recover_stale_document_jobs(db_session, older_than_minutes=60,
+                                       object_store=own) == [job]
+
+    # Old jobs without a tag are accepted only where the original bytes exist.
+    job.payload = {"documento_arquivo_id": version.id}
+    db_session.flush()
+    assert claim_due_processing_jobs(db_session, object_store=foreign) == []
+    assert claim_due_processing_jobs(db_session, object_store=own) == [job]
+    job.status = "queued"
+    own.delete(version.storage_key)
+    db_session.flush()
+    assert claim_due_processing_jobs(db_session, object_store=own) == []
+    job.status = "running"
+    job.lease_expires_at = None
+    job.updated_at = datetime.now(timezone.utc) - timedelta(hours=2)
+    db_session.flush()
+    assert recover_stale_document_jobs(db_session, older_than_minutes=60,
+                                       object_store=own) == []
+    job.status = "queued"
+    assert client.post(f"/processos/{seeded.id}/autos/reprocessar").status_code == 409
+    assert client.post(f"/documentos/{version.documento_id}/download-ticket").status_code == 409
+    assert client.get(f"/documentos/{version.documento_id}/conteudo").status_code == 409
+    assert client.get(f"/documentos/{version.documento_id}/versoes/{version.id}/conteudo").status_code == 409
+    db_session.refresh(job)
+    job.status = "queued"
+    job.payload = {"documento_arquivo_id": version.id, "store_id": own.store_id}
+    db_session.flush()
+    assert claim_due_processing_jobs(db_session, object_store=own) == [job]
+
+
 def test_upload_worker_builds_context_and_retry_preserves_summary(
     client, db_session, seeded, local_store, monkeypatch
 ):

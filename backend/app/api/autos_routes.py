@@ -385,7 +385,8 @@ def reprocessar_autos(
     versions = session.scalars(select(models.DocumentoArquivo).join(models.Documento).where(
         models.Documento.processo_id == process.id, models.DocumentoArquivo.atual.is_(True)
     )).all()
-    enqueued = 0
+    store = get_object_store()
+    pending = []
     for version in versions:
         summary = session.scalars(select(models.DocumentoResumo).where(
             models.DocumentoResumo.documento_arquivo_id == version.id
@@ -395,14 +396,23 @@ def reprocessar_autos(
         job = session.scalars(select(models.JobExecucao).where(
             models.JobExecucao.tipo == "process_document", models.JobExecucao.entidade_id == version.id,
         ).order_by(models.JobExecucao.id.desc())).first()
+        if (job and (job.payload or {}).get("store_id") not in {None, store.store_id}) or not store.exists(version.storage_key):
+            raise HTTPException(status_code=409, detail="Arquivo indisponivel neste ambiente; reprocesse onde o PDF foi enviado")
+        pending.append((version, job))
+    enqueued = 0
+    for version, job in pending:
         if job and job.status in {"queued", "running"}:
             continue
         if job:
             job.status, job.erro = "queued", None
             job.lease_token, job.lease_expires_at = None, None
+            job.payload = {**(job.payload or {}), "documento_arquivo_id": version.id,
+                           "escritorio_id": process.escritorio_id, "store_id": store.store_id}
         else:
             create_job(session, tipo="process_document", entidade="documento_arquivo",
-                       entidade_id=version.id, payload={"documento_arquivo_id": version.id},
+                       entidade_id=version.id, payload={"documento_arquivo_id": version.id,
+                                                       "escritorio_id": process.escritorio_id,
+                                                       "store_id": store.store_id},
                        ator=f"usuario:{current.usuario_id}")
         enqueued += 1
     build_process_context(session, processo=process)
@@ -551,7 +561,10 @@ def criar_ticket_download(
     if version is None:
         raise HTTPException(status_code=404, detail="documento sem arquivo verificado")
 
-    ticket = get_object_store().create_download_ticket(version.storage_key, expires_in=300)
+    store = get_object_store()
+    if not store.exists(version.storage_key):
+        raise HTTPException(status_code=409, detail="Arquivo indisponivel neste ambiente")
+    ticket = store.create_download_ticket(version.storage_key, expires_in=300)
     url = ticket.url
     if url.startswith("local-object://"):
         # Localdev: URL autenticada da API, nunca caminho de filesystem.
@@ -592,7 +605,7 @@ def conteudo_documento(
     try:
         data = get_object_store().get_bytes(version.storage_key)
     except FileNotFoundError as exc:
-        raise HTTPException(status_code=404, detail="arquivo nao encontrado") from exc
+        raise HTTPException(status_code=409, detail="Arquivo indisponivel neste ambiente") from exc
     return Response(content=data, media_type=version.mime_type)
 
 
@@ -617,7 +630,7 @@ def conteudo_versao_citada(
     try:
         data = get_object_store().get_bytes(version.storage_key)
     except FileNotFoundError as exc:
-        raise HTTPException(404, "arquivo não encontrado") from exc
+        raise HTTPException(409, "Arquivo indisponivel neste ambiente") from exc
     from hashlib import sha256
 
     if sha256(data).hexdigest() != version.sha256:

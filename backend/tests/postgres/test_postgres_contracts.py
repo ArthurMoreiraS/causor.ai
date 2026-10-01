@@ -12,12 +12,13 @@ from app.autos.context import build_process_context
 from app.autos.worker import claim_due_processing_jobs, recover_stale_document_jobs
 from app.queue.worker import claim_next_job
 from app.sor import models
+from app.storage.objects import LocalObjectStore
 from tests.postgres.conftest import migrate
 
 
-def _jobs(engine, kinds=("process_document", "process_document", "captura_oab"), status="queued"):
+def _jobs(engine, kinds=("process_document", "process_document", "captura_oab"), status="queued", store_id=None):
     with Session(engine) as session:
-        jobs = [models.JobExecucao(tipo=kind, status=status,
+        jobs = [models.JobExecucao(tipo=kind, status=status, payload={"store_id": store_id} if store_id else {},
                  updated_at=datetime.now(timezone.utc) - timedelta(hours=2)) for kind in kinds]
         session.add_all(jobs)
         session.flush()
@@ -62,36 +63,57 @@ def test_audit_guard_downgrade_and_reupgrade_preserve_events(pg_engine):
             connection.execute(text("DELETE FROM audit_log"))
 
 
-def test_two_consumers_claim_different_documents_and_oab_stays_separate(pg_engine):
-    ids = _jobs(pg_engine)
+def test_two_consumers_claim_different_documents_and_oab_stays_separate(pg_engine, tmp_path):
+    store = LocalObjectStore(tmp_path)
+    ids = _jobs(pg_engine, store_id=store.store_id)
     with Session(pg_engine) as first, Session(pg_engine) as second, Session(pg_engine) as oab:
-        assert claim_due_processing_jobs(first, limit=1)[0].id == ids[0]
-        assert claim_due_processing_jobs(second, limit=1)[0].id == ids[1]
+        assert claim_due_processing_jobs(first, limit=1, object_store=store)[0].id == ids[0]
+        assert claim_due_processing_jobs(second, limit=1, object_store=store)[0].id == ids[1]
         assert claim_next_job(oab).id == ids[2]
-        assert claim_due_processing_jobs(oab, limit=1) == []
+        assert claim_due_processing_jobs(oab, limit=1, object_store=store) == []
 
 
-def test_killed_database_connection_releases_claim_for_restart(pg_engine):
-    ids = _jobs(pg_engine, kinds=("process_document",))
+def test_distinct_stores_claim_own_jobs_without_locking_foreign_rows(pg_engine, tmp_path):
+    first_store = LocalObjectStore(tmp_path / "first")
+    second_store = LocalObjectStore(tmp_path / "second")
+    ids = _jobs(pg_engine, kinds=("process_document", "process_document"),
+                store_id=first_store.store_id)
+    with Session(pg_engine) as session:
+        session.get(models.JobExecucao, ids[1]).payload = {"store_id": second_store.store_id}
+        session.commit()
+    # Keep both claims uncommitted. A foreign row lock would cause the second
+    # worker to skip its own first available job (or hit lock_timeout).
+    with Session(pg_engine) as first, Session(pg_engine) as second:
+        assert claim_due_processing_jobs(first, limit=1, object_store=first_store)[0].id == ids[0]
+        assert claim_due_processing_jobs(second, limit=1, object_store=second_store)[0].id == ids[1]
+        assert claim_due_processing_jobs(first, limit=1, object_store=first_store) == []
+        assert claim_due_processing_jobs(second, limit=1, object_store=second_store) == []
+
+
+def test_killed_database_connection_releases_claim_for_restart(pg_engine, tmp_path):
+    store = LocalObjectStore(tmp_path)
+    ids = _jobs(pg_engine, kinds=("process_document",), store_id=store.store_id)
     session = Session(pg_engine)
     try:
         pid = session.scalar(text("SELECT pg_backend_pid()"))
-        assert claim_due_processing_jobs(session, limit=1)[0].id == ids[0]
+        assert claim_due_processing_jobs(session, limit=1, object_store=store)[0].id == ids[0]
         with pg_engine.begin() as killer:
             assert killer.scalar(text("SELECT pg_terminate_backend(:pid, 1000)"), {"pid": pid})
         session.invalidate()
         with Session(pg_engine) as restarted:
-            assert claim_due_processing_jobs(restarted, limit=1)[0].id == ids[0]
+            assert claim_due_processing_jobs(restarted, limit=1, object_store=store)[0].id == ids[0]
     finally:
         session.invalidate()
         session.close()
 
 
-def test_stale_recovery_skips_locked_jobs_and_never_touches_filing(pg_engine):
-    ids = _jobs(pg_engine, kinds=("process_document", "process_document", "protocolo"), status="running")
+def test_stale_recovery_skips_locked_jobs_and_never_touches_filing(pg_engine, tmp_path):
+    store = LocalObjectStore(tmp_path)
+    ids = _jobs(pg_engine, kinds=("process_document", "process_document", "protocolo"),
+                status="running", store_id=store.store_id)
     with Session(pg_engine) as active, Session(pg_engine) as recovery:
         active.execute(select(models.JobExecucao).where(models.JobExecucao.id == ids[0]).with_for_update())
-        recovered = recover_stale_document_jobs(recovery, older_than_minutes=60)
+        recovered = recover_stale_document_jobs(recovery, older_than_minutes=60, object_store=store)
         assert [j.id for j in recovered] == [ids[1]]
         recovery.commit()
         assert active.get(models.JobExecucao, ids[0]).status == "running"

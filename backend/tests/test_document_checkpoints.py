@@ -82,12 +82,15 @@ def test_io_runs_without_sessions_and_stale_results_cannot_publish(
         assert db_session.scalar(select(models.DocumentoResumo)).status == "complete"
 
 
-def test_background_heartbeat_renews_with_its_own_short_session(db_session, monkeypatch):
-    job = models.JobExecucao(tipo="process_document", status="queued")
+def test_background_heartbeat_renews_with_its_own_short_session(db_session, monkeypatch, tmp_path):
+    from app.storage.objects import LocalObjectStore
+
+    store = LocalObjectStore(tmp_path)
+    job = models.JobExecucao(tipo="process_document", status="queued", payload={"store_id": store.store_id})
     db_session.add(job)
     db_session.commit()
     monkeypatch.setattr(leases.settings, "document_lease_seconds", 1)
-    job = worker.claim_due_processing_jobs(db_session, limit=1)[0]
+    job = worker.claim_due_processing_jobs(db_session, limit=1, object_store=store)[0]
     job_id, token, previous = job.id, job.lease_token, job.lease_expires_at
     db_session.commit()
     db_session.close()
