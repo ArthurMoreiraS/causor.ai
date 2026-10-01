@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { listarDocumentos } from "@/lib/api";
-import { conferirEvidencias, criarPendenciaTrabalho, gerarMinutaTrabalho, type Trabalho } from "@/lib/work-api";
+import { buscarFontesTrabalho, conferirEvidencias, criarPendenciaTrabalho, gerarMinutaTrabalho, prepararEvidencias, type Trabalho } from "@/lib/work-api";
 import { listarPacotes, listarTentativas, iniciarEnvioExterno, baixarArquivoTrabalho, conferirComprovante, type Pacote } from "@/lib/package-api";
 import WorkEvidence from "./WorkEvidence";
 import WorkProtocol from "./WorkProtocol";
@@ -55,6 +55,74 @@ it("bloqueia redação quando uma evidência previamente conferida ficou desatua
   render(<WorkEvidence work={{ ...work, evidencias: { ...work.evidencias!, conferida: true }, evidencias_atuais: false, motivo_revisao: "Documentos mudaram" }} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
   expect(screen.getByRole("alert").textContent).toContain("Revisão necessária");
   expect((screen.getByRole("button", { name: "Gerar nova versão da minuta" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("invalida a marcação de conferência quando muda o inventário analisado", async () => {
+  const onSaved = vi.fn();
+  const { rerender } = render(<WorkEvidence work={work} disabled={false} onSaved={onSaved} onOpenDraft={vi.fn()} />);
+  const checkbox = screen.getByLabelText("Conferi as fontes, os pontos contrários e as lacunas desta análise.") as HTMLInputElement;
+  fireEvent.click(checkbox);
+  expect(checkbox.checked).toBe(true);
+  rerender(<WorkEvidence work={{ ...work, evidencias: { ...work.evidencias!, inventario: [{ documento_id: 10, documento_arquivo_id: 11, nome: "Autos", paginas: 5, extraction_status: "complete" }] } }} disabled={false} onSaved={onSaved} onOpenDraft={vi.fn()} />);
+  await waitFor(() => expect(checkbox.checked).toBe(false));
+  expect((screen.getByRole("button", { name: "Registrar conferência" }) as HTMLButtonElement).disabled).toBe(true);
+});
+
+it("ignora busca antiga após mudar a consulta", async () => {
+  let finish!: (value: Awaited<ReturnType<typeof buscarFontesTrabalho>>) => void;
+  vi.mocked(buscarFontesTrabalho).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  render(<WorkEvidence work={work} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "pagamento" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar fontes" }));
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "contrato" } });
+  await act(async () => finish({ items: [{ documento_id: 3, documento_arquivo_id: 4, chunk_id: 5, pagina: 1, quote: "Resultado antigo" }] }));
+  expect(screen.queryByText("Resultado antigo")).toBeNull();
+});
+
+it("mantém fontes fixadas entre consultas e exige nova análise para conferir", async () => {
+  vi.mocked(buscarFontesTrabalho).mockResolvedValue({ items: [{ documento_id: 3, documento_arquivo_id: 4, chunk_id: 5, pagina: 1, quote: "Comprovante", nome: "Autos" }] });
+  const reviewed = { ...work, evidencias: { ...work.evidencias!, conferida: true } };
+  render(<WorkEvidence work={reviewed} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "comprovante" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar fontes" }));
+  await screen.findByText("Comprovante");
+  fireEvent.click(screen.getByLabelText("Usar esta fonte na análise"));
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "contrato" } });
+  expect(screen.getByText(/Fontes fixadas para a análise \(1\)/)).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Gerar nova versão da minuta" }) as HTMLButtonElement).disabled).toBe(true);
+  vi.mocked(prepararEvidencias).mockResolvedValue({ ...reviewed, versao: 8 });
+  fireEvent.click(screen.getByRole("button", { name: "Atualizar análise das evidências" }));
+  await waitFor(() => expect(prepararEvidencias).toHaveBeenCalledWith(reviewed, [], [5]));
+});
+
+it("descarta busca atrasada e conferência ao mudar o snapshot, preservando perguntas", async () => {
+  let finish!: (value: Awaited<ReturnType<typeof buscarFontesTrabalho>>) => void;
+  vi.mocked(buscarFontesTrabalho).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const { rerender } = render(<WorkEvidence work={work} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Pontos que precisam ser respondidos"), { target: { value: "Qual pagamento?" } });
+  fireEvent.click(screen.getByLabelText("Conferi as fontes, os pontos contrários e as lacunas desta análise."));
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "pagamento" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar fontes" }));
+  rerender(<WorkEvidence work={{ ...work, versao: 8, evidencias: { ...work.evidencias!, source_fingerprint: "novo" } }} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  await act(async () => finish({ items: [{ documento_id: 3, documento_arquivo_id: 4, chunk_id: 5, pagina: 1, quote: "Busca antiga" }] }));
+  expect(screen.queryByText("Busca antiga")).toBeNull();
+  expect((screen.getByLabelText("Pontos que precisam ser respondidos") as HTMLTextAreaElement).value).toBe("Qual pagamento?");
+  expect((screen.getByLabelText("Conferi as fontes, os pontos contrários e as lacunas desta análise.") as HTMLInputElement).checked).toBe(false);
+  expect(screen.getByText(/Suas perguntas foram preservadas/)).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Buscar fontes" }) as HTMLButtonElement).disabled).toBe(false);
+});
+
+it("não publica resposta de outro trabalho mesmo quando o componente é reutilizado", async () => {
+  let finish!: (value: Awaited<ReturnType<typeof buscarFontesTrabalho>>) => void;
+  vi.mocked(buscarFontesTrabalho).mockReturnValue(new Promise(resolve => { finish = resolve; }));
+  const saved = vi.fn();
+  const { rerender } = render(<WorkEvidence work={work} disabled={false} onSaved={saved} onOpenDraft={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "antigo" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar fontes" }));
+  rerender(<WorkEvidence work={{ ...work, id: 2, versao: 1 }} disabled={false} onSaved={saved} onOpenDraft={vi.fn()} />);
+  await act(async () => finish({ items: [{ documento_id: 3, documento_arquivo_id: 4, chunk_id: 5, pagina: 1, quote: "Outro trabalho" }] }));
+  expect(screen.queryByText("Outro trabalho")).toBeNull();
+  expect((screen.getByLabelText("Buscar no texto original") as HTMLInputElement).value).toBe("");
 });
 
 it("baixar pacote aprovado não cria tentativa nem confirma envio", async () => {

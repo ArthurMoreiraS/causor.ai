@@ -1,12 +1,16 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { listarDocumentos, type DocumentoBiblioteca } from "@/lib/api";
 import { salvarEscopo, type DocumentoEscopo, type Trabalho } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
 import { LoadingButton } from "./ui";
 import DocumentEvidenceDialog from "./DocumentEvidenceDialog";
 
-export default function WorkScope({ work, disabled, onSaved }: { work: Trabalho; disabled: boolean; onSaved: (value: Trabalho) => void }) {
+function scopeFields(scope: Trabalho["escopo"]) {
+  return JSON.stringify({ data_referencia: scope?.data_referencia || "", declaracao: scope?.declaracao || "", documentos: scope?.documentos || [] });
+}
+
+export default function WorkScope({ work, disabled, onSaved, onDirtyChange }: { work: Trabalho; disabled: boolean; onSaved: (value: Trabalho) => void; onDirtyChange?: (dirty: boolean) => void }) {
   const [date, setDate] = useState(work.escopo?.data_referencia || "");
   const [declaration, setDeclaration] = useState(work.escopo?.declaracao || "");
   const [entries, setEntries] = useState<DocumentoEscopo[]>(work.escopo?.documentos || []);
@@ -16,6 +20,25 @@ export default function WorkScope({ work, disabled, onSaved }: { work: Trabalho;
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pageSource, setPageSource] = useState<{ doc: number; version: number; page: number; name: string } | null>(null);
+  const baseline = useRef(scopeFields(work.escopo));
+  const workIdentity = `${work.id}:${work.versao}`;
+  const currentIdentity = useRef(workIdentity);
+  currentIdentity.current = workIdentity;
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { setBusy(false); }, [workIdentity]);
+  const snapshot = scopeFields({ data_referencia: date, declaracao: declaration, documentos: entries });
+  const dirty = snapshot !== baseline.current;
+  const [conflict, setConflict] = useState(false);
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
+  useEffect(() => {
+    const incoming = scopeFields(work.escopo);
+    if (incoming === baseline.current) return;
+    if (dirty) { setConflict(true); return; }
+    baseline.current = incoming;
+    setDate(work.escopo?.data_referencia || ""); setDeclaration(work.escopo?.declaracao || "");
+    setEntries(work.escopo?.documentos || []); setConflict(false);
+  }, [work.escopo, dirty]);
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -36,13 +59,26 @@ export default function WorkScope({ work, disabled, onSaved }: { work: Trabalho;
   }
   async function save() {
     if (busy || disabled) return; setBusy(true); setError(null);
-    try { onSaved(await salvarEscopo(work, { data_referencia: date, declaracao: declaration, documentos: entries })); }
-    catch (err) { setError(humanError(err, "Não foi possível registrar o escopo")); }
-    finally { setBusy(false); }
+    const expected = currentIdentity.current;
+    try {
+      const result = await salvarEscopo(work, { data_referencia: date, declaracao: declaration, documentos: entries });
+      if (!mounted.current || currentIdentity.current !== expected) return;
+      baseline.current = scopeFields(result.escopo);
+      setDate(result.escopo?.data_referencia || "");
+      setDeclaration(result.escopo?.declaracao || "");
+      setEntries(result.escopo?.documentos || []);
+      setConflict(false); onDirtyChange?.(false); onSaved(result);
+    }
+    catch (err) { if (mounted.current && currentIdentity.current === expected) setError(humanError(err, "Não foi possível registrar o escopo")); }
+    finally { if (mounted.current && currentIdentity.current === expected) setBusy(false); }
   }
   return <details className="legalWorkStage"><summary>Declarar o acervo e identificar peças dentro dos PDFs</summary>
     <p>Registre até quando os documentos foram conferidos e o que pode estar faltando. A declaração não equivale à conferência no tribunal.</p>
     {error ? <p role="alert" className="officeError">{error}</p> : null}
+    {conflict ? <p role="alert">O escopo foi alterado em outra sessão. Copie suas alterações antes de recarregar e confira a versão.</p> : null}
+    <p className="officeHint">O índice descreve peças e origem. A análise considera todo o acervo processado do processo, inclusive provas contrárias não listadas aqui.</p>
+    {entries.filter(item => !documents.some(doc => doc.versao?.id === item.versao_id)).map(item =>
+      <p className="officeHint" key={item.versao_id}>Referência do índice à versão #{item.versao_id}: não está entre as versões atuais desta página. Pode ser histórica; confira no acervo.</p>)}
     <div className="officeForm"><label>Data de referência do acervo<input type="date" required value={date} disabled={disabled || busy} onChange={e => setDate(e.target.value)} /></label>
       <label>Declaração de cobertura e limitações<textarea required minLength={20} maxLength={3000} rows={3} value={declaration} disabled={disabled || busy} onChange={e => setDeclaration(e.target.value)} /></label></div>
     {documents.map(doc => {

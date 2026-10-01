@@ -1,7 +1,7 @@
 "use client";
 
 import { FileSearch, Loader2, RefreshCcw, ShieldAlert, Upload } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AutosStatus,
   capturarAutos,
@@ -51,8 +51,8 @@ const STATE_LABEL: Record<ContextUiState, string> = {
   blocked: "Bloqueado"
 };
 
-export default function ProcessContextStatus({ processoId, onReceiveDocuments, receivingDisabled = false, assistedOnly = false }: {
-  processoId: number; onReceiveDocuments?: () => void; receivingDisabled?: boolean; assistedOnly?: boolean;
+export default function ProcessContextStatus({ processoId, initialDegree = "1", onReceiveDocuments, receivingDisabled = false, assistedOnly = false }: {
+  processoId: number; initialDegree?: "1" | "2"; onReceiveDocuments?: () => void; receivingDisabled?: boolean; assistedOnly?: boolean;
 }) {
   const [status, setStatus] = useState<AutosStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,24 +62,38 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
   const [justification, setJustification] = useState("");
   const [overrideOk, setOverrideOk] = useState(false);
   const [showWizard, setShowWizard] = useState(false);
-  const [grau, setGrau] = useState("1");
+  const [grau, setGrau] = useState(initialDegree);
+  useEffect(() => { setGrau(initialDegree); }, [initialDegree, processoId]);
   const [absence, setAbsence] = useState("");
+  const requestEpoch = useRef(0);
+  const inFlight = useRef(false);
+  const pendingReload = useRef(false);
 
   async function reload() {
+    if (inFlight.current) { pendingReload.current = true; return; }
+    inFlight.current = true;
+    const epoch = requestEpoch.current;
     try {
-      setStatus(await statusAutos(processoId));
+      const result = await statusAutos(processoId);
+      if (epoch !== requestEpoch.current) return;
+      setStatus(result);
       setError(null);
     } catch (err) {
-      setError(humanError(err, "Falha ao carregar status dos autos"));
+      if (epoch === requestEpoch.current) setError(humanError(err, "Falha ao carregar status dos autos"));
     } finally {
-      setLoading(false);
+      if (epoch === requestEpoch.current) {
+        setLoading(false); inFlight.current = false;
+        if (pendingReload.current) { pendingReload.current = false; void reload(); }
+      }
     }
   }
 
   useEffect(() => {
+    requestEpoch.current += 1; inFlight.current = false; pendingReload.current = false;
+    setLoading(true); setStatus(null);
     void reload();
     const timer = window.setInterval(() => void reload(), 5000);
-    return () => window.clearInterval(timer);
+    return () => { requestEpoch.current += 1; inFlight.current = false; pendingReload.current = false; window.clearInterval(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processoId]);
 
@@ -225,7 +239,7 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
 
       <div className="contextActions">
         <label className="officeField contextDegree">Grau dos autos
-          <select aria-label="Grau dos autos" value={grau} disabled={Boolean(busy)} onChange={(e) => setGrau(e.target.value)}>
+          <select aria-label="Grau dos autos" value={grau} disabled={Boolean(busy)} onChange={(e) => setGrau(e.target.value as "1" | "2")}>
             <option value="1">1º grau</option><option value="2">2º grau</option>
           </select>
         </label>

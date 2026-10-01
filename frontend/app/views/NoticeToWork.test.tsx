@@ -3,17 +3,18 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { StrictMode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { IntimacaoRow } from "@/lib/views";
-import { listarClientes } from "@/lib/api";
+import { listarClientes, vincularCliente } from "@/lib/api";
 import { criarTrabalho, listarTrabalhos, obterTrabalho } from "@/lib/work-api";
 import IntimacoesView from "./IntimacoesView";
 import TrabalhosView from "./TrabalhosView";
 
-vi.mock("@/lib/api", () => ({ listarClientes: vi.fn(), criarCliente: vi.fn() }));
+vi.mock("@/lib/api", () => ({ listarClientes: vi.fn(), criarCliente: vi.fn(), vincularCliente: vi.fn() }));
 vi.mock("@/lib/work-api", () => ({ criarTrabalho: vi.fn(), listarTrabalhos: vi.fn(), obterTrabalho: vi.fn(), atualizarTrabalho: vi.fn(), criarProcesso: vi.fn() }));
 vi.mock("../components/ProcessContextStatus", () => ({ default: () => null }));
 vi.mock("../components/DocumentUploadDialog", () => ({ default: () => null }));
 vi.mock("../components/WorkEvidence", () => ({ default: () => null }));
-vi.mock("../components/WorkScope", () => ({ default: () => null }));
+vi.mock("../components/WorkScope", () => ({ default: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) =>
+  <button type="button" onClick={() => onDirtyChange(true)}>Editar índice</button> }));
 vi.mock("../components/WorkProtocol", () => ({ default: () => null }));
 vi.mock("../components/WorkAssistant", () => ({ default: () => null }));
 
@@ -140,4 +141,47 @@ it("atualiza versão remota sem edição local e preserva edição quando há co
   rerender(<TrabalhosView processos={[notice.processo!]} offline={false} {...callbacks} refreshKey={1} />);
   await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("outra sessão"));
   expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("Minha edição");
+});
+
+it("vincula cliente ao processo capturado e mantém o vínculo na retomada", async () => {
+  const captured = { ...notice.processo!, cliente_id: null };
+  const linked = { ...captured, cliente_id: 23 };
+  const saved = { id: 30, processo_id: 4, intimacao_id: 8, prazo_id: 9, peticao_id: null, responsavel_id: null,
+    providencia: "Responder intimação", instrucoes: "", grau: "1", polo: "Autor", versao: 1,
+    escopo: null, evidencias: null, created_at: "", updated_at: "" };
+  vi.mocked(listarClientes).mockResolvedValue({ total: 2, items: [{ id: 23, nome: "Maria" }, { id: 24, nome: "João" }] } as Awaited<ReturnType<typeof listarClientes>>);
+  vi.mocked(listarTrabalhos).mockResolvedValue({ total: 1, items: [saved] });
+  vi.mocked(obterTrabalho).mockResolvedValue(saved);
+  vi.mocked(vincularCliente).mockResolvedValue({ processo_id: 4, cliente_id: 23 });
+  const props = { offline: false, onChanged: vi.fn(), onDocuments: vi.fn(), onOpenDraft: vi.fn() };
+  const { rerender, unmount } = render(<TrabalhosView processos={[captured]} {...props} />);
+  fireEvent.click(await screen.findByRole("button", { name: /Responder intimação/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Vincular ou cadastrar cliente" }));
+  fireEvent.change(screen.getByLabelText("Cliente representado"), { target: { value: "23" } });
+  fireEvent.click(screen.getByRole("button", { name: "Salvar vínculo" }));
+  await waitFor(() => expect(vincularCliente).toHaveBeenCalledWith(4, 23));
+  expect(await screen.findByText("Maria")).toBeTruthy();
+  rerender(<TrabalhosView processos={[{ ...captured, cliente_id: 24 }]} {...props} />);
+  expect(await screen.findByText("João")).toBeTruthy();
+  unmount();
+  render(<TrabalhosView processos={[linked]} {...props} />);
+  fireEvent.click(await screen.findByRole("button", { name: /Responder intimação/ }));
+  expect(await screen.findByText("Maria")).toBeTruthy();
+});
+
+it("preserva o objetivo e o índice sujo durante atualização remota", async () => {
+  const first = { id: 31, processo_id: 4, intimacao_id: null, prazo_id: null, peticao_id: null,
+    responsavel_id: null, providencia: "Objetivo inicial", instrucoes: "", grau: "1", polo: "Autor",
+    versao: 1, escopo: null, evidencias: null, created_at: "", updated_at: "" };
+  vi.mocked(listarClientes).mockResolvedValue({ total: 0, items: [] });
+  vi.mocked(listarTrabalhos).mockResolvedValue({ total: 1, items: [first] });
+  vi.mocked(obterTrabalho).mockResolvedValue(first);
+  const props = { processos: [notice.processo!], offline: false, onChanged: vi.fn(), onDocuments: vi.fn(), onOpenDraft: vi.fn() };
+  const { rerender } = render(<TrabalhosView {...props} />);
+  fireEvent.click(await screen.findByRole("button", { name: /Objetivo inicial/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Editar índice" }));
+  vi.mocked(obterTrabalho).mockResolvedValue({ ...first, providencia: "Remoto", versao: 2 });
+  rerender(<TrabalhosView {...props} refreshKey={1} />);
+  await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("outra sessão"));
+  expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("Objetivo inicial");
 });

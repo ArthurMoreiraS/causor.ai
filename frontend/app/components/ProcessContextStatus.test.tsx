@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, expect, test, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
 import ProcessContextStatus, { deriveUiState } from "./ProcessContextStatus";
 import { ToastProvider } from "./Toast";
+import { statusAutos, type AutosStatus } from "@/lib/api";
 
 // Sem `globals: true` no vitest o Testing Library nao registra cleanup
 // automatico; sem isto os renders acumulam entre os testes.
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.mocked(statusAutos).mockClear(); });
 
 vi.mock("@/lib/api", () => ({
   statusAutos: vi.fn().mockResolvedValue({
@@ -151,4 +152,20 @@ test("envia os autos escolhidos pelo advogado", async () => {
   fireEvent.change(input, { target: { files: [arquivo] } });
 
   await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(7, [arquivo], "1"));
+});
+
+test("não sobrepõe polling lento e aceita a primeira resposta após cinco segundos", async () => {
+  vi.useFakeTimers();
+  let finishFirst!: (status: AutosStatus) => void;
+  let finishSecond!: (status: AutosStatus) => void;
+  vi.mocked(statusAutos).mockImplementationOnce(() => new Promise(resolve => { finishFirst = resolve; }))
+    .mockImplementationOnce(() => new Promise(resolve => { finishSecond = resolve; }));
+  render(<ToastProvider><ProcessContextStatus processoId={7} /></ToastProvider>);
+  expect(statusAutos).toHaveBeenCalledTimes(1);
+  await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+  expect(statusAutos).toHaveBeenCalledTimes(1);
+  await act(async () => { finishFirst({ processo_id: 7, instancias: [], contexto: { ready: true, missing: [] } }); });
+  expect(screen.getByText("Contexto disponível para revisão")).toBeInTheDocument();
+  expect(statusAutos).toHaveBeenCalledTimes(2);
+  await act(async () => { finishSecond({ processo_id: 7, instancias: [], contexto: { ready: true, missing: [] } }); });
 });

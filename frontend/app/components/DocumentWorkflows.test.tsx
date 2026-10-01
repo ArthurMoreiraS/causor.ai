@@ -44,6 +44,17 @@ it("preserva o formulário e não declara recebimento quando há conflito de ver
   expect(screen.getByRole("dialog")).toBeTruthy();
 });
 
+it("herda segundo grau e impede trocar o processo ao receber documentos do trabalho", async () => {
+  vi.mocked(enviarAutos).mockResolvedValue({ id: 4 } as Awaited<ReturnType<typeof enviarAutos>>);
+  render(<DocumentUploadDialog processos={[]} processoId={2} initialDegree="2" fixedProcess offline={false} onClose={vi.fn()} onSaved={vi.fn()} />);
+  expect((screen.getByLabelText("Processo de destino") as HTMLSelectElement).disabled).toBe(true);
+  expect((screen.getByLabelText("Grau de destino") as HTMLSelectElement).value).toBe("2");
+  const file = new File(["%PDF"], "autos.pdf", { type: "application/pdf" });
+  fireEvent.change(screen.getByLabelText("Arquivos PDF"), { target: { files: [file] } });
+  fireEvent.submit(screen.getByRole("button", { name: "Enviar documentos" }).closest("form")!);
+  await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(2, [file], "2", { tarefa: undefined }));
+});
+
 it("abre a versão histórica citada e navega até a página da evidência", async () => {
   render(<DocumentEvidenceDialog documentoId={2} nome="Comprovante" versaoId={4} onClose={vi.fn()} />);
   fireEvent.click((await screen.findAllByRole("button", { name: "Página 3" }))[0]);

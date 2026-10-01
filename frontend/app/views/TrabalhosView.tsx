@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { criarCliente, listarClientes, type Cliente, type Processo } from "@/lib/api";
+import { criarCliente, listarClientes, vincularCliente, type Cliente, type Processo } from "@/lib/api";
 import { atualizarTrabalho, criarProcesso, criarTrabalho, listarTrabalhos, obterTrabalho, type Trabalho } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
 import ProcessContextStatus from "../components/ProcessContextStatus";
@@ -33,6 +33,9 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   const [court, setCourt] = useState("");
   const [client, setClient] = useState("");
   const [newClientName, setNewClientName] = useState("");
+  const [editingClient, setEditingClient] = useState(false);
+  const [scopeDirty, setScopeDirty] = useState(false);
+  const [evidenceDirty, setEvidenceDirty] = useState(false);
   const [purpose, setPurpose] = useState("");
   const [instructions, setInstructions] = useState("");
   const [degree, setDegree] = useState<"1" | "2">("1");
@@ -44,9 +47,19 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   const selectionVersion = useRef(0);
   const unsavedRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
-  const processOptions = localProcess && !processos.some(p => p.id === localProcess.id) ? [localProcess, ...processos] : processos;
+  const processOptions = localProcess ? (processos.some(p => p.id === localProcess.id)
+    ? processos.map(p => p.id === localProcess.id ? localProcess : p) : [localProcess, ...processos]) : processos;
+  useEffect(() => {
+    if (localProcess && processos.some(item => item.id === localProcess.id)) setLocalProcess(null);
+    // A new authoritative process list supersedes the optimistic local copy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [processos]);
   const dirty = Boolean(work && (purpose !== work.providencia || instructions !== work.instrucoes || degree !== work.grau || party !== (work.polo || "")));
-  const unsaved = dirty || (!work && Boolean(purpose || instructions || party || number || court || client || clientQuery || newClientName || newProcess || (process && process !== String(initialProcessId || "")) || degree !== "1"));
+  const unsaved = dirty || scopeDirty || evidenceDirty || editingClient || (!work && Boolean(purpose || instructions || party || number || court || client || clientQuery || newClientName || newProcess || (process && process !== String(initialProcessId || "")) || degree !== "1"));
+  const onScopeDirty = useCallback((value: boolean) => setScopeDirty(value), []);
+  const onEvidenceDirty = useCallback((value: boolean) => setEvidenceDirty(value), []);
+  const selectedProcess = processOptions.find(item => item.id === Number(work?.processo_id));
+  const currentClient = clients.find(item => item.id === selectedProcess?.cliente_id);
   unsavedRef.current = unsaved;
   useEffect(() => { onUnsavedChange?.(unsaved); }, [onUnsavedChange, unsaved]);
   useEffect(() => {
@@ -64,6 +77,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     setDegree(value?.grau === "2" ? "2" : "1"); setParty(value?.polo || "");
     setProcess(String(value?.processo_id || "")); setError(null); setNewProcess(false);
     setNumber(""); setCourt(""); setClient(""); setClientQuery(""); setNewClientName("");
+    setEditingClient(false); setScopeDirty(false); setEvidenceDirty(false);
     const url = new URL(window.location.href);
     if (value) url.searchParams.set("trabalho", String(value.id)); else url.searchParams.delete("trabalho");
     url.searchParams.delete("novo");
@@ -114,8 +128,8 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     let active = true;
     const version = selectionVersion.current;
     const reload = () => obterTrabalho(id).then(value => {
-      if (!active || version !== selectionVersion.current) return;
-      if (dirty) {
+      if (!active || version !== selectionVersion.current || work?.id !== id) return;
+      if (unsavedRef.current) {
         if (value.versao !== work.versao) setError("Este trabalho foi alterado em outra sessão. Confira a versão antes de salvar.");
       } else if (value.versao !== work.versao) {
         selectWork(value, true);
@@ -126,9 +140,10 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     void reload();
     const timer = setInterval(reload, 15000);
     return () => { active = false; clearInterval(timer); };
-  }, [work?.id, work?.versao, revision, refreshKey, offline, dirty, selectWork]);
+  }, [work?.id, work?.versao, revision, refreshKey, offline, selectWork]);
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy || offline) return;
+    if (scopeDirty || evidenceDirty) { setError("Salve ou descarte primeiro as alterações em escopo e fontes."); return; }
     setBusy(true); setError(null);
     try {
       let processId = Number(process);
@@ -148,6 +163,23 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
             ...(origin ? { intimacao_id: origin.intimacaoId, prazo_id: origin.prazoId ?? undefined } : {}) });
       selectWork(result, true); setRevision(v => v + 1);
     } catch (err) { setError(humanError(err, "Não foi possível salvar o trabalho")); }
+    finally { setBusy(false); }
+  }
+
+  async function saveClient() {
+    if (!work?.processo_id || !selectedProcess || busy || offline) return;
+    setBusy(true); setError(null);
+    try {
+      let clientId = Number(client) || null;
+      if (!clientId && newClientName.trim()) {
+        const created = await criarCliente({ nome: newClientName.trim() });
+        clientId = created.id; setClients(items => [...items, created]);
+      }
+      if (!clientId) { setError("Selecione ou cadastre o cliente representado."); return; }
+      await vincularCliente(work.processo_id, clientId);
+      setLocalProcess({ ...selectedProcess, cliente_id: clientId });
+      setEditingClient(false); setNewClientName(""); setClient(""); onChanged();
+    } catch (err) { setError(humanError(err, "Não foi possível vincular o cliente")); }
     finally { setBusy(false); }
   }
 
@@ -175,9 +207,8 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
         </header>
         <nav className="workStageNavigation" aria-label="Etapas deste trabalho">
           <button type="button" onClick={() => jumpToStage("work-objective")}>Objetivo</button>
-          {work.processo_id ? <button type="button" onClick={() => jumpToStage("work-documents")}>Documentos</button> : null}
-          {work.processo_id ? <button type="button" onClick={() => jumpToStage("work-evidence")}>Evidências</button> : null}
-          {work.evidencias ? <button type="button" onClick={() => jumpToStage("work-draft")}>Minuta</button> : <span>Minuta pendente</span>}
+          {work.processo_id ? <button type="button" onClick={() => jumpToStage("work-documents")}>Documentos e contexto</button> : null}
+          {work.evidencias ? <button type="button" onClick={() => jumpToStage("work-draft")}>Minuta e revisão</button> : <span>Minuta e revisão pendente</span>}
         </nav>
       </> : null}
       <form ref={formRef} id="work-objective" tabIndex={-1} className="officeForm workStageAnchor" onSubmit={save}>
@@ -195,28 +226,37 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
           <option value="">Selecione o processo</option>
           {process && !processOptions.some(p => String(p.id) === process) ? <option value={process}>Processo #{process}</option> : null}
           {processOptions.map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}</select></label>}
+        {work?.processo_id ? <div className="workClientLink"><p>Cliente representado: <strong>{currentClient?.nome || (selectedProcess?.cliente_id ? `Cliente #${selectedProcess.cliente_id}` : "não vinculado")}</strong></p>
+          {!editingClient ? <button type="button" className="toolbarButton compact" disabled={busy || offline} onClick={() => { setClient(String(selectedProcess?.cliente_id || "")); setEditingClient(true); }}>{selectedProcess?.cliente_id ? "Alterar vínculo do cliente" : "Vincular ou cadastrar cliente"}</button> : <div className="officeForm">
+            <label>Buscar cliente<input value={clientQuery} disabled={busy} onChange={e => setClientQuery(e.target.value)} /></label>
+            <label>Cliente representado<select value={client} disabled={busy} onChange={e => setClient(e.target.value)}><option value="">Selecione um cliente</option>{clients.map(item => <option key={item.id} value={item.id}>{item.nome}</option>)}</select></label>
+            {!client ? <label>Ou cadastrar cliente<input value={newClientName} disabled={busy} onChange={e => setNewClientName(e.target.value)} /></label> : null}
+            <div className="officeToolbar"><button type="button" className="toolbarButton" disabled={busy || offline} onClick={() => void saveClient()}>Salvar vínculo</button><button type="button" className="toolbarButton" disabled={busy} onClick={() => { setEditingClient(false); setClient(""); setNewClientName(""); }}>Cancelar</button></div>
+          </div>}</div> : null}
         <label>Providência<input required minLength={3} maxLength={255} value={purpose} disabled={busy} onChange={e => setPurpose(e.target.value)} placeholder="Ex.: Manifestação sobre o laudo" /></label>
         <label>Instruções para o trabalho<textarea maxLength={20000} rows={4} value={instructions} disabled={busy} onChange={e => setInstructions(e.target.value)} /></label>
+        <p className="officeHint">Relatos e instruções serão confrontados com as fontes. Não equivalem a prova documentada.</p>
         <div className="legalWorkFields"><label>Instância do trabalho<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value as "1" | "2")}><option value="1">1º grau</option><option value="2">2º grau</option></select></label>
           <label>Polo representado<input maxLength={100} value={party} disabled={busy} onChange={e => setParty(e.target.value)} placeholder="Ex.: Autor, réu, interessado" /></label></div>
         <p className="officeHint">{work?.prazo_id ? `Prazo vinculado #${work.prazo_id}.` : "Prazo não vinculado. Nenhuma data de vencimento será presumida."}</p>
+        {work && (!selectedProcess?.cliente_id || !party.trim()) ? <p role="status">Antes de gerar a minuta, {selectedProcess?.cliente_id ? "informe o polo representado" : party.trim() ? "vincule o cliente representado" : "vincule o cliente representado e informe o polo"}.</p> : null}
         <LoadingButton type="submit" loading={busy} disabled={offline || (!newProcess && !process) || !purpose.trim()}>{work ? "Salvar objetivo" : "Criar trabalho"}</LoadingButton>
       </form>
       {work?.processo_id ? <section id="work-documents" tabIndex={-1} className="legalWorkStage workStageAnchor"><h3>2. Documentos e contexto</h3>
         <p>Envie os autos e os documentos do cliente. A cobertura do tribunal permanece declarada por quem envia.</p>
-        <ProcessContextStatus key={`context-${work.processo_id}-${revision}`} processoId={work.processo_id} onReceiveDocuments={() => setReceiving(true)} receivingDisabled={offline} assistedOnly />
+        <ProcessContextStatus key={`context-${work.processo_id}`} processoId={work.processo_id} initialDegree={work.grau === "2" ? "2" : "1"} onReceiveDocuments={() => setReceiving(true)} receivingDisabled={offline} assistedOnly />
         <button className="toolbarButton" onClick={() => onDocuments(work.processo_id!)}>Conferir documentos e fontes</button>
-        <WorkScope key={`scope-${work.id}-${revision}`} work={work} disabled={offline || busy || dirty}
-          onSaved={value => { setWork(value); setRevision(v => v + 1); }} />
+        <WorkScope key={`scope-${work.id}`} work={work} disabled={offline || busy || dirty}
+          onDirtyChange={onScopeDirty} onSaved={value => { setWork(old => old?.id === value.id && old.versao === work.versao ? value : old); setRevision(v => v + 1); }} />
       </section> : null}
       {work?.peticao_id ? <section className="legalWorkStage"><h3>Minuta vinculada</h3><button className="toolbarButton" onClick={() => onOpenDraft(work.peticao_id!)}>Abrir minuta para revisão</button></section> : null}
-      {work?.processo_id ? <WorkEvidence key={`evidence-${work.id}`} work={work} disabled={offline || busy || purpose !== work.providencia || instructions !== work.instrucoes || degree !== work.grau || party !== (work.polo || "")}
-        onSaved={value => { setWork(value); setRevision(v => v + 1); onChanged(); }} onOpenDraft={onOpenDraft} /> : null}
+      {work?.processo_id ? <WorkEvidence key={`evidence-${work.id}`} work={work} disabled={offline || busy || dirty || scopeDirty} canDraft={Boolean(selectedProcess?.cliente_id && party.trim())}
+        onDirtyChange={onEvidenceDirty} onSaved={value => { setWork(old => old?.id === value.id && old.versao === work.versao ? value : old); setRevision(v => v + 1); onChanged(); }} onOpenDraft={onOpenDraft} /> : null}
       {work && !work.processo_id ? <p role="status">O processo foi removido. O histórico deste trabalho foi preservado.</p> : null}
       {dirty ? <p role="status">Salve o objetivo alterado antes de continuar as etapas do trabalho.</p> : null}
       {work?.processo_id ? <WorkAssistant key={`assistant-${work.id}`} work={work} disabled={offline || busy || dirty} /> : null}
     </div></div>
-    {receiving && work?.processo_id ? <DocumentUploadDialog processos={processOptions} processoId={work.processo_id} offline={offline}
+    {receiving && work?.processo_id ? <DocumentUploadDialog processos={processOptions} processoId={work.processo_id} initialDegree={work.grau === "2" ? "2" : "1"} fixedProcess offline={offline}
       onClose={() => setReceiving(false)} onSaved={() => { setReceiving(false); setRevision(v => v + 1); onChanged(); }} /> : null}
   </section>;
 }

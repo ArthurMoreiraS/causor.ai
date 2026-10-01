@@ -4,12 +4,12 @@ import { enviarAutos, type Processo, type Tarefa } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import { LoadingButton, Modal } from "./ui";
 
-export default function DocumentUploadDialog({ processos, processoId, tarefa, offline, onClose, onSaved }: {
-  processos: Processo[]; processoId?: number; tarefa?: Tarefa | null; offline: boolean; onClose: () => void; onSaved: () => void;
+export default function DocumentUploadDialog({ processos, processoId, initialDegree = "1", fixedProcess = false, tarefa, offline, onClose, onSaved }: {
+  processos: Processo[]; processoId?: number; initialDegree?: "1" | "2"; fixedProcess?: boolean; tarefa?: Tarefa | null; offline: boolean; onClose: () => void; onSaved: () => void;
 }) {
   const [task] = useState(tarefa);
   const [process, setProcess] = useState(String(task?.processo_id || processoId || ""));
-  const [degree, setDegree] = useState("1");
+  const [degree, setDegree] = useState(initialDegree);
   const [files, setFiles] = useState<File[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,12 +27,12 @@ export default function DocumentUploadDialog({ processos, processoId, tarefa, of
       <h2 id="document-upload-title">Receber documentos</h2>
       {task ? <p className="officeHint">Pendência: {task.titulo}. O recebimento deixa a tarefa em andamento para conferência.</p> : null}
       {error ? <p role="alert" className="officeError">{error}</p> : null}
-      <label>Processo de destino<select required value={process} disabled={Boolean(task?.processo_id) || busy} onChange={e => setProcess(e.target.value)}>
+      <label>Processo de destino<select required value={process} disabled={fixedProcess || Boolean(task?.processo_id) || busy} onChange={e => setProcess(e.target.value)}>
         <option value="">Selecione o processo</option>
         {process && !options.some(p => String(p.id) === process) ? <option value={process}>{task?.processo_numero || `Processo #${process}`}</option> : null}
         {options.map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}
       </select></label>
-      <label>Grau de destino<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value)}>
+      <label>Grau de destino<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value as "1" | "2")}>
         <option value="1">1º grau</option><option value="2">2º grau</option>
       </select></label>
       <label>Arquivos PDF<input type="file" accept="application/pdf,.pdf" multiple required disabled={busy}

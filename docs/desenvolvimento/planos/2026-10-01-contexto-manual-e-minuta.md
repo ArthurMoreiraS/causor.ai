@@ -22,6 +22,11 @@ finais aprovados, Ruff e diff check aprovados. Coordenador leu o diff e repetiu
 duas transações com stores distintos aguarda CI PostgreSQL descartável. Acesso
 e reprocessamento de arquivo ausente respondem 409 com indicação do ambiente.
 
+Publicada em `45ff3dd`: CI 36815849559 aprovado, incluindo PostgreSQL 16/17;
+deploy 36815996053 aprovado e SHA conferido nos quatro serviços, com saúde
+normal registrada pelo deploy. A consulta externa adicional foi bloqueada por
+limite de uso da revisão automática de aprovação, sem execução da ação.
+
 ## Etapa 3b: preparar o contexto na tela de Trabalhos
 
 Arquivos: TrabalhosView, WorkScope, WorkEvidence, DocumentUploadDialog,
@@ -53,7 +58,35 @@ troca de snapshot, busca atrasada, upload em grau 2 e cliente do caso capturado.
 Build Linux no CI. DOM não comprova layout visual; navegador conectado ainda
 indisponível no início deste bloco.
 
+Implementada e revisada localmente: executor passou `pnpm.cmd check` (lint,
+tipos e 144 testes em 27 arquivos); coordenador leu o diff e repetiu 28 testes
+de WorkScope, WorkFlow, DocumentWorkflows e NoticeToWork, aprovados. Regressões
+cobrem baseline com metadados reais, salvamento/resposta atrasados, fonte
+fixada entre buscas, invalidação de conferência, cliente após refresh e polling
+mais lento que cinco segundos. Conferência visual real permanece pendente.
+
 ## Etapa 4: análise e redação recuperáveis
+
+Antes da fila, fechar o contrato das fontes em um bloco 4a: incluir o teor da
+intimação vinculada no objetivo da análise e na recuperação de fontes, sem
+tratá-lo como prova dos fatos narrados. Guardar snapshot do teor/origem e
+conferi-lo após a chamada e antes da revisão/redação. Usar também o histórico
+SOR já disponível (movimentações, comunicações anteriores e peças), como
+contexto suplementar identificado; a limitação de tamanho deve ficar explícita.
+Conferir snapshot desse histórico e dos metadados usados para não reaproveitar
+análise de um estado anterior do processo. Prazo deve ter snapshot
+de datas, duração, unidade, status e memória de cálculo; alterações durante a
+redação impedem publicação. Prazo a revisar deve aparecer explicitamente como
+provisório no contexto do redator, sem afirmação automática de tempestividade.
+Aceites: provider simulado recebe comando atual e acervo; alteração do teor ou
+prazo durante a chamada retorna conflito e não salva minuta; caso manual sem
+intimação/prazo continua funcionando. Arquivos deste bloco: work_service.py,
+drafter.py se necessário ao contrato, testes de trabalho/redação e respectivos
+reusos PostgreSQL. Não mudar contratos de fila nem a UI nesse bloco.
+
+No bloco 4b, executar o contrato de fila descrito abaixo com escopo delimitado
+antes da delegação. Não confundir proteção contra resultado obsoleto com
+recuperação após reinício: o bloco 4a continua usando HTTP síncrono.
 
 Usar JobExecucao persistente para análise e geração, com identidade por tenant,
 trabalho, versão, ação e solicitação. POST retorna acompanhamento; GET retoma

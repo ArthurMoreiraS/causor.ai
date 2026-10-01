@@ -2,7 +2,7 @@ import { request, type Pagina, type Processo } from "./api";
 
 export type FonteTrabalho = { documento_id: number; documento_arquivo_id: number; chunk_id: number; pagina: number; quote: string; nome?: string; sha256?: string; fixada?: boolean };
 export type FatoTrabalho = { texto: string; fontes: number[]; natureza: string };
-export type EvidenciasTrabalho = { citations: FonteTrabalho[]; analise: { fatos: FatoTrabalho[]; cronologia: FatoTrabalho[]; contradicoes: FatoTrabalho[]; lacunas: string[] };
+export type EvidenciasTrabalho = { citations: FonteTrabalho[]; inventario?: { documento_id: number; documento_arquivo_id: number; nome: string | null; paginas: number | null; extraction_status: string }[]; analise: { fatos: FatoTrabalho[]; cronologia: FatoTrabalho[]; contradicoes: FatoTrabalho[]; lacunas: string[] };
   conferida: boolean; avisos: string[]; source_fingerprint: string; preparada_em: string; perguntas: string[] };
 export type PecaIndice = { nome: string; pagina_inicio: number; pagina_fim: number };
 export type DocumentoEscopo = { versao_id: number; origem: "autos_enviados" | "subsidio_cliente" | "fonte_externa"; pecas: PecaIndice[] };

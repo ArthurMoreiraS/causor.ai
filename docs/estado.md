@@ -1,5 +1,33 @@
 # Proximos passos - MVP
 
+> **01/10 — preparação do contexto revisada localmente.** Trabalhos reúne
+> Objetivo, Documentos e contexto, Minuta e revisão. Processo capturado permite
+> vincular/cadastrar cliente; envio herda processo e grau. Campos de objetivo,
+> índice e perguntas são protegidos durante atualização/navegação; respostas
+> antigas não publicam em outro trabalho. Alterar perguntas/fontes impede usar
+> conferência anterior. Inventário distingue versões recebidas de texto extraído.
+> Executor: lint, tipos e 144 testes frontend aprovados. Coordenador revisou o
+> diff e repetiu 28 regressões, aprovadas. Ainda sem deploy deste bloco e sem
+> conferência visual real. Segue implementação do catálogo restrito de regras
+> CPC para duração legal, mantendo cálculo determinístico e motivos de exceção.
+
+> **01/10 — isolamento dos arquivos por ambiente implantado (`45ff3dd`).**
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36815849559),
+> incluindo concorrência em PostgreSQL 16/17; [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36815996053).
+> O deploy verificou a mesma versão em backend, worker, autos-worker e frontend
+> e registrou `/health` normal. A consulta externa adicional não foi executada:
+> a revisão automática de aprovação atingiu o limite de uso da conta.
+> Workers locais não reivindicam jobs cujos PDFs pertencem ao disco de produção
+> e vice-versa. Jobs legados exigem acesso aos bytes; downloads/reprocessamentos
+> indisponíveis retornam 409. Isso não cria armazenamento compartilhado: ainda
+> é necessário configurar um bucket privado para usar os mesmos PDFs nos dois
+> ambientes. Coordenador repetiu 34 testes de storage/upload/recuperação,
+> aprovados. A revisão de cliente, grau de upload e campos de contexto em
+> Trabalhos continua local, sem novo deploy.
+> Consulta somente leitura após a limpeza feita pelo fundador encontrou zero
+> OABs ativas, processos, intimações e prazos na conta consultada; nenhuma
+> exclusão foi executada pelo agente como teste.
+
 > **01/10 — correções de OAB, formulários e análise de prazos implantadas (`cd09869`).**
 > [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36814603047):
 > backend, frontend com build Linux e PostgreSQL 16/17. O primeiro CI encontrou
