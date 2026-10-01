@@ -48,7 +48,7 @@ export default function WorkScope({ work, disabled, onSaved }: { work: Trabalho;
     {documents.map(doc => {
       const version = doc.versao; if (!version) return <p key={doc.id}>{doc.nome}: sem versão recebida.</p>;
       const entry = entries.find(item => item.versao_id === version.id);
-      return <article key={version.id} className="legalEvidenceQuote"><h4>{doc.nome}</h4>
+      return <article key={version.id} className="legalEvidenceQuote officeForm"><h4>{doc.nome}</h4>
         <p>{version.paginas ?? "?"} páginas · {version.extracao === "complete" ? "Texto extraído" : version.extracao === "failed" ? "Falha de extração; confira o arquivo e reprocese" : "Processamento pendente"} · {doc.no_contexto ? "No conjunto atual" : "Fora do conjunto atual"}</p>
         {version.paginas_diagnostico?.length ? <details><summary>Conferir extração por página</summary>
           <p>Páginas processadas são preservadas. Ao reprocessar documentos com falha, o OCR retoma somente as páginas pendentes.</p>

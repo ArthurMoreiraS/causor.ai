@@ -141,8 +141,8 @@ export default function RadarBell({
                     <span className="mono">{alerta.processo_numero ?? "Processo não identificado"}</span>
                   </div>
                   <div className="radarItemMeta">
-                    <span className={`dayBadge ${alerta.nivel === "vencido" || alerta.nivel === "d0" || alerta.nivel === "d1" ? "risk" : "today"}`}>
-                      {nivelLabel(alerta.nivel, alerta.dias_para_vencer)}
+                    <span className={`dayBadge ${alerta.revisao_status === "confirmado" && (alerta.nivel === "vencido" || alerta.nivel === "d0" || alerta.nivel === "d1") ? "risk" : "today"}`}>
+                      {alerta.revisao_status === "confirmado" ? nivelLabel(alerta.nivel, alerta.dias_para_vencer) : `Revisar data sugerida · ${nivelLabel(alerta.nivel, alerta.dias_para_vencer)}`}
                     </span>
                     <small>{formatDate(alerta.data_fatal)}</small>
                   </div>

@@ -350,7 +350,7 @@ class Intimacao(TimestampMixin, Base):
 
     __tablename__ = "intimacao"
     __table_args__ = (
-        UniqueConstraint("fonte", "fonte_id", name="uq_intimacao_fonte"),
+        UniqueConstraint("escritorio_id", "fonte", "fonte_id", name="uq_intimacao_tenant_fonte"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -371,6 +371,11 @@ class Intimacao(TimestampMixin, Base):
     processo: Mapped[Processo | None] = relationship(back_populates="intimacoes")
     prazos: Mapped[list[Prazo]] = relationship(back_populates="intimacao")
 
+    @property
+    def prazo_analise(self) -> dict | None:
+        value = (self.payload or {}).get("_causor_prazo")
+        return value if isinstance(value, dict) else None
+
 
 class Prazo(TimestampMixin, Base):
     __tablename__ = "prazo"
@@ -389,6 +394,13 @@ class Prazo(TimestampMixin, Base):
 
     processo: Mapped[Processo | None] = relationship(back_populates="prazos")
     intimacao: Mapped[Intimacao | None] = relationship(back_populates="prazos")
+
+    @property
+    def revisao_status(self) -> str:
+        analysis = self.intimacao.prazo_analise if self.intimacao else None
+        if analysis and analysis.get("prazo_id") == self.id:
+            return analysis.get("status", "pendente")
+        return "pendente"
 
 
 class Peticao(TimestampMixin, Base):

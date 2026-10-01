@@ -20,7 +20,6 @@ from app.agent.evidence import select_evidence
 from app.agent.drafter import draft_peticao
 from app.capture.datajud import DatajudClient
 from app.capture.normalize import enrich_processo
-from app.capture.registrar import registrar_prazo
 from app.prazo_engine.calendar import ForensicCalendar
 from app.sor import models
 from app.settings import settings
@@ -298,15 +297,7 @@ def draft_from_intimacao(
     prazo = session.scalars(select(models.Prazo).where(
         models.Prazo.intimacao_id == intimacao.id
     ).order_by(models.Prazo.cumprido.asc(), models.Prazo.id.desc())).first()
-    if prazo is None and classificacao.prazo_dias is not None:
-        prazo = registrar_prazo(
-            session,
-            intimacao,
-            dias=classificacao.prazo_dias,
-            calendar=calendar,
-            business_days=classificacao.dias_uteis,
-            descricao=classificacao.tipo,
-        )
+    # Draft classification does not bypass the separate deadline review gate.
     session.flush()
 
     template = _template_for(
@@ -381,7 +372,7 @@ def draft_from_intimacao(
         "alertas": alertas,
         "confianca": resultado.confianca,
         "classificacao": classificacao.model_dump(),
-        "prazo_revisao_pendente": prazo is None,
+        "prazo_revisao_pendente": prazo is None or prazo.revisao_status != "confirmado",
         "prazo_utilizado": {
             "id": prazo.id, "dias": prazo.dias, "dias_uteis": prazo.dias_uteis,
             "data_fatal": prazo.data_fatal.isoformat() if prazo.data_fatal else None,

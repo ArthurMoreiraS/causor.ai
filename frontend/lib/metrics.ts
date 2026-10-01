@@ -5,6 +5,8 @@ export type DashboardMetrics = {
   monitored: number;
   captured: number;
   pending: number;
+  reviewPending: number;
+  confirmedPending: number;
   highRisk: number;
   overdue: number;
   drafts: number;
@@ -22,14 +24,17 @@ export type DashboardMetrics = {
  */
 export function computeDashboardMetrics(data: DashboardData): DashboardMetrics {
   const openDeadlines = data.prazos.filter((p) => !p.cumprido);
+  const confirmedDeadlines = openDeadlines.filter((p) => p.revisao_status === "confirmado");
 
   // Fallback client-side, derivado das listas paginadas (capadas em 100).
   const fromLists = {
     monitored: data.processos.length,
     captured: data.intimacoes.length,
     pending: openDeadlines.length,
-    highRisk: openDeadlines.filter((p) => daysUntil(p.data_fatal) <= 3).length,
-    overdue: openDeadlines.filter((p) => daysUntil(p.data_fatal) < 0).length,
+    reviewPending: openDeadlines.length - confirmedDeadlines.length,
+    confirmedPending: confirmedDeadlines.length,
+    highRisk: confirmedDeadlines.filter((p) => daysUntil(p.data_fatal) <= 3).length,
+    overdue: confirmedDeadlines.filter((p) => daysUntil(p.data_fatal) < 0).length,
     drafts: data.peticoes.filter((p) => p.status === "rascunho").length,
     approved: data.peticoes.filter((p) => p.status === "aprovada").length
   };
@@ -41,6 +46,8 @@ export function computeDashboardMetrics(data: DashboardData): DashboardMetrics {
   const monitored = pick("processos", fromLists.monitored);
   const captured = pick("intimacoes", fromLists.captured);
   const pending = pick("prazos", fromLists.pending);
+  const reviewPending = pick("prazos_a_revisar", fromLists.reviewPending);
+  const confirmedPending = Math.max(0, pending - reviewPending);
   const highRisk = pick("risco", fromLists.highRisk);
   const overdue = pick("vencidos", fromLists.overdue);
   const drafts = pick("minutas", fromLists.drafts);
@@ -52,7 +59,7 @@ export function computeDashboardMetrics(data: DashboardData): DashboardMetrics {
     (i) => !i.processo_id || !handledProcessos.has(i.processo_id)
   ).length;
 
-  const compliance = pending ? Math.round(((pending - overdue) / pending) * 100) : 100;
+  const compliance = confirmedPending ? Math.round(((confirmedPending - overdue) / confirmedPending) * 100) : 100;
 
-  return { monitored, captured, pending, highRisk, overdue, drafts, approved, withoutDraft, compliance };
+  return { monitored, captured, pending, reviewPending, confirmedPending, highRisk, overdue, drafts, approved, withoutDraft, compliance };
 }

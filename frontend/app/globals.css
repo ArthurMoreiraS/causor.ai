@@ -1006,6 +1006,21 @@ h2 {
   line-height: 1.5;
 }
 
+.heroNotices { display: grid; gap: 10px; margin-top: 16px; max-width: 760px; }
+.heroNotice { display: flex; align-items: center; gap: 16px; padding: 14px 16px; min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--panel-soft); }
+.heroNotice p { flex: 1; min-width: 0; margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.heroNotice strong { color: var(--ink); font-weight: 600; }
+.heroNotice .toolbarButton { flex: 0 0 auto; min-height: 36px; }
+.inboxAnalysisBar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px; border-bottom: 1px solid var(--line); background: var(--panel-soft); }
+.inboxAnalysisBar > div { min-width: 0; }
+.inboxAnalysisBar strong { font-size: 13px; font-weight: 600; }
+.inboxAnalysisBar p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.inboxAnalysisBar .toolbarButton { flex: 0 0 auto; min-height: 36px; }
+@media (max-width: 850px) {
+  .heroNotice, .inboxAnalysisBar { flex-wrap: wrap; }
+  .heroNotice p, .inboxAnalysisBar > div { flex-basis: 100%; }
+}
+
 .statRow {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5723,14 +5738,28 @@ textarea:focus {
 .contextStatus {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+  padding: 16px;
   border: 1px solid var(--line);
-  border-top: 0;
-  border-radius: 0 0 10px 10px;
+  border-radius: 10px;
   background: var(--panel-soft);
   font-size: 12.5px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
 }
+.contextStatus > * { min-width: 0; max-width: 100%; }
+.contextStatus > p { margin: 0; }
+.contextStatus > .toolbarButton { align-self: flex-start; white-space: normal; text-align: left; }
+.contextStatus > header .toolbarButton { flex: 0 0 30px; padding: 0; }
+.contextStatus svg { flex-shrink: 0; }
+.contextDeclaration { border-top: 1px solid var(--line); padding-top: 12px; }
+.contextDeclaration summary { cursor: pointer; color: var(--ink-soft); }
+.contextDeclarationBody { margin-top: 12px; }
+.contextDeclarationBody p { margin: 0; color: var(--muted); }
+.contextDegree { flex: 0 1 150px; }
+.contextActions .toolbarButton { min-height: 38px; max-width: 100%; white-space: normal; }
 
 .contextStatus > header {
   display: flex;
@@ -5787,8 +5816,8 @@ textarea:focus {
 .contextActions {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
+  align-items: flex-end;
+  gap: 12px;
 }
 
 .contextBlockedReason {

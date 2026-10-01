@@ -114,7 +114,7 @@ export function buildProcessoRowsFromLists(
     return {
       processo,
       proximoPrazo: proximo
-        ? { data_fatal: proximo.data_fatal, cumprido: proximo.cumprido, descricao: proximo.descricao }
+        ? { data_fatal: proximo.data_fatal, cumprido: proximo.cumprido, descricao: proximo.descricao, revisao_status: proximo.revisao_status }
         : null,
       intimacoesCount: procIntimacoes.length,
       peticoesCount: procPeticoes.length,

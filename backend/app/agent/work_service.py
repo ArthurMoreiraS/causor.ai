@@ -161,7 +161,7 @@ def draft_work(session, *, work, user_id: int):
             "analise_providencia": result.analise_providencia, "contexto_consolidado": result.contexto_consolidado,
             "llm": result.llm, "confianca": result.confianca,
             "alertas": [*result.alertas, *evidence["avisos"], *evidence["analise"].get("lacunas", [])],
-            "prazo_revisao_pendente": deadline_id is None})
+            "prazo_revisao_pendente": deadline is None or deadline.revisao_status != "confirmado"})
     session.add(petition)
     session.flush()
     current.peticao_id = petition.id

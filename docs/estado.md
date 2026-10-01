@@ -1,5 +1,41 @@
 # Proximos passos - MVP
 
+> **29/09 — execução do fluxo simplificado autorizada.** Após novos relatos do
+> fundador, as correções anteriores de navegação/layout não são consideradas
+> suficientes. O plano reúne correção dos formulários e entradas em Trabalhos,
+> prazos disparados pela captura, contexto manual e geração/revisão da minuta.
+> A implementação está em andamento; não há novo deploy desta etapa.
+> [Plano e critérios de aceite](desenvolvimento/planos/2026-09-29-fluxo-mvp-simplificado.md).
+> Em 30/09: navegação/formulários e pipeline de análise de prazos implementados
+> localmente. Executor registrou 41 testes backend direcionados, 22 selecionados
+> de API/agente e 123 frontend, lint e tipos aprovados. Coordenador repetiu 28
+> testes backend de prazo/captura/agente e Ruff, aprovados. Revisão encontrou
+> indicadores que ainda tratavam sugestão automática como prazo confirmado;
+> indicadores/alertas corrigidos. Confirmação de prazo legado reutiliza a linha;
+> edição preserva feriados locais e atualiza a memória de cálculo. Formulário
+> recebe sugestão atrasada somente enquanto não foi editado.
+> Contexto manual e geração recuperável permanecem na sequência do plano.
+> PostgreSQL/CI e conferência visual ainda pendentes;
+> browser indisponível nesta sessão. Storage local confirmado como disco local,
+> com PostgreSQL compartilhado; PDFs locais não ficam acessíveis em produção.
+> Na revisão dos três screenshots de 30/09, corrigidos alinhamento e quebra de
+> linha do painel de autos, acompanhamento da análise de prazos e avisos da
+> Visão geral; também padronizados campos do índice e caixas de conferência.
+> `pnpm.cmd check`: lint, tipos e 132 testes aprovados. Sem conferência visual
+> real: navegador não conectado e ponte nativa indisponível. Alterações locais,
+> ainda sem deploy; retomada a revisão funcional de prazos e contexto.
+> Em 01/10: corrigido feedback histórico de OAB removida, inclusive resposta
+> atrasada e reabertura. Modal/Configurações usam a mesma limpeza; é possível
+> informar número/UF para limpar uma OAB cujo cadastro já foi removido. Dados
+> exclusivos de captura são removidos, preservando auditoria, casos com trabalho,
+> minuta/documento/tarefa, prazo confirmado e comunicações de outra OAB ativa.
+> Jobs cancelados conservam identidade para impedir retry tardio; cada janela
+> de captura confere o cancelamento. Suíte backend completa: 742 aprovados,
+> 81 ignorados (incluindo PostgreSQL/live); Ruff aprovado. Identificação de OAB
+> preserva o sufixo alfabético para não confundir inscrições diferentes.
+> Nenhuma limpeza real foi executada como teste.
+> [Plano da correção](desenvolvimento/planos/2026-09-30-remocao-oab.md).
+
 > **29/09 — feedback, Novo trabalho e revisão de prazos implantados (`83e4914`).**
 > O commit `cab194d` passou no CI (backend, frontend, PostgreSQL 16 e 17) e
 > no deploy em 28/09. API `/health` 200 e OpenAPI com `request_id` conferidos.

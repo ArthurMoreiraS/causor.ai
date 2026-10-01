@@ -4,23 +4,37 @@ import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import { previewText } from "@/lib/sanitize";
 import type { IntimacaoRow } from "@/lib/views";
 import type { Intimacao } from "@/lib/api";
-import { DeadlineBadge, Empty } from "../components/ui";
+import { DeadlineBadge, Empty, LoadingButton } from "../components/ui";
 
 export default function IntimacoesView({
   rows,
   offline,
   onOpen,
   onCreateTask,
-  onPrepareWork
+  onPrepareWork,
+  onBackfill,
+  onRetry,
+  backfillProgress,
+  backfillBusy
 }: {
   rows: IntimacaoRow[];
   offline: boolean;
   onOpen: (intimacaoId: number) => void;
   onCreateTask?: (intimacao: Intimacao) => void;
   onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
+  onBackfill?: () => void;
+  onRetry?: (id: number) => void;
+  backfillProgress?: string | null;
+  backfillBusy?: boolean;
 }) {
   return (
     <section className="dataTable inboxTable">
+      {onBackfill ? <div className="inboxAnalysisBar">
+        <div><strong>Análise de prazos</strong><p role="status">{backfillProgress || "Analise as intimações já recebidas e confira os prazos sugeridos."}</p></div>
+        <LoadingButton type="button" loading={backfillBusy} disabled={offline} onClick={onBackfill}>
+          {backfillBusy ? "Enfileirando análises…" : backfillProgress?.includes("Continuar") ? "Continuar análise" : "Analisar prazos já capturados"}
+        </LoadingButton>
+      </div> : null}
       <div className="dataHead" aria-hidden="true">
         <span>Intimação</span>
         <span>Processo</span>
@@ -54,25 +68,27 @@ export default function IntimacoesView({
           >
             {sistemaBadge(processo?.sistema).label}
           </span>
-          <DeadlineBadge prazo={prazo} />
+          <button type="button" className="deadlineOpen" aria-label={`Abrir prazo da intimação ${intimacao.id}`}
+            onClick={e => { e.stopPropagation(); onOpen(intimacao.id); }}><DeadlineBadge prazo={prazo} analise={intimacao.prazo_analise} /></button>
           <span className={`queueStatus ${peticao?.status ?? "capturada"}`}>
             {peticao ? statusLabel(peticao.status) : "Sem minuta"}
           </span>
           <div className="dataRowEnd">
-            {!prazo ? <button type="button" className="toolbarButton compact" disabled={offline}
-              onClick={e => { e.stopPropagation(); onOpen(intimacao.id); }}>Revisar e calcular prazo</button> : null}
-            {onCreateTask ? <button type="button" className="toolbarButton compact" disabled={offline}
-              onClick={e => { e.stopPropagation(); onCreateTask(intimacao); }}>Criar tarefa</button> : null}
             <button
-              className="toolbarButton compact"
+              className="toolbarButton compact primary"
               disabled={offline}
               onClick={(e) => {
                 e.stopPropagation();
                 onPrepareWork(intimacao.id, processo?.id ?? intimacao.processo_id ?? null, prazo?.id ?? null);
               }}
             >
-              Preparar trabalho
+              Preparar minuta
             </button>
+            {onCreateTask ? <details className="secondaryActions" onClick={e => e.stopPropagation()}>
+              <summary>Mais ações</summary>
+              <button type="button" disabled={offline} onClick={() => onCreateTask(intimacao)}>Criar tarefa</button>
+              {intimacao.prazo_analise?.status === "falha" ? <button type="button" disabled={offline} onClick={() => onRetry?.(intimacao.id)}>Tentar análise novamente</button> : null}
+            </details> : null}
           </div>
         </article>
       ))}

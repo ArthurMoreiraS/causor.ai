@@ -236,11 +236,13 @@ function IntimacaoDetail({
           <span>
             Prazo: <strong>{formatDate(prazo.data_fatal)}</strong> ({prazo.dias}{" "}
             {prazo.dias_uteis ? "dias úteis" : "dias corridos"})
+            {prazo.revisao_status !== "confirmado" ? " · calculado a revisar" : " · confirmado"}
           </span>
         </div>
       ) : null}
 
-      {!prazo && !offline && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} onConfirmed={onPrazoConfirmed} />}
+      {intimacao.prazo_analise ? <p role="status" className="officeHint">Análise: {intimacao.prazo_analise.status}. {intimacao.prazo_analise.motivo}</p> : null}
+      {!offline && (!prazo || prazo.revisao_status !== "confirmado") && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} analise={intimacao.prazo_analise} onConfirmed={onPrazoConfirmed} />}
       <DetailSection title="Teor da intimação">
         <TeorHtml teor={intimacao.teor} />
       </DetailSection>
@@ -251,7 +253,7 @@ function IntimacaoDetail({
           disabled={offline}
           onClick={() => onPrepareWork(intimacao.id, processo?.id ?? intimacao.processo_id, prazo?.id ?? null)}
         >
-          Preparar trabalho
+          Preparar minuta
         </button>
         {processo ? (
           <button
@@ -260,7 +262,7 @@ function IntimacaoDetail({
           >
             Ver processo
           </button>
-        ) : null}
+        ) : <p role="status" className="officeHint">Processo não vinculado. Confira a identificação desta intimação antes de preparar a minuta.</p>}
       </div>
     </div>
   );

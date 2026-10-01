@@ -230,7 +230,7 @@ def run_capture_oab_job(
     ``windows_done``/``windows_total``). Sem ``batch_days`` (default) mantém o
     comportamento de uma única transação, compatível com o scheduler legado.
     """
-    job = get_job(session, job_id)
+    job = _lock_capture_job(session, job_id)
     if job.tipo != "captura_oab":
         raise JobError(f"job {job_id} nao e de captura (tipo={job.tipo})")
 
@@ -292,6 +292,7 @@ def run_capture_oab_job(
     djen_indisponivel = False
     djen_erro: str | None = None
     for i, (w_start, w_end) in enumerate(windows, 1):
+        job = _lock_capture_job(session, job_id)
         partial = poll_oab(
             session,
             oab=oab,
@@ -360,6 +361,14 @@ def run_capture_oab_job(
     return job
 
 
+def _lock_capture_job(session: Session, job_id: int) -> models.JobExecucao:
+    job = session.scalar(select(models.JobExecucao).where(models.JobExecucao.id == job_id)
+                         .execution_options(populate_existing=True).with_for_update())
+    if job is None or (job.payload or {}).get("removida"):
+        raise JobError("Captura cancelada pela remoção da OAB")
+    return job
+
+
 def mark_running(session: Session, job: models.JobExecucao) -> None:
     job.status = "running"
     _audit(
@@ -405,7 +414,7 @@ def fail_stale_running_jobs(
     older_than_minutes: int,
     now: datetime | None = None,
 ) -> list[models.JobExecucao]:
-    """Fail stale OAB captures only. Never infer the outcome of a filing.
+    """Fail stale capture/analysis jobs only. Never infer the outcome of a filing.
 
     Document jobs have a separate recovery path that honors their row locks.
     """
@@ -414,7 +423,8 @@ def fail_stale_running_jobs(
     now = now or _utcnow()
     cutoff = now - timedelta(minutes=older_than_minutes)
     stmt = select(models.JobExecucao).where(
-        models.JobExecucao.status == "running", models.JobExecucao.tipo == "captura_oab",
+        models.JobExecucao.status == "running",
+        models.JobExecucao.tipo.in_(["captura_oab", "analise_prazo"]),
         models.JobExecucao.updated_at <= cutoff,
     ).with_for_update(skip_locked=True)
     stale: list[models.JobExecucao] = []
@@ -428,6 +438,16 @@ def fail_stale_running_jobs(
                 job,
                 f"job interrompido: permaneceu running por mais de {older_than_minutes} minutos",
             )
+            if job.tipo == "analise_prazo" and job.entidade_id is not None:
+                from app.prazo_engine.pipeline import memory, set_memory
+
+                notice = session.scalar(select(models.Intimacao).where(
+                    models.Intimacao.id == job.entidade_id).with_for_update())
+                if (notice and notice.escritorio_id == _job_escritorio_id(session, job)
+                        and memory(notice).get("status") == "analisando"
+                        and memory(notice).get("job_id") == job.id):
+                    set_memory(notice, {"status": "falha", "job_id": job.id,
+                                        "motivo": "Análise interrompida; tente novamente"})
             stale.append(job)
     return stale
 

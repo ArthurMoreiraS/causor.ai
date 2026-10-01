@@ -6,11 +6,12 @@ export function formatDate(value: string | null | undefined) {
 }
 
 export function daysUntil(value: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(value);
-  target.setHours(0, 0, 0, 0);
-  return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit"
+  }).formatToParts(new Date());
+  const number = (part: string) => Number(parts.find(item => item.type === part)?.value);
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  return Math.round((Date.UTC(year, month - 1, day) - Date.UTC(number("year"), number("month") - 1, number("day"))) / 86_400_000);
 }
 
 export function statusLabel(status: Peticao["status"]) {
@@ -50,6 +51,11 @@ export function connectorStatusLabel(status: string) {
 
 export function reviewStatusLabel(status: string) {
   if (status === "capturada") return "Capturada";
+  if (status === "analisando") return "Analisando prazo";
+  if (status === "pendente") return "Prazo: dados pendentes";
+  if (status === "sem_prazo_identificado") return "Sem prazo identificado";
+  if (status === "falha") return "Falha na análise de prazo";
+  if (status === "prazo_a_revisar") return "Prazo a revisar";
   if (status === "prazo_calculado") return "Prazo calculado";
   if (status === "minuta_em_revisao") return "Minuta em revisão";
   if (status === "pronta_para_protocolo") return "Pronta para protocolo";

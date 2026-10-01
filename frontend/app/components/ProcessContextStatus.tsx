@@ -13,6 +13,7 @@ import {
 } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import AcessoTribunalWizard from "./AcessoTribunalWizard";
+import { LoadingButton } from "./ui";
 
 export type ContextUiState =
   | "not_captured"
@@ -223,8 +224,8 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
       )}
 
       <div className="contextActions">
-        <label>Grau dos autos
-          <select aria-label="Grau dos autos" value={grau} onChange={(e) => setGrau(e.target.value)}>
+        <label className="officeField contextDegree">Grau dos autos
+          <select aria-label="Grau dos autos" value={grau} disabled={Boolean(busy)} onChange={(e) => setGrau(e.target.value)}>
             <option value="1">1º grau</option><option value="2">2º grau</option>
           </select>
         </label>
@@ -268,12 +269,14 @@ export default function ProcessContextStatus({ processoId, onReceiveDocuments, r
           {status.contexto.documents_extracted ?? 0} documentos extraídos · {status.contexto.documents_summarized ?? 0} resumidos de {status.contexto.documents_total ?? 0} recebidos.
         </p>
       )}
-      {blocked && <button className="toolbarButton compact" disabled={!!busy} onClick={() => void reprocessar()}>Retomar processamento com falha</button>}
-      <details>
+      {blocked && (status?.contexto?.documents_total ?? 0) > 0 && <LoadingButton className="toolbarButton compact" loading={busy === "processar"} disabled={Boolean(busy)} onClick={() => void reprocessar()}>Retomar processamento</LoadingButton>}
+      <details className="contextDeclaration">
         <summary>O processo não possui autos no {grau}º grau</summary>
-        <p>Declare somente após conferir. A justificativa ficará registrada com seu usuário.</p>
-        <textarea aria-label="Justificativa da ausência de autos" value={absence} onChange={(e) => setAbsence(e.target.value)} />
-        <button disabled={!!busy || absence.trim().length < 20} onClick={() => void declararAusencia()}>Registrar declaração</button>
+        <div className="officeForm contextDeclarationBody">
+          <p>Declare somente após conferir. A justificativa ficará registrada com seu usuário.</p>
+          <label>Justificativa da ausência de autos<textarea rows={3} value={absence} disabled={Boolean(busy)} onChange={(e) => setAbsence(e.target.value)} /></label>
+          <LoadingButton loading={busy === "ausencia"} disabled={Boolean(busy) || absence.trim().length < 20} onClick={() => void declararAusencia()}>Registrar declaração</LoadingButton>
+        </div>
       </details>
 
       {blocked && !overrideOk && (

@@ -2,7 +2,7 @@
 
 import { AlertTriangle, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { listarOabsMonitoradas, OabMonitorada, removerOabMonitorada } from "@/lib/api";
+import { listarOabsMonitoradas, OabMonitorada, removerDadosOab } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import type { Settings } from "@/lib/settings";
 import UfSearchSelect from "../UfSearchSelect";
@@ -53,7 +53,7 @@ export default function CaptureTab({
   async function remove(oab: OabMonitorada) {
     setRemovingId(oab.id);
     try {
-      await removerOabMonitorada(oab.id, true);
+      const result = await removerDadosOab(oab.oab, oab.uf);
       await load();
       await onOabChanged();
       setError(null);
@@ -61,7 +61,7 @@ export default function CaptureTab({
       toast({
         kind: "success",
         title: `OAB ${oab.oab}/${oab.uf} removida`,
-        description: "Dados capturados por ela foram apagados."
+        description: `${result.removidos.intimacoes ?? 0} intimações removidas.${result.removidos.intimacoes_preservadas ? " Registros compartilhados ou vinculados a trabalho, documento ou prazo confirmado foram mantidos." : ""}`
       });
     } catch (err) {
       setError(humanError(err, "A OAB não foi removida"));
@@ -163,8 +163,9 @@ export default function CaptureTab({
               Remover OAB {toRemove.oab}/{toRemove.uf}?
             </span>
             <p>
-              Esta ação apaga intimações, prazos, processos e petições capturados por essa OAB.
-              A operação não pode ser desfeita.
+              Encerra o monitoramento e remove os dados exclusivos da captura. Casos com trabalhos,
+              minutas, documentos ou prazos confirmados e registros compartilhados com outra OAB
+              monitorada serão preservados. A exclusão não pode ser desfeita.
             </p>
             {error ? (
               <small className="settingsHint vaultError" role="alert">

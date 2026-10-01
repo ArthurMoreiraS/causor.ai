@@ -91,6 +91,8 @@ def test_envia_um_aviso_com_os_prazos_do_escritorio(db_session, esc):
     assert len(sender.enviados) == 1
     assert sender.enviados[0]["destinos"] == ["adv@example.com"]
     assert "Contestação" in sender.enviados[0]["corpo"]
+    assert "revisão humana pendente" in sender.enviados[0]["corpo"]
+    assert "revisão urgente" in sender.enviados[0]["assunto"]
     assert len(enviadas) == 1
 
 

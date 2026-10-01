@@ -5,8 +5,11 @@ import { consultarCapturaOab, iniciarCapturaOab, JobExecucao, listarCapturasOab 
 import { capturePhase, sameCapture, type CapturePhase } from "@/lib/oab-capture";
 import { humanError } from "@/lib/errors";
 
-export function useOabCapture(accountId: string | null, onRegistered: () => void, onTerminal: (job: JobExecucao) => void) {
+export function useOabCapture(accountId: string | null, onRegistered: () => void, onTerminal: (job: JobExecucao) => void,
+  monitored?: readonly { oab: string; uf: string; ativo?: boolean }[]) {
   const [job, setJob] = useState<JobExecucao | null>(null);
+  const jobRef = useRef(job);
+  jobRef.current = job;
   const [phase, setPhase] = useState<CapturePhase>("idle");
   const [trackingError, setTrackingError] = useState<string | null>(null);
   const [checkedAt, setCheckedAt] = useState<number | null>(null);
@@ -19,6 +22,10 @@ export function useOabCapture(accountId: string | null, onRegistered: () => void
   const mounted = useRef(false);
   const currentAccount = useRef(accountId);
   currentAccount.current = accountId;
+  const monitoredRef = useRef(monitored);
+  monitoredRef.current = monitored;
+  const isMonitored = useCallback((item: JobExecucao) => !item.payload?.removida && (monitoredRef.current === undefined ||
+    monitoredRef.current.some(oab => oab.ativo !== false && sameCapture(item, oab.oab, oab.uf))), []);
   const isCurrent = useCallback((epoch: number) => mounted.current && currentAccount.current === accountId && generation.current === epoch, [accountId]);
   const begin = useCallback(() => {
     if (inFlight.current) return null;
@@ -72,7 +79,7 @@ export function useOabCapture(accountId: string | null, onRegistered: () => void
       }
       if (!found) found = target
         ? jobs.find((item) => sameCapture(item, target.oab, target.uf) && ["queued", "running"].includes(item.status))
-        : jobs.find((item) => ["queued", "running"].includes(item.status)) ?? jobs[0];
+        : jobs.find((item) => isMonitored(item) && ["queued", "running"].includes(item.status)) ?? jobs.find(isMonitored);
       if (!isCurrent(run.epoch)) return undefined;
       if (found) { accept(found, Boolean(target || pending)); if (pending) clearAttempt(); }
       else if (!target) { setJob(null); setPhase("idle"); setTrackingError(null); }
@@ -85,7 +92,18 @@ export function useOabCapture(accountId: string | null, onRegistered: () => void
     } finally {
       end(run.token);
     }
-  }, [accept, readAttempt, clearAttempt, isCurrent, begin, end, matchesAttempt]);
+  }, [accept, readAttempt, clearAttempt, isCurrent, begin, end, matchesAttempt, isMonitored]);
+
+  const forget = useCallback((oab: string, uf: string) => {
+    const attempt = readAttempt();
+    const pendingMatches = attempt?.oab === oab.replace(/[\s.\-/]/g, "").toUpperCase() && attempt.uf === uf.toUpperCase();
+    if (pendingMatches) clearAttempt();
+    if (!pendingMatches && (!jobRef.current || !sameCapture(jobRef.current, oab, uf))) return;
+    generation.current += 1; // discard an outstanding poll for the removed registration
+    inFlight.current = null;
+    setJob(null); setPhase("idle"); setTrackingError(null); setCheckedAt(null);
+    lastTerminal.current = null;
+  }, [readAttempt, clearAttempt]);
 
   const submit = useCallback(async (oab: string, uf: string) => {
     const epoch = generation.current;
@@ -136,6 +154,7 @@ export function useOabCapture(accountId: string | null, onRegistered: () => void
   const check = useCallback(async () => {
     if (inFlight.current) return;
     if (readAttempt() || !job) { await recover(); return; }
+    if (!isMonitored(job)) { forget(String(job.payload?.oab ?? ""), String(job.payload?.uf ?? "")); return; }
     const run = begin();
     if (!run) return;
     try {
@@ -148,7 +167,7 @@ export function useOabCapture(accountId: string | null, onRegistered: () => void
     } finally {
       end(run.token);
     }
-  }, [accept, job, recover, readAttempt, isCurrent, begin, end]);
+  }, [accept, job, recover, readAttempt, isCurrent, begin, end, isMonitored, forget]);
 
   useEffect(() => {
     generation.current += 1;
@@ -170,5 +189,5 @@ export function useOabCapture(accountId: string | null, onRegistered: () => void
     return () => window.clearInterval(id);
   }, []);
 
-  return { job, phase, trackingError, checkedAt, now, submit, check, recover };
+  return { job, phase, trackingError, checkedAt, now, submit, check, recover, forget };
 }

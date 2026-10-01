@@ -25,7 +25,7 @@ export default function PrazosView({
   return (
     <section className="dataTable deadlineTable">
       <div className="dataHead" aria-hidden="true">
-        <span>Data fatal</span>
+        <span>Data fatal / sugerida</span>
         <span>Prazo / processo</span>
         <span>Ato vinculado</span>
         <span>Status</span>
@@ -37,12 +37,12 @@ export default function PrazosView({
           : intimacao
             ? { kind: "intimacao", id: intimacao.id }
             : null;
-        const tone = prazo.cumprido ? "done" : dias <= 1 ? "risk" : dias <= 3 ? "warn" : "";
+        const tone = prazo.cumprido ? "done" : prazo.revisao_status !== "confirmado" ? "" : dias <= 1 ? "risk" : dias <= 3 ? "warn" : "";
         return (
           <article className="dataRow" key={prazo.id}>
             <div className={tone ? `filaDate ${tone}` : "filaDate"}>
               <strong>{formatDate(prazo.data_fatal).slice(0, 5)}</strong>
-              <span>{dias < 0 ? "vencido" : `${dias}d`}</span>
+              <span>{prazo.revisao_status !== "confirmado" ? "a revisar" : dias < 0 ? "vencido" : `${dias}d`}</span>
             </div>
             <div className="dataRowMain">
               <strong>{prazo.descricao ?? "Prazo"}</strong>
@@ -63,7 +63,8 @@ export default function PrazosView({
               ) : null}
               <button
                 className="toolbarButton compact"
-                disabled={prazo.cumprido || busy === `done-${prazo.id}` || offline}
+                disabled={prazo.cumprido || prazo.revisao_status !== "confirmado" || busy === `done-${prazo.id}` || offline}
+                title={prazo.revisao_status !== "confirmado" ? "Confirme o prazo antes de marcar como cumprido" : undefined}
                 onClick={() => onDonePrazo(prazo)}
               >
                 {busy === `done-${prazo.id}` ? (
@@ -76,14 +77,15 @@ export default function PrazosView({
               <button
                 className="toolbarButton compact"
                 disabled={busy === `edit-${prazo.id}` || offline}
-                onClick={() => void onEditPrazo(prazo)}
+                onClick={() => prazo.revisao_status !== "confirmado" && intimacao
+                  ? onOpen({ kind: "intimacao", id: intimacao.id }) : onEditPrazo(prazo)}
               >
                 {busy === `edit-${prazo.id}` ? (
                   <Loader2 className="spin" size={15} />
                 ) : (
                   <CalendarDays size={15} />
                 )}
-                Revisar
+                {prazo.revisao_status !== "confirmado" && intimacao ? "Conferir" : "Revisar"}
               </button>
             </div>
           </article>

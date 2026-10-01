@@ -20,9 +20,10 @@ import {
   Sparkles,
   X
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   aprovarPeticao,
+  analisarPrazosExistentes,
   CaptureResult,
   cumprirPrazo,
   DashboardData,
@@ -34,13 +35,14 @@ import {
   Peticao,
   Prazo,
   ProposedAction,
-  removerOabMonitorada,
+  removerDadosOab,
   revisarPrazo,
+  repetirAnalisePrazo,
   ReviewQueueItem,
   JobExecucao
 } from "@/lib/api";
 import { useOabCapture } from "./useOabCapture";
-import { captureProgress, captureResultFromJob } from "@/lib/oab-capture";
+import { captureProgress, captureResultFromJob, sameCapture } from "@/lib/oab-capture";
 import AuditPanel from "./AuditPanel";
 import SidebarNavigation from "./components/SidebarNavigation";
 import TarefaDialog from "./components/TarefaDialog";
@@ -129,16 +131,35 @@ export default function Home() {
   const [busy, setBusy] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [view, setCurrentView] = useState<ViewKey>("dashboard");
+  const unsavedWork = useRef(false);
+  const currentView = useRef<ViewKey>("dashboard");
   const [taskDialog, setTaskDialog] = useState<{ input: TarefaInput; task?: Tarefa; context?: string } | null>(null);
   const [documentContext, setDocumentContext] = useState<{ processId?: number; task?: Tarefa } | null>(null);
   const [evidenceSelection, setEvidenceSelection] = useState<{ id: number; version: number; page: number } | null>(null);
   const setView = useCallback((next: ViewKey) => {
+    if (currentView.current === "trabalhos" && next !== "trabalhos" && unsavedWork.current &&
+        !window.confirm("Há alterações não salvas no trabalho. Sair e descartá-las?")) return;
+    currentView.current = next;
     setCurrentView(next);
     if (window.location.hash !== `#${next}`) window.location.hash = next;
   }, []);
   useEffect(() => {
-    const update = () => setCurrentView(viewFromHash(window.location.hash));
+    const update = () => {
+      const next = viewFromHash(window.location.hash);
+      if (currentView.current === "trabalhos" && next !== "trabalhos" && unsavedWork.current &&
+          !window.confirm("Há alterações não salvas no trabalho. Sair e descartá-las?")) {
+        window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#trabalhos`);
+        return;
+      }
+      currentView.current = next; setCurrentView(next);
+    };
     update();
+    const params = new URLSearchParams(window.location.search);
+    const processId = Number(params.get("processo"));
+    const noticeId = Number(params.get("intimacao"));
+    const deadlineId = Number(params.get("prazo"));
+    if (processId > 0) setWorkProcessId(processId);
+    if (noticeId > 0) setWorkOrigin({ intimacaoId: noticeId, prazoId: deadlineId > 0 ? deadlineId : null });
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
   }, []);
@@ -157,21 +178,14 @@ export default function Home() {
   const [workProcessId, setWorkProcessId] = useState<number | undefined>();
   const [workOrigin, setWorkOrigin] = useState<{ intimacaoId: number; prazoId: number | null } | undefined>();
   const [newWorkKey, setNewWorkKey] = useState(0);
-  function startNewWork() {
-    setWorkProcessId(undefined);
-    setWorkOrigin(undefined);
-    const url = new URL(window.location.href);
-    url.searchParams.delete("trabalho");
-    window.history.replaceState(null, "", url);
-    setNewWorkKey(value => value + 1);
-    setView("trabalhos");
-  }
+  const syncWorkRoute = useCallback(() => { setWorkProcessId(undefined); setWorkOrigin(undefined); }, []);
   const [oabForm, setOabForm] = useState<{ open: boolean; oab: string; uf: string }>({
     open: false,
     oab: "",
     uf: "SP"
   });
   const [oabsMonitoradas, setOabsMonitoradas] = useState<OabMonitorada[]>([]);
+  const [oabsLoaded, setOabsLoaded] = useState(false);
   const capture = useOabCapture(session?.user?.id ?? null, () => {
     void loadOabsMonitoradas();
   }, (job: JobExecucao) => {
@@ -187,8 +201,8 @@ export default function Home() {
       toast({ kind: "error", title: "Captura não concluída", description: message });
     }
     void refresh();
-  });
-  const [oabToRemove, setOabToRemove] = useState<OabMonitorada | null>(null);
+  }, oabsLoaded ? oabsMonitoradas : undefined);
+  const [oabToRemove, setOabToRemove] = useState<{ id?: number; oab: string; uf: string } | null>(null);
   const { settings, update: updateSettings, reset: resetSettings } = useSettings();
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
@@ -200,6 +214,13 @@ export default function Home() {
     processoId: number;
   } | null>(null);
   const [prazoEdit, setPrazoEdit] = useState<Prazo | null>(null);
+  const [backfillProgress, setBackfillProgress] = useState<string | null>(null);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const cursor = window.localStorage.getItem(`causor-prazo-backfill-${session.user.id}`);
+    if (cursor) setBackfillProgress(`Análise interrompida após intimação ${cursor}. Use Continuar análise.`);
+  }, [session?.user?.id]);
   const [filters, setFilters] = useState<{ tribunal: string; sistema: string; risco: string }>({
     tribunal: "",
     sistema: "",
@@ -225,9 +246,14 @@ export default function Home() {
 
   async function loadOabsMonitoradas() {
     try {
-      setOabsMonitoradas(await listarOabsMonitoradas());
+      const rows = await listarOabsMonitoradas();
+      setOabsMonitoradas(rows);
+      setOabsLoaded(true);
+      if (capture.job && !rows.some(row => row.ativo && sameCapture(capture.job!, row.oab, row.uf))) {
+        capture.forget(String(capture.job.payload?.oab ?? ""), String(capture.job.payload?.uf ?? ""));
+      }
     } catch {
-      setOabsMonitoradas([]);
+      setError("Não foi possível atualizar as OABs monitoradas.");
     }
   }
 
@@ -315,8 +341,13 @@ export default function Home() {
     setDetail(null);
     setWorkOrigin({ intimacaoId, prazoId });
     setWorkProcessId(processoId);
+    setNewWorkKey(value => value + 1);
     const url = new URL(window.location.href);
     url.searchParams.delete("trabalho");
+    url.searchParams.set("novo", "1");
+    url.searchParams.set("processo", String(processoId));
+    url.searchParams.set("intimacao", String(intimacaoId));
+    if (prazoId) url.searchParams.set("prazo", String(prazoId)); else url.searchParams.delete("prazo");
     window.history.replaceState(null, "", url);
     setView("trabalhos");
   }
@@ -327,18 +358,22 @@ export default function Home() {
     await capture.submit(oabForm.oab.trim(), oabForm.uf.trim().toUpperCase());
   }
 
-  async function removeCapturedOab(oab: OabMonitorada) {
-    setBusy(`remove-oab-${oab.id}`);
+  async function removeCapturedOab(oab: { id?: number; oab: string; uf: string }) {
+    setBusy(`remove-oab-${oab.id ?? oab.oab}`);
     setError(null);
     try {
-      await removerOabMonitorada(oab.id, false);
+      const result = await removerDadosOab(oab.oab, oab.uf);
+      capture.forget(oab.oab, oab.uf);
+      setCaptureResult(null); setCaptureContext(null);
+      setBackfillProgress(null);
+      if (session?.user?.id) window.localStorage.removeItem(`causor-prazo-backfill-${session.user.id}`);
       await loadOabsMonitoradas();
       await refresh();
       setOabToRemove(null);
       toast({
         kind: "success",
         title: `OAB ${oab.oab}/${oab.uf} removida`,
-        description: "O monitoramento foi encerrado. Intimações e processos já registrados foram preservados."
+        description: `${result.removidos.intimacoes ?? 0} intimações e ${result.removidos.processos ?? 0} processos removidos.${result.removidos.intimacoes_preservadas ? ` ${result.removidos.intimacoes_preservadas} intimações mantidas por vínculo com outra OAB, trabalho, documento ou prazo confirmado.` : ""}`
       });
     } catch (err) {
       const message = humanError(err, "A OAB não foi removida");
@@ -383,6 +418,44 @@ export default function Home() {
     });
     setPrazoEdit(null);
   }
+
+  async function backfillPrazos() {
+    const key = `causor-prazo-backfill-${session?.user?.id ?? "unknown"}`;
+    setBackfillBusy(true);
+    setBackfillProgress("Preparando análise...");
+    try {
+      let cursor = Number(window.localStorage.getItem(key) ?? "0") || 0;
+      let queued = 0;
+      let hasMore = false;
+      for (let page = 0; page < 20; page++) {
+        const batch = await analisarPrazosExistentes(cursor);
+        queued += batch.enfileiradas;
+        hasMore = batch.ha_mais;
+        setBackfillProgress(`${queued} intimações encaminhadas para análise. O processamento ocorre em segundo plano.`);
+        if (!batch.ha_mais || batch.ultimo_id <= cursor) break;
+        cursor = batch.ultimo_id;
+        window.localStorage.setItem(key, String(cursor));
+      }
+      await refresh();
+      if (hasMore) {
+        setBackfillProgress(`${queued} análises enfileiradas. Há mais registros; use Continuar análise.`);
+      } else {
+        window.localStorage.removeItem(key);
+        setBackfillProgress(`${queued} análises enfileiradas. Acompanhe os estados nesta lista.`);
+      }
+    } catch (err) {
+      setBackfillProgress("Interrompido. Use Continuar análise; registros já enfileirados serão preservados.");
+      toast({ kind: "error", title: humanError(err, "Falha ao enfileirar prazos") });
+    } finally {
+      setBackfillBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!session?.user?.id || !data.intimacoes.some(item => item.prazo_analise?.status === "analisando")) return;
+    const timer = window.setInterval(() => { void refresh(); }, 5000);
+    return () => window.clearInterval(timer);
+  }, [session?.user?.id, data.intimacoes]);
 
   useEffect(() => {
     void refresh();
@@ -723,6 +796,10 @@ export default function Home() {
   const captureLabel = capture.job
     ? `OAB ${String(capture.job.payload?.oab ?? "?")}/${String(capture.job.payload?.uf ?? "?")}`
     : "OAB informada";
+  const captureVisible = capture.phase === "sending" || (capture.phase === "lost" && !capture.job) ||
+    Boolean(capture.job && oabsMonitoradas.some(oab => oab.ativo && sameCapture(capture.job!, oab.oab, oab.uf)));
+  const resultVisible = captureContext && oabsMonitoradas.some(oab => oab.ativo &&
+    oab.oab === captureContext.oab && oab.uf === captureContext.uf);
 
   if (authLoading || !session) {
     return (
@@ -776,7 +853,7 @@ export default function Home() {
           </button>
         </div>
 
-        <SidebarNavigation view={view} onNavigate={setView} onNewWork={startNewWork} />
+        <SidebarNavigation view={view} onNavigate={setView} />
 
         <div className="sidebarFooter">
           <NavItem
@@ -839,19 +916,14 @@ export default function Home() {
           </div>
         ) : null}
 
-        {captureResult ? (
+        {captureResult && resultVisible ? (
           <div className="notice success">
             <CheckCircle2 size={18} />
             <span>
               Captura concluída
               {captureContext ? ` para OAB ${captureContext.oab}/${captureContext.uf}` : ""}:{" "}
-              {captureResult.intimacoes_novas} intimações novas e{" "}
-              {captureResult.prazos_registrados} prazos registrados.
-              {captureResult.prazos_historicos
-                ? ` ${captureResult.prazos_historicos} intimações são antigas e não geraram prazo (o vencimento provisório já teria passado).`
-                : ""}{" "}
-              O prazo exige conferência; os autos dependem dos documentos recebidos.
-              {captureResult.intimacoes_novas > captureResult.prazos_registrados ? " Há intimações sem prazo vinculado; revise cada comunicação antes de definir uma contagem." : ""}
+              {captureResult.intimacoes_novas} intimações novas. Acompanhe a análise de prazos em Intimações.
+              Os prazos sugeridos exigem conferência; os autos dependem dos documentos recebidos.
               <button type="button" className="toolbarButton compact" onClick={() => setView("intimacoes")}>Revisar intimações</button>
             </span>
             <button
@@ -918,7 +990,7 @@ export default function Home() {
             onConfirmAction={confirmAssistantAction}
           />
         ) : view === "trabalhos" ? (
-          <TrabalhosView key={`${workProcessId || "all"}-${workOrigin?.intimacaoId || "manual"}-${newWorkKey}`} processos={data.processos} offline={offline} initialProcessId={workProcessId} initialOrigin={workOrigin} refreshKey={refreshTick} focusOnOpen={newWorkKey > 0}
+          <TrabalhosView key={`${workProcessId || "all"}-${workOrigin?.intimacaoId || "manual"}-${newWorkKey}`} processos={data.processos} offline={offline} initialProcessId={workProcessId} initialOrigin={workOrigin} refreshKey={refreshTick} focusOnOpen={newWorkKey > 0} onUnsavedChange={value => { unsavedWork.current = value; }} onRouteChange={syncWorkRoute}
             onChanged={() => void refresh()} onDocuments={id => { setDocumentContext({ processId: id }); setView("documentos"); }}
             onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }} />
         ) : view === "clientes" ? (
@@ -954,7 +1026,7 @@ export default function Home() {
           <HomeDashboard
             metrics={metrics}
             unlinkedNotices={data.intimacoes.filter(item => !prazosPool.some(prazo => prazo.intimacao_id === item.id)).length}
-            prazoRows={prazoRows.slice(0, 5)}
+            prazoRows={prazoRows}
             operationalConnectors={operationalConnectors}
             offline={offline}
             busy={busy}
@@ -1051,7 +1123,7 @@ export default function Home() {
 
           {view === "processos" ? (
             <ProcessosView
-              onPrepareWork={id => { setWorkOrigin(undefined); setWorkProcessId(id); const url = new URL(window.location.href); url.searchParams.delete("trabalho"); window.history.replaceState(null, "", url); setView("trabalhos"); }}
+              onPrepareWork={id => { setWorkOrigin(undefined); setWorkProcessId(id); setNewWorkKey(value => value + 1); const url = new URL(window.location.href); url.searchParams.delete("trabalho"); url.searchParams.set("novo", "1"); url.searchParams.set("processo", String(id)); url.searchParams.delete("intimacao"); url.searchParams.delete("prazo"); window.history.replaceState(null, "", url); setView("trabalhos"); }}
               rows={processoRows}
               total={data.processosResumo?.total}
               loaded={data.processosResumo?.items.length}
@@ -1062,6 +1134,10 @@ export default function Home() {
             <IntimacoesView
               rows={intimacaoRows}
               offline={offline}
+              onBackfill={() => void backfillPrazos()}
+              backfillProgress={backfillProgress}
+              backfillBusy={backfillBusy}
+              onRetry={id => { void repetirAnalisePrazo(id).then(() => refresh()).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao repetir análise") })); }}
               onOpen={(id) => setDetail({ kind: "intimacao", id })}
               onPrepareWork={prepareWorkFromNotice}
               onCreateTask={intimacao => openTask({ titulo: "", intimacao_id: intimacao.id, tipo: "providencia" }, intimacao.numero_processo || "Intimação selecionada")}
@@ -1120,14 +1196,14 @@ export default function Home() {
                   onChange={(uf) => setOabForm((f) => ({ ...f, uf }))}
                 />
               </label>
-              {capture.phase !== "idle" ? (
+              {captureVisible && capture.phase !== "idle" ? (
                 <div className="captureFeedback" role="status" aria-live="polite">
                   {["sending", "queued", "running"].includes(capture.phase) ? <Loader2 className="spin" size={14} aria-hidden="true" /> : null}
                   <span>
                     {capture.phase === "sending" ? "Registrando OAB e solicitando captura..." : null}
                     {capture.phase === "queued" ? `${captureLabel}: aguardando início da consulta.` : null}
                     {capture.phase === "running" ? `${captureLabel}: consulta em andamento. ${capture.job ? captureProgress(capture.job) ?? "Aguardando confirmação do primeiro período." : ""}` : null}
-                    {capture.phase === "completed" && capture.job ? `${captureLabel}: captura concluída, ${captureResultFromJob(capture.job).intimacoes_novas} intimações novas e ${captureResultFromJob(capture.job).prazos_registrados} prazos registrados.` : null}
+                    {capture.phase === "completed" && capture.job ? `${captureLabel}: captura concluída, ${captureResultFromJob(capture.job).intimacoes_novas} intimações novas. Acompanhe a análise de prazos em Intimações.` : null}
                     {capture.phase === "failed" && capture.job ? `${captureLabel}: captura falhou. ${captureFailureMessage(captureResultFromJob(capture.job)) ?? capture.job.erro ?? "Consulte o histórico."}` : null}
                     {capture.phase === "lost" ? `Acompanhamento interrompido${capture.job ? ` para ${captureLabel}` : ""}. ${capture.trackingError ?? "Verifique novamente; o trabalho pode continuar no servidor."}` : null}
                     {capture.phase === "queued" && capture.job && capture.now - new Date(capture.job.created_at).getTime() > 30000 ? " A consulta ainda não começou. Você pode fechar e acompanhar depois." : null}
@@ -1135,7 +1211,7 @@ export default function Home() {
                   </span>
                 </div>
               ) : null}
-              {capture.phase !== "idle" && capture.phase !== "sending" ? (
+              {captureVisible && capture.phase !== "idle" && capture.phase !== "sending" ? (
                 <button className="toolbarButton compact" onClick={() => void capture.check()}>Verificar agora</button>
               ) : null}
               {error ? <small className="settingsHint vaultError" role="alert">{error}</small> : null}
@@ -1161,13 +1237,19 @@ export default function Home() {
                           {busy === `remove-oab-${oab.id}` ? (
                             <Loader2 className="spin" size={14} />
                           ) : null}
-                          Parar monitoramento
+                          Remover OAB e dados
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
+              {oabForm.oab.trim() && !oabsMonitoradas.some(item => item.oab === oabForm.oab.trim() && item.uf === oabForm.uf) ? (
+                <button type="button" className="toolbarButton compact danger" disabled={Boolean(busy) || capture.phase === "sending"}
+                  onClick={() => { setError(null); setOabToRemove({ oab: oabForm.oab.trim(), uf: oabForm.uf }); }}>
+                  Remover dados desta OAB
+                </button>
+              ) : null}
               <div className="modalActions">
                 <button
                   className="toolbarButton"
@@ -1207,11 +1289,12 @@ export default function Home() {
             </div>
             <div className="confirmBody">
               <span className="settingsLabel" id="removeCapturedOabTitle">
-                Parar monitoramento da OAB {oabToRemove.oab}/{oabToRemove.uf}?
+                Remover OAB {oabToRemove.oab}/{oabToRemove.uf} e dados capturados?
               </span>
               <p>
-                A OAB deixará de ser consultada automaticamente. Intimações, prazos,
-                processos e documentos já registrados serão preservados.
+                O monitoramento será encerrado e os dados exclusivos da captura serão removidos.
+                Casos com trabalhos, minutas, documentos ou prazos confirmados, além de registros
+                compartilhados com outra OAB monitorada, serão preservados. A exclusão não pode ser desfeita.
               </p>
               {error ? (
                 <small className="settingsHint vaultError" role="alert">
@@ -1230,11 +1313,11 @@ export default function Home() {
               </button>
               <LoadingButton
                 className="toolbarButton compact danger confirmDanger"
-                loading={busy === `remove-oab-${oabToRemove.id}`}
+                loading={busy === `remove-oab-${oabToRemove.id ?? oabToRemove.oab}`}
                 icon={<AlertTriangle size={14} />}
                 onClick={() => void removeCapturedOab(oabToRemove)}
               >
-                Parar monitoramento
+                Remover OAB e dados
               </LoadingButton>
             </div>
           </Modal>
@@ -1246,7 +1329,7 @@ export default function Home() {
             offline={offline}
             onUpdate={updateSettings}
             onReset={resetSettings}
-            onOabChanged={refresh}
+            onOabChanged={async () => { setCaptureResult(null); setCaptureContext(null); await loadOabsMonitoradas(); await refresh(); }}
             onClose={() => setOverlay(null)}
           />
         ) : null}

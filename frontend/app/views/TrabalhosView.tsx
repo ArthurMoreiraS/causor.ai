@@ -11,9 +11,11 @@ import WorkScope from "../components/WorkScope";
 import WorkAssistant from "../components/WorkAssistant";
 import { LoadingButton } from "../components/ui";
 
-export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, refreshKey = 0, focusOnOpen = false }: {
+export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, onUnsavedChange, onRouteChange, refreshKey = 0, focusOnOpen = false }: {
   processos: Processo[]; offline: boolean; initialProcessId?: number; initialOrigin?: { intimacaoId: number; prazoId: number | null }; onChanged: () => void;
   onDocuments: (id: number) => void; onOpenDraft: (id: number) => void;
+  onUnsavedChange?: (dirty: boolean) => void;
+  onRouteChange?: () => void;
   refreshKey?: number;
   focusOnOpen?: boolean;
 }) {
@@ -40,11 +42,22 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   const [receiving, setReceiving] = useState(false);
   const [revision, setRevision] = useState(0);
   const selectionVersion = useRef(0);
+  const unsavedRef = useRef(false);
   const formRef = useRef<HTMLFormElement>(null);
   const processOptions = localProcess && !processos.some(p => p.id === localProcess.id) ? [localProcess, ...processos] : processos;
   const dirty = Boolean(work && (purpose !== work.providencia || instructions !== work.instrucoes || degree !== work.grau || party !== (work.polo || "")));
+  const unsaved = dirty || (!work && Boolean(purpose || instructions || party || number || court || client || clientQuery || newClientName || newProcess || (process && process !== String(initialProcessId || "")) || degree !== "1"));
+  unsavedRef.current = unsaved;
+  useEffect(() => { onUnsavedChange?.(unsaved); }, [onUnsavedChange, unsaved]);
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
 
-  const selectWork = useCallback((value: Trabalho | null) => {
+  const selectWork = useCallback((value: Trabalho | null, force = false) => {
+    if (!force && unsavedRef.current && !window.confirm("Há alterações não salvas. Descartar e continuar?")) return false;
     selectionVersion.current += 1;
     setOrigin(undefined);
     setWork(value); setPurpose(value?.providencia || ""); setInstructions(value?.instrucoes || "");
@@ -53,11 +66,19 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     setNumber(""); setCourt(""); setClient(""); setClientQuery(""); setNewClientName("");
     const url = new URL(window.location.href);
     if (value) url.searchParams.set("trabalho", String(value.id)); else url.searchParams.delete("trabalho");
+    url.searchParams.delete("novo");
+    url.searchParams.delete("processo");
+    url.searchParams.delete("intimacao");
+    url.searchParams.delete("prazo");
     window.history.replaceState(null, "", url);
-  }, []);
+    onRouteChange?.();
+    return true;
+  }, [onRouteChange]);
 
   function startNewWork() {
-    selectWork(null);
+    if (!selectWork(null)) return;
+    setError(null);
+    const url = new URL(window.location.href); url.searchParams.set("novo", "1"); window.history.replaceState(null, "", url);
     formRef.current?.scrollIntoView?.({ block: "start" });
     formRef.current?.focus({ preventScroll: true });
   }
@@ -81,7 +102,9 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     let active = true;
     const version = selectionVersion.current;
     const id = Number(new URLSearchParams(window.location.search).get("trabalho"));
-    if (id > 0) obterTrabalho(id).then(value => { if (active && version === selectionVersion.current) selectWork(value); })
+    if (id > 0) obterTrabalho(id).then(value => {
+      if (active && version === selectionVersion.current && !unsavedRef.current) selectWork(value, true);
+    })
       .catch(err => { if (active && version === selectionVersion.current) setError(humanError(err, "Não foi possível retomar o trabalho")); });
     return () => { active = false; };
   }, [selectWork]);
@@ -89,13 +112,21 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     const id = work?.id;
     if (!id || offline) return;
     let active = true;
+    const version = selectionVersion.current;
     const reload = () => obterTrabalho(id).then(value => {
-      if (active) setWork(old => old?.id === id && old.versao === value.versao ? value : old);
+      if (!active || version !== selectionVersion.current) return;
+      if (dirty) {
+        if (value.versao !== work.versao) setError("Este trabalho foi alterado em outra sessão. Confira a versão antes de salvar.");
+      } else if (value.versao !== work.versao) {
+        selectWork(value, true);
+      } else {
+        setWork(old => old?.id === id ? value : old);
+      }
     }).catch(() => { /* The next explicit action still enforces the current version. */ });
     void reload();
     const timer = setInterval(reload, 15000);
     return () => { active = false; clearInterval(timer); };
-  }, [work?.id, work?.versao, revision, refreshKey, offline]);
+  }, [work?.id, work?.versao, revision, refreshKey, offline, dirty, selectWork]);
   async function save(event: FormEvent) {
     event.preventDefault(); if (busy || offline) return;
     setBusy(true); setError(null);
@@ -115,7 +146,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
       const result = work ? await atualizarTrabalho(work.id, { ...fields, versao: work.versao })
         : await criarTrabalho({ ...fields, processo_id: processId,
             ...(origin ? { intimacao_id: origin.intimacaoId, prazo_id: origin.prazoId ?? undefined } : {}) });
-      selectWork(result); setRevision(v => v + 1);
+      selectWork(result, true); setRevision(v => v + 1);
     } catch (err) { setError(humanError(err, "Não foi possível salvar o trabalho")); }
     finally { setBusy(false); }
   }
@@ -150,7 +181,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
         </nav>
       </> : null}
       <form ref={formRef} id="work-objective" tabIndex={-1} className="officeForm workStageAnchor" onSubmit={save}>
-        <h3>1. Objetivo e parte representada</h3>
+        <h3>{work ? "1. Objetivo e parte representada" : "Novo trabalho · objetivo e parte representada"}</h3>
         {!work && origin ? <p className="officeHint">Intimação #{origin.intimacaoId} vinculada{origin.prazoId ? ` · prazo #${origin.prazoId} a revisar` : " · sem prazo vinculado"}. A providência depende da sua análise.</p> : null}
         {!work ? <label className="workCheckboxLabel"><input type="checkbox" checked={newProcess} disabled={busy} onChange={e => setNewProcess(e.target.checked)} /> Cadastrar processo manualmente</label> : null}
         {newProcess && !work ? <>

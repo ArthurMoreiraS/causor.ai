@@ -23,3 +23,24 @@ it("só calcula com dados e fundamento confirmados e avisa o painel após sucess
   expect(confirmarPrazoIntimacao).toHaveBeenCalledWith(8, expect.objectContaining({ data_base: "2026-09-25", dias: 5 }));
   expect(screen.getByRole("status").textContent).toContain("10/10/2026");
 });
+
+it("preenche sugestão recebida depois do polling enquanto o formulário está intacto", () => {
+  const { rerender } = render(<ConfirmarPrazo intimacaoId={8} />);
+  const base = screen.getByLabelText("Data base confirmada (excluída da contagem)") as HTMLInputElement;
+  const days = screen.getByLabelText("Duração em dias") as HTMLInputElement;
+  expect(base.value).toBe("");
+  expect(days.value).toBe("");
+  rerender(<ConfirmarPrazo intimacaoId={8} analise={{ publicacao: "2026-09-28", dias: 5 }} />);
+  expect(base.value).toBe("2026-09-28");
+  expect(days.value).toBe("5");
+});
+
+it("não sobrescreve os campos editados quando uma nova sugestão chega", () => {
+  const { rerender } = render(<ConfirmarPrazo intimacaoId={8} analise={{ publicacao: "2026-09-28", dias: 5 }} />);
+  const base = screen.getByLabelText("Data base confirmada (excluída da contagem)") as HTMLInputElement;
+  const days = screen.getByLabelText("Duração em dias") as HTMLInputElement;
+  fireEvent.change(base, { target: { value: "2026-09-29" } });
+  rerender(<ConfirmarPrazo intimacaoId={8} analise={{ publicacao: "2026-10-01", dias: 15 }} />);
+  expect(base.value).toBe("2026-09-29");
+  expect(days.value).toBe("5");
+});

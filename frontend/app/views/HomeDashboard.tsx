@@ -24,6 +24,8 @@ export default function HomeDashboard({
     monitored: number;
     captured: number;
     pending: number;
+    reviewPending: number;
+    confirmedPending: number;
     highRisk: number;
     drafts: number;
     approved: number;
@@ -42,7 +44,7 @@ export default function HomeDashboard({
   onNavigate: (view: ViewKey) => void;
   greetingName: string | null;
 }) {
-  const nextDeadline = prazoRows.find((row) => !row.prazo.cumprido) ?? null;
+  const nextDeadline = prazoRows.find((row) => !row.prazo.cumprido && row.prazo.revisao_status === "confirmado") ?? null;
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
   const dataLonga = new Intl.DateTimeFormat("pt-BR", {
@@ -61,7 +63,7 @@ export default function HomeDashboard({
     },
     {
       label: "Prazo",
-      detail: unlinkedNotices > 0 ? `${unlinkedNotices} sem prazo vinculado` : `${metrics.pending} pendente${metrics.pending === 1 ? "" : "s"}`,
+      detail: unlinkedNotices > 0 ? `${unlinkedNotices} sem prazo vinculado` : metrics.reviewPending > 0 ? `${metrics.reviewPending} a revisar` : `${metrics.pending} pendente${metrics.pending === 1 ? "" : "s"}`,
       status: metrics.pending > 0 || unlinkedNotices > 0 ? "active" : metrics.captured > 0 ? "complete" : "queued",
       icon: <Clock3 size={15} />
     },
@@ -108,10 +110,14 @@ export default function HomeDashboard({
               ? `${nextDeadline.prazo.descricao ?? "Prazo"} vence em ${formatDate(
                   nextDeadline.prazo.data_fatal
                 )}.`
-              : "A fila está sem vencimentos pendentes no momento."}
+              : "A fila está sem vencimentos confirmados pendentes no momento."}
           </p>
-          {unlinkedNotices > 0 ? <p className="heroPriority">{unlinkedNotices} intimações sem prazo vinculado. Confira o teor e o fundamento antes de calcular.
-            <button type="button" className="toolbarButton compact" onClick={() => onNavigate("intimacoes")}>Revisar intimações</button></p> : null}
+          {metrics.reviewPending > 0 || unlinkedNotices > 0 ? <div className="heroNotices">
+            {metrics.reviewPending > 0 ? <div className="heroNotice"><p><strong>{metrics.reviewPending} prazo{metrics.reviewPending === 1 ? "" : "s"} aguardando revisão.</strong> Confira as datas sugeridas e o calendário local.</p>
+              <button type="button" className="toolbarButton" onClick={() => onNavigate("prazos")}>Revisar prazos</button></div> : null}
+            {unlinkedNotices > 0 ? <div className="heroNotice"><p><strong>{unlinkedNotices} intimações sem prazo vinculado.</strong> Acompanhe a análise e confira os dados pendentes.</p>
+              <button type="button" className="toolbarButton" onClick={() => onNavigate("intimacoes")}>Revisar intimações</button></div> : null}
+          </div> : null}
         </div>
         <div className="quickActions">
           <LoadingButton
@@ -133,12 +139,12 @@ export default function HomeDashboard({
       <div className="statRow">
         <CommandStat label="Processos" value={metrics.monitored} detail="monitorados" />
         <CommandStat label="Intimações" value={metrics.captured} detail="capturadas" />
-        <CommandStat label="Prazos" value={metrics.pending} detail="pendentes" />
+        <CommandStat label="Prazos" value={metrics.pending} detail={`${metrics.reviewPending} a revisar`} />
         <CommandStat
           label="Prazos em dia"
-          value={metrics.pending + metrics.overdue ? `${metrics.compliance}%` : "—"}
-          detail={`${metrics.overdue} vencido(s)`}
-          tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : metrics.pending > 0 ? "ok" : undefined}
+          value={metrics.confirmedPending ? `${metrics.compliance}%` : "—"}
+          detail={`${metrics.overdue} confirmado(s) vencido(s)`}
+          tone={metrics.overdue > 0 ? "risk" : metrics.highRisk > 0 ? "warn" : metrics.confirmedPending > 0 ? "ok" : undefined}
         />
       </div>
 
@@ -189,13 +195,13 @@ export default function HomeDashboard({
       {worklistSlot ? <section className="dashboardWorklist">{worklistSlot}</section> : null}
 
       <section className="homeGrid">
-        <Panel title="Agenda de prazos" action="próximos vencimentos">
+        <Panel title="Agenda de prazos" action="vencimentos e datas a revisar">
           <div className="deadlineAgenda">
-            {prazoRows.map(({ prazo, processo, dias }) => (
+            {prazoRows.slice(0, 5).map(({ prazo, processo, dias }) => (
               <button className="deadlineAgendaItem" key={prazo.id} onClick={() => onNavigate("prazos")}>
                 <div className="dateBlock">
                   <strong>{formatDate(prazo.data_fatal).slice(0, 5)}</strong>
-                  <span>{dias < 0 ? "vencido" : `${dias}d`}</span>
+                  <span>{prazo.revisao_status !== "confirmado" ? "a revisar" : dias < 0 ? "vencido" : `${dias}d`}</span>
                 </div>
                 <div>
                   <strong>{prazo.descricao ?? "Prazo"}</strong>

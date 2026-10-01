@@ -31,6 +31,10 @@ def build_calendar(
     for year in years:
         for holiday_date, _name in cal.holidays(year):
             holidays.add(holiday_date)
+        # Lei 14.759/2023 made Consciência Negra a national holiday from 2024.
+        # The installed workalendar release does not include it.
+        if year >= 2024:
+            holidays.add(date(year, 11, 20))
 
     # Recess spanning each listed year-end into the following January.
     recess_periods: list[tuple[date, date]] = [

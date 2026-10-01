@@ -22,6 +22,7 @@ from datetime import date
 from threading import Lock, Semaphore
 
 from sqlalchemy import select
+from sqlalchemy import func
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.capture.datajud import DatajudClient
@@ -29,6 +30,7 @@ from app.capture.djen import DjenClient
 from app.capture.enrich import run_enrichment_backfill
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
+from app.prazo_engine.pipeline import run_analysis
 from app.queue.jobs import fail_stale_running_jobs, get_job, mark_failed, run_capture_oab_job
 from app.settings import settings
 from app.sor import models
@@ -78,6 +80,7 @@ class WorkerClients:
     djen: DjenClient
     datajud: DatajudClient
     calendar: ForensicCalendar
+    deadline_interpreter: Callable | None = None
 
 
 def default_clients(today: date | None = None) -> WorkerClients:
@@ -97,15 +100,22 @@ class _NoopDatajudClient:
         return None
 
 
-def claim_next_job(session: Session) -> models.JobExecucao | None:
+def claim_next_job(session: Session, *, max_id: int | None = None) -> models.JobExecucao | None:
     """Claim the oldest queued job: select it, mark running, and commit.
 
     Consume apenas captura OAB; documentos têm consumidor próprio.
     """
+    stmt = select(models.JobExecucao).where(
+        models.JobExecucao.status == "queued",
+        models.JobExecucao.tipo.in_(["captura_oab", "analise_prazo"]),
+    )
+    if max_id is not None:
+        stmt = stmt.where(models.JobExecucao.id <= max_id)
     job = session.scalars(
-        select(models.JobExecucao)
-        .where(models.JobExecucao.status == "queued", models.JobExecucao.tipo == "captura_oab")
-        .order_by(models.JobExecucao.id)
+        stmt.order_by(
+            # A fresh capture takes precedence over model work.
+            (models.JobExecucao.tipo != "captura_oab"), models.JobExecucao.id,
+        )
         .limit(1)
         .with_for_update(skip_locked=True)
     ).first()
@@ -154,6 +164,13 @@ def dispatch(
             _schedule_enrichment(payload["escritorio_id"])
         return
 
+    if job.tipo == "analise_prazo":
+        if clients.deadline_interpreter is None:
+            run_analysis(session, job)
+        else:
+            run_analysis(session, job, interpreter=clients.deadline_interpreter)
+        return
+
     mark_failed(session, job, f"tipo de job nao suportado pelo worker: {job.tipo}")
     session.commit()
 
@@ -177,11 +194,12 @@ def run_once(
     processed = 0
     with session_factory() as recovery_session:
         fail_stale_running_jobs(recovery_session, older_than_minutes=settings.job_stale_minutes)
+        max_id = recovery_session.scalar(select(func.max(models.JobExecucao.id)))
         recovery_session.commit()
     while True:
         session = session_factory()
         try:
-            job = claim_next_job(session)
+            job = claim_next_job(session, max_id=max_id)
         finally:
             session.close()
         if job is None:
@@ -201,8 +219,22 @@ def run_once(
             session.rollback()
             session = session_factory()
             try:
-                job = get_job(session, job.id)
+                job = session.scalar(select(models.JobExecucao).where(
+                    models.JobExecucao.id == job.id).with_for_update())
+                if job is None or job.status != "running":
+                    session.rollback()
+                    continue
                 mark_failed(session, job, str(exc)[:2000])
+                if job.tipo == "analise_prazo" and job.entidade_id:
+                    from app.prazo_engine.pipeline import memory, set_memory
+
+                    notice = session.scalar(select(models.Intimacao).where(
+                        models.Intimacao.id == job.entidade_id).with_for_update())
+                    if (notice and notice.escritorio_id == (job.payload or {}).get("escritorio_id")
+                            and memory(notice).get("status") == "analisando"
+                            and memory(notice).get("job_id") == job.id):
+                        set_memory(notice, {"status": "falha", "job_id": job.id,
+                                            "motivo": "Análise indisponível; tente novamente"})
                 session.commit()
             except Exception:
                 session.rollback()

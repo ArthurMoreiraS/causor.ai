@@ -21,6 +21,30 @@ describe("OAB capture tracking", () => {
   beforeEach(() => { sessionStorage.clear(); api.listarCapturasOab.mockResolvedValue([]); });
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
+  it("discards a late poll after forgetting a removed OAB", async () => {
+    api.listarCapturasOab.mockResolvedValue([job("running")]);
+    let finish!: (value: ReturnType<typeof job>) => void;
+    api.consultarCapturaOab.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+    const terminal = vi.fn();
+    const { result } = renderHook(() => useOabCapture("account-1", vi.fn(), terminal));
+    await waitFor(() => expect(result.current.phase).toBe("running"));
+    act(() => { void result.current.check(); });
+    await waitFor(() => expect(api.consultarCapturaOab).toHaveBeenCalled());
+    act(() => result.current.forget("249340", "SP"));
+    await act(async () => finish(job("completed", { intimacoes_novas: 13 })));
+    expect(result.current.phase).toBe("idle");
+    expect(result.current.job).toBeNull();
+    expect(terminal).not.toHaveBeenCalled();
+  });
+
+  it("does not recover jobs for an unmonitored registration", async () => {
+    api.listarCapturasOab.mockResolvedValue([job("completed"), job("running")]);
+    const { result } = renderHook(() => useOabCapture("account-1", vi.fn(), vi.fn(), []));
+    await waitFor(() => expect(api.listarCapturasOab).toHaveBeenCalled());
+    expect(result.current.job).toBeNull();
+    expect(result.current.phase).toBe("idle");
+  });
+
   it("enqueues once, shows confirmed progress and reports a zero-result completion", async () => {
     api.iniciarCapturaOab.mockResolvedValue(job("queued"));
     api.consultarCapturaOab.mockResolvedValue(job("completed", { intimacoes_novas: 0, prazos_registrados: 0 }));

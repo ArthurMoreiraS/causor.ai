@@ -65,6 +65,8 @@ def _linha(alerta: PrazoEmAlerta, processo_numero: str | None) -> str:
     descricao = alerta.prazo.descricao or "Prazo"
     processo = f" — processo {processo_numero}" if processo_numero else ""
     data = alerta.prazo.data_fatal.strftime("%d/%m/%Y")
+    if alerta.prazo.revisao_status != "confirmado":
+        return f"- {descricao}{processo}: data sugerida {data}; {rotulo}; revisão humana pendente"
     return f"- {descricao}{processo}: {rotulo} ({data})"
 
 
@@ -85,10 +87,12 @@ def montar_corpo(session: Session, alertas: list[PrazoEmAlerta]) -> str:
 
 
 def montar_assunto(alertas: list[PrazoEmAlerta]) -> str:
-    if any(a.nivel == "vencido" for a in alertas):
+    if any(a.nivel == "vencido" and a.prazo.revisao_status == "confirmado" for a in alertas):
         return f"[Causor] {len(alertas)} prazo(s) — há prazo VENCIDO"
-    if any(a.nivel == "d0" for a in alertas):
+    if any(a.nivel == "d0" and a.prazo.revisao_status == "confirmado" for a in alertas):
         return f"[Causor] {len(alertas)} prazo(s) — vence HOJE"
+    if any(a.prazo.revisao_status != "confirmado" for a in alertas):
+        return f"[Causor] {len(alertas)} prazo(s) — revisão urgente de data sugerida"
     return f"[Causor] {len(alertas)} prazo(s) próximos do vencimento"
 
 

@@ -91,8 +91,9 @@ def test_draft_from_intimacao_persists_prazo_and_peticao(db_session):
         )
 
     assert result == classificacao
-    assert prazo.dias == 15
-    assert prazo.descricao == "Intimacao para contestar"
+    assert prazo is None
+    assert db_session.query(models.Prazo).count() == 0
+    assert peticao.dossie["prazo_revisao_pendente"] is True
     assert peticao.status == "rascunho"
     assert peticao.tipo == "Contestacao"
     # conteudo carrega SÓ a minuta (protocolo-limpo); o dossiê fica separado.
@@ -209,7 +210,7 @@ def test_draft_from_intimacao_feeds_process_history_to_drafter(db_session):
     assert "Sentenca publicada" in historico
     assert "Intimacao anterior sobre pericia." in historico
     # a data fatal já calculada é repassada como texto pronto
-    assert draft_mock.call_args.kwargs["prazo_fatal"] is not None
+    assert draft_mock.call_args.kwargs["prazo_fatal"] is None
 
 
 def test_historico_exclui_intimacao_atual_e_limita_trecho(db_session):

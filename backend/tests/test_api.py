@@ -237,7 +237,10 @@ def test_dashboard_operacional_expoe_vencidos_e_aprovadas(client, db_session, se
     body = client.get("/dashboard/operational").json()
     metric_by_key = {item["key"]: item["value"] for item in body["metrics"]}
 
-    assert metric_by_key["vencidos"] == 1  # prazo "A" está pendente e com data_fatal no passado
+    assert metric_by_key["prazos"] == 1
+    assert metric_by_key["prazos_a_revisar"] == 1
+    assert metric_by_key["vencidos"] == 0  # legado sem revisão não é vencimento confirmado
+    assert metric_by_key["risco"] == 0
     assert metric_by_key["aprovadas"] == 1
     assert metric_by_key["minutas"] == 1  # rascunho
 
@@ -373,6 +376,10 @@ def test_revisar_prazo_atualiza_e_audita(client, db_session, seeded):
 
 def test_marcar_prazo_cumprido(client, db_session, seeded):
     prazo = db_session.query(models.Prazo).filter_by(descricao="A").one()
+    assert client.post(f"/prazos/{prazo.id}/cumprir").status_code == 409
+    notice = db_session.get(models.Intimacao, prazo.intimacao_id)
+    notice.payload = {"_causor_prazo": {"status": "confirmado", "prazo_id": prazo.id}}
+    db_session.flush()
     resp = client.post(f"/prazos/{prazo.id}/cumprir")
 
     assert resp.status_code == 200
@@ -426,6 +433,7 @@ def test_alertas_derivados_dos_prazos(client, db_session, seeded):
     # Prazos confortáveis e cumpridos ficam fora; "A" (da fixture) está vencido e aberto.
     assert set(por_descricao) == {"A", "Vencido", "Hoje", "Amanha", "D3"}
     assert por_descricao["A"]["nivel"] == "vencido"
+    assert por_descricao["A"]["revisao_status"] == "pendente"
     assert por_descricao["Vencido"]["nivel"] == "vencido"
     assert por_descricao["Hoje"]["nivel"] == "d0"
     assert por_descricao["Amanha"]["nivel"] == "d1"

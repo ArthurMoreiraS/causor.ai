@@ -11,6 +11,7 @@ export type Intimacao = {
   teor: string | null;
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
+  prazo_analise?: { status: string; motivo?: string | null; prazo_id?: number; dias?: number | null; unidade?: string; publicacao?: string; primeiro_dia?: string; data_fatal?: string; evidencia?: string | null; fundamento?: string | null; calendario?: string } | null;
 };
 
 export type Processo = {
@@ -93,6 +94,7 @@ export type ProximoPrazo = {
   data_fatal: string;
   cumprido: boolean;
   descricao: string | null;
+  revisao_status?: string;
 };
 
 /** Processo já cruzado no servidor (`/processos/resumo`): próximo prazo +
@@ -127,7 +129,16 @@ export type Prazo = {
   dias_uteis: boolean;
   data_fatal: string;
   cumprido: boolean;
+  revisao_status?: string;
 };
+
+export type PrazoBackfill = { enfileiradas: number; ultimo_id: number; ha_mais: boolean };
+export function analisarPrazosExistentes(afterId = 0): Promise<PrazoBackfill> {
+  return request(`/intimacoes/analisar-prazos?after_id=${afterId}`, { method: "POST" });
+}
+export function repetirAnalisePrazo(id: number): Promise<{ job_id: number | null }> {
+  return request(`/intimacoes/${id}/analisar-prazo`, { method: "POST" });
+}
 
 export async function confirmarPrazoIntimacao(intimacaoId: number, payload: {
   data_base: string; dias: number; dias_uteis: boolean; justificativa: string; dias_sem_expediente: string[];
@@ -266,6 +277,7 @@ export type AlertaPrazo = {
   data_fatal: string;
   dias_para_vencer: number;
   nivel: "vencido" | "d0" | "d1" | "d3";
+  revisao_status?: string;
 };
 
 export type JobExecucao = {
@@ -335,7 +347,7 @@ export type OabMonitorada = {
 };
 
 export type OabRemovalResult = {
-  oab_id: number;
+  oab_id: number | null;
   oab: string;
   uf: string;
   purge: boolean;
@@ -1105,6 +1117,12 @@ export async function removerOabMonitorada(
 ): Promise<OabRemovalResult> {
   return request<OabRemovalResult>(`/capturas/oab/${oabId}?purge=${purge ? "true" : "false"}`, {
     method: "DELETE"
+  });
+}
+
+export function removerDadosOab(oab: string, uf: string): Promise<OabRemovalResult> {
+  return request("/capturas/oab/remover-dados", {
+    method: "POST", body: JSON.stringify({ oab, uf })
   });
 }
 

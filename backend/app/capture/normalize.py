@@ -1,7 +1,7 @@
 """Normalize captured DTOs into SOR rows (idempotent upserts).
 
 - ``normalize_intimacao``: ComunicacaoDTO (DJEN) -> Intimacao, deduped by
-  (fonte, fonte_id), linked to an existing Processo when the CNJ number matches.
+  (escritorio_id, fonte, fonte_id), linked to an existing Processo when the CNJ number matches.
 - ``enrich_processo``: ProcessoDTO (DataJud) -> Processo (+ Andamentos),
   upserted by (escritorio_id, canonical numero); movements deduped.
 
@@ -15,6 +15,7 @@ import re
 from datetime import datetime, timezone
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from app.capture.court_systems import sistema_para_tribunal
@@ -62,10 +63,12 @@ def normalize_intimacao(
 ) -> models.Intimacao:
     existing = session.scalar(
         select(models.Intimacao).where(
+            models.Intimacao.escritorio_id == escritorio_id,
             models.Intimacao.fonte == "DJEN", models.Intimacao.fonte_id == dto.id
         )
     )
     if existing is not None:
+        existing._capture_created = False
         if existing.processo_id is None and existing.numero_processo:
             processo = _get_or_create_processo(
                 session,
@@ -88,7 +91,7 @@ def normalize_intimacao(
         else None
     )
 
-    intimacao = models.Intimacao(
+    values = dict(
         processo_id=processo.id if processo else None,
         escritorio_id=escritorio_id,
         fonte="DJEN",
@@ -98,8 +101,18 @@ def normalize_intimacao(
         tipo_comunicacao=dto.tipo_comunicacao,
         teor=dto.texto,
         data_disponibilizacao=dto.data_disponibilizacao,
-        payload=dto.raw or None,
+        payload={key: value for key, value in (dto.raw or {}).items() if key not in {"_causor_prazo", "_causor_oabs"}} or None,
     )
+    if session.bind.dialect.name == "postgresql":
+        inserted_id = session.scalar(pg_insert(models.Intimacao).values(**values)
+            .on_conflict_do_nothing(constraint="uq_intimacao_tenant_fonte")
+            .returning(models.Intimacao.id))
+        row = session.get(models.Intimacao, inserted_id) if inserted_id else session.scalar(
+            select(models.Intimacao).where(models.Intimacao.escritorio_id == escritorio_id,
+                                           models.Intimacao.fonte == "DJEN", models.Intimacao.fonte_id == dto.id))
+        row._capture_created = inserted_id is not None
+        return row
+    intimacao = models.Intimacao(**values)
     session.add(intimacao)
     return intimacao
 
@@ -118,6 +131,14 @@ def _get_or_create_processo(
         )
     )
     if processo is None:
+        if session.bind.dialect.name == "postgresql":
+            session.execute(pg_insert(models.Processo).values(
+                escritorio_id=escritorio_id, numero=numero, tribunal=tribunal,
+                sistema=sistema_para_tribunal(tribunal))
+                .on_conflict_do_nothing(constraint="uq_processo_numero"))
+            return session.scalar(select(models.Processo).where(
+                models.Processo.escritorio_id == escritorio_id,
+                models.Processo.numero == numero))
         processo = models.Processo(
             escritorio_id=escritorio_id,
             numero=numero,

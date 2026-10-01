@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   loadDashboard: vi.fn(), listarOabsMonitoradas: vi.fn(), listarCapturasOab: vi.fn(),
-  iniciarCapturaOab: vi.fn(), consultarCapturaOab: vi.fn()
+  iniciarCapturaOab: vi.fn(), consultarCapturaOab: vi.fn(), listarClientes: vi.fn(),
+  analisarPrazosExistentes: vi.fn(), repetirAnalisePrazo: vi.fn(), removerDadosOab: vi.fn()
 }));
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -16,6 +17,11 @@ vi.mock("./AuthProvider", () => ({ useRequireAuth: () => ({
 }) }));
 vi.mock("./components/Toast", () => ({ useToast: () => toast }));
 vi.mock("next/image", () => ({ default: () => null }));
+vi.mock("@/lib/work-api", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@/lib/work-api")>(),
+  listarTrabalhos: vi.fn().mockResolvedValue({ total: 0, items: [] }),
+  obterTrabalho: vi.fn()
+}));
 
 import Home from "./page";
 
@@ -30,14 +36,51 @@ const dashboard = { intimacoes: [], processos: [], prazos: [], peticoes: [] };
 describe("Home OAB capture modal", () => {
   beforeEach(() => {
     sessionStorage.clear();
+    localStorage.clear();
     window.history.replaceState(null, "", "/");
     api.loadDashboard.mockResolvedValue(dashboard);
+    api.listarClientes.mockResolvedValue({ total: 0, items: [] });
     api.listarOabsMonitoradas.mockResolvedValue([]);
     api.listarCapturasOab.mockResolvedValue([]);
-    api.iniciarCapturaOab.mockResolvedValue(captureJob("queued"));
+    api.iniciarCapturaOab.mockImplementation(async () => {
+      api.listarOabsMonitoradas.mockResolvedValue([{ id: 1, oab: "249340", uf: "SP", ativo: true }]);
+      return captureJob("queued");
+    });
     api.consultarCapturaOab.mockResolvedValue(captureJob("completed"));
   });
   afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+  it("does not show historical capture feedback without monitored OABs, including after reopening", async () => {
+    api.listarCapturasOab.mockResolvedValue([captureJob("completed")]);
+    render(<Home />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Captura por OAB" })[0]);
+    await waitFor(() => expect(api.listarOabsMonitoradas).toHaveBeenCalled());
+    await screen.findByText("Nenhuma OAB cadastrada.");
+    expect(screen.queryByText(/OAB 249340\/SP: captura concluída/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Verificar agora" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Fechar" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Captura por OAB" })[0]);
+    expect(screen.queryByText(/OAB 249340\/SP: captura concluída/)).toBeNull();
+  });
+
+  it("removes a monitored OAB and clears its feedback after confirmation", async () => {
+    api.listarOabsMonitoradas.mockResolvedValue([{ id: 1, oab: "249340", uf: "SP", ativo: true }]);
+    api.listarCapturasOab.mockResolvedValue([captureJob("completed")]);
+    api.removerDadosOab.mockImplementation(async () => {
+      api.listarOabsMonitoradas.mockResolvedValue([]);
+      return { removidos: { intimacoes: 13, processos: 9 } };
+    });
+    render(<Home />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Captura por OAB" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Remover OAB e dados" }));
+    const confirmation = screen.getByRole("dialog");
+    fireEvent.click(within(confirmation).getByRole("button", { name: "Remover OAB e dados" }));
+    await waitFor(() => expect(api.removerDadosOab).toHaveBeenCalledWith("249340", "SP"));
+    await screen.findByText("Nenhuma OAB cadastrada.");
+    expect(screen.queryByText(/OAB 249340\/SP: captura concluída/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Verificar agora" })).toBeNull();
+    await waitFor(() => expect(api.loadDashboard).toHaveBeenCalledTimes(2));
+  });
 
   it("keeps tracking after close and reopen, then finishes before dashboard refresh", async () => {
     render(<Home />);
@@ -68,4 +111,53 @@ describe("Home OAB capture modal", () => {
     expect(api.iniciarCapturaOab).toHaveBeenCalledTimes(1);
     await act(async () => { releaseRefresh(dashboard); });
   });
+});
+
+it("retoma backfill após resposta perdida sem recomeçar o cursor", async () => {
+  localStorage.clear();
+  api.loadDashboard.mockResolvedValue(dashboard);
+  api.listarClientes.mockResolvedValue({ total: 0, items: [] });
+  api.listarOabsMonitoradas.mockResolvedValue([]);
+  api.listarCapturasOab.mockResolvedValue([]);
+  api.analisarPrazosExistentes.mockResolvedValueOnce({ enfileiradas: 1, ultimo_id: 100, ha_mais: true })
+    .mockRejectedValueOnce(new Error("resposta perdida"))
+    .mockResolvedValueOnce({ enfileiradas: 0, ultimo_id: 150, ha_mais: false });
+  render(<Home />);
+  fireEvent.click((await screen.findAllByRole("button", { name: "Intimações" }))[0]);
+  fireEvent.click(await screen.findByRole("button", { name: "Analisar prazos já capturados" }));
+  await waitFor(() => expect(screen.getByText(/Interrompido\. Use Continuar análise/)).toBeTruthy());
+  expect(localStorage.getItem("causor-prazo-backfill-user-1")).toBe("100");
+  fireEvent.click(screen.getByRole("button", { name: "Continuar análise" }));
+  await waitFor(() => expect(api.analisarPrazosExistentes).toHaveBeenCalledTimes(3));
+  expect(api.analisarPrazosExistentes.mock.calls.map(call => call[0])).toEqual([0, 100, 100]);
+  await waitFor(() => expect(localStorage.getItem("causor-prazo-backfill-user-1")).toBeNull());
+  cleanup();
+});
+
+it("abre a preparação pela intimação, protege edição e retoma a origem pela URL", async () => {
+  api.listarClientes.mockResolvedValue({ total: 0, items: [] });
+  const notice = { id: 8, processo_id: 4, fonte: "DJEN", numero_processo: "00000000020268260000",
+    tribunal: "TJSP", tipo_comunicacao: "Intimação", teor: "Prazo para manifestação", data_disponibilizacao: "2026-09-25", data_publicacao: null };
+  const process = { id: 4, numero: notice.numero_processo, classe: null, tribunal: "TJSP", orgao_julgador: null, sistema: null };
+  api.loadDashboard.mockResolvedValue({ ...dashboard, intimacoes: [notice], processos: [process], reviewQueue: [
+    { intimacao: notice, processo: process, prazo: null, peticao: null, status: "capturada", risco: "sem_prazo", dias_para_vencer: null }
+  ] });
+  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  try {
+    render(<Home />);
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Intimações" }).length).toBeGreaterThan(0));
+    fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Preparar minuta" }));
+    expect(window.location.search).toContain("intimacao=8");
+    expect((screen.getByLabelText("Processo") as HTMLSelectElement).value).toBe("4");
+    fireEvent.change(screen.getByLabelText("Providência"), { target: { value: "Manifestar sobre o laudo" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
+    expect(confirm).toHaveBeenCalled();
+    expect(screen.getByLabelText("Providência")).toBeTruthy();
+    cleanup();
+    confirm.mockRestore();
+    render(<Home />);
+    expect((await screen.findByLabelText("Processo") as HTMLSelectElement).value).toBe("4");
+    expect(screen.getByText(/Intimação #8 vinculada/)).toBeTruthy();
+  } finally { confirm.mockRestore(); cleanup(); window.history.replaceState(null, "", "/"); }
 });

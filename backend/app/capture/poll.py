@@ -17,6 +17,7 @@ from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
 from app.capture.normalize import enrich_processo, normalize_intimacao
 from app.prazo_engine.calendar import ForensicCalendar
+from app.prazo_engine.pipeline import enqueue_analysis
 
 
 class UnboundedCaptureError(ValueError):
@@ -131,8 +132,21 @@ def poll_oab(
             return result
 
         intimacao = normalize_intimacao(session, comunicacao, escritorio_id=escritorio_id)
-        is_new = intimacao in session.new
+        is_new = intimacao in session.new or getattr(intimacao, "_capture_created", False)
         session.flush()
+
+        # Record the query that brought this item, including repeat captures.
+        # The DJEN recipients alone may omit the queried registration.
+        session.refresh(intimacao, with_for_update=True)
+        sources = list((intimacao.payload or {}).get("_causor_oabs") or [])
+        source = {"oab": oab, "uf": uf.upper()}
+        if source not in sources:
+            intimacao.payload = {**(intimacao.payload or {}), "_causor_oabs": [*sources, source]}
+            session.flush()
+
+        # Commit of capture also persists an independent analysis job. A model
+        # failure cannot roll back a communication or delay the capture modal.
+        enqueue_analysis(session, intimacao)
 
         if not is_new:
             continue

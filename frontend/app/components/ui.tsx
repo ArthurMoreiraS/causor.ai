@@ -432,14 +432,20 @@ export function FeatureTile({
 // Aceita tanto o Prazo completo quanto o ProximoPrazo enxuto de /processos/resumo:
 // só precisa de data_fatal + cumprido.
 export function DeadlineBadge({
-  prazo
+  prazo, analise
 }: {
-  prazo: Pick<Prazo, "data_fatal" | "cumprido"> | null | undefined;
+  prazo: Pick<Prazo, "data_fatal" | "cumprido"> & { revisao_status?: string } | null | undefined;
+  analise?: { status: string; motivo?: string | null } | null;
 }) {
-  if (!prazo) return <span className="dayBadge neutral">Pendente</span>;
+  if (!prazo) {
+    const labels: Record<string, string> = { analisando: "Analisando", pendente: "Revisar dados", sem_prazo_identificado: "Sem prazo identificado", falha: "Falha na análise" };
+    return <span className="dayBadge neutral" title={analise?.motivo ?? undefined}>{labels[analise?.status ?? ""] ?? "Pendente"}</span>;
+  }
   const remaining = daysUntil(prazo.data_fatal);
   if (prazo.cumprido) return <span className="dayBadge done">Concluído</span>;
-  if (remaining <= 0) return <span className="dayBadge risk">Vencido</span>;
+  if (prazo.revisao_status !== "confirmado") return <span className="dayBadge neutral" title="Confira calendário e suspensões locais">{prazo.revisao_status === "calculado_a_revisar" ? "Calculado · revisar" : "Revisão pendente"}</span>;
+  if (remaining < 0) return <span className="dayBadge risk">Vencido</span>;
+  if (remaining === 0) return <span className="dayBadge today">Hoje</span>;
   if (remaining <= 3) return <span className="dayBadge today">{remaining}d</span>;
   return <span className="dayBadge neutral">{remaining}d</span>;
 }

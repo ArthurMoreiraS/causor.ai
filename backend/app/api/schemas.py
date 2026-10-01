@@ -23,6 +23,7 @@ class IntimacaoOut(BaseModel):
     teor: str | None
     data_disponibilizacao: date | None
     data_publicacao: date | None
+    prazo_analise: dict | None = None
 
 
 class PrazoOut(BaseModel):
@@ -37,6 +38,7 @@ class PrazoOut(BaseModel):
     dias_uteis: bool
     data_fatal: date
     cumprido: bool
+    revisao_status: str = "pendente"
 
 
 class ProcessoOut(BaseModel):
@@ -55,6 +57,7 @@ class ProximoPrazoOut(BaseModel):
     data_fatal: date
     cumprido: bool
     descricao: str | None
+    revisao_status: str = "pendente"
 
 
 class ProcessoResumoOut(BaseModel):
@@ -318,6 +321,7 @@ class AlertaPrazo(BaseModel):
     data_fatal: date
     dias_para_vencer: int
     nivel: Literal["vencido", "d0", "d1", "d3"]
+    revisao_status: str = "pendente"
 
 
 class ReviewQueueItem(BaseModel):
@@ -419,7 +423,7 @@ class OabMonitoradaOut(BaseModel):
 
 
 class OabRemovalResultOut(BaseModel):
-    oab_id: int
+    oab_id: int | None
     oab: str
     uf: str
     purge: bool

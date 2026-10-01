@@ -37,7 +37,7 @@ export default function WorkEvidence({ work, disabled, onSaved, onOpenDraft }: {
       <LoadingButton loading={busy === "search"} disabled={disabled || Boolean(busy) || !query.trim()} onClick={() => void act("search", async () => setHits((await buscarFontesTrabalho(work, query)).items))}>Buscar fontes</LoadingButton>
       {hits.map(hit => <article className="legalEvidenceQuote" key={hit.chunk_id}><p>{hit.quote}</p><div className="officeToolbar">
         <button className="toolbarButton compact" onClick={() => setSource(hit)}>{hit.nome || `Documento ${hit.documento_id}`} · p. {hit.pagina}</button>
-        <label><input type="checkbox" checked={pinned.includes(hit.chunk_id)} disabled={disabled || Boolean(busy)}
+        <label className="officeCheckbox"><input type="checkbox" checked={pinned.includes(hit.chunk_id)} disabled={disabled || Boolean(busy)}
           onChange={e => setPinned(values => e.target.checked ? [...values, hit.chunk_id] : values.filter(id => id !== hit.chunk_id))} /> Usar esta fonte na análise</label></div></article>)}
       {!work.escopo ? <p role="status">Registre o escopo dos documentos na etapa anterior para preparar a análise.</p> : null}
       <LoadingButton loading={busy === "prepare"} disabled={disabled || Boolean(busy) || !work.escopo} onClick={() => void act("prepare", async () => {
@@ -57,7 +57,7 @@ export default function WorkEvidence({ work, disabled, onSaved, onOpenDraft }: {
             setMessage(`Pendência #${task.id} vinculada ao trabalho em Tarefas e pendências.`);
           })}>Criar pendência documental</button></article>)}
       {evidence.avisos.map((warning, index) => <p className="officeHint" key={index}>{warning}</p>)}
-      {!evidence.conferida ? <><label><input type="checkbox" checked={checked} disabled={disabled || Boolean(busy)} onChange={e => setChecked(e.target.checked)} /> Conferi as fontes, os pontos contrários e as lacunas desta análise.</label>
+      {!evidence.conferida ? <><label className="officeCheckbox"><input type="checkbox" checked={checked} disabled={disabled || Boolean(busy)} onChange={e => setChecked(e.target.checked)} /> Conferi as fontes, os pontos contrários e as lacunas desta análise.</label>
         <LoadingButton loading={busy === "review"} disabled={disabled || Boolean(busy) || !checked || stale} onClick={() => void act("review", async () => onSaved(await conferirEvidencias(work)))}>Registrar conferência</LoadingButton></> : <p role="status">Conferência registrada. Lacunas documentais continuam exigindo acompanhamento.</p>}
       <h3 id="work-draft" tabIndex={-1} className="workStageAnchor">4. Minuta e revisão</h3>
       <LoadingButton loading={busy === "draft"} disabled={disabled || Boolean(busy) || !evidence.conferida || stale} onClick={() => void act("draft", async () => {

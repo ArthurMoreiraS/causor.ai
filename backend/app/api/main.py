@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
@@ -70,6 +70,7 @@ from app.capture.enrich import backfill_sistema, run_enrichment_backfill
 from app.capture.poll import poll_oab
 from app.filing.timbrado import LogoInvalidoError, normalize_logo
 from app.prazo_engine.factory import build_calendar
+from app.prazo_engine.pipeline import enqueue_analysis, memory, set_memory
 from app.queue.jobs import (
     AlreadyFiledError,
     ApprovalRequiredError,
@@ -152,7 +153,9 @@ class _NoopDatajudClient:
 def _dias_para_vencer(prazo: models.Prazo | None) -> int | None:
     if prazo is None:
         return None
-    today = datetime.now(timezone.utc).date()
+    from zoneinfo import ZoneInfo
+
+    today = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
     return (prazo.data_fatal - today).days
 
 
@@ -184,6 +187,8 @@ def _status_revisao(
     if peticao is not None and peticao.status == "rascunho":
         return "minuta_em_revisao"
     if prazo is not None:
+        if prazo.revisao_status != "confirmado":
+            return "prazo_a_revisar"
         return "prazo_calculado"
     return "capturada"
 
@@ -191,17 +196,20 @@ def _status_revisao(
 def _payload_matches_oab(payload: dict | None, *, oab: str, uf: str) -> bool:
     if not isinstance(payload, dict):
         return False
-    oab_digits = "".join(ch for ch in oab if ch.isdigit())
+    oab_key = re.sub(r"[\s.\-/]", "", oab).upper()
     uf_upper = uf.upper()
+    for source in payload.get("_causor_oabs") or []:
+        if isinstance(source, dict) and source.get("oab") == oab and source.get("uf") == uf_upper:
+            return True
     for item in payload.get("destinatarioadvogados") or []:
         if not isinstance(item, dict):
             continue
         advogado = item.get("advogado")
         if not isinstance(advogado, dict):
             continue
-        numero = "".join(ch for ch in str(advogado.get("numero_oab") or "") if ch.isdigit())
+        numero = re.sub(r"[\s.\-/]", "", str(advogado.get("numero_oab") or "")).upper()
         item_uf = str(advogado.get("uf_oab") or "").upper()
-        if numero == oab_digits and item_uf == uf_upper:
+        if numero == oab_key and item_uf == uf_upper:
             return True
     return False
 
@@ -209,8 +217,8 @@ def _payload_matches_oab(payload: dict | None, *, oab: str, uf: str) -> bool:
 def _job_matches_oab(job: models.JobExecucao, *, oab: str, uf: str) -> bool:
     payload = job.payload if isinstance(job.payload, dict) else {}
     return (
-        "".join(ch for ch in str(payload.get("oab") or "") if ch.isdigit())
-        == "".join(ch for ch in oab if ch.isdigit())
+        re.sub(r"[\s.\-/]", "", str(payload.get("oab") or "")).upper()
+        == re.sub(r"[\s.\-/]", "", oab).upper()
         and str(payload.get("uf") or "").upper() == uf.upper()
     )
 
@@ -221,6 +229,7 @@ def _purge_oab_data(
     escritorio_id: int,
     oab: str,
     uf: str,
+    preserve_authored: bool = False,
 ) -> dict[str, int]:
     counts = {
         "intimacoes": 0,
@@ -242,6 +251,27 @@ def _purge_oab_data(
         for intimacao in intimacoes
         if _payload_matches_oab(intimacao.payload, oab=oab, uf=uf)
     }
+    if preserve_authored:
+        candidates = {item.processo_id for item in intimacoes
+                      if item.id in target_intimacao_ids and item.processo_id is not None}
+        list(session.scalars(select(models.Processo.id).where(
+            models.Processo.id.in_(candidates), models.Processo.escritorio_id == escritorio_id,
+        ).with_for_update()))
+        other_oabs = list(session.scalars(select(models.OabMonitorada).where(
+            models.OabMonitorada.escritorio_id == escritorio_id,
+            models.OabMonitorada.ativo.is_(True),
+            or_(models.OabMonitorada.oab != oab, models.OabMonitorada.uf != uf),
+        )))
+        protected_processes = set()
+        for model in (models.TrabalhoJuridico, models.Peticao, models.Documento, models.Tarefa):
+            protected_processes.update(session.scalars(select(model.processo_id).where(
+                model.processo_id.in_(candidates))))
+        retained = {item.id for item in intimacoes if item.id in target_intimacao_ids and (
+            item.processo_id in protected_processes or memory(item).get("status") == "confirmado"
+            or any(_payload_matches_oab(item.payload, oab=other.oab, uf=other.uf) for other in other_oabs)
+        )}
+        target_intimacao_ids -= retained
+        counts["intimacoes_preservadas"] = len(retained)
     process_ids = {
         intimacao.processo_id for intimacao in intimacoes
         if intimacao.id in target_intimacao_ids and intimacao.processo_id is not None
@@ -327,6 +357,18 @@ def _purge_oab_data(
         and (_job_matches_oab(job, oab=oab, uf=uf)
              or (job.entidade in entity_ids and job.entidade_id in entity_ids[job.entidade]))
     ]
+    if preserve_authored:
+        # Keep the cancelled request identity so a delayed retry cannot restart it.
+        for job in session.scalars(select(models.JobExecucao).where(models.JobExecucao.id.in_(job_ids))):
+            if job.tipo == "captura_oab":
+                job.status = "failed"
+                job.erro = "Monitoramento removido pelo usuário"
+                job.resultado = {"cancelada_por_remocao": True}
+                job.payload = {**(job.payload or {}), "removida": True}
+        counts["capturas_canceladas"] = sum(1 for job in session.scalars(select(models.JobExecucao).where(
+            models.JobExecucao.id.in_(job_ids))) if job.tipo == "captura_oab")
+        job_ids = [job.id for job in session.scalars(select(models.JobExecucao).where(
+            models.JobExecucao.id.in_(job_ids))) if job.tipo != "captura_oab"]
     if job_ids:
         counts["jobs"] = session.execute(
             delete(models.JobExecucao).where(models.JobExecucao.id.in_(job_ids))
@@ -523,20 +565,25 @@ def create_app() -> FastAPI:
     ) -> OperationalDashboard:
         processos = len(session.scalars(tenant_select(models.Processo, current)).all())
         intimacoes = len(session.scalars(tenant_select(models.Intimacao, current)).all())
-        prazos = list(session.scalars(tenant_select(models.Prazo, current)).all())
+        prazos = list(session.scalars(tenant_select(models.Prazo, current)
+                                      .options(selectinload(models.Prazo.intimacao))).all())
         peticoes = list(session.scalars(tenant_select(models.Peticao, current)).all())
         pending_deadlines = [prazo for prazo in prazos if not prazo.cumprido]
-        today = datetime.now(timezone.utc).date()
+        review_pending = [prazo for prazo in pending_deadlines if prazo.revisao_status != "confirmado"]
+        confirmed_deadlines = [prazo for prazo in pending_deadlines if prazo.revisao_status == "confirmado"]
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
         high_risk = [
-            prazo for prazo in pending_deadlines if (prazo.data_fatal - today).days <= 3
+            prazo for prazo in confirmed_deadlines if (prazo.data_fatal - today).days <= 3
         ]
-        overdue = [prazo for prazo in pending_deadlines if prazo.data_fatal < today]
+        overdue = [prazo for prazo in confirmed_deadlines if prazo.data_fatal < today]
 
         return OperationalDashboard(
             metrics=[
                 {"key": "processos", "label": "Processos monitorados", "value": processos},
                 {"key": "intimacoes", "label": "Intimações capturadas", "value": intimacoes},
                 {"key": "prazos", "label": "Prazos pendentes", "value": len(pending_deadlines)},
+                {"key": "prazos_a_revisar", "label": "Prazos a revisar", "value": len(review_pending)},
                 {"key": "risco", "label": "Alto risco", "value": len(high_risk)},
                 {"key": "vencidos", "label": "Prazos vencidos", "value": len(overdue)},
                 {
@@ -847,6 +894,40 @@ def create_app() -> FastAPI:
         session.refresh(oab)
         return oab
 
+    @app.post("/capturas/oab/remover-dados", response_model=OabRemovalResultOut)
+    def remover_dados_oab(
+        payload: OabMonitoradaCreate, session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> OabRemovalResultOut:
+        oab_numero, uf = _normalizar_oab(payload.oab, payload.uf)
+        session.scalar(select(models.Escritorio.id).where(
+            models.Escritorio.id == current.escritorio_id).with_for_update())
+        # Serialize with a capture window before selecting the records to remove.
+        jobs = list(session.scalars(select(models.JobExecucao).where(
+            models.JobExecucao.tipo == "captura_oab").order_by(models.JobExecucao.id)))
+        for job in jobs:
+            if ((job.payload or {}).get("escritorio_id") == current.escritorio_id
+                    and _job_matches_oab(job, oab=oab_numero, uf=uf)):
+                session.scalar(select(models.JobExecucao.id).where(
+                    models.JobExecucao.id == job.id).with_for_update())
+        registration = session.scalar(select(models.OabMonitorada).where(
+            models.OabMonitorada.escritorio_id == current.escritorio_id,
+            models.OabMonitorada.oab == oab_numero, models.OabMonitorada.uf == uf,
+        ))
+        registration_id = registration.id if registration else None
+        counts = _purge_oab_data(session, escritorio_id=current.escritorio_id,
+                                oab=oab_numero, uf=uf, preserve_authored=True)
+        if registration:
+            session.delete(registration)
+        _audit(session, acao="oab_dados_removidos", entidade="escritorio",
+               entidade_id=current.escritorio_id, ator_id=current.usuario_id,
+               escritorio_id=current.escritorio_id,
+               detalhe={"oab": oab_numero, "uf": uf, "counts": counts,
+                        "auditoria_preservada": True})
+        session.commit()
+        return OabRemovalResultOut(oab_id=registration_id, oab=oab_numero, uf=uf,
+                                   purge=True, removidos=counts)
+
     @app.delete("/capturas/oab/{oab_id}", response_model=OabRemovalResultOut)
     def remover_oab_monitorada(
         oab_id: int,
@@ -1145,7 +1226,8 @@ def create_app() -> FastAPI:
         }
         prazos_por_intimacao: dict[int, models.Prazo] = {}
         for prazo in session.scalars(
-            tenant_select(models.Prazo, current).order_by(models.Prazo.data_fatal.asc())
+            tenant_select(models.Prazo, current).options(selectinload(models.Prazo.intimacao))
+            .order_by(models.Prazo.data_fatal.asc())
         ):
             if prazo.intimacao_id is not None and prazo.intimacao_id not in prazos_por_intimacao:
                 prazos_por_intimacao[prazo.intimacao_id] = prazo
@@ -1176,7 +1258,8 @@ def create_app() -> FastAPI:
                     processo=ProcessoOut.model_validate(processo) if processo is not None else None,
                     prazo=PrazoOut.model_validate(prazo) if prazo is not None else None,
                     peticao=PeticaoOut.model_validate(peticao) if peticao is not None else None,
-                    status=_status_revisao(prazo, peticao),
+                    status=(memory(intimacao).get("status", "capturada")
+                            if prazo is None and peticao is None else _status_revisao(prazo, peticao)),
                     risco=_risco_prazo(prazo),
                     dias_para_vencer=_dias_para_vencer(prazo),
                 )
@@ -1250,7 +1333,7 @@ def create_app() -> FastAPI:
         # Próximo prazo = menor data_fatal entre os pendentes (cumpridos ignorados).
         proximo_prazo: dict[int, models.Prazo] = {}
         for prazo in session.scalars(
-            tenant_select(models.Prazo, current)
+            tenant_select(models.Prazo, current).options(selectinload(models.Prazo.intimacao))
             .where(models.Prazo.cumprido.is_(False))
             .order_by(models.Prazo.data_fatal.asc())
         ):
@@ -1275,6 +1358,7 @@ def create_app() -> FastAPI:
                             data_fatal=prazo.data_fatal,
                             cumprido=prazo.cumprido,
                             descricao=prazo.descricao,
+                            revisao_status=prazo.revisao_status,
                         )
                         if prazo is not None
                         else None
@@ -1292,7 +1376,7 @@ def create_app() -> FastAPI:
         cumprido: bool | None = Query(default=None),
         limit: int = Query(default=100, le=5000),
     ) -> list[models.Prazo]:
-        stmt = tenant_select(models.Prazo, current)
+        stmt = tenant_select(models.Prazo, current).options(selectinload(models.Prazo.intimacao))
         if cumprido is not None:
             stmt = stmt.where(models.Prazo.cumprido == cumprido)
         stmt = stmt.order_by(models.Prazo.data_fatal.asc()).limit(limit)
@@ -1326,6 +1410,7 @@ def create_app() -> FastAPI:
                     data_fatal=item.prazo.data_fatal,
                     dias_para_vencer=item.dias_para_vencer,
                     nivel=item.nivel,
+                    revisao_status=item.prazo.revisao_status,
                 )
             )
         return alertas
@@ -1341,9 +1426,48 @@ def create_app() -> FastAPI:
 
         fields = payload.model_dump(exclude_unset=True)
         audit_detail = payload.model_dump(mode="json", exclude_unset=True)
+        first_counted_day = None
+        if any(key in fields for key in ("data_inicio", "dias", "dias_uteis")):
+            from app.prazo_engine.deadline import compute_deadline
+            from app.prazo_engine.djen import compute_djen_civil_deadline
+            from app.prazo_engine.calendar import ForensicCalendar
+
+            base = fields.get("data_inicio") or prazo.data_inicio
+            days = fields.get("dias") or prazo.dias
+            business = fields.get("dias_uteis") if fields.get("dias_uteis") is not None else prazo.dias_uteis
+            notice = session.get(models.Intimacao, prazo.intimacao_id) if prazo.intimacao_id else None
+            previous_memory = memory(notice) if notice else {}
+            exceptions = previous_memory.get("dias_sem_expediente", []) if previous_memory.get("prazo_id") == prazo.id else []
+            calendar = build_calendar(range(base.year - 1, base.year + 19),
+                                      extra_holidays=[date.fromisoformat(day) for day in exceptions])
+            first_counted_day = calendar.next_business_day(base) if business else base + timedelta(days=1)
+            if notice and notice.fonte == "DJEN" and notice.data_disponibilizacao and business:
+                publication_calendar = ForensicCalendar(holidays=calendar._holidays)
+                fields["data_fatal"] = compute_djen_civil_deadline(
+                    notice.data_disponibilizacao, days, publication_calendar=publication_calendar,
+                    counting_calendar=calendar, publication=base,
+                ).data_fatal
+            else:
+                fields["data_fatal"] = compute_deadline(
+                    base, days, calendar=calendar, business_days=business,
+                ).data_fatal
+            audit_detail["data_fatal_recalculada"] = fields["data_fatal"].isoformat()
         for field, value in fields.items():
             if value is not None:
                 setattr(prazo, field, value)
+        if prazo.intimacao_id:
+            notice = session.get(models.Intimacao, prazo.intimacao_id)
+            if notice and notice.escritorio_id == current.escritorio_id:
+                before = memory(notice)
+                if before.get("prazo_id") == prazo.id:
+                    set_memory(notice, {**before, "status": "confirmado" if before.get("status") == "confirmado" else "calculado_a_revisar",
+                                        "publicacao": prazo.data_inicio.isoformat(), "dias": prazo.dias,
+                                        "unidade": "dias_uteis" if prazo.dias_uteis else "dias_corridos",
+                                        "data_fatal": prazo.data_fatal.isoformat(),
+                                        **({"primeiro_dia": first_counted_day.isoformat()} if first_counted_day else {}),
+                                        "motivo": "Contagem confirmada pelo advogado" if before.get("status") == "confirmado" else "Revise calendário e suspensões locais antes de confirmar"})
+                    audit_detail["memoria_anterior"] = before
+                    audit_detail["memoria_posterior"] = memory(notice)
 
         _audit(
             session,
@@ -1365,6 +1489,8 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Prazo:
         prazo = get_owned_or_404(session, models.Prazo, prazo_id, current)
+        if prazo.revisao_status != "confirmado":
+            raise HTTPException(status_code=409, detail="Confirme o prazo antes de marcar como cumprido")
         prazo.cumprido = True
         _audit(
             session,
@@ -1391,33 +1517,102 @@ def create_app() -> FastAPI:
         stmt = stmt.order_by(models.Peticao.id.desc()).limit(limit)
         return list(session.scalars(stmt))
 
+    @app.post("/intimacoes/analisar-prazos")
+    def analisar_intimacoes_existentes(
+        session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user),
+        after_id: int = Query(default=0, ge=0), limit: int = Query(default=100, ge=1, le=500),
+    ) -> dict:
+        notices = list(session.scalars(
+            tenant_select(models.Intimacao, current)
+            .where(models.Intimacao.id > after_id)
+            .order_by(models.Intimacao.id).limit(limit)
+        ))
+        queued = 0
+        for notice in notices:
+            if enqueue_analysis(session, notice) is not None:
+                queued += 1
+        session.commit()
+        return {"enfileiradas": queued, "ultimo_id": notices[-1].id if notices else after_id,
+                "ha_mais": len(notices) == limit}
+
+    @app.post("/intimacoes/{intimacao_id}/analisar-prazo")
+    def tentar_analise_prazo(
+        intimacao_id: int, session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> dict:
+        notice = get_owned_or_404(session, models.Intimacao, intimacao_id, current)
+        if memory(notice).get("status") != "falha":
+            raise HTTPException(409, "Somente uma análise com falha pode ser repetida")
+        job = enqueue_analysis(session, notice, retry=True)
+        session.commit()
+        return {"job_id": job.id if job else None}
+
     @app.post("/intimacoes/{intimacao_id}/prazo", response_model=PrazoOut)
     def confirmar_prazo_intimacao(
         intimacao_id: int, payload: ConfirmarPrazoRequest,
         session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user),
     ):
         from app.prazo_engine.deadline import compute_deadline
+        from app.prazo_engine.djen import compute_djen_civil_deadline
+        from app.prazo_engine.calendar import ForensicCalendar
 
         notice = get_owned_or_404(session, models.Intimacao, intimacao_id, current)
         session.execute(select(models.Intimacao.id).where(models.Intimacao.id == notice.id).with_for_update())
-        existing = session.scalars(select(models.Prazo).where(
-            models.Prazo.intimacao_id == notice.id, models.Prazo.cumprido.is_(False)
-        )).first()
-        if existing:
+        session.refresh(notice)
+        existing_rows = list(session.scalars(select(models.Prazo).where(
+            models.Prazo.escritorio_id == current.escritorio_id,
+            models.Prazo.intimacao_id == notice.id,
+        ).with_for_update()))
+        if len(existing_rows) > 1:
+            raise HTTPException(409, "Há múltiplos prazos vinculados; revise cada prazo antes de confirmar")
+        existing = existing_rows[0] if existing_rows else None
+        previous_memory = memory(notice)
+        if existing and previous_memory.get("status") == "confirmado":
+            same = (previous_memory.get("prazo_id") == existing.id
+                    and existing.data_inicio == payload.data_base
+                    and existing.dias == payload.dias
+                    and existing.dias_uteis == payload.dias_uteis
+                    and previous_memory.get("dias_sem_expediente", []) ==
+                    [d.isoformat() for d in payload.dias_sem_expediente])
+            if same:
+                return existing
+        if existing and (existing.cumprido or previous_memory.get("status") == "confirmado"):
             raise HTTPException(409, "Já existe prazo em aberto; revise o prazo vinculado")
-        result = compute_deadline(
-            payload.data_base, payload.dias, business_days=payload.dias_uteis,
-            calendar=build_calendar(range(payload.data_base.year - 1, payload.data_base.year + 17),
-                                    extra_holidays=payload.dias_sem_expediente),
-        )
-        prazo = models.Prazo(
+        calendar = build_calendar(range(payload.data_base.year - 1, payload.data_base.year + 19),
+                                  extra_holidays=payload.dias_sem_expediente)
+        if notice.fonte == "DJEN" and notice.data_disponibilizacao and payload.dias_uteis:
+            result = compute_djen_civil_deadline(
+                notice.data_disponibilizacao, payload.dias,
+                publication_calendar=ForensicCalendar(holidays=calendar._holidays),
+                counting_calendar=calendar, publication=payload.data_base,
+            )
+            fatal = result.data_fatal
+            base = result.publicacao
+        else:
+            result = compute_deadline(payload.data_base, payload.dias,
+                                      business_days=payload.dias_uteis, calendar=calendar)
+            fatal = result.data_fatal
+            base = result.data_inicio
+        prazo = existing or models.Prazo(
             escritorio_id=current.escritorio_id, processo_id=notice.processo_id,
             intimacao_id=notice.id, descricao=notice.tipo_comunicacao,
-            data_inicio=result.data_inicio, data_fatal=result.data_fatal,
-            dias=result.dias, dias_uteis=result.dias_uteis, cumprido=False,
+            cumprido=False,
         )
-        session.add(prazo)
+        prazo.data_inicio = base
+        prazo.data_fatal = fatal
+        prazo.dias = payload.dias
+        prazo.dias_uteis = payload.dias_uteis
+        if existing is None:
+            session.add(prazo)
         session.flush()
+        set_memory(notice, {**previous_memory, "status": "confirmado", "prazo_id": prazo.id,
+                            "publicacao": base.isoformat(), "dias": payload.dias,
+                            "primeiro_dia": (calendar.next_business_day(base) if payload.dias_uteis else base + timedelta(days=1)).isoformat(),
+                            "unidade": "dias_uteis" if payload.dias_uteis else "dias_corridos",
+                            "dias_sem_expediente": [d.isoformat() for d in payload.dias_sem_expediente],
+                            "justificativa_humana": payload.justificativa,
+                            "data_fatal": prazo.data_fatal.isoformat(),
+                            "motivo": "Contagem confirmada pelo advogado"})
         drafts = session.scalars(select(models.Peticao).where(
             models.Peticao.escritorio_id == current.escritorio_id,
             models.Peticao.processo_id == notice.processo_id,
@@ -1430,7 +1625,7 @@ def create_app() -> FastAPI:
                 draft.dossie = {**draft.dossie, "prazo_revisao_pendente": False}
         _audit(session, acao="prazo_confirmado", entidade="prazo", entidade_id=prazo.id,
                ator_id=current.usuario_id, escritorio_id=current.escritorio_id,
-               detalhe={**payload.model_dump(mode="json"), "origem": "revisao_humana", "calendario": "nacional_recesso_civel_com_excecoes_informadas"})
+               detalhe={**payload.model_dump(mode="json"), "origem": "revisao_humana", "calendario": "nacional_recesso_civel_com_excecoes_informadas", "memoria_anterior": previous_memory, "memoria_posterior": memory(notice)})
         session.commit()
         return prazo
 

@@ -30,7 +30,8 @@ function prazo(id: number, dataFatal: string, cumprido = false): Prazo {
     dias: 15,
     dias_uteis: true,
     data_fatal: dataFatal,
-    cumprido
+    cumprido,
+    revisao_status: "confirmado"
   };
 }
 
@@ -118,5 +119,30 @@ describe("computeDashboardMetrics", () => {
     expect(m.pending).toBe(0);
     expect(m.overdue).toBe(0);
     expect(m.compliance).toBe(100); // pending 0 -> 100
+  });
+
+  it("separa sugestão provisória de risco e vencimento confirmados", () => {
+    const data = makeData({
+      prazos: [
+        { ...prazo(1, "2000-01-01"), revisao_status: "calculado_a_revisar" },
+        prazo(2, "2000-01-01")
+      ]
+    });
+    const fallback = computeDashboardMetrics(data);
+    expect(fallback.pending).toBe(2);
+    expect(fallback.reviewPending).toBe(1);
+    expect(fallback.confirmedPending).toBe(1);
+    expect(fallback.overdue).toBe(1);
+    expect(fallback.compliance).toBe(0);
+
+    const operational = computeDashboardMetrics({ ...data, operational: {
+      metrics: [metric("prazos", 200), metric("prazos_a_revisar", 190), metric("risco", 3), metric("vencidos", 2)],
+      workflow: [], connectors: [], audit_signals: []
+    } });
+    expect(operational.pending).toBe(200);
+    expect(operational.reviewPending).toBe(190);
+    expect(operational.confirmedPending).toBe(10);
+    expect(operational.overdue).toBe(2);
+    expect(operational.compliance).toBe(80);
   });
 });
