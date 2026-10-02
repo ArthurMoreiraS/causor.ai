@@ -251,7 +251,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
       </section> : null}
       {work?.peticao_id ? <section className="legalWorkStage"><h3>Minuta vinculada</h3><button className="toolbarButton" onClick={() => onOpenDraft(work.peticao_id!)}>Abrir minuta para revisão</button></section> : null}
       {work?.processo_id ? <WorkEvidence key={`evidence-${work.id}`} work={work} disabled={offline || busy || dirty || scopeDirty} canDraft={Boolean(selectedProcess?.cliente_id && party.trim())}
-        onDirtyChange={onEvidenceDirty} onSaved={value => { setWork(old => old?.id === value.id && old.versao === work.versao ? value : old); setRevision(v => v + 1); onChanged(); }} onOpenDraft={onOpenDraft} /> : null}
+        onDirtyChange={onEvidenceDirty} onSaved={value => { setWork(old => old?.id === value.id && old.versao <= value.versao ? value : old); setRevision(v => v + 1); onChanged(); }} onOpenDraft={onOpenDraft} /> : null}
       {work && !work.processo_id ? <p role="status">O processo foi removido. O histórico deste trabalho foi preservado.</p> : null}
       {dirty ? <p role="status">Salve o objetivo alterado antes de continuar as etapas do trabalho.</p> : null}
       {work?.processo_id ? <WorkAssistant key={`assistant-${work.id}`} work={work} disabled={offline || busy || dirty} /> : null}

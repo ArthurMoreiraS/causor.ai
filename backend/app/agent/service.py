@@ -11,7 +11,7 @@ from __future__ import annotations
 from enum import Enum
 
 import httpx
-from sqlalchemy import desc, func, select
+from sqlalchemy import String, cast, desc, func, select
 from sqlalchemy.orm import Session
 
 from app.agent.classifier import ClassificacaoIntimacao, classify_intimacao
@@ -52,7 +52,7 @@ def _trecho(texto: str | None, limite: int = _TRECHO_MAX_CHARS) -> str:
     if not texto:
         return "(sem texto)"
     texto = " ".join(texto.split())
-    return texto if len(texto) <= limite else texto[:limite].rstrip() + " […]"
+    return texto if len(texto) <= limite else texto[:limite].rstrip() + f" […] (texto truncado após {limite} caracteres)"
 
 
 def _historico_processo(
@@ -60,6 +60,7 @@ def _historico_processo(
     processo: models.Processo | None,
     *,
     intimacao_atual_id: int | None = None,
+    trabalho_atual_id: int | None = None,
 ) -> str | None:
     """Assemble a bounded, deterministic timeline of the process from the SOR.
 
@@ -88,12 +89,19 @@ def _historico_processo(
             linhas.append("- […] (movimentações mais antigas omitidas)")
         blocos.append("\n".join(linhas))
 
-    intimacoes = session.scalars(
+    intimacoes_query = (
         select(models.Intimacao)
         .where(models.Intimacao.processo_id == processo.id)
         .order_by(desc(models.Intimacao.data_disponibilizacao), desc(models.Intimacao.id))
-    ).all()
-    anteriores = [i for i in intimacoes if i.id != intimacao_atual_id][:_MAX_INTIMACOES]
+    )
+    if trabalho_atual_id is not None:
+        intimacoes_query = intimacoes_query.where(models.Intimacao.escritorio_id == processo.escritorio_id)
+        if intimacao_atual_id is not None:
+            intimacoes_query = intimacoes_query.where(models.Intimacao.id != intimacao_atual_id)
+        intimacoes_query = intimacoes_query.limit(_MAX_INTIMACOES + 1)
+    intimacoes = session.scalars(intimacoes_query).all()
+    anteriores_todas = [i for i in intimacoes if i.id != intimacao_atual_id]
+    anteriores = anteriores_todas[:_MAX_INTIMACOES]
     if anteriores:
         linhas = ["Intimações anteriores:"]
         for i in anteriores:
@@ -101,18 +109,32 @@ def _historico_processo(
                 i.data_disponibilizacao.isoformat() if i.data_disponibilizacao else "s/ data"
             )
             linhas.append(f"- {data_txt} · {i.tipo_comunicacao or 'Comunicação'}: {_trecho(i.teor)}")
+        if trabalho_atual_id is not None and len(anteriores_todas) > _MAX_INTIMACOES:
+            linhas.append("- […] (comunicações mais antigas omitidas)")
         blocos.append("\n".join(linhas))
 
-    peticoes = session.scalars(
+    peticoes_query = (
         select(models.Peticao)
         .where(models.Peticao.processo_id == processo.id)
         .order_by(desc(models.Peticao.id))
-        .limit(_MAX_PETICOES)
-    ).all()
+    )
+    if trabalho_atual_id is not None:
+        # Exclude this work in SQL before limiting: repeated drafts cannot become evidence.
+        peticoes_query = peticoes_query.where(
+            models.Peticao.escritorio_id == processo.escritorio_id,
+            func.coalesce(cast(models.Peticao.dossie["trabalho_id"].as_string(), String), "") != str(trabalho_atual_id),
+        ).limit(_MAX_PETICOES + 1)
+    else:
+        peticoes_query = peticoes_query.limit(_MAX_PETICOES)
+    peticoes = session.scalars(peticoes_query).all()
+    peticoes_truncadas = len(peticoes) > _MAX_PETICOES
+    peticoes = peticoes[:_MAX_PETICOES]
     if peticoes:
         linhas = ["Petições anteriores do escritório:"]
         for p in peticoes:
             linhas.append(f"- {p.tipo or 'Petição'} ({p.status}): {_trecho(p.conteudo)}")
+        if trabalho_atual_id is not None and peticoes_truncadas:
+            linhas.append("- […] (petições mais antigas omitidas)")
         blocos.append("\n".join(linhas))
 
     return "\n\n".join(blocos) or None

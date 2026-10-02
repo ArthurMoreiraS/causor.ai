@@ -18,10 +18,11 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from threading import Lock, Semaphore
+from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy import func
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -32,6 +33,8 @@ from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.factory import build_calendar
 from app.prazo_engine.pipeline import run_analysis
 from app.queue.jobs import fail_stale_running_jobs, get_job, mark_failed, run_capture_oab_job
+from app.queue.work_jobs import fail_owned, run_work_job
+from app.queue.work_leases import WORK_TYPES, database_now
 from app.settings import settings
 from app.sor import models
 from app.sor.db import SessionLocal
@@ -103,18 +106,27 @@ class _NoopDatajudClient:
 def claim_next_job(session: Session, *, max_id: int | None = None) -> models.JobExecucao | None:
     """Claim the oldest queued job: select it, mark running, and commit.
 
-    Consume apenas captura OAB; documentos têm consumidor próprio.
+    Capture precedes interactive work, then deadline analysis. Documents have
+    their own consumer; only work jobs may recover an expired lease here.
     """
-    stmt = select(models.JobExecucao).where(
-        models.JobExecucao.status == "queued",
-        models.JobExecucao.tipo.in_(["captura_oab", "analise_prazo"]),
-    )
+    now = database_now(session)
+    stmt = select(models.JobExecucao).where(or_(
+        (models.JobExecucao.status == "queued") &
+        models.JobExecucao.tipo.in_(["captura_oab", "analise_prazo", *WORK_TYPES]),
+        (models.JobExecucao.status == "running") &
+        models.JobExecucao.tipo.in_(WORK_TYPES) &
+        (models.JobExecucao.lease_expires_at < now),
+    ))
     if max_id is not None:
-        stmt = stmt.where(models.JobExecucao.id <= max_id)
+        # Keep the pre-existing deadline batch finite, but admit interactive
+        # work/capture created while that batch is being drained.
+        stmt = stmt.where(or_(models.JobExecucao.id <= max_id,
+                              models.JobExecucao.tipo != "analise_prazo"))
     job = session.scalars(
         stmt.order_by(
             # A fresh capture takes precedence over model work.
-            (models.JobExecucao.tipo != "captura_oab"), models.JobExecucao.id,
+            (models.JobExecucao.tipo != "captura_oab"),
+            (models.JobExecucao.tipo == "analise_prazo"), models.JobExecucao.id,
         )
         .limit(1)
         .with_for_update(skip_locked=True)
@@ -122,8 +134,16 @@ def claim_next_job(session: Session, *, max_id: int | None = None) -> models.Job
     if job is None:
         return None
     job.status = "running"
+    if job.tipo in WORK_TYPES:
+        job.lease_token = str(uuid4())
+        job.lease_expires_at = database_now(session) + timedelta(seconds=settings.work_job_lease_seconds)
+    claimed_token = job.lease_token if job.tipo in WORK_TYPES else None
     session.commit()
     session.refresh(job)
+    if claimed_token is not None:
+        # A replacement owner may have claimed the row between commit and
+        # refresh. Keep the token this worker actually wrote.
+        job._claimed_lease_token = claimed_token
     return job
 
 
@@ -134,6 +154,8 @@ def dispatch(
     *,
     batch_days: int | None = None,
     commit_each: Callable[[Session], None] | None = None,
+    session_factory: sessionmaker | None = None,
+    lease_token: str | None = None,
 ) -> None:
     """Execute one job by tipo. Captures domain failures as ``failed``.
 
@@ -171,6 +193,12 @@ def dispatch(
             run_analysis(session, job, interpreter=clients.deadline_interpreter)
         return
 
+    if job.tipo in WORK_TYPES:
+        if session_factory is None:
+            raise ValueError("A execução de trabalho exige uma fábrica de sessões")
+        run_work_job(session, session_factory, job.id, lease_token if lease_token is not None else job.lease_token)
+        return
+
     mark_failed(session, job, f"tipo de job nao suportado pelo worker: {job.tipo}")
     session.commit()
 
@@ -200,6 +228,9 @@ def run_once(
         session = session_factory()
         try:
             job = claim_next_job(session, max_id=max_id)
+            claimed_id = job.id if job else None
+            claimed_type = job.tipo if job else None
+            claimed_token = getattr(job, "_claimed_lease_token", job.lease_token) if job else None
         finally:
             session.close()
         if job is None:
@@ -207,16 +238,23 @@ def run_once(
         processed += 1
         session = session_factory()
         try:
-            job = get_job(session, job.id)
+            job = get_job(session, claimed_id)
             dispatch(
                 session,
                 job,
                 clients,
                 batch_days=batch_days,
                 commit_each=commit_each,
+                session_factory=session_factory,
+                lease_token=claimed_token,
             )
         except Exception as exc:  # worker must not die on a single bad job
             session.rollback()
+            if claimed_type in WORK_TYPES:
+                fail_owned(session_factory, claimed_id, claimed_token,
+                           "Não foi possível concluir a operação. Tente novamente")
+                session.close()
+                continue
             session = session_factory()
             try:
                 job = session.scalar(select(models.JobExecucao).where(

@@ -8,7 +8,7 @@ This module only holds infra/config knobs.
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -99,6 +99,14 @@ class Settings(BaseSettings):
     capture_retry_attempts: int = 5
     capture_retry_backoff_seconds: float = 10.0
     job_stale_minutes: int = 60
+    work_job_lease_seconds: int = Field(90, gt=0)
+    work_job_heartbeat_seconds: int = Field(20, gt=0)
+
+    @model_validator(mode="after")
+    def check_work_job_heartbeat(self):
+        if self.work_job_heartbeat_seconds >= self.work_job_lease_seconds:
+            raise ValueError("work_job_heartbeat_seconds deve ser menor que work_job_lease_seconds")
+        return self
     # Janela (em dias) de cada lote dentro de um captura_oab job. Quebra um
     # intervalo longo (ex.: 180 dias do /capture/oab manual) em transações
     # curtas e commit progressivo, evitando travar a UI e segurar locks longos.

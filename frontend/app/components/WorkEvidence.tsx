@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { criarPendenciaTrabalho, buscarFontesTrabalho, conferirEvidencias, gerarMinutaTrabalho, prepararEvidencias, type FonteTrabalho, type Trabalho } from "@/lib/work-api";
+import { criarPendenciaTrabalho, buscarFontesTrabalho, conferirEvidencias, type FonteTrabalho, type Trabalho } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
 import DocumentEvidenceDialog from "./DocumentEvidenceDialog";
 import { LoadingButton } from "./ui";
+import { useWorkOperation } from "./useWorkOperation";
 
 export default function WorkEvidence({ work, disabled, canDraft = true, onSaved, onOpenDraft, onDirtyChange }: {
   work: Trabalho; disabled: boolean; canDraft?: boolean; onSaved: (work: Trabalho) => void; onOpenDraft: (id: number) => void; onDirtyChange?: (dirty: boolean) => void;
@@ -22,13 +23,28 @@ export default function WorkEvidence({ work, disabled, canDraft = true, onSaved,
   const searchVersion = useRef(0);
   const mounted = useRef(true);
   const snapshot = `${work.evidencias?.source_fingerprint || ""}:${work.evidencias?.preparada_em || ""}:${JSON.stringify(work.evidencias?.inventario || [])}`;
+  const sourceIdentity = `${work.evidencias?.source_fingerprint || ""}:${JSON.stringify(work.evidencias?.inventario || [])}`;
   const identity = `${work.id}:${work.versao}:${snapshot}`;
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
+  const previousSource = useRef(sourceIdentity);
   const previousSnapshot = useRef(snapshot);
   const previousIdentity = useRef(identity);
   const previousWorkId = useRef(work.id);
   const [snapshotWarning, setSnapshotWarning] = useState(false);
+  const questionsRef = useRef(questions); questionsRef.current = questions;
+  const pinnedRef = useRef(pinned); pinnedRef.current = pinned;
+  const submitted = useRef<{ questions: string; pinned: number[] } | null>(null);
+  const operation = useWorkOperation(work, fresh => {
+    if (submitted.current && questionsRef.current === submitted.current.questions &&
+        JSON.stringify(pinnedRef.current) === JSON.stringify(submitted.current.pinned)) {
+      baseline.current = submitted.current.questions;
+      setPinned([]); setSelectedSources([]); setChecked(false); setSnapshotWarning(false);
+      onDirtyChange?.(false);
+    }
+    submitted.current = null;
+    onSaved(fresh);
+  }, onOpenDraft);
   const dirty = questions !== baseline.current || pinned.length > 0;
   const isCurrent = (expected: string) => mounted.current && currentIdentity.current === expected;
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
@@ -42,22 +58,27 @@ export default function WorkEvidence({ work, disabled, canDraft = true, onSaved,
       baseline.current = incoming; setQuestions(incoming); setQuery(""); setHits([]);
       setPinned([]); setSelectedSources([]); setSource(null); setChecked(false);
       setError(null); setMessage(""); setSnapshotWarning(false);
+      previousSource.current = sourceIdentity;
       previousSnapshot.current = snapshot;
     }
-  }, [identity, work.id, work.evidencias?.perguntas, snapshot]);
+  }, [identity, work.id, work.evidencias?.perguntas, sourceIdentity, snapshot]);
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; searchVersion.current += 1; };
   }, [work.id]);
   useEffect(() => {
     if (previousSnapshot.current !== snapshot) {
-      previousSnapshot.current = snapshot; searchVersion.current += 1;
+      previousSnapshot.current = snapshot;
+      setChecked(false);
+    }
+    if (previousSource.current !== sourceIdentity) {
+      previousSource.current = sourceIdentity; searchVersion.current += 1;
       setHits([]); setPinned([]); setSelectedSources([]); setChecked(false);
       setSnapshotWarning(questions !== baseline.current);
     }
     const incoming = work.evidencias?.perguntas.join("\n") || "";
     if (!dirty && incoming !== baseline.current) { baseline.current = incoming; setQuestions(incoming); }
-  }, [snapshot, work.evidencias?.perguntas, dirty, questions]);
+  }, [snapshot, sourceIdentity, work.evidencias?.perguntas, dirty, questions]);
   const evidence = work.evidencias;
   const stale = work.evidencias_atuais === false;
   async function act(name: string, action: () => Promise<void>) {
@@ -71,6 +92,10 @@ export default function WorkEvidence({ work, disabled, canDraft = true, onSaved,
     <h3>Fontes e análise do contexto</h3>
     <p>Busque nos documentos originais, fixe fontes relevantes e confira a análise antes de redigir.</p>
     {error ? <p role="alert" className="officeError">{error}</p> : null}
+    {operation.error ? <p role="alert" className="officeError">{humanError(operation.error, "A operação falhou")}</p> : null}
+    {operation.job?.status === "queued" || operation.job?.status === "running" ?
+      <p role="status">{operation.job.acao === "analise" ? "Análise" : "Minuta"} em andamento. Pode sair desta página; o trabalho será retomado aqui.</p> : null}
+    {operation.job?.status === "failed" ? <p role="status">A operação falhou. Revise os dados e tente novamente.</p> : null}
     {message ? <p role="status">{message}</p> : null}
     {stale ? <p role="alert">Revisão necessária. {work.motivo_revisao}</p> : null}
     {snapshotWarning ? <p role="status">As fontes mudaram. Suas perguntas foram preservadas; confira o novo inventário antes de preparar novamente.</p> : null}
@@ -91,11 +116,11 @@ export default function WorkEvidence({ work, disabled, canDraft = true, onSaved,
         <label className="officeCheckbox"><input type="checkbox" checked={pinned.includes(hit.chunk_id)} disabled={disabled || Boolean(busy)}
           onChange={e => { setPinned(values => e.target.checked ? [...values, hit.chunk_id] : values.filter(id => id !== hit.chunk_id)); setSelectedSources(values => e.target.checked ? [...values.filter(item => item.chunk_id !== hit.chunk_id), hit] : values.filter(item => item.chunk_id !== hit.chunk_id)); }} /> Usar esta fonte na análise</label></div></article>)}
       {!work.escopo ? <p role="status">Registre o escopo dos documentos na etapa anterior para preparar a análise.</p> : null}
-      <LoadingButton loading={busy === "prepare"} disabled={disabled || Boolean(busy) || !work.escopo} onClick={() => void act("prepare", async () => {
-        const expected = currentIdentity.current;
-        const result = await prepararEvidencias(work, questions.split("\n").filter(line => line.trim()), pinned);
-        if (isCurrent(expected)) { baseline.current = questions; setPinned([]); setSelectedSources([]); setChecked(false); setSnapshotWarning(false); onDirtyChange?.(false); onSaved(result); }
-      })}>{evidence ? "Atualizar análise das evidências" : "Preparar análise das evidências"}</LoadingButton>
+      <LoadingButton loading={busy === "prepare"} disabled={disabled || Boolean(busy) || operation.working || !work.escopo} onClick={() => void act("prepare", async () => {
+        submitted.current = { questions, pinned: [...pinned] };
+        await operation.start("analise", questions.split("\n").filter(line => line.trim()), pinned);
+      })}>{operation.job?.status === "failed" && operation.job.acao === "analise" ? "Tentar análise novamente" :
+        evidence ? "Atualizar análise das evidências" : "Preparar análise das evidências"}</LoadingButton>
     </div>
     <p className="officeHint">Relatos e instruções do advogado são informações a conferir nas fontes, não prova documentada.</p>
     {evidence ? <>
@@ -117,12 +142,12 @@ export default function WorkEvidence({ work, disabled, canDraft = true, onSaved,
           })}>Criar pendência documental</button></article>)}
       {evidence.avisos.map((warning, index) => <p className="officeHint" key={index}>{warning}</p>)}
       {!evidence.conferida ? <><label className="officeCheckbox"><input type="checkbox" checked={checked} disabled={disabled || Boolean(busy)} onChange={e => setChecked(e.target.checked)} /> Conferi as fontes, os pontos contrários e as lacunas desta análise.</label>
-        <LoadingButton loading={busy === "review"} disabled={disabled || Boolean(busy) || !checked || stale || dirty} onClick={() => void act("review", async () => { const expected = currentIdentity.current; const result = await conferirEvidencias(work); if (isCurrent(expected)) onSaved(result); })}>Registrar conferência</LoadingButton></> : <p role="status">Conferência registrada. Lacunas documentais continuam exigindo acompanhamento.</p>}
+        <LoadingButton loading={busy === "review"} disabled={disabled || Boolean(busy) || operation.working || !checked || stale || dirty} onClick={() => void act("review", async () => { const expected = currentIdentity.current; const result = await conferirEvidencias(work); if (isCurrent(expected)) onSaved(result); })}>Registrar conferência</LoadingButton></> : <p role="status">Conferência registrada. Lacunas documentais continuam exigindo acompanhamento.</p>}
       <h3 id="work-draft" tabIndex={-1} className="workStageAnchor">3. Minuta e revisão</h3>
-      <LoadingButton loading={busy === "draft"} disabled={disabled || Boolean(busy) || !canDraft || !evidence.conferida || stale || dirty} onClick={() => void act("draft", async () => {
-        const expected = currentIdentity.current;
-        const result = await gerarMinutaTrabalho(work); if (isCurrent(expected)) { onSaved(result); if (result.peticao_id) onOpenDraft(result.peticao_id); }
-      })}>{work.peticao_id ? "Gerar nova versão da minuta" : "Gerar minuta para revisão"}</LoadingButton>
+      <LoadingButton loading={busy === "draft"} disabled={disabled || Boolean(busy) || operation.working || !canDraft || !evidence.conferida || stale || dirty} onClick={() => void act("draft", async () => {
+        await operation.start("minuta");
+      })}>{operation.job?.status === "failed" && operation.job.acao === "minuta" ? "Tentar minuta novamente" :
+        work.peticao_id ? "Gerar nova versão da minuta" : "Gerar minuta para revisão"}</LoadingButton>
     </> : null}
     {source ? <DocumentEvidenceDialog documentoId={source.documento_id} nome={source.nome || `Documento ${source.documento_id}`} versaoId={source.documento_arquivo_id} pagina={source.pagina} onClose={() => setSource(null)} /> : null}
   </section>;

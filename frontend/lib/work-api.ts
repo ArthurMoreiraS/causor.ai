@@ -1,4 +1,4 @@
-import { request, type Pagina, type Processo } from "./api";
+import { controlRequest, request, type Pagina, type Processo } from "./api";
 
 export type FonteTrabalho = { documento_id: number; documento_arquivo_id: number; chunk_id: number; pagina: number; quote: string; nome?: string; sha256?: string; fixada?: boolean };
 export type FatoTrabalho = { texto: string; fontes: number[]; natureza: string };
@@ -15,6 +15,31 @@ export type Trabalho = {
   evidencias: EvidenciasTrabalho | null; created_at: string; updated_at: string;
 };
 export type TrabalhoInput = { processo_id: number; providencia: string; instrucoes: string; grau: "1" | "2"; polo?: string | null; intimacao_id?: number; prazo_id?: number };
+export type OperacaoTrabalho = { id: number; trabalho_id: number; acao: "analise" | "minuta"; versao: number;
+  request_id: string; request_ids: string[]; status: "queued" | "running" | "completed" | "failed";
+  resultado: { trabalho_id: number; versao: number; peticao_id: number | null } | null;
+  erro: string | null; created_at: string | null };
+function operationRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  return controlRequest<T>(path, init, 12000).catch((error: unknown) => {
+    if (error instanceof Error && error.message.includes("Verifique a captura novamente"))
+      throw new Error("Tempo de resposta excedido. Consulte a operação novamente.");
+    throw error;
+  });
+}
+export function iniciarOperacaoTrabalho(work: Trabalho, acao: "analise" | "minuta", requestId: string,
+                                       perguntas: string[] = [], fontesFixadas: number[] = []): Promise<OperacaoTrabalho> {
+  return operationRequest(`/trabalhos/${work.id}/operacoes`, { method: "POST", body: JSON.stringify({
+    versao: work.versao, acao, request_id: requestId, perguntas, fontes_fixadas: fontesFixadas }) });
+}
+export function consultarOperacaoTrabalho(workId: number, jobId: number): Promise<OperacaoTrabalho> {
+  return operationRequest(`/trabalhos/${workId}/operacoes/${jobId}`);
+}
+export function consultarOperacaoAtual(workId: number): Promise<OperacaoTrabalho | null> {
+  return operationRequest(`/trabalhos/${workId}/operacoes/atual`);
+}
+export function obterTrabalhoAposOperacao(workId: number): Promise<Trabalho> {
+  return operationRequest(`/trabalhos/${workId}`);
+}
 export function criarProcesso(payload: { numero: string; tribunal?: string; cliente_id?: number }): Promise<Processo> {
   return request("/processos", { method: "POST", body: JSON.stringify(payload) });
 }

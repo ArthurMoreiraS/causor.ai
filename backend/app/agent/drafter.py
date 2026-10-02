@@ -95,6 +95,7 @@ def _consolidar_contexto(
     contexto_processo: dict,
     historico: str | None,
     prazo_fatal: str | None,
+    prazo_confirmado: bool | None = None,
 ) -> str:
     """Monta a linha do tempo do processo por código, não pelo modelo.
 
@@ -115,6 +116,8 @@ def _consolidar_contexto(
     )
     if prazo_fatal:
         prazo_txt += f", data fatal {prazo_fatal}"
+    if prazo_confirmado is False:
+        prazo_txt += "; PROVISÓRIO, pendente de revisão humana; não afirmar tempestividade"
     linhas.append(
         f"Ato: {classificacao.tipo} — petição cabível: {classificacao.peticao_sugerida}. "
         f"Prazo: {prazo_txt}."
@@ -176,6 +179,7 @@ def draft_peticao(
     template_conteudo: str | None = None,
     provider: LLMProvider | None = None,
     source_kind: str = "intimacao",
+    prazo_confirmado: bool | None = None,
 ) -> MinutaGerada:
     contexto = {k: v for k, v in contexto_processo.items() if k in _ALLOWED_CONTEXT_KEYS}
     contexto_linhas = (
@@ -197,6 +201,9 @@ def draft_peticao(
         f"{classificacao.prazo_dias} dias ({'úteis' if classificacao.dias_uteis else 'corridos'})"
         if classificacao.prazo_dias is not None else "Não identificado; revisão necessária"
     )
+    review_txt = ("\nPROVISÓRIO: prazo pendente de revisão humana. "
+                  "Não afirmar tempestividade nem tratar a data como confirmada."
+                  if prazo_confirmado is False else "")
 
     prompt = (
         ("[PROVIDÊNCIA INFORMADA PELO ADVOGADO — SEM INTIMAÇÃO PRESUMIDA]\n" if source_kind == "trabalho" else "[CLASSIFICAÇÃO DA INTIMAÇÃO]\n")
@@ -205,7 +212,7 @@ def draft_peticao(
         f"Resumo: {classificacao.resumo}\n"
         f"Confiança da classificação: {classificacao.confianca:.2f}\n\n"
         "[PRAZO — NÃO ALTERAR DATA CALCULADA, NÃO PRESUMIR DADOS AUSENTES]\n"
-        f"{duration_txt}{data_fatal_txt}\n\n"
+        f"{duration_txt}{data_fatal_txt}{review_txt}\n\n"
         "[DADOS DO PROCESSO]\n"
         f"{contexto_linhas}\n\n"
         f"{historico_bloco}"
@@ -239,6 +246,7 @@ def draft_peticao(
             contexto_processo=contexto,
             historico=historico,
             prazo_fatal=prazo_fatal,
+            prazo_confirmado=prazo_confirmado,
         ),
         analise_providencia=redigida.analise_providencia,
         minuta=redigida.minuta,

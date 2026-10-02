@@ -1,6 +1,35 @@
 # Proximos passos - MVP
 
-> **01/10 — duração legal de prazo implementada e revisada localmente.**
+> **02/10 — contexto e minuta recuperável, revisados localmente.** Trabalhos
+> passa a executar análise/redação em fila persistente, com retomada ao voltar
+> à tela e repetição da solicitação sem duplicar a peça. Usa comunicação atual,
+> autos recebidos e histórico SOR identificado; fonte, objetivo ou prazo alterado
+> impedem publicar resultado obsoleto. Recuperação protege contra retorno de
+> executor antigo; minuta, resultado e auditoria são gravados juntos.
+> Executor: 775 testes backend aprovados/97 ignorados na suíte completa antes
+> da última regressão; 54 direcionados finais, Ruff, lint/tipos e 151 testes
+> frontend aprovados. Coordenador revisou o diff e repetiu 54 backend e 20
+> frontend, aprovados. Percurso HTTP integrado passou com providers simulados
+> e PDF em diretório temporário. Publicação e PostgreSQL 16/17 aguardam CI.
+> Sem validação visual ou jurídica real. Agendamento periódico da captura e
+> coleta automática de autos continuam sem comprovação operacional.
+> [Plano e limites](desenvolvimento/planos/2026-10-01-contexto-manual-e-minuta.md).
+
+> **01/10 — retomada: intimação e histórico na preparação da minuta, local.**
+> Bloco 4a concluído e revisado: análise recebe o teor atual junto ao acervo e ao
+> histórico SOR identificado; snapshots de fontes/metadados/prazo impedem
+> publicação obsoleta. Minutas do próprio trabalho não viram evidência; cortes
+> do histórico ficam explícitos e prazo a revisar é informado como provisório.
+> Executor e coordenador verificaram 54 testes relacionados, Ruff e diff check,
+> aprovados. Bloco 4b em execução: fila persistente e retomada da análise/redação
+> na tela, ainda sem implantação. Consulta somente leitura nesta retomada
+> confirmou `main` remoto em `5a8426689676b9420c9a63c94342f3a080161863` e API
+> externa `/health` normal; isso não comprova o novo bloco nem o cron de captura.
+> Inventário de navegador vazio; verificação visual, PostgreSQL concorrente e
+> caso jurídico real continuam pendentes. Nenhum lote real foi reprocessado.
+> [Plano da continuação](desenvolvimento/planos/2026-10-01-contexto-manual-e-minuta.md).
+
+> **01/10 — duração legal de prazo implantada (`5a84266`).**
 > Catálogo inicial restrito a três atos CPC: contrarrazões de apelação,
 > manifestação do embargado e manifestação sobre novos documentos. Exige
 > comando atual e artigo/parágrafo literais no teor; a duração vem do catálogo,
@@ -10,6 +39,8 @@
 > Executor: 753 testes backend aprovados/82 ignorados antes das últimas guardas,
 > 21 testes finais direcionados e Ruff aprovados. Coordenador revisou os cinco
 > arquivos e repetiu 27 testes de interpretação/captura/matemática, aprovados.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36916027697)
+> e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36916241217).
 > Calendários locais ainda não homologados: resultados automáticos continuam
 > identificados como calculados a revisar. Não houve teste jurídico com casos
 > reais nem reprocessamento da produção. Próximo bloco em execução: integrar

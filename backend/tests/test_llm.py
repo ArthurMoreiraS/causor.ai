@@ -18,6 +18,20 @@ def test_get_provider_returns_claude(monkeypatch):
     assert isinstance(provider, llm.ClaudeProvider)
 
 
+def test_claude_client_has_bounded_transport_timeout_and_retries(monkeypatch):
+    import anthropic
+
+    captured = {}
+    client = object()
+    def construct(**kwargs):
+        captured.update(kwargs)
+        return client
+    monkeypatch.setattr(anthropic, "Anthropic", construct)
+    assert llm.ClaudeProvider()._get_client() is client
+    assert captured == {"timeout": llm.settings.http_timeout_seconds,
+                        "max_retries": max(0, llm.settings.llm_retry_attempts - 1)}
+
+
 def _fake_anthropic_client_parse(result) -> SimpleNamespace:
     captured: dict = {}
 

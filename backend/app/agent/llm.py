@@ -50,7 +50,10 @@ class ClaudeProvider:
         if self._client is None:
             import anthropic
 
-            self._client = anthropic.Anthropic()
+            self._client = anthropic.Anthropic(
+                timeout=settings.http_timeout_seconds,
+                max_retries=max(0, settings.llm_retry_attempts - 1),
+            )
         return self._client
 
     def _thinking_kwargs(self) -> dict:

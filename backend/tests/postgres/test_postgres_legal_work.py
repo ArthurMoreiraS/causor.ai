@@ -1,5 +1,14 @@
 """Reuse assisted work scenarios on actual migrated PostgreSQL constraints/FTS."""
 from tests.test_legal_work import (  # noqa: F401
+    test_deadline_confirmation_keeps_source_analysis_current,
+    test_deadline_edit_during_draft_rejects_without_petition,
+    test_deadline_description_edit_during_draft_rejects_without_petition,
+    test_linked_notice_and_sor_history_reach_analysis,
+    test_long_sor_history_marks_individual_text_truncation,
+    test_notice_edit_during_analysis_rejects_result,
+    test_notice_edit_during_draft_rejects_without_petition,
+    test_process_metadata_and_history_edits_during_analysis_reject_result,
+    test_repeated_own_draft_is_excluded_from_source_snapshot,
     test_work_drafts_without_fabricating_notice_and_requires_evidence_review,
     test_changed_documents_invalidate_evidence_review,
     test_edit_during_model_call_does_not_publish_stale_evidence,

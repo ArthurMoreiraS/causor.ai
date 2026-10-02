@@ -1,5 +1,16 @@
 # Contexto manual e minuta recuperável
 
+Retomada em nova conversa em 01/10/2026: fundador reforçou automação de
+OAB → intimações/processos → prazo → trabalho/minuta com comunicação atual e
+contexto do processo. Coordenador conferiu estado e diff antes da delegação;
+alterações locais do bloco 4a foram preservadas para revisão por um executor
+Sol/medium. Bloco 4b segue o contrato delimitado abaixo, após aceite do 4a.
+Inventário de Computer Use nesta sessão retornou zero apps e browsers; não há
+conferência visual disponível. Execução periódica de `capture-due` em produção
+continua sem comprovação no registro atual; não confundir worker da fila com
+agendador. Coleta automática de autos permanece meta dependente de canal e
+inventário real, sem fornecedor contratado ou conector homologado.
+
 Execução já autorizada no plano de 29/09. As correções de captura, prazo,
 remoção de OAB e formulários foram implantadas em `cd09869`, com CI e deploy
 aprovados. Este registro delimita a continuação das etapas 3 e 4.
@@ -121,6 +132,74 @@ Qualidade jurídica e integralidade real exigem revisão do advogado; nenhum
 lote de produção ou chamada real de modelo será usado como teste.
 
 ## Revisão e publicação
+
+Bloco 4a concluído e revisado localmente na retomada de 01/10. Coordenador leu
+o diff dos três módulos e testes, repetiu 32 regressões de redação/fontes e os
+22 testes de trabalho: 54 aprovados no total; Ruff e diff check aprovados.
+Executor corrigiu frescor das leituras depois da chamada externa, incluiu
+descrição/origem no snapshot de prazo e tornou explícito o corte de cada item
+do histórico. Intimação atual entra uma vez; minutas do próprio trabalho não
+retroalimentam as evidências. Prazo provisório é informado ao redator. Nenhum
+provider real, caso real, PostgreSQL descartável ou deploy foi executado neste
+bloco. Recuperação após reinício ainda depende do bloco 4b, agora em execução.
+
+Retomada em 02/10 após interrupção do executor por limite de uso, sem perda
+do diff. Sol/medium voltou a executar após novo pedido do fundador. Coordenador
+repetiu 50 testes de work_jobs/legal_work/worker/llm, aprovados. O teste de
+PostgreSQL acrescenta criação concorrente e dono antigo que retorna depois de
+outro executor publicar. Execução local PG ainda indisponível; validação será
+feita no CI descartável. Checks completos e percurso HTTP integrado permanecem
+em execução. Não houve commit/deploy do bloco 4b até esse registro.
+
+### Escopo de execução do bloco 4b
+
+Revisado em 02/10: executor implementou e verificou 775 testes backend/97
+ignorados na suíte completa, 54 direcionados após a correção final do token
+original de aquisição, Ruff e frontend check (151 testes, lint e tipos).
+Coordenador leu os diffs de fontes, fila, API, leases e UI; repetiu 54 testes
+backend e 20 frontend, todos aprovados. Corrigida também a identidade original
+entre commit e refresh, inclusive com expire_on_commit=True. Percurso HTTP
+integrado usa captura/modelos simulados, PDF textual local e tmp_path; verifica
+fonte e prazo no dossiê, retomada, retry sem duplicação e edição da peça.
+PostgreSQL concorrente aguarda CI descartável; não houve acesso a autos reais,
+chamada real de modelo ou validação de qualidade jurídica. Navegador integrado
+indisponível na tentativa de 02/10. Publicação segue após esta revisão.
+
+Após concluir/revisar 4a, um único executor pode alterar work_service.py
+(somente hook de publicação/contrato de snapshot), llm.py (timeout de transporte),
+work_routes.py, queue/worker.py, novo queue/work_jobs.py e módulo de lease de
+trabalho, settings.py, work-api.ts, WorkEvidence.tsx e hook frontend próprio,
+testes diretamente relacionados e reusos PostgreSQL. Não mudar filing, autos
+lease, captura/prazo ou navegação geral. Preservar endpoints síncronos legados;
+a tela passa a usar operações persistentes de análise/redação.
+
+- POST de operação retorna 202 com job; GET atual/por ID retoma. Validar tenant,
+  usuário, ação e versão; chave de solicitação repetida não duplica. Reutilizar
+  operação ativa equivalente; dados divergentes geram conflito explícito.
+  Serializar criação pela linha do trabalho. Retry de pedido concluído retorna
+  seu resultado mesmo que a operação já tenha incrementado a versão.
+- Guardar identidade dos inputs na solicitação; fonte/contexto/objetivo alterado
+  enquanto enfileirado não é usado silenciosamente. Antes de publicar, validar
+  novamente os snapshots do bloco 4a e propriedade do job.
+- Worker dá prioridade a operação interativa depois da captura, antes do lote
+  de prazos, para uma minuta não esperar centenas de classificações. Fila de
+  documentos continua com consumidor próprio.
+- Lease de trabalho tem token, expiração, heartbeat em transação separada e
+  recuperação limitada a tipos de análise/minuta. Resultado de dono antigo
+  não publica nem marca a execução do novo dono como falha. Não aplicar esse
+  mecanismo a protocolo. Não registrar exceção bruta de provider em payload.
+- Provider tem timeout/retry limitado. Modelo roda fora da transação. Domínio,
+  resultado do job e auditoria ficam no mesmo commit final; falha desse commit
+  não deixa uma minuta órfã marcada como sucesso.
+- UI acompanha sem prender POST longo; refresh retoma job, falha permite
+  tentativa explícita, conclusão recarrega trabalho. Não redigir duas peças por
+  perda de resposta. Preservar perguntas/fontes sujas e ignorar resposta de
+  outro trabalho. Edição local não é substituída pelo acompanhamento.
+
+Verificação obrigatória: fakes/SQLite sem provider real, deduplicação/tenant,
+mudança de input antes/durante execução, lease perdido/renovado/recuperado,
+publicação e auditoria atômicas, navegação/refresh/perda de resposta na UI;
+PostgreSQL concorrente no CI, Ruff, frontend check e integração do fluxo.
 
 Um escritor por vez, sem subdelegação. Coordenador lê o diff e os resultados,
 envia correções, registra limites e publica com autorização existente. Preservar

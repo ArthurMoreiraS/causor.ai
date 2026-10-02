@@ -1,5 +1,6 @@
 """Manual intake and persistent work, independent of court integrations."""
 import re
+from uuid import UUID
 from hashlib import sha256
 from datetime import date, datetime, timezone
 from typing import Literal
@@ -102,6 +103,74 @@ class EvidenceIn(VersionIn):
         if any(not value.strip() or len(value) > 500 for value in values):
             raise ValueError("Cada pergunta precisa ter entre 1 e 500 caracteres")
         return [value.strip() for value in values]
+
+
+class WorkOperationIn(EvidenceIn):
+    acao: Literal["analise", "minuta"]
+    request_id: UUID
+
+
+@router.post("/trabalhos/{work_id}/operacoes", status_code=202)
+def create_work_operation(work_id: int, payload: WorkOperationIn, session: Session = Depends(get_session),
+                          current: CurrentUser = Depends(get_current_user)):
+    from app.queue.work_jobs import enqueue_work_job, public_job
+
+    owned = get_owned_or_404(session, models.TrabalhoJuridico, work_id, current)
+    if owned.processo_id:
+        session.execute(select(models.Processo.id).where(models.Processo.id == owned.processo_id).with_for_update())
+    work = session.scalar(tenant_select(models.TrabalhoJuridico, current).where(
+        models.TrabalhoJuridico.id == work_id).with_for_update().execution_options(populate_existing=True))
+    try:
+        job = enqueue_work_job(session, work=work, user_id=current.usuario_id,
+            action=payload.acao, version=payload.versao, request_id=str(payload.request_id),
+            questions=payload.perguntas if payload.acao == "analise" else (),
+            pinned=payload.fontes_fixadas if payload.acao == "analise" else ())
+    except ValueError as exc:
+        session.rollback()
+        raise HTTPException(409, str(exc)) from exc
+    session.commit()
+    return public_job(job)
+
+
+def _owned_operation(session, current, work_id, job):
+    from app.queue.work_jobs import public_job
+
+    payload = job.payload or {}
+    if (job.entidade != "trabalho_juridico" or job.entidade_id != work_id or
+            job.tipo not in {"analise_trabalho", "minuta_trabalho"} or
+            payload.get("escritorio_id") != current.escritorio_id or
+            payload.get("usuario_id") != current.usuario_id):
+        raise HTTPException(404, "Operação não encontrada")
+    return public_job(job)
+
+
+@router.get("/trabalhos/{work_id}/operacoes/atual")
+def get_current_work_operation(work_id: int, session: Session = Depends(get_session),
+                               current: CurrentUser = Depends(get_current_user)):
+    get_owned_or_404(session, models.TrabalhoJuridico, work_id, current)
+    jobs = session.scalars(select(models.JobExecucao).where(
+        models.JobExecucao.entidade == "trabalho_juridico",
+        models.JobExecucao.entidade_id == work_id,
+        models.JobExecucao.tipo.in_(["analise_trabalho", "minuta_trabalho"]),
+        models.JobExecucao.payload["escritorio_id"].as_integer() == current.escritorio_id,
+        models.JobExecucao.payload["usuario_id"].as_integer() == current.usuario_id,
+    ).order_by(models.JobExecucao.id.desc()).limit(1)).all()
+    return _owned_operation(session, current, work_id, jobs[0]) if jobs else None
+
+
+@router.get("/trabalhos/{work_id}/operacoes/{job_id}")
+def get_work_operation(work_id: int, job_id: int, session: Session = Depends(get_session),
+                       current: CurrentUser = Depends(get_current_user)):
+    get_owned_or_404(session, models.TrabalhoJuridico, work_id, current)
+    job = session.scalar(select(models.JobExecucao).where(
+        models.JobExecucao.id == job_id,
+        models.JobExecucao.entidade == "trabalho_juridico",
+        models.JobExecucao.entidade_id == work_id,
+        models.JobExecucao.payload["escritorio_id"].as_integer() == current.escritorio_id,
+        models.JobExecucao.payload["usuario_id"].as_integer() == current.usuario_id))
+    if job is None:
+        raise HTTPException(404, "Operação não encontrada")
+    return _owned_operation(session, current, work_id, job)
 
 
 class PieceIn(BaseModel):

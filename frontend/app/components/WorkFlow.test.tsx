@@ -2,14 +2,15 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { listarDocumentos } from "@/lib/api";
-import { buscarFontesTrabalho, conferirEvidencias, criarPendenciaTrabalho, gerarMinutaTrabalho, prepararEvidencias, type Trabalho } from "@/lib/work-api";
+import { buscarFontesTrabalho, conferirEvidencias, criarPendenciaTrabalho, consultarOperacaoAtual, iniciarOperacaoTrabalho, type Trabalho } from "@/lib/work-api";
 import { listarPacotes, listarTentativas, iniciarEnvioExterno, baixarArquivoTrabalho, conferirComprovante, type Pacote } from "@/lib/package-api";
 import WorkEvidence from "./WorkEvidence";
 import WorkProtocol from "./WorkProtocol";
 
 vi.mock("@/lib/api", () => ({ listarDocumentos: vi.fn() }));
 vi.mock("./DocumentEvidenceDialog", () => ({ default: () => <div>Fonte original</div> }));
-vi.mock("@/lib/work-api", () => ({ conferirEvidencias: vi.fn(), criarPendenciaTrabalho: vi.fn(), gerarMinutaTrabalho: vi.fn(), buscarFontesTrabalho: vi.fn(), prepararEvidencias: vi.fn() }));
+vi.mock("@/lib/work-api", () => ({ conferirEvidencias: vi.fn(), criarPendenciaTrabalho: vi.fn(), iniciarOperacaoTrabalho: vi.fn(),
+  consultarOperacaoAtual: vi.fn(), consultarOperacaoTrabalho: vi.fn(), obterTrabalhoAposOperacao: vi.fn(), buscarFontesTrabalho: vi.fn() }));
 vi.mock("@/lib/package-api", () => ({ listarPacotes: vi.fn(), listarTentativas: vi.fn(), iniciarEnvioExterno: vi.fn(), baixarArquivoTrabalho: vi.fn(), conferirComprovante: vi.fn(), aprovarPacote: vi.fn(), cancelarTentativa: vi.fn(), criarPacote: vi.fn(), informarEnvio: vi.fn(), receberComprovante: vi.fn() }));
 
 const work: Trabalho = { id: 1, processo_id: 2, intimacao_id: null, prazo_id: null, peticao_id: 3, responsavel_id: null,
@@ -27,6 +28,7 @@ beforeEach(() => {
   vi.mocked(listarDocumentos).mockResolvedValue({ total: 0, items: [] });
   vi.mocked(listarPacotes).mockResolvedValue({ items: [package_] });
   vi.mocked(listarTentativas).mockResolvedValue({ items: [] });
+  vi.mocked(consultarOperacaoAtual).mockResolvedValue(null);
 });
 
 it("exige conferência explícita e envia a versão exata do trabalho", async () => {
@@ -40,7 +42,7 @@ it("exige conferência explícita e envia a versão exata do trabalho", async ()
   fireEvent.click(review);
   await waitFor(() => expect(saved).toHaveBeenCalled());
   expect(conferirEvidencias).toHaveBeenCalledWith(work);
-  expect(gerarMinutaTrabalho).not.toHaveBeenCalled();
+  expect(iniciarOperacaoTrabalho).not.toHaveBeenCalled();
 });
 
 it("transforma lacuna em tarefa vinculada ao trabalho", async () => {
@@ -90,9 +92,51 @@ it("mantém fontes fixadas entre consultas e exige nova análise para conferir",
   fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "contrato" } });
   expect(screen.getByText(/Fontes fixadas para a análise \(1\)/)).toBeTruthy();
   expect((screen.getByRole("button", { name: "Gerar nova versão da minuta" }) as HTMLButtonElement).disabled).toBe(true);
-  vi.mocked(prepararEvidencias).mockResolvedValue({ ...reviewed, versao: 8 });
+  vi.mocked(iniciarOperacaoTrabalho).mockResolvedValue({ id: 7, trabalho_id: reviewed.id, acao: "analise", versao: reviewed.versao,
+    request_id: "r", request_ids: ["r"], status: "queued", resultado: null, erro: null, created_at: null });
   fireEvent.click(screen.getByRole("button", { name: "Atualizar análise das evidências" }));
-  await waitFor(() => expect(prepararEvidencias).toHaveBeenCalledWith(reviewed, [], [5]));
+  await waitFor(() => expect(iniciarOperacaoTrabalho).toHaveBeenCalledWith(reviewed, "analise", expect.any(String), [], [5]));
+});
+
+it("preserva perguntas e fontes editadas enquanto a análise termina", async () => {
+  vi.mocked(buscarFontesTrabalho).mockResolvedValue({ items: [{ documento_id: 3, documento_arquivo_id: 4,
+    chunk_id: 5, pagina: 1, quote: "Comprovante", nome: "Autos" }] });
+  vi.mocked(iniciarOperacaoTrabalho).mockResolvedValue({ id: 7, trabalho_id: work.id, acao: "analise", versao: work.versao,
+    request_id: "r", request_ids: ["r"], status: "queued", resultado: null, erro: null, created_at: null });
+  const { rerender } = render(<WorkEvidence work={work} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "comprovante" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar fontes" }));
+  await screen.findByText("Comprovante");
+  fireEvent.click(screen.getByLabelText("Usar esta fonte na análise"));
+  fireEvent.click(screen.getByRole("button", { name: "Atualizar análise das evidências" }));
+  await waitFor(() => expect(iniciarOperacaoTrabalho).toHaveBeenCalled());
+  fireEvent.change(screen.getByLabelText("Pontos que precisam ser respondidos"), { target: { value: "Pergunta nova" } });
+  rerender(<WorkEvidence work={{ ...work, versao: 8,
+    evidencias: { ...work.evidencias!, preparada_em: "2026-10-01T12:00:00Z" } }}
+    disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  expect((screen.getByLabelText("Pontos que precisam ser respondidos") as HTMLTextAreaElement).value).toBe("Pergunta nova");
+  expect(screen.getByText(/Fontes fixadas para a análise \(1\)/)).toBeTruthy();
+});
+
+it("invalida a conferência se a análise muda com as mesmas fontes e preserva campos sujos", async () => {
+  vi.mocked(buscarFontesTrabalho).mockResolvedValue({ items: [{ documento_id: 3, documento_arquivo_id: 4,
+    chunk_id: 5, pagina: 1, quote: "Comprovante", nome: "Autos" }] });
+  const { rerender } = render(<WorkEvidence work={work} disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Buscar no texto original"), { target: { value: "comprovante" } });
+  fireEvent.click(screen.getByRole("button", { name: "Buscar fontes" }));
+  await screen.findByText("Comprovante");
+  fireEvent.click(screen.getByLabelText("Usar esta fonte na análise"));
+  fireEvent.change(screen.getByLabelText("Pontos que precisam ser respondidos"), { target: { value: "Pergunta local" } });
+  const checkbox = screen.getByLabelText("Conferi as fontes, os pontos contrários e as lacunas desta análise.") as HTMLInputElement;
+  fireEvent.click(checkbox);
+  expect(checkbox.checked).toBe(true);
+  rerender(<WorkEvidence work={{ ...work, versao: 8,
+    evidencias: { ...work.evidencias!, preparada_em: "2026-10-02T09:00:00Z",
+      analise: { ...work.evidencias!.analise, lacunas: ["Outra lacuna"] } } }}
+    disabled={false} onSaved={vi.fn()} onOpenDraft={vi.fn()} />);
+  await waitFor(() => expect(checkbox.checked).toBe(false));
+  expect((screen.getByLabelText("Pontos que precisam ser respondidos") as HTMLTextAreaElement).value).toBe("Pergunta local");
+  expect(screen.getByText(/Fontes fixadas para a análise \(1\)/)).toBeTruthy();
 });
 
 it("descarta busca atrasada e conferência ao mudar o snapshot, preservando perguntas", async () => {
