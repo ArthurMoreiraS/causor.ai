@@ -125,3 +125,9 @@ aplicada; não depender dessa hipótese para afirmar login restabelecido.
 - Configure inicial falhou antes de alterar env: comando Docker continha
   tokens "+" devido à construção do patch. Corrigido em linha única; repetir.
   Serviços permanecem pausados e configuração de origem preservada.
+
+- Configure de `4704a8d` aprovado (run 37521437150), frontend com destino novo.
+  Deploy 37521563838 construiu imagens, mas recusou ler `.env`: dotenv usa
+  inode tempor?rio e perdeu propriet?rio ap?s `set_key`. Corrigido `protect`
+  depois das edi??es; reparo validado contra backup/destino altera somente
+  permiss?o/propriet?rio, sem conte?do/DB. 14 testes e Ruff aprovados.

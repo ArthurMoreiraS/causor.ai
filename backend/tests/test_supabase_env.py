@@ -66,3 +66,25 @@ def test_rollback_refuses_foreign_project(envs):
     with pytest.raises(ValueError):
         helper.rollback(directory, TARGET, SOURCE)
     assert (directory / ".env").read_bytes() == before
+
+
+def test_owner_protection_happens_after_dotenv_replaces_candidate(envs, monkeypatch):
+    directory, _, values = envs
+    protected = []
+    monkeypatch.setattr(helper, "protect", lambda path, stat: protected.append(path.read_bytes()))
+    helper.configure(directory, SOURCE, TARGET, values)
+    assert protected[-1] == (directory / ".env").read_bytes()
+    assert url(TARGET).encode() in protected[-1]
+
+
+def test_permission_repair_preserves_bytes_and_uses_original_owner(envs, monkeypatch):
+    directory, _, values = envs
+    helper.configure(directory, SOURCE, TARGET, values)
+    before = (directory / ".env").read_bytes()
+    calls = []
+    monkeypatch.setattr(helper, "protect", lambda path, stat: calls.append((path, stat.st_uid)))
+    helper.repair_permissions(directory, SOURCE, TARGET)
+    assert calls == [(directory / ".env", (directory / ".env.pre-supabase").stat().st_uid)]
+    assert (directory / ".env").read_bytes() == before
+    with pytest.raises(ValueError):
+        helper.repair_permissions(directory, TARGET, SOURCE)

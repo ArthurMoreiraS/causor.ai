@@ -33,6 +33,7 @@ def configure(directory: Path, source_ref: str, target_ref: str, values: dict):
     backup = directory / ".env.pre-supabase"
     candidate = directory / ".env.supabase-candidate"
     current_values = dotenv_values(current, interpolate=False)
+    previous_stat = current.stat()
     if project_ref(current_values.get("CAUSOR_DATABASE_URL") or "") != source_ref:
         raise ValueError("Current project differs from expected origin")
     if source_ref == target_ref or project_ref(values["CAUSOR_MIGRATION_DATABASE_URL"]) != target_ref:
@@ -53,6 +54,8 @@ def configure(directory: Path, source_ref: str, target_ref: str, values: dict):
         set_key(candidate, "CAUSOR_SUPABASE_URL", values["CAUSOR_MIGRATION_SUPABASE_URL"])
         # ES256/JWKS must not continue accepting the old project's HS256 key.
         set_key(candidate, "CAUSOR_SUPABASE_JWT_SECRET", values.get("CAUSOR_MIGRATION_JWT_SECRET", ""))
+        # dotenv replaces its file with a temporary inode owned by the operator.
+        protect(candidate, previous_stat)
         os.replace(candidate, current)
     finally:
         candidate.unlink(missing_ok=True)
@@ -76,9 +79,21 @@ def rollback(directory: Path, source_ref: str, target_ref: str):
         candidate.unlink(missing_ok=True)
 
 
+def repair_permissions(directory: Path, source_ref: str, target_ref: str):
+    current = directory / ".env"
+    backup = directory / ".env.pre-supabase"
+    old = dotenv_values(backup, interpolate=False)
+    active = dotenv_values(current, interpolate=False)
+    if source_ref == target_ref or project_ref(old.get("CAUSOR_DATABASE_URL") or "") != source_ref:
+        raise ValueError("Invalid rollback point")
+    if project_ref(active.get("CAUSOR_DATABASE_URL") or "") != target_ref:
+        raise ValueError("Current project differs from destination")
+    protect(current, backup.stat())
+
+
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("action", choices=("configure", "rollback"))
+    parser.add_argument("action", choices=("configure", "rollback", "repair-permissions"))
     parser.add_argument("source_ref")
     parser.add_argument("target_ref")
     args = parser.parse_args()
@@ -86,8 +101,10 @@ def main():
         directory = Path(os.environ.get("CAUSOR_DEPLOY_DIR", "/deploy"))
         if args.action == "configure":
             configure(directory, args.source_ref, args.target_ref, dict(os.environ))
-        else:
+        elif args.action == "rollback":
             rollback(directory, args.source_ref, args.target_ref)
+        else:
+            repair_permissions(directory, args.source_ref, args.target_ref)
         print("Private configuration updated; no database data modified.")
     except Exception as exc:
         print(f"Configuration update refused ({type(exc).__name__}); values not displayed.")
