@@ -128,6 +128,26 @@ aplicada; não depender dessa hipótese para afirmar login restabelecido.
 
 - Configure de `4704a8d` aprovado (run 37521437150), frontend com destino novo.
   Deploy 37521563838 construiu imagens, mas recusou ler `.env`: dotenv usa
-  inode tempor?rio e perdeu propriet?rio ap?s `set_key`. Corrigido `protect`
-  depois das edi??es; reparo validado contra backup/destino altera somente
-  permiss?o/propriet?rio, sem conte?do/DB. 14 testes e Ruff aprovados.
+  inode temporário e perdeu proprietário após `set_key`. Corrigido `protect`
+  depois das edições; reparo validado contra backup/destino altera somente
+  permissão/proprietário, sem conteúdo/DB. 14 testes e Ruff aprovados.
+
+## Resultado executado em produção
+
+- Reparo de proprietário concluído (run 37522440698). CI `8ee24b7` aprovado:
+  829 backend/111 ignorados, 161 frontend, 103 PG em cada versão 16/17 e Ruff.
+- Deploy 37522648602 confirmou SHA `8ee24b7fe00e4b59249b9b33328b509243f454d9`
+  nos cinco serviços em 20:01 UTC, health 200 e serviços retomados. Nenhuma
+  OAB cadastrada no inventário; não houve teste de captura aleatória real.
+- Sessão real no novo Auth obtida por generateLink/verify, sem envio de email;
+  `/me` confirmou usuário/escritório original. Perfil, dashboard, OABs,
+  intimações, processos, prazos, petições e jobs responderam 200. Sessão de
+  teste encerrada com logout local, preservando demais sessões.
+- API sem autenticação: 401; REST direto ao SOR com sessão Supabase: 403.
+  HTML/chunks de login 200, ref/chave pública novos e chave administrativa
+  ausente. Não houve validação visual de produção ou login com senha do usuário.
+- Env privado da VPS e envs locais atualizados; configurações anteriores,
+  origem e backup consistente mantidos. Secrets temporários do GitHub removidos.
+  Container PG17 fictício encerrado. Nenhum upgrade/plano pago solicitado.
+- Liberação do login técnico não valida caso, captura DJEN, documentos reais,
+  qualidade de minuta ou revisão jurídica: ainda exigem o aceite com advisor.

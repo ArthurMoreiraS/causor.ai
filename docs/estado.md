@@ -16,27 +16,33 @@
 > [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37511754978):
 > log verificou SHA `fb80cfc8dc6a982a52c8169ca804b6b43e4b1b54` nos cinco
 > serviços (incluindo scheduler); consulta externa posterior health 200.
-> Auth Supabase continua 402 e API `/health` 200; suporte humano sem retorno.
+> Antes da migração abaixo, Auth da origem respondia 402 e API health 200;
+> suporte humano ainda sem retorno.
 > Advisor trará OAB aleatória; caso com documentos/revisão real não definido.
 > Captura vazia não é falha e OAB não fornece automaticamente os autos completos.
 > [Plano de 48h](desenvolvimento/planos/2026-10-06-mvp-48-horas.md),
 > [operação do agendador](operacao/captura-periodica.md) e
 > [aceite do primeiro caso](operacao/aceite-mvp-2026-10-08.md).
 
-> **06/10 — migração Free preparada localmente; aguardando credenciais do destino.**
-> Fundador escolheu outro projeto Free e depois delimitou: apenas preparar a
-> estrutura, conectar/migrar quando enviar as chaves. Criados modelo privado,
-> script offline/backup/restore/verify e procedimento para VPS/Compose.
-> Script recusa origem e destino ocupado, usa snapshot comum, verifica hashes,
-> conteúdo e sequences; restaura public/Auth em transação, preservando auditoria.
-> 14 testes da migração aprovados, incluindo dois restores em PostgreSQL 17
-> local com Auth reduzido e dados fictícios. Não validam schema gerenciado real.
-> Correção local de JWKS aceita apenas projeto confiável configurado/derivado
-> do DSN; testes impedem token externo de escolher chaves e assumir usuário.
-> Suíte completa desta preparação: 821 aprovados/110 ignorados, credenciais
-> externas vazias e SQLite descartável; Ruff completo aprovado.
-> Não houve backup final, restore real, alteração de env de produção ou deploy
-> desta preparação. Credenciais ficam em arquivo ignorado pelo Git.
+> **06/10 — novo Supabase Free conectado e validado em produção (`8ee24b7`).**
+> Fundador enviou credenciais, autorizou a troca e confirmou outra organização.
+> Backup final com escritas pausadas e restore real gerenciado concluídos:
+> 62 tabelas conferidas por fingerprints, sequences iguais, usuário/UUID/hash
+> de senha e 1.235 eventos de auditoria preservados. Origem e backups mantidos.
+> VPS e envs locais apontam ao destino; frontend reconstruído com chave pública.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37522418524):
+> 829 backend/111 ignorados, 161 frontend, 103 PG em cada versão 16/17 e Ruff.
+> [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37522648602)
+> verificou SHA nos cinco serviços e health 200. Sessão Auth real criada por
+> token técnico, sem enviar email; `/me` confirmou usuário/escritório original.
+> Perfil, dashboard, OABs, intimações, processos, prazos, petições e jobs: 200.
+> Login HTML/chunks: 200, projeto/chave pública novos, sem chave administrativa.
+> API sem sessão: 401; REST direto ao SOR com sessão Supabase: 403. Grants
+> public/sequences bloqueados para anon/authenticated/PUBLIC; JWKS limitado ao
+> projeto confiável. Segredo HS256 antigo retirado e secrets temporários removidos.
+> Sem upgrade. Login com senha no navegador do fundador ainda requer sua
+> conferência; sessão técnica não equivale a piloto jurídico. OAB/caso/documentos
+> reais e revisão da minuta pelo advisor continuam pendentes.
 > [Procedimento](operacao/migracao-supabase-free.md) e
 > [escopo autorizado](desenvolvimento/planos/2026-10-06-migracao-supabase-free.md).
 

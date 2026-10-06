@@ -133,6 +133,11 @@ atomicamente, preservando proprietário/permissões privadas e demais settings.
 `rollback` repõe somente a configuração; `resume` retoma a configuração ativa.
 Nenhuma dessas ações exporta/restaura dados nem altera o frontend.
 
+`repair-permissions` recupera proprietário/permissão privada do `.env` usando
+o backup da origem, após validar os dois projetos. Não altera conteúdo ou dados
+e pode funcionar quando o usuário SSH perdeu acesso ao arquivo atual. O helper
+aplica proteção depois de `set_key`, que troca o inode por arquivo temporário.
+
 Depois do restore, configure e atualização da variável/chave pública do GitHub,
 dispatch manual do Deploy reconstrói o frontend. Esse dispatch exige main e
 CI aprovado do mesmo SHA. Remover os secrets temporários após conclusão; manter
