@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from sqlalchemy import and_, delete, func, or_, select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.agent.assistant import chat_with_assistant
 from app.agent.service import MissingIntimationTextError, draft_from_intimacao
@@ -42,6 +42,7 @@ from app.api.schemas import (
     DraftResponse,
     EditPeticaoRequest,
     IntimacaoOut,
+    IntimacaoAnalysisOut,
     JobOut,
     MeOut,
     OabMonitoradaCreate,
@@ -64,13 +65,16 @@ from app.api.schemas import (
     TemplatePeticaoUpdate,
     UsuarioOut,
 )
+from app.api.read_models import (
+    deadline_statement, notice_statement, operational_counts, read_deadlines, read_notices,
+)
 from app.capture.datajud import DatajudClient, ProcessoDTO
 from app.capture.djen import DjenClient
 from app.capture.enrich import backfill_sistema, run_enrichment_backfill
 from app.capture.poll import poll_oab
 from app.filing.timbrado import LogoInvalidoError, normalize_logo
 from app.prazo_engine.factory import build_calendar
-from app.prazo_engine.pipeline import enqueue_analysis, memory, set_memory
+from app.prazo_engine.pipeline import KEY, enqueue_analysis, memory, set_memory
 from app.queue.jobs import (
     AlreadyFiledError,
     ApprovalRequiredError,
@@ -150,7 +154,7 @@ class _NoopDatajudClient:
         return None
 
 
-def _dias_para_vencer(prazo: models.Prazo | None) -> int | None:
+def _dias_para_vencer(prazo: models.Prazo | PrazoOut | None) -> int | None:
     if prazo is None:
         return None
     from zoneinfo import ZoneInfo
@@ -159,7 +163,7 @@ def _dias_para_vencer(prazo: models.Prazo | None) -> int | None:
     return (prazo.data_fatal - today).days
 
 
-def _risco_prazo(prazo: models.Prazo | None) -> str:
+def _risco_prazo(prazo: models.Prazo | PrazoOut | None) -> str:
     dias = _dias_para_vencer(prazo)
     if prazo is None or dias is None:
         return "sem_prazo"
@@ -175,7 +179,7 @@ def _risco_prazo(prazo: models.Prazo | None) -> str:
 
 
 def _status_revisao(
-    prazo: models.Prazo | None,
+    prazo: models.Prazo | PrazoOut | None,
     peticao: models.Peticao | None,
 ) -> str:
     if prazo is not None and prazo.cumprido:
@@ -563,38 +567,27 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> OperationalDashboard:
-        processos = len(session.scalars(tenant_select(models.Processo, current)).all())
-        intimacoes = len(session.scalars(tenant_select(models.Intimacao, current)).all())
-        prazos = list(session.scalars(tenant_select(models.Prazo, current)
-                                      .options(selectinload(models.Prazo.intimacao))).all())
-        peticoes = list(session.scalars(tenant_select(models.Peticao, current)).all())
-        pending_deadlines = [prazo for prazo in prazos if not prazo.cumprido]
-        review_pending = [prazo for prazo in pending_deadlines if prazo.revisao_status != "confirmado"]
-        confirmed_deadlines = [prazo for prazo in pending_deadlines if prazo.revisao_status == "confirmado"]
         from zoneinfo import ZoneInfo
         today = datetime.now(ZoneInfo("America/Sao_Paulo")).date()
-        high_risk = [
-            prazo for prazo in confirmed_deadlines if (prazo.data_fatal - today).days <= 3
-        ]
-        overdue = [prazo for prazo in confirmed_deadlines if prazo.data_fatal < today]
+        counts = operational_counts(session, current, today)
 
         return OperationalDashboard(
             metrics=[
-                {"key": "processos", "label": "Processos monitorados", "value": processos},
-                {"key": "intimacoes", "label": "Intimações capturadas", "value": intimacoes},
-                {"key": "prazos", "label": "Prazos pendentes", "value": len(pending_deadlines)},
-                {"key": "prazos_a_revisar", "label": "Prazos a revisar", "value": len(review_pending)},
-                {"key": "risco", "label": "Alto risco", "value": len(high_risk)},
-                {"key": "vencidos", "label": "Prazos vencidos", "value": len(overdue)},
+                {"key": "processos", "label": "Processos monitorados", "value": counts["processos"]},
+                {"key": "intimacoes", "label": "Intimações capturadas", "value": counts["intimacoes"]},
+                {"key": "prazos", "label": "Prazos pendentes", "value": counts["prazos"]},
+                {"key": "prazos_a_revisar", "label": "Prazos a revisar", "value": counts["prazos_a_revisar"]},
+                {"key": "risco", "label": "Alto risco", "value": counts["risco"]},
+                {"key": "vencidos", "label": "Prazos vencidos", "value": counts["vencidos"]},
                 {
                     "key": "minutas",
                     "label": "Minutas em revisao",
-                    "value": len([p for p in peticoes if p.status == "rascunho"]),
+                    "value": counts["minutas"],
                 },
                 {
                     "key": "aprovadas",
                     "label": "Minutas aprovadas",
-                    "value": len([p for p in peticoes if p.status == "aprovada"]),
+                    "value": counts["aprovadas"],
                 },
             ],
             workflow=[
@@ -935,6 +928,10 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> OabRemovalResultOut:
+        # Same order as enqueue: office first, then jobs/registration. Removal
+        # must not race a scheduler creating a new job after the purge snapshot.
+        session.scalar(select(models.Escritorio.id).where(
+            models.Escritorio.id == current.escritorio_id).with_for_update())
         oab = get_owned_or_404(session, models.OabMonitorada, oab_id, current)
         oab_numero = oab.oab
         uf = oab.uf
@@ -1194,18 +1191,31 @@ def create_app() -> FastAPI:
 
         return CaptureResultOut(**result.__dict__)
 
+    @app.get("/intimacoes/analise-status", response_model=list[IntimacaoAnalysisOut])
+    def estados_analise_intimacoes(
+        ids: list[int] = Query(min_length=1, max_length=200),
+        session: Session = Depends(get_session),
+        current: CurrentUser = Depends(get_current_user),
+    ) -> list[IntimacaoAnalysisOut]:
+        stmt = notice_statement(current).with_only_columns(
+            models.Intimacao.id, models.Intimacao.payload[KEY].label("prazo_analise"),
+        ).where(models.Intimacao.id.in_(ids)).order_by(models.Intimacao.id)
+        return [IntimacaoAnalysisOut(
+            id=row.id, prazo_analise=row.prazo_analise if isinstance(row.prazo_analise, dict) else None,
+        ) for row in session.execute(stmt)]
+
     @app.get("/intimacoes", response_model=list[IntimacaoOut])
     def listar_intimacoes(
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
         processo_id: int | None = Query(default=None),
         limit: int = Query(default=100, le=5000),
-    ) -> list[models.Intimacao]:
-        stmt = tenant_select(models.Intimacao, current)
+    ) -> list[IntimacaoOut]:
+        stmt = notice_statement(current)
         if processo_id is not None:
             stmt = stmt.where(models.Intimacao.processo_id == processo_id)
         stmt = stmt.order_by(models.Intimacao.data_disponibilizacao.desc()).limit(limit)
-        return list(session.scalars(stmt))
+        return read_notices(session, stmt)
 
     @app.get("/review/queue", response_model=list[ReviewQueueItem])
     def fila_revisao(
@@ -1213,21 +1223,19 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
         limit: int = Query(default=100, le=5000),
     ) -> list[ReviewQueueItem]:
-        intimacoes = list(
-            session.scalars(
-                tenant_select(models.Intimacao, current)
-                .order_by(models.Intimacao.data_disponibilizacao.desc())
-                .limit(limit)
-            )
+        intimacoes = read_notices(
+            session,
+            notice_statement(current)
+            .order_by(models.Intimacao.data_disponibilizacao.desc())
+            .limit(limit),
         )
         processos = {
             item.id: item
             for item in session.scalars(tenant_select(models.Processo, current)).all()
         }
-        prazos_por_intimacao: dict[int, models.Prazo] = {}
-        for prazo in session.scalars(
-            tenant_select(models.Prazo, current).options(selectinload(models.Prazo.intimacao))
-            .order_by(models.Prazo.data_fatal.asc())
+        prazos_por_intimacao: dict[int, PrazoOut] = {}
+        for prazo in read_deadlines(session,
+            deadline_statement(current).order_by(models.Prazo.data_fatal.asc())
         ):
             if prazo.intimacao_id is not None and prazo.intimacao_id not in prazos_por_intimacao:
                 prazos_por_intimacao[prazo.intimacao_id] = prazo
@@ -1258,7 +1266,7 @@ def create_app() -> FastAPI:
                     processo=ProcessoOut.model_validate(processo) if processo is not None else None,
                     prazo=PrazoOut.model_validate(prazo) if prazo is not None else None,
                     peticao=PeticaoOut.model_validate(peticao) if peticao is not None else None,
-                    status=(memory(intimacao).get("status", "capturada")
+                    status=((intimacao.prazo_analise or {}).get("status", "capturada")
                             if prazo is None and peticao is None else _status_revisao(prazo, peticao)),
                     risco=_risco_prazo(prazo),
                     dias_para_vencer=_dias_para_vencer(prazo),
@@ -1331,9 +1339,9 @@ def create_app() -> FastAPI:
             peticao_tipo.setdefault(processo_id, tipo)
 
         # Próximo prazo = menor data_fatal entre os pendentes (cumpridos ignorados).
-        proximo_prazo: dict[int, models.Prazo] = {}
-        for prazo in session.scalars(
-            tenant_select(models.Prazo, current).options(selectinload(models.Prazo.intimacao))
+        proximo_prazo: dict[int, PrazoOut] = {}
+        for prazo in read_deadlines(session,
+            deadline_statement(current)
             .where(models.Prazo.cumprido.is_(False))
             .order_by(models.Prazo.data_fatal.asc())
         ):
@@ -1375,12 +1383,12 @@ def create_app() -> FastAPI:
         current: CurrentUser = Depends(get_current_user),
         cumprido: bool | None = Query(default=None),
         limit: int = Query(default=100, le=5000),
-    ) -> list[models.Prazo]:
-        stmt = tenant_select(models.Prazo, current).options(selectinload(models.Prazo.intimacao))
+    ) -> list[PrazoOut]:
+        stmt = deadline_statement(current)
         if cumprido is not None:
             stmt = stmt.where(models.Prazo.cumprido == cumprido)
         stmt = stmt.order_by(models.Prazo.data_fatal.asc()).limit(limit)
-        return list(session.scalars(stmt))
+        return read_deadlines(session, stmt)
 
     @app.get("/alertas", response_model=list[AlertaPrazo])
     def listar_alertas(

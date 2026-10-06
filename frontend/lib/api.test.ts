@@ -45,6 +45,18 @@ describe("API client critical workflows", () => {
     vi.resetModules();
   });
 
+  it("batches analysis status reads without downloading dashboard lists", async () => {
+    const fetchMock = mockFetch({ "GET /intimacoes/analise-status": { body: [] } });
+    vi.stubGlobal("fetch", fetchMock);
+    const { consultarAnalisesPrazo } = await import("./api");
+    expect(await consultarAnalisesPrazo([])).toEqual([]);
+    expect(fetchMock).not.toHaveBeenCalled();
+    await consultarAnalisesPrazo([...Array.from({ length: 205 }, (_, index) => index + 1), 1]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(new URL(String(fetchMock.mock.calls[0][0])).searchParams.getAll("ids")).toHaveLength(200);
+    expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.getAll("ids")).toHaveLength(5);
+  });
+
   it("loads core dashboard data and sends the bearer token", async () => {
     const fetchMock = mockFetch({
       "GET /intimacoes": { body: [] },

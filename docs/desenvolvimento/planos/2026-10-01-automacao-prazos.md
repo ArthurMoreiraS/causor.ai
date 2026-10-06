@@ -17,7 +17,7 @@ todo o problema a um clique por lote.
 
 ## Bloco A: interpretação por regra identificável
 
-Um executor Sol, após liberar a etapa de UI/contexto, implementará catálogo
+Após liberar a etapa de UI/contexto, implementar catálogo
 pequeno de regras CPC com fonte primária e versão, preservando prazo judicial
 expresso e sem prazo padrão. O modelo identifica o ato e cita trecho literal;
 o código valida regra/artigo, comando, duração e condições, e calcula a data.

@@ -19,7 +19,7 @@ Há alteração não concluída de recuperação de 401 em frontend/lib/api.ts.
 
 ## Contrato do executor
 
-Um worker Sol, sem delegação adicional, commit ou deploy. Escopo: frontend
+Sem commit ou deploy nesta etapa. Escopo: frontend
 api/auth e testes para finalizar 401; página, sidebar, TrabalhosView e testes
 de Novo trabalho; indicador/CSS de captura; ConfirmarPrazo/DetailDrawer/lista
 de intimações para revisão acessível e refresh. Reusar o endpoint de cálculo
@@ -47,7 +47,7 @@ Coordenador revisa diff e evidência; push já autorizado na sessão. Separar
 testes simulados, deploy e confirmação real. Sem escrever dados de clientes
 como parte de testes. Não modificar engine de prazos nesta correção de fluxo.
 
-Executor: `/root/finish_mvp_feedback`, worker Sol/medium. Coordenador executou
+Verificação executada:
 `tests/test_execution_regressions.py`: 4 aprovados, SQLite isolado e provedores
 simulados. Consulta READ ONLY confirmou 614 intimações/359 processos/zero prazos.
 Browser indisponível (inventário vazio e IAB indisponível); DOM automatizado

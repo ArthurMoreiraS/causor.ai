@@ -1,6 +1,42 @@
 # Proximos passos - MVP
 
-> **02/10 — contexto e minuta recuperável, revisados localmente.** Trabalhos
+> **06/10 — retomada do MVP em 48 horas; captura periódica pronta localmente.**
+> Implementado `capture-scheduler`: fila persistente, tick de 300s, espera após
+> falha de 900s, intervalo por OAB, deduplicação com consulta manual e validação
+> de cadastro ativo. Cursor só avança após janela concluída; falha conserva
+> período anterior. Compose/deploy incluem saúde e SHA do novo serviço.
+> 54 testes direcionados, 803 backend aprovados/108 ignorados e Ruff aprovado;
+> credenciais externas vazias e SQLite descartável na suíte completa. Frontend
+> lint/tipos/testes/build aprovados. Edge com dados/PDFs/providers fictícios
+> percorreu criação, upload, escopo, fontes, pendência, conferência, minuta,
+> recarga e mobile. Encontrada/corrigida lista de PDFs que não atualizava após
+> upload, preservando campos em edição. Ainda sem CI PG16/17/deploy desta versão.
+> Auth Supabase continua 402 e API `/health` 200; suporte humano sem retorno.
+> Advisor trará OAB aleatória; caso com documentos/revisão real não definido.
+> Captura vazia não é falha e OAB não fornece automaticamente os autos completos.
+> [Plano de 48h](desenvolvimento/planos/2026-10-06-mvp-48-horas.md),
+> [operação do agendador](operacao/captura-periodica.md) e
+> [aceite do primeiro caso](operacao/aceite-mvp-2026-10-08.md).
+
+> **05/10 — consumo Supabase diagnosticado e correção local validada.**
+> Painel informado pelo fundador: 37,39 GB de egress não cacheado / 5 GB,
+> concentrados em 30/09 e 01/10. Auth respondeu HTTP 402; API `/health` 200.
+> Banco ainda acessível em READ ONLY. Estatísticas históricas mostram leituras
+> repetidas de texto/payload de intimações; não atribuem integralmente o consumo
+> deste ciclo. Métricas agora agregam no SQL; listagens projetam apenas campos
+> necessários e memória de prazo. Acompanhamento usa estados compactos,
+> pausa em aba oculta e recarrega listas ao terminar. 37 testes backend
+> direcionados, Ruff, lint/tipos e 160 testes frontend aprovados. Novas consultas
+> executadas em PostgreSQL real somente leitura, com registros atuais zerados;
+> casos PostgreSQL preenchidos aguardam CI descartável. Sem deploy nem upgrade.
+> Fundador confirmou permanecer no Free. Liberação automática gratuita depende
+> da renovação indicada no email em 22/10; fundador confirmou envio do pedido
+> de exceção ao suporte, ainda sem resposta ou liberação confirmada.
+> Consumo mensal da versão corrigida ainda não medido.
+> Fundador retirou o fluxo obrigatório Astra/Sol; execução direta nesta sessão,
+> sem alterar modelos do produto. [Registro e limites](desenvolvimento/planos/2026-10-05-consumo-supabase.md).
+
+> **02/10 — contexto e minuta recuperável implantados (`edf41d1`).** Trabalhos
 > passa a executar análise/redação em fila persistente, com retomada ao voltar
 > à tela e repetição da solicitação sem duplicar a peça. Usa comunicação atual,
 > autos recebidos e histórico SOR identificado; fonte, objetivo ou prazo alterado
@@ -10,7 +46,11 @@
 > da última regressão; 54 direcionados finais, Ruff, lint/tipos e 151 testes
 > frontend aprovados. Coordenador revisou o diff e repetiu 54 backend e 20
 > frontend, aprovados. Percurso HTTP integrado passou com providers simulados
-> e PDF em diretório temporário. Publicação e PostgreSQL 16/17 aguardam CI.
+> e PDF em diretório temporário. [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36968706729),
+> incluindo PostgreSQL 16/17 e build Linux do frontend;
+> [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36968854757).
+> Log confirmou SHA `edf41d1afb06308b80e50cb9b0d354e56f1a1294` nos quatro
+> serviços; consulta externa posterior `/health` respondeu `status: ok`.
 > Sem validação visual ou jurídica real. Agendamento periódico da captura e
 > coleta automática de autos continuam sem comprovação operacional.
 > [Plano e limites](desenvolvimento/planos/2026-10-01-contexto-manual-e-minuta.md).

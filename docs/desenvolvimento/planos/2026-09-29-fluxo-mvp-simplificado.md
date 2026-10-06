@@ -4,7 +4,7 @@ Estado: execução autorizada pelo fundador em 29/09/2026. Etapa 1 implementada 
 revisada localmente (lint, tipos, 120 testes frontend). Etapa 2 em implementação.
 Sem novo deploy; conferência visual ainda indisponível.
 Em 30/09 o fundador priorizou três novos prints de desalinhamento. Correção
-direta pelo coordenador após indisponibilidade do executor Sol por capacidade:
+direta:
 painel de autos com campos padronizados e botões sem esticar, barra de análise
 com hierarquia/espaçamento e avisos do dashboard com ação separada do texto.
 Revisão adjacente corrigiu campos de índice e checkboxes de evidências.
@@ -212,8 +212,8 @@ fundamentação, fontes e omissões.
 
 ## Coordenação e limites de escopo
 
-Astra coordena e revisa; um worker Sol implementa um bloco delimitado por vez,
-com arquivos, critérios e comandos definidos na delegação. Revisar diff real e
+Implementar um bloco delimitado por vez,
+com arquivos, critérios e comandos definidos no plano. Revisar diff real e
 evidências antes do próximo bloco. Backend: capture/normalize, queue, engine,
 API/schemas/modelos necessários e work_service. Frontend: navegação, página,
 intimações/prazos/trabalhos/minutas, formulários, documentos/contexto e estilos.

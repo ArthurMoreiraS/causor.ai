@@ -16,6 +16,7 @@ os.environ["CAUSOR_DATABASE_URL"] = "sqlite:///" + (DIRECTORY / "demo.db").as_po
 os.environ["CAUSOR_OBJECT_STORE_PROVIDER"] = "localdev"
 os.environ["CAUSOR_OBJECT_STORE_LOCAL_PATH"] = str(DIRECTORY / "objects")
 os.environ["CAUSOR_CORS_ORIGINS"] = "http://127.0.0.1:3099,http://localhost:3099"
+os.environ["CAUSOR_DATAJUD_API_KEY"] = ""
 
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
@@ -27,6 +28,8 @@ from app.sor import models  # noqa: E402
 from app.agent import work_service  # noqa: E402
 from app.agent.drafter import MinutaGerada  # noqa: E402
 from app.autos import summarizer, worker  # noqa: E402
+from app.queue.worker import WorkerClients, run_once  # noqa: E402
+from app.prazo_engine.factory import build_calendar  # noqa: E402
 
 engine = create_engine(os.environ["CAUSOR_DATABASE_URL"], connect_args={"check_same_thread": False})
 Base.metadata.create_all(engine)
@@ -47,6 +50,9 @@ def sessions():
 
 
 class NoCourt:
+    def consultar(self, *args, **kwargs):
+        raise RuntimeError("This isolated demo must never capture court data")
+
     def consultar_processo(self, *args, **kwargs):
         return None
 
@@ -85,8 +91,16 @@ def process_documents():
         time.sleep(0.5)
 
 
+def process_work_jobs():
+    clients = WorkerClients(djen=NoCourt(), datajud=NoCourt(), calendar=build_calendar([2026]))
+    while True:
+        run_once(factory, clients=clients)
+        time.sleep(0.5)
+
+
 if __name__ == "__main__":
     import uvicorn
     threading.Thread(target=process_documents, daemon=True).start()
+    threading.Thread(target=process_work_jobs, daemon=True).start()
     print(f"SYNTHETIC DEMO ONLY — data at {DIRECTORY}", flush=True)
     uvicorn.run(app, host="127.0.0.1", port=8099)

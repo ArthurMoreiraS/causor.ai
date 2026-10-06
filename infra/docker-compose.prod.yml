@@ -35,6 +35,19 @@ services:
       - causor_artifacts:/app/artifacts
     networks: [causor]
 
+  capture-scheduler:
+    image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file: [.env]
+    command: python -m app.capture.service
+    networks: [causor]
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.capture.service", "--healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   frontend:
     container_name: causor-frontend
     image: ghcr.io/arthurmoreiras/causor-frontend:${IMAGE_TAG:-latest}

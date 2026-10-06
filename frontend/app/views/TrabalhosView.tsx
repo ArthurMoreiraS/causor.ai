@@ -246,7 +246,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
         <p>Envie os autos e os documentos do cliente. A cobertura do tribunal permanece declarada por quem envia.</p>
         <ProcessContextStatus key={`context-${work.processo_id}`} processoId={work.processo_id} initialDegree={work.grau === "2" ? "2" : "1"} onReceiveDocuments={() => setReceiving(true)} receivingDisabled={offline} assistedOnly />
         <button className="toolbarButton" onClick={() => onDocuments(work.processo_id!)}>Conferir documentos e fontes</button>
-        <WorkScope key={`scope-${work.id}`} work={work} disabled={offline || busy || dirty}
+        <WorkScope key={`scope-${work.id}`} work={work} disabled={offline || busy || dirty} refreshKey={revision}
           onDirtyChange={onScopeDirty} onSaved={value => { setWork(old => old?.id === value.id && old.versao === work.versao ? value : old); setRevision(v => v + 1); }} />
       </section> : null}
       {work?.peticao_id ? <section className="legalWorkStage"><h3>Minuta vinculada</h3><button className="toolbarButton" onClick={() => onOpenDraft(work.peticao_id!)}>Abrir minuta para revisão</button></section> : null}

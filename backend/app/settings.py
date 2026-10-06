@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     capture_intervalo_horas_default: int = 12
     capture_retry_attempts: int = 5
     capture_retry_backoff_seconds: float = 10.0
+    capture_scheduler_tick_seconds: float = Field(300, gt=0)
+    capture_failure_cooldown_seconds: float = Field(900, gt=0)
     job_stale_minutes: int = 60
     work_job_lease_seconds: int = Field(90, gt=0)
     work_job_heartbeat_seconds: int = Field(20, gt=0)

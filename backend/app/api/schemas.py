@@ -26,6 +26,11 @@ class IntimacaoOut(BaseModel):
     prazo_analise: dict | None = None
 
 
+class IntimacaoAnalysisOut(BaseModel):
+    id: int
+    prazo_analise: dict | None = None
+
+
 class PrazoOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

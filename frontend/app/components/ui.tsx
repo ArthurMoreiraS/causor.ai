@@ -438,7 +438,7 @@ export function DeadlineBadge({
   analise?: { status: string; motivo?: string | null } | null;
 }) {
   if (!prazo) {
-    const labels: Record<string, string> = { analisando: "Analisando", pendente: "Revisar dados", sem_prazo_identificado: "Sem prazo identificado", falha: "Falha na análise" };
+    const labels: Record<string, string> = { analisando: "Analisando", pendente: "Revisar dados", calculado_a_revisar: "Calculado · revisar", sem_prazo_identificado: "Sem prazo identificado", falha: "Falha na análise" };
     return <span className="dayBadge neutral" title={analise?.motivo ?? undefined}>{labels[analise?.status ?? ""] ?? "Pendente"}</span>;
   }
   const remaining = daysUntil(prazo.data_fatal);

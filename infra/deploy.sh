@@ -34,7 +34,7 @@ if [[ -f .image_tag.env ]]; then cp -p .image_tag.env .image_tag.previous.env; f
 compose up -d --wait --wait-timeout 120
 
 # A healthy old API is not proof that this release was deployed.
-for service in backend worker autos-worker frontend; do
+for service in backend worker autos-worker capture-scheduler frontend; do
   container_id=$(compose ps -q "$service")
   [[ -n "$container_id" ]]
   actual_image=$(docker inspect --format '{{.Config.Image}}' "$container_id")
@@ -47,4 +47,4 @@ mv "$candidate" docker-compose.yml
 printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG" > .image_tag.candidate.env
 mv .image_tag.candidate.env .image_tag.env
 curl -fsS https://api.causorai.com/health
-printf '\nRelease %s verified (backend, worker, autos-worker, frontend).\n' "$IMAGE_TAG"
+printf '\nRelease %s verified (backend, worker, autos-worker, capture-scheduler, frontend).\n' "$IMAGE_TAG"

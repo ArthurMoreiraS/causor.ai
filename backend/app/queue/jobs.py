@@ -10,6 +10,7 @@ from collections.abc import Callable
 from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta, timezone
 from hashlib import sha256
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -186,16 +187,21 @@ def _windows(data_inicio: date, data_fim: date, batch_days: int):
 def _advance_manual_oab_cursor(
     session: Session, job: models.JobExecucao, data_inicio: date | None, data_fim: date | None,
 ) -> None:
-    """Only a complete manual capture advances an existing monitored OAB."""
+    """Only a complete manual or scheduled window advances a monitored OAB."""
     monitored_id = (job.payload or {}).get("oab_monitorada_id")
+    if job.entidade == "oab_monitorada":
+        monitored_id = job.entidade_id
+    office_id = (job.payload or {}).get("escritorio_id") if job.entidade == "oab_monitorada" else job.entidade_id
     if (
-        job.status != "completed" or job.entidade != "escritorio"
+        job.status != "completed" or job.entidade not in ("escritorio", "oab_monitorada")
         or not isinstance(monitored_id, int) or data_inicio is None or data_fim is None
-        or data_inicio > data_fim or data_fim > date.today()
+        or data_inicio > data_fim or data_fim > datetime.now(ZoneInfo("America/Sao_Paulo")).date()
     ):
         return
-    monitored = session.get(models.OabMonitorada, monitored_id)
-    if monitored is None or not monitored.ativo or monitored.escritorio_id != job.entidade_id:
+    session.flush()
+    monitored = session.scalar(select(models.OabMonitorada).where(
+        models.OabMonitorada.id == monitored_id).execution_options(populate_existing=True).with_for_update())
+    if monitored is None or not monitored.ativo or monitored.escritorio_id != office_id:
         return
     if monitored.cursor_data is None or data_fim > monitored.cursor_data:
         monitored.cursor_data = data_fim
@@ -343,6 +349,7 @@ def run_capture_oab_job(
             commit_each(session)
             job = get_job(session, job_id)
 
+    job = _lock_capture_job(session, job_id)
     mark_completed(
         session,
         job,
@@ -366,6 +373,16 @@ def _lock_capture_job(session: Session, job_id: int) -> models.JobExecucao:
                          .execution_options(populate_existing=True).with_for_update())
     if job is None or (job.payload or {}).get("removida"):
         raise JobError("Captura cancelada pela remoção da OAB")
+    if (job.payload or {}).get("agendada") is True:
+        if job.status not in ("queued", "running"):
+            raise JobError("Captura agendada já encerrada")
+        monitored = session.scalar(select(models.OabMonitorada).where(
+            models.OabMonitorada.id == job.entidade_id,
+            models.OabMonitorada.escritorio_id == job.payload.get("escritorio_id"),
+        ).execution_options(populate_existing=True))
+        if (job.entidade != "oab_monitorada" or monitored is None or not monitored.ativo
+                or monitored.oab != job.payload.get("oab") or monitored.uf != job.payload.get("uf")):
+            raise JobError("Captura agendada cancelada: OAB ausente ou inativa")
     return job
 
 

@@ -10,6 +10,22 @@ vi.mock("@/lib/work-api", () => ({ salvarEscopo: vi.fn() }));
 vi.mock("./DocumentEvidenceDialog", () => ({ default: () => null }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
+it("reconsulta o acervo após upload sem apagar a declaração em edição", async () => {
+  vi.mocked(listarDocumentos).mockResolvedValue({ total: 0, items: [] });
+  const work: Trabalho = { id: 1, processo_id: 2, intimacao_id: null, prazo_id: null,
+    peticao_id: null, responsavel_id: null, providencia: "Manifestação", instrucoes: "", grau: "1",
+    polo: "Autor", versao: 1, evidencias: null, created_at: "", updated_at: "", escopo: null };
+  const { rerender } = render(<WorkScope work={work} disabled={false} onSaved={vi.fn()} refreshKey={0} />);
+  await screen.findByText("0 documentos");
+  fireEvent.change(screen.getByLabelText("Declaração de cobertura e limitações"), { target: { value: "Declaração ainda em edição após receber os autos." } });
+  vi.mocked(listarDocumentos).mockResolvedValue({ total: 1, items: [{ id: 3, nome: "Autos recebidos.pdf", tipo: "autos",
+    processo_id: 2, processo_numero: "1", cliente_nome: null, grau: "1", no_contexto: true, versao: null }] });
+  rerender(<WorkScope work={work} disabled={false} onSaved={vi.fn()} refreshKey={1} />);
+  expect(await screen.findByText("Autos recebidos.pdf: sem versão recebida.")).toBeTruthy();
+  expect((screen.getByLabelText("Declaração de cobertura e limitações") as HTMLTextAreaElement).value)
+    .toBe("Declaração ainda em edição após receber os autos.");
+});
+
 it("preserva índice editado durante snapshot remoto e atualiza quando está limpo", async () => {
   vi.mocked(listarDocumentos).mockResolvedValue({ total: 0, items: [] });
   const work: Trabalho = { id: 1, processo_id: 2, intimacao_id: null, prazo_id: null,

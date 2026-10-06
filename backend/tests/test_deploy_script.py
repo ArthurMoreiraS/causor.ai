@@ -17,7 +17,7 @@ docker() {
     image=causor-backend
     if [[ "${@: -1}" == frontend ]]; then image=causor-frontend; fi
     tag="$IMAGE_TAG"
-    if [[ "$FAIL_AT" == stale ]]; then tag=old; fi
+    if [[ "$FAIL_AT" == stale || ( "$FAIL_AT" == stale_scheduler && "${@: -1}" == capture-scheduler ) ]]; then tag=old; fi
     printf 'ghcr.io/arthurmoreiras/%s:%s\n' "$image" "$tag"
     return 0
   fi
@@ -37,7 +37,7 @@ source "$DEPLOY_SCRIPT"
 '''
 
 
-@pytest.mark.parametrize("failure", ["pull", "migrate", "up", "stale", "none"])
+@pytest.mark.parametrize("failure", ["pull", "migrate", "up", "stale", "stale_scheduler", "none"])
 def test_deploy_stops_on_failure_and_verifies_release(tmp_path, failure):
     bash = ("C:/Program Files/Git/bin/bash.exe" if os.name == "nt" else shutil.which("bash"))
     if not bash or not Path(bash).exists():
@@ -61,6 +61,7 @@ def test_deploy_stops_on_failure_and_verifies_release(tmp_path, failure):
     else:
         assert result.returncode == 0, result.stderr
         assert "ps -q autos-worker" in calls
+        assert "ps -q capture-scheduler" in calls
         assert "https://api.causorai.com/health" in calls
         assert (tmp_path / ".image_tag.env").read_text() == "IMAGE_TAG=" + "a" * 40 + "\n"
         assert (tmp_path / "docker-compose.previous.yml").read_text() == "previous compose"

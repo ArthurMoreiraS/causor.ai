@@ -5,7 +5,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({
   loadDashboard: vi.fn(), listarOabsMonitoradas: vi.fn(), listarCapturasOab: vi.fn(),
   iniciarCapturaOab: vi.fn(), consultarCapturaOab: vi.fn(), listarClientes: vi.fn(),
-  analisarPrazosExistentes: vi.fn(), repetirAnalisePrazo: vi.fn(), removerDadosOab: vi.fn()
+  analisarPrazosExistentes: vi.fn(), repetirAnalisePrazo: vi.fn(), removerDadosOab: vi.fn(),
+  consultarAnalisesPrazo: vi.fn()
 }));
 const toast = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api", async (importOriginal) => ({
@@ -32,6 +33,40 @@ const captureJob = (status: "queued" | "completed") => ({
   erro: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString()
 });
 const dashboard = { intimacoes: [], processos: [], prazos: [], peticoes: [] };
+
+it("atualiza badges com estados compactos e recarrega as listas só ao terminar o lote", async () => {
+  vi.useFakeTimers();
+  const visibility = vi.spyOn(document, "hidden", "get").mockReturnValue(false);
+  const notices = [8, 9].map(id => ({
+    id, processo_id: null, fonte: "DJEN", numero_processo: `processo-${id}`, tribunal: "TJSP",
+    tipo_comunicacao: "Intimação", teor: "Texto jurídico", data_disponibilizacao: "2026-10-01",
+    data_publicacao: null, prazo_analise: { status: "analisando", job_id: id },
+  }));
+  api.loadDashboard.mockResolvedValue({ ...dashboard, intimacoes: notices });
+  api.listarOabsMonitoradas.mockResolvedValue([]);
+  api.listarCapturasOab.mockResolvedValue([]);
+  api.listarClientes.mockResolvedValue({ total: 0, items: [] });
+  api.consultarAnalisesPrazo.mockResolvedValue([
+    { id: 8, prazo_analise: { status: "calculado_a_revisar", job_id: 8 } },
+    { id: 9, prazo_analise: { status: "analisando", job_id: 9 } },
+  ]);
+  try {
+    await act(async () => { render(<Home />); });
+    fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(screen.getByText("Calculado · revisar")).toBeTruthy();
+    expect(screen.getByText("Analisando")).toBeTruthy();
+    expect(api.loadDashboard).toHaveBeenCalledTimes(1);
+    api.loadDashboard.mockResolvedValue({ ...dashboard, intimacoes: notices.map(item => ({
+      ...item, prazo_analise: { status: "calculado_a_revisar", job_id: item.id },
+    })) });
+    api.consultarAnalisesPrazo.mockResolvedValue([{ id: 9, prazo_analise: { status: "calculado_a_revisar", job_id: 9 } }]);
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(api.loadDashboard).toHaveBeenCalledTimes(2);
+    await act(async () => { await vi.advanceTimersByTimeAsync(20000); });
+    expect(api.consultarAnalisesPrazo).toHaveBeenCalledTimes(2);
+  } finally { cleanup(); visibility.mockRestore(); vi.useRealTimers(); vi.clearAllMocks(); }
+});
 
 describe("Home OAB capture modal", () => {
   beforeEach(() => {

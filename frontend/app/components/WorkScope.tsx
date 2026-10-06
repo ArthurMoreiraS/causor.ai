@@ -10,7 +10,7 @@ function scopeFields(scope: Trabalho["escopo"]) {
   return JSON.stringify({ data_referencia: scope?.data_referencia || "", declaracao: scope?.declaracao || "", documentos: scope?.documentos || [] });
 }
 
-export default function WorkScope({ work, disabled, onSaved, onDirtyChange }: { work: Trabalho; disabled: boolean; onSaved: (value: Trabalho) => void; onDirtyChange?: (dirty: boolean) => void }) {
+export default function WorkScope({ work, disabled, onSaved, onDirtyChange, refreshKey = 0 }: { work: Trabalho; disabled: boolean; onSaved: (value: Trabalho) => void; onDirtyChange?: (dirty: boolean) => void; refreshKey?: number }) {
   const [date, setDate] = useState(work.escopo?.data_referencia || "");
   const [declaration, setDeclaration] = useState(work.escopo?.declaracao || "");
   const [entries, setEntries] = useState<DocumentoEscopo[]>(work.escopo?.documentos || []);
@@ -50,7 +50,7 @@ export default function WorkScope({ work, disabled, onSaved, onDirtyChange }: { 
     }).catch(err => { if (active) setError(humanError(err, "Falha ao consultar o acervo")); });
     void reload();
     return () => { active = false; clearTimeout(timer); };
-  }, [work.processo_id, offset]);
+  }, [work.processo_id, offset, refreshKey]);
   function changeEntry(id: number, transform: (entry: DocumentoEscopo) => DocumentoEscopo) {
     setEntries(values => {
       const current = values.find(v => v.versao_id === id) || { versao_id: id, origem: "autos_enviados" as const, pecas: [] };

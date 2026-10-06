@@ -2,9 +2,9 @@
 
 Retomada em nova conversa em 01/10/2026: fundador reforçou automação de
 OAB → intimações/processos → prazo → trabalho/minuta com comunicação atual e
-contexto do processo. Coordenador conferiu estado e diff antes da delegação;
-alterações locais do bloco 4a foram preservadas para revisão por um executor
-Sol/medium. Bloco 4b segue o contrato delimitado abaixo, após aceite do 4a.
+contexto do processo. Estado e diff conferidos;
+alterações locais do bloco 4a foram preservadas para revisão.
+Bloco 4b segue o contrato delimitado abaixo, após aceite do 4a.
 Inventário de Computer Use nesta sessão retornou zero apps e browsers; não há
 conferência visual disponível. Execução periódica de `capture-due` em produção
 continua sem comprovação no registro atual; não confundir worker da fila com
@@ -17,7 +17,7 @@ aprovados. Este registro delimita a continuação das etapas 3 e 4.
 
 ## Etapa 3a: arquivos e ambientes
 
-Um executor Sol implementa e testa identificação persistente do volume local,
+Implementar e testar identificação persistente do volume local,
 identidade do bucket sem segredos, marcação dos jobs e seleção/recuperação
 somente pelo worker correspondente. Jobs legados exigem acesso aos bytes.
 Paginação deve alcançar jobs próprios atrás dos estrangeiros; a transação de
@@ -144,7 +144,7 @@ provider real, caso real, PostgreSQL descartável ou deploy foi executado neste
 bloco. Recuperação após reinício ainda depende do bloco 4b, agora em execução.
 
 Retomada em 02/10 após interrupção do executor por limite de uso, sem perda
-do diff. Sol/medium voltou a executar após novo pedido do fundador. Coordenador
+do diff. Execução retomada após novo pedido do fundador. Revisão
 repetiu 50 testes de work_jobs/legal_work/worker/llm, aprovados. O teste de
 PostgreSQL acrescenta criação concorrente e dono antigo que retorna depois de
 outro executor publicar. Execução local PG ainda indisponível; validação será
@@ -161,9 +161,17 @@ backend e 20 frontend, todos aprovados. Corrigida também a identidade original
 entre commit e refresh, inclusive com expire_on_commit=True. Percurso HTTP
 integrado usa captura/modelos simulados, PDF textual local e tmp_path; verifica
 fonte e prazo no dossiê, retomada, retry sem duplicação e edição da peça.
-PostgreSQL concorrente aguarda CI descartável; não houve acesso a autos reais,
+PostgreSQL concorrente inicialmente aguardava CI descartável; não houve acesso a autos reais,
 chamada real de modelo ou validação de qualidade jurídica. Navegador integrado
 indisponível na tentativa de 02/10. Publicação segue após esta revisão.
+
+Publicado em `edf41d1afb06308b80e50cb9b0d354e56f1a1294`: CI
+[36968706729](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36968706729)
+aprovado (backend, frontend/build Linux e PostgreSQL 16/17). Deploy
+[36968854757](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36968854757)
+aprovado; log confirmou esse SHA em backend, worker, autos-worker e frontend.
+Consulta externa posterior da API retornou `status: ok`. Essa verificação não
+valida qualidade jurídica, cron de captura, coleta de autos ou layout visual.
 
 Após concluir/revisar 4a, um único executor pode alterar work_service.py
 (somente hook de publicação/contrato de snapshot), llm.py (timeout de transporte),
@@ -201,8 +209,8 @@ mudança de input antes/durante execução, lease perdido/renovado/recuperado,
 publicação e auditoria atômicas, navegação/refresh/perda de resposta na UI;
 PostgreSQL concorrente no CI, Ruff, frontend check e integração do fluxo.
 
-Um escritor por vez, sem subdelegação. Coordenador lê o diff e os resultados,
-envia correções, registra limites e publica com autorização existente. Preservar
+Revisar o diff e os resultados, corrigir problemas, registrar limites e publicar
+com autorização existente. Preservar
 AGENTS.md e documentos não rastreados do fundador. Não apagar dados reais para
 verificar remoção. Conferir SHA e saúde após deploy; não tratar isso como aceite
 visual ou jurídico.

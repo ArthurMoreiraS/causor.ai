@@ -6,6 +6,16 @@ others) when working with code in this repository.
 `CLAUDE.md` at the repo root is a thin pointer to this file. Keep the rules
 here; do not duplicate them elsewhere.
 
+## Development workflow
+
+Read `docs/estado.md` and inspect the current diff before planning. Preserve
+existing user changes, including untracked files. For substantial work, record
+scope, acceptance criteria and verification in
+`docs/desenvolvimento/planos/YYYY-MM-DD-slug.md`. Review the actual diff and
+test evidence, and distinguish local, simulated, deployed and live-validated
+results. Questions and research-only requests do not authorize implementation
+of the product.
+
 ## Repository status
 
 **2026-09-25 product direction — read first.** After the legal advisor meeting,

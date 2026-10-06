@@ -13,7 +13,7 @@ não deve preencher todos os parâmetros de todas as publicações para iniciar 
 fluxo. Falta de informação, múltiplos prazos/partes ou regime não suportado ficam
 com motivo de revisão explícito. Não reaplicar 15 dias a toda comunicação.
 
-Executar com um worker Sol; coordenador pesquisa regras oficiais e revisa.
+Pesquisar regras oficiais, implementar e revisar os resultados.
 Escopo permitido: módulos backend capture, prazo_engine, agent de interpretação,
 queue/worker, API/schemas, modelos apenas se necessário, testes; frontend tipos,
 captura, intimações, prazos, confirmação e indicadores. Reusar fila e provider

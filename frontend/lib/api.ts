@@ -11,7 +11,7 @@ export type Intimacao = {
   teor: string | null;
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
-  prazo_analise?: { status: string; motivo?: string | null; prazo_id?: number; dias?: number | null; unidade?: string; publicacao?: string; primeiro_dia?: string; data_fatal?: string; evidencia?: string | null; fundamento?: string | null; calendario?: string } | null;
+  prazo_analise?: { status: string; job_id?: number; motivo?: string | null; prazo_id?: number; dias?: number | null; unidade?: string; publicacao?: string; primeiro_dia?: string; data_fatal?: string; evidencia?: string | null; fundamento?: string | null; calendario?: string } | null;
 };
 
 export type Processo = {
@@ -567,6 +567,19 @@ async function requestList<T>(path: string): Promise<{ data: T[]; failed: boolea
     console.warn(`Falha ao carregar ${path}`, err);
     return { data: [], failed: true };
   }
+}
+
+export type IntimacaoAnalysis = Pick<Intimacao, "id" | "prazo_analise">;
+
+export async function consultarAnalisesPrazo(ids: number[]): Promise<IntimacaoAnalysis[]> {
+  const unique = [...new Set(ids)];
+  const results: IntimacaoAnalysis[] = [];
+  for (let start = 0; start < unique.length; start += 200) {
+    const query = new URLSearchParams();
+    unique.slice(start, start + 200).forEach(id => query.append("ids", String(id)));
+    results.push(...await controlRequest<IntimacaoAnalysis[]>(`/intimacoes/analise-status?${query}`));
+  }
+  return results;
 }
 
 export async function loadDashboard(): Promise<DashboardData> {

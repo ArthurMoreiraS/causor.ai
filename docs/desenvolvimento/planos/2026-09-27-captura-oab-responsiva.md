@@ -13,8 +13,8 @@ Existe fila persistente (`POST /jobs/capture/oab`, `GET /jobs/{id}`) e worker
 implantável com progresso por janela. CSS desativa animações quando o sistema
 solicita movimento reduzido; isso deve continuar respeitado.
 
-Preservar mudanças preexistentes em AGENTS.md, .codex/, briefing DOCX,
-backend/reuniaoComAdvisorRaw.md, docs/desenvolvimento/fluxo-codex.md e plano UI.
+Preservar mudanças preexistentes em AGENTS.md, briefing DOCX,
+backend/reuniaoComAdvisorRaw.md e plano UI.
 
 ## Contrato do executor
 
@@ -54,12 +54,7 @@ backend/reuniaoComAdvisorRaw.md, docs/desenvolvimento/fluxo-codex.md e plano UI.
 
 ## Execução e revisão
 
-Executor nativo `worker` (Sol/medium): `/root/fix_capture`. Coordenador
-responsável pela investigação, decisões e revisão do diff. A seleção dos papéis
-foi confirmada nos arquivos .codex e nas ferramentas da sessão; a configuração
-de Standard não permite afirmar o modo de cobrança efetivo desta conversa.
-
-Evidência nova coletada pelo coordenador em 27/09, sem mutação de dados:
+Evidência nova coletada em 27/09, sem mutação de dados:
 
 - Consulta DJEN limitada a um dia/página respondeu HTTP 200 em cerca de 1s.
 - Saúde e OpenAPI da API de produção responderam 200, incluindo rotas de jobs.
@@ -77,10 +72,7 @@ resposta perdida mesmo após término do job; consultas auxiliares com timeout;
 enriquecimento DataJud fora do resultado da captura; preservação do resultado
 ao remover monitoramento; documentação do worker necessário em execução local.
 
-Retomada em 28/09 com o executor nativo `/root/finish_capture` (Sol/medium).
-O fundador confirmou manter Astra coordenando e Sol executando. Configurações
-local e global usam `service_tier = "default"`; isso não comprova a seleção
-efetiva Standard/Fast na interface da sessão.
+Retomada em 28/09.
 
 Implementação revisada: cadastro/enfileiramento atômicos com lock por escritório,
 reuso de job ativo, replay de chave original e aliases, timeout de sessão e

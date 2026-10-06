@@ -11,11 +11,12 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from app.capture.datajud import DatajudClient
 from app.capture.djen import DjenClient
@@ -46,6 +47,78 @@ def select_due(session: Session, *, now: datetime | None = None) -> list[models.
         if proxima <= now:
             due.append(oab)
     return due
+
+
+def enqueue_one(
+    session: Session, oab_id: int, escritorio_id: int, *, now: datetime | None = None,
+) -> models.JobExecucao | None:
+    """Serialize with manual enqueue/removal; caller commits before any network IO."""
+    now = now or _utcnow()
+    session.scalar(select(models.Escritorio.id).where(
+        models.Escritorio.id == escritorio_id).with_for_update())
+    oab = session.scalar(select(models.OabMonitorada).where(
+        models.OabMonitorada.id == oab_id,
+        models.OabMonitorada.escritorio_id == escritorio_id,
+    ).execution_options(populate_existing=True).with_for_update())
+    if oab is None or not oab.ativo:
+        return None
+    if oab.ultima_captura_em is not None and (
+        _as_aware(oab.ultima_captura_em) + timedelta(hours=oab.intervalo_horas) > now
+    ):
+        return None
+    belongs = or_(
+        and_(models.JobExecucao.entidade == "oab_monitorada",
+             models.JobExecucao.entidade_id == oab.id),
+        and_(models.JobExecucao.entidade == "escritorio",
+             models.JobExecucao.entidade_id == escritorio_id,
+             models.JobExecucao.payload["oab"].as_string() == oab.oab,
+             models.JobExecucao.payload["uf"].as_string() == oab.uf),
+    )
+    jobs = select(models.JobExecucao).where(
+        models.JobExecucao.tipo == "captura_oab", belongs)
+    if session.scalar(jobs.with_only_columns(models.JobExecucao.id).where(
+        models.JobExecucao.status.in_(("queued", "running"))).limit(1)) is not None:
+        return None
+    # Fetch only the most recent outcome; never scan prior job payloads into Python.
+    previous = session.scalar(jobs.where(models.JobExecucao.status.in_(("failed", "completed")))
+                              .order_by(models.JobExecucao.id.desc()).limit(1))
+    if previous is not None and previous.status == "failed" and (
+        _as_aware(previous.updated_at) + timedelta(
+            seconds=settings.capture_failure_cooldown_seconds) > now
+    ):
+        return None
+    today = now.astimezone(ZoneInfo("America/Sao_Paulo")).date()
+    start = (oab.cursor_data or today) - timedelta(days=settings.capture_lookback_days)
+    if previous is not None and previous.status == "failed":
+        # Preserve an incomplete first window even across a multi-day outage.
+        try:
+            failed_start = date.fromisoformat((previous.payload or {}).get("data_inicio", ""))
+            start = min(start, failed_start)
+        except (TypeError, ValueError):
+            pass
+    return create_job(session, tipo="captura_oab", entidade="oab_monitorada",
+                      entidade_id=oab.id, payload={
+                          "oab": oab.oab, "uf": oab.uf, "escritorio_id": escritorio_id,
+                          "oab_monitorada_id": oab.id, "agendada": True, "enrich": False,
+                          "data_inicio": start.isoformat(), "data_fim": today.isoformat(),
+                      })
+
+
+def enqueue_due(session_factory: sessionmaker, *, now: datetime | None = None) -> int:
+    """One tick; durable per-office transactions, no providers or models."""
+    now = now or _utcnow()
+    with session_factory() as session:
+        candidates = list(session.execute(select(
+            models.OabMonitorada.id, models.OabMonitorada.escritorio_id,
+        ).where(models.OabMonitorada.ativo.is_(True)).order_by(
+            models.OabMonitorada.escritorio_id, models.OabMonitorada.id)))
+    count = 0
+    for oab_id, office_id in candidates:
+        with session_factory() as session:
+            job = enqueue_one(session, oab_id, office_id, now=now)
+            session.commit()
+            count += job is not None
+    return count
 
 
 def run_capture_for_oab(

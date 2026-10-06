@@ -42,6 +42,7 @@ import {
   JobExecucao
 } from "@/lib/api";
 import { useOabCapture } from "./useOabCapture";
+import { useDeadlineAnalysis } from "./useDeadlineAnalysis";
 import { captureProgress, captureResultFromJob, sameCapture } from "@/lib/oab-capture";
 import AuditPanel from "./AuditPanel";
 import SidebarNavigation from "./components/SidebarNavigation";
@@ -279,9 +280,11 @@ export default function Home() {
       const updated = await loadDashboard();
       setData(updated);
       setRefreshTick((tick) => tick + 1);
+      return !updated.backendOffline && !updated.intimacoes.some(item => item.prazo_analise?.status === "analisando");
     } catch (err) {
       setError(humanError(err, "Não foi possível carregar o Causor"));
       setData(previous => ({ ...previous, backendOffline: true }));
+      return false;
     } finally { setLoadingData(false); }
   }
 
@@ -451,11 +454,22 @@ export default function Home() {
     }
   }
 
-  useEffect(() => {
-    if (!session?.user?.id || !data.intimacoes.some(item => item.prazo_analise?.status === "analisando")) return;
-    const timer = window.setInterval(() => { void refresh(); }, 5000);
-    return () => window.clearInterval(timer);
-  }, [session?.user?.id, data.intimacoes]);
+  useDeadlineAnalysis(session?.user?.id, data.intimacoes, (states, expected) => {
+    const updates = new Map(states.map(item => [item.id, item]));
+    setData(previous => {
+      const update = (notice: DashboardData["intimacoes"][number]) => {
+        const state = updates.get(notice.id);
+        if (!state || notice.prazo_analise?.job_id !== expected.get(notice.id)) return notice;
+        return { ...notice, prazo_analise: state.prazo_analise };
+      };
+      return { ...previous, intimacoes: previous.intimacoes.map(update),
+        reviewQueue: previous.reviewQueue?.map(item => {
+          const intimacao = update(item.intimacao);
+          return { ...item, intimacao, status: !item.prazo && !item.peticao
+            ? intimacao.prazo_analise?.status ?? "capturada" : item.status };
+        }) };
+    });
+  }, refresh);
 
   useEffect(() => {
     void refresh();
@@ -1015,7 +1029,7 @@ export default function Home() {
             processos={data.processos}
             offline={offline}
             refreshKey={refreshTick}
-            onChanged={refresh}
+            onChanged={async () => { await refresh(); }}
           />
         ) : view === "conectores" ? (
           <ConectoresView

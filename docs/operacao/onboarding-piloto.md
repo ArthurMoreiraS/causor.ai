@@ -35,7 +35,13 @@ banco.
 No app, clique em `Captura por OAB`. O frontend agora:
 
 1. registra a OAB em `/capturas/oab`, deixando-a pronta para captura agendada;
-2. executa `/capture/oab` para montar a fila inicial.
+2. enfileira `/jobs/capture/oab` e acompanha o resultado pelo job persistente;
+   cadastro e enfileiramento são atômicos, com reuso de capturas já ativas.
+
+O serviço `capture-scheduler` mantém ciclos posteriores; consultar
+[operação da captura periódica](captura-periodica.md). Não usar o antigo cron
+`capture-due` em paralelo. Se não houver publicação na janela, ampliar uma
+consulta manual de forma explícita ou começar um trabalho por demanda manual.
 
 ## 5. Completar ativacao
 
@@ -44,7 +50,9 @@ Checklist minimo do piloto:
 - OAB cadastrada e captura inicial executada.
 - Ao menos um prazo revisado.
 - Ao menos uma minuta gerada.
-- Um template do escritorio criado em `Minutas & Templates`.
-- Uma minuta aprovada no `Gate OAB`.
-- Se houver PJe, preparar protocolo assistido ate `ready_to_sign` e registrar o
-  numero final depois da assinatura no PJe/PJeOffice.
+- Documentos do caso enviados e conferidos contra inventário do advogado.
+- Fontes, lacunas e minuta conferidas pelo advogado; revisão registrada.
+
+Roteiro do primeiro caso: [aceite do MVP](aceite-mvp-2026-10-08.md).
+Protocolo judicial permanece uma etapa separada, sujeita a rota validada e
+aprovação humana; não é requisito desta primeira demonstração.

@@ -33,7 +33,7 @@ MVP após esta interrupção.
 ## Escopo e verificação
 
 Backend: rotas de OAB/limpeza, dependências de captura, fila e testes. Frontend:
-modal, configurações, hook, cliente API e testes. Um executor Sol por vez.
+modal, configurações, hook, cliente API e testes.
 
 Testes isolados: sem OAB + job histórico, remoção com polling atrasado, OAB
 ativa mantém progresso, tenant isolado, comunicação compartilhada, processo
