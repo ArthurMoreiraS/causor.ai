@@ -1,6 +1,6 @@
 # Proximos passos - MVP
 
-> **06/10 — modelos por tarefa atualizados localmente.** Sonnet 5.5 para análise
+> **06/10 — modelos por tarefa implantados (`0fa24e2`).** Sonnet 5.5 para análise
 > de evidências/minutas e resumo aprofundado escolhido no envio; Haiku 4.5
 > mantido na triagem, chat e resumo padrão. Perfil persiste nas tentativas;
 > citações originais e resumos completos preservados. Comparação por modelo
@@ -9,8 +9,19 @@
 > Frontend lint/tipos/163 testes/build e 61 regressões backend aprovados.
 > [Operação](operacao/modelos-llm.md) e
 > [plano/evidência](desenvolvimento/planos/2026-10-06-modelos-por-tarefa.md).
-> Suíte completa: 843 backend/112 ignorados e Ruff aprovados, SQLite descartável
-> e credenciais externas vazias. CI/deploy pendentes; produção na versão abaixo.
+> Suíte completa local: 843 backend/112 ignorados e Ruff aprovados, SQLite
+> descartável e credenciais externas vazias.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37538041609):
+> 843 backend, 163 frontend e 104 PostgreSQL em cada versão 16/17.
+> [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37538261729):
+> SHA `0fa24e2cce9d4dffacc900462f23aa54f481ec51` conferido nos cinco serviços.
+> Log da VPS confirmou Sonnet 5.5 em draft e Haiku 4.5 em context/classification/chat.
+> Verificação externa: health/login 200, sessão Auth técnica sem email,
+> usuário/escritório original e oito rotas autenticadas 200. Novo campo
+> `perfil_resumo` rejeitou valor inválido com 422 antes de processar arquivos.
+> Sem sessão: 401; REST direto ao SOR: 403; frontend no novo Supabase Free.
+> Percurso com documentos fictícios aprovado localmente; avaliação jurídica
+> com caso real e revisão pelo advisor continuam pendentes.
 
 > **06/10 — retomada do MVP em 48 horas; captura periódica implantada (`fb80cfc`).**
 > Implementado `capture-scheduler`: fila persistente, tick de 300s, espera após
