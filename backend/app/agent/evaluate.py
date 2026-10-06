@@ -47,18 +47,25 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--provider", action="append", required=True, choices=["claude", "openai", "openai_compat"])
     parser.add_argument("--limit", type=int, default=10)
+    parser.add_argument("--claude-model", action="append", help="Repita para comparar modelos Claude com a mesma entrada")
     args = parser.parse_args()
     if args.limit < 1:
         parser.error("--limit deve ser positivo")
     providers = {"claude": lambda: ClaudeProvider(model=settings.claude_draft_model),
                  "openai": OpenAIResponsesProvider, "openai_compat": OpenAICompatProvider}
+    runs = []
+    for name in args.provider:
+        if name == "claude" and args.claude_model:
+            runs.extend((name, lambda model=model: ClaudeProvider(model=model)) for model in args.claude_model)
+        else:
+            runs.append((name, providers[name]))
     cases = [json.loads(line) for line in args.cases.read_text(encoding="utf-8").splitlines() if line.strip()]
     args.output.parent.mkdir(parents=True, exist_ok=True)
     failed = False
     with args.output.open("x", encoding="utf-8") as target:
         for case in cases[:args.limit]:
-            for name in args.provider:
-                result = evaluate_case(case, providers[name]())
+            for name, construct in runs:
+                result = evaluate_case(case, construct())
                 failed |= result["status"] == "failed"
                 target.write(json.dumps({"provider": name, **result}, ensure_ascii=False) + "\n")
                 target.flush()

@@ -63,10 +63,10 @@ class Settings(BaseSettings):
 
     # Agente / LLM. O Causor usa Claude; modelos por tarefa mantem custo baixo:
     # Haiku for routine chat/classification; Sonnet for legal drafting quality.
-    claude_model: str = "claude-sonnet-5"
+    claude_model: str = "claude-sonnet-5-5"
     claude_chat_model: str = "claude-haiku-4-5"
     claude_classification_model: str = "claude-haiku-4-5"
-    claude_draft_model: str = "claude-sonnet-5"
+    claude_draft_model: str = "claude-sonnet-5-5"
     # Resumo por documento dos autos (volume alto, tarefa extrativa): Haiku.
     claude_context_model: str = "claude-haiku-4-5"
 

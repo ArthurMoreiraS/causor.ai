@@ -89,6 +89,7 @@ def ingerir_autos_enviados(
     object_store: ObjectStore,
     datajud: ConsultaDatajud | None = None,
     complementar: bool = False,
+    summary_profile: str = "padrao",
 ) -> models.CapturaAutos:
     """Transforma os arquivos entregues numa captura verificada dos autos."""
     if not arquivos:
@@ -100,6 +101,7 @@ def ingerir_autos_enviados(
     session.execute(select(models.Processo.id).where(
         models.Processo.id == processo_instancia.processo_id).with_for_update())
     manifesto = _montar_manifesto(arquivos, usuario_id=usuario_id)
+    manifesto.evidence["perfil_resumo_solicitado"] = summary_profile
     retained = {}
     if complementar:
         base = session.scalars(select(models.CapturaAutos).where(
@@ -161,6 +163,7 @@ def ingerir_autos_enviados(
             reported_sha256=digest,
             object_store=object_store,
             mime_type=arquivo.mime_type,
+            summary_profile=summary_profile,
         )
 
     # A enumeração final é a mesma da inicial por construção; a conferência

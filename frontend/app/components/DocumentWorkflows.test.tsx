@@ -30,7 +30,7 @@ it("envia documentos como complemento com a versão da tarefa conferida no formu
   fireEvent.change(screen.getByLabelText("Grau de destino"), { target: { value: "2" } });
   fireEvent.submit(screen.getByRole("button", { name: "Enviar documentos" }).closest("form")!);
   await waitFor(() => expect(saved).toHaveBeenCalled());
-  expect(enviarAutos).toHaveBeenCalledWith(2, [file], "2", { tarefa: task });
+  expect(enviarAutos).toHaveBeenCalledWith(2, [file], "2", { tarefa: task, perfilResumo: "padrao" });
 });
 
 it("preserva o formulário e não declara recebimento quando há conflito de versão", async () => {
@@ -52,7 +52,17 @@ it("herda segundo grau e impede trocar o processo ao receber documentos do traba
   const file = new File(["%PDF"], "autos.pdf", { type: "application/pdf" });
   fireEvent.change(screen.getByLabelText("Arquivos PDF"), { target: { files: [file] } });
   fireEvent.submit(screen.getByRole("button", { name: "Enviar documentos" }).closest("form")!);
-  await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(2, [file], "2", { tarefa: undefined }));
+  await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(2, [file], "2", { tarefa: undefined, perfilResumo: "padrao" }));
+});
+
+it("permite escolher resumo aprofundado antes do envio", async () => {
+  vi.mocked(enviarAutos).mockResolvedValue({ id: 4 } as Awaited<ReturnType<typeof enviarAutos>>);
+  render(<DocumentUploadDialog processos={[]} processoId={2} offline={false} onClose={vi.fn()} onSaved={vi.fn()} />);
+  const file = new File(["%PDF"], "decisao.pdf", { type: "application/pdf" });
+  fireEvent.change(screen.getByLabelText("Arquivos PDF"), { target: { files: [file] } });
+  fireEvent.change(screen.getByLabelText("Resumo dos documentos"), { target: { value: "aprofundada" } });
+  fireEvent.submit(screen.getByRole("button", { name: "Enviar documentos" }).closest("form")!);
+  await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(2, [file], "1", { tarefa: undefined, perfilResumo: "aprofundada" }));
 });
 
 it("abre a versão histórica citada e navega até a página da evidência", async () => {

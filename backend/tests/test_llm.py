@@ -1,6 +1,7 @@
 """TDD for the Claude LLM transport (app/agent/llm.py)."""
 
 from types import SimpleNamespace
+import pytest
 
 from pydantic import BaseModel, Field
 
@@ -54,19 +55,21 @@ def _fake_anthropic_client_create(text: str) -> SimpleNamespace:
     return client
 
 
-def test_claude_complete_structured_uses_parse_with_thinking_and_effort():
+@pytest.mark.parametrize("model", ["claude-sonnet-4-6", "claude-sonnet-5", "claude-sonnet-5-5"])
+def test_claude_complete_structured_uses_parse_with_thinking_and_effort(model):
     expected = _Schema(rotulo="Contestacao", confianca=0.9)
     client = _fake_anthropic_client_parse(expected)
-    provider = llm.ClaudeProvider(client=client, model="claude-sonnet-4-6")
+    provider = llm.ClaudeProvider(client=client, model=model)
 
     result = provider.complete_structured(system="sys", user="classifique", schema=_Schema)
 
     assert result == expected
-    assert client._last["model"] == "claude-sonnet-4-6"
+    assert client._last["model"] == model
     assert client._last["thinking"] == {"type": "adaptive"}
     assert client._last["output_config"] == {"effort": "high"}
     assert client._last["output_format"] is _Schema
     assert client._last["max_tokens"] == 2000  # default for classification
+    assert not {"temperature", "top_p", "top_k", "tool_choice"} & client._last.keys()
 
 
 def test_claude_complete_structured_omits_thinking_and_effort_on_haiku():

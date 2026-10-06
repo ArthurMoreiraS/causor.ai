@@ -9,6 +9,7 @@ frontend; segue apenas no payload do comando do agente.
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from pydantic import BaseModel, ConfigDict
@@ -190,6 +191,7 @@ async def upload_autos(
     grau: str = Form("1"),
     arquivos: list[UploadFile] = File(default=[]),
     complementar: bool = Form(False),
+    perfil_resumo: Literal["padrao", "aprofundada"] = Form("padrao"),
     tarefa_id: int | None = Form(None),
     tarefa_versao: int | None = Form(None),
     session: Session = Depends(get_session),
@@ -253,6 +255,7 @@ async def upload_autos(
             object_store=get_object_store(),
             datajud=datajud,
             complementar=complementar,
+            summary_profile=perfil_resumo,
         )
     except autos_service.CaptureError as exc:
         session.rollback()

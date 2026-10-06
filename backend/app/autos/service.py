@@ -288,8 +288,11 @@ def confirm_document_upload(
     reported_sha256: str,
     object_store: ObjectStore,
     mime_type: str = "application/pdf",
+    summary_profile: str = "padrao",
 ) -> models.DocumentoArquivo:
     """Verifica o upload: recomputa hash, valida PDF e cria a versão imutável."""
+    if summary_profile not in {"padrao", "aprofundada"}:
+        raise ValueError("perfil de resumo inválido")
     if capture.status != "downloading":
         raise CaptureTransitionError(capture.status, "downloading")
 
@@ -361,15 +364,23 @@ def confirm_document_upload(
     if version.extraction_status == "pending":
         from app.queue.jobs import create_job
 
-        create_job(
-            session,
-            tipo="process_document",
-            entidade="documento_arquivo",
-            entidade_id=version.id,
-            payload={"documento_arquivo_id": version.id, "escritorio_id": capture.escritorio_id,
-                     "store_id": object_store.store_id},
-            ator="agent",
-        )
+        active_job = session.scalar(select(models.JobExecucao).where(
+            models.JobExecucao.tipo == "process_document",
+            models.JobExecucao.entidade_id == version.id,
+            models.JobExecucao.status.in_(["queued", "running"]),
+        ).order_by(models.JobExecucao.id.desc()))
+        if active_job and (active_job.payload or {}).get("summary_profile", "padrao") != summary_profile:
+            raise ValueError("Este arquivo já está em processamento com outro perfil de resumo.")
+        if active_job is None:
+            create_job(
+                session,
+                tipo="process_document",
+                entidade="documento_arquivo",
+                entidade_id=version.id,
+                payload={"documento_arquivo_id": version.id, "escritorio_id": capture.escritorio_id,
+                         "store_id": object_store.store_id, "summary_profile": summary_profile},
+                ator="agent",
+            )
 
     session.flush()  # Include the current item even when its version needed no new job.
     capture.captured_count = session.scalar(

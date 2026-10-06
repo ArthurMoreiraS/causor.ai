@@ -27,6 +27,35 @@ def _arquivo(nome, conteudo=PDF_OK):
     return ("arquivos", (nome, conteudo, "application/pdf"))
 
 
+def test_deep_summary_choice_survives_retry(client, db_session, seeded, local_store):
+    response = client.post(f"/processos/{seeded.id}/autos/upload",
+                           data={"perfil_resumo": "aprofundada"}, files=[_arquivo("autos.pdf")])
+    assert response.status_code == 200
+    job = db_session.query(models.JobExecucao).filter_by(tipo="process_document").one()
+    assert job.payload["summary_profile"] == "aprofundada"
+    job.status = "failed"
+    db_session.commit()
+    assert client.post(f"/processos/{seeded.id}/autos/reprocessar").json() == {"reenfileirados": 1}
+    db_session.refresh(job)
+    assert job.payload["summary_profile"] == "aprofundada"
+
+
+def test_summary_choice_rejects_arbitrary_models(client, db_session, seeded, local_store):
+    response = client.post(f"/processos/{seeded.id}/autos/upload",
+                           data={"perfil_resumo": "claude-opus-custom"}, files=[_arquivo("autos.pdf")])
+    assert response.status_code == 422
+    assert db_session.query(models.JobExecucao).count() == 0
+
+
+def test_pending_identical_file_keeps_one_job_and_its_profile(client, db_session, seeded, local_store):
+    url = f"/processos/{seeded.id}/autos/upload"
+    for _ in range(2):
+        assert client.post(url, data={"perfil_resumo": "aprofundada"}, files=[_arquivo("autos.pdf")]).status_code == 200
+    assert db_session.query(models.JobExecucao).filter_by(tipo="process_document").count() == 1
+    assert client.post(url, data={"perfil_resumo": "padrao"}, files=[_arquivo("autos.pdf")]).status_code == 422
+    assert db_session.query(models.JobExecucao).one().payload["summary_profile"] == "aprofundada"
+
+
 def test_store_isolation_legacy_access_and_missing_file_feedback(
     client, db_session, seeded, local_store, monkeypatch, tmp_path,
 ):
@@ -81,8 +110,9 @@ def test_store_isolation_legacy_access_and_missing_file_feedback(
     assert claim_due_processing_jobs(db_session, object_store=own) == [job]
 
 
+@pytest.mark.parametrize("profile", ["padrao", "aprofundada"])
 def test_upload_worker_builds_context_and_retry_preserves_summary(
-    client, db_session, seeded, local_store, monkeypatch
+    client, db_session, seeded, local_store, monkeypatch, profile
 ):
     from pathlib import Path
     from sqlalchemy.orm import sessionmaker
@@ -106,11 +136,15 @@ def test_upload_worker_builds_context_and_retry_preserves_summary(
             )
 
     provider = Provider()
-    monkeypatch.setattr("app.autos.summarizer.get_provider", lambda **kw: provider)
+    routed = []
+    def get_provider(**kw):
+        routed.append(kw)
+        return provider
+    monkeypatch.setattr("app.autos.summarizer.get_provider", get_provider)
     pdf = (Path(__file__).parent / "fixtures/pdfs/textual.pdf").read_bytes()
     assert client.post(
         f"/processos/{seeded.id}/autos/upload",
-        files=[_arquivo("autos.pdf", pdf)], data={"grau": "1"},
+        files=[_arquivo("autos.pdf", pdf)], data={"grau": "1", "perfil_resumo": profile},
     ).status_code == 200
     declaration = client.post(
         f"/processos/{seeded.id}/autos/nao-aplicavel",
@@ -127,6 +161,8 @@ def test_upload_worker_builds_context_and_retry_preserves_summary(
     assert after["contexto"]["documents_summarized"] == 1
     assert process_due_documents(factory, backoff_seconds=0) == 0
     assert provider.calls == 1
+    assert routed[0]["task"] == ("draft" if profile == "aprofundada" else "context")
+    assert db_session.query(models.DocumentoResumo).one().dados["processamento"]["perfil"] == profile
 
     # Continua pelos endpoints usados pelo advogado, sem inserir contexto no banco.
     from app.settings import settings

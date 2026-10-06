@@ -102,6 +102,7 @@ class SummaryResult:
     model: str
     parts: int = 0
     error: str | None = None
+    profile: str = "padrao"
 
 
 def load_summary_input(session: Session, version: models.DocumentoArquivo) -> SummaryInput:
@@ -124,16 +125,19 @@ def load_summary_input(session: Session, version: models.DocumentoArquivo) -> Su
                         tuple(SummaryChunk(c.id, c.pagina, c.texto) for c in chunks))
 
 
-def generate_summary(snapshot: SummaryInput, *, provider=None) -> SummaryResult:
+def generate_summary(snapshot: SummaryInput, *, provider=None, profile: str = "padrao") -> SummaryResult:
     """Provider work and literal citation validation, with no database access."""
-    model_name = settings.claude_context_model
+    if profile not in {"padrao", "aprofundada"}:
+        raise ValueError("perfil de resumo inválido")
+    task = "draft" if profile == "aprofundada" else "context"
+    model_name = settings.claude_draft_model if task == "draft" else settings.claude_context_model
     if snapshot.extraction_status != "complete":
-        return SummaryResult(None, model_name, error=f"extraction_status={snapshot.extraction_status}")
+        return SummaryResult(None, model_name, error=f"extraction_status={snapshot.extraction_status}", profile=profile)
     if not snapshot.chunks:
-        return SummaryResult(None, model_name, error="sem trechos extraidos")
+        return SummaryResult(None, model_name, error="sem trechos extraidos", profile=profile)
     chunks = snapshot.chunks
     try:
-        llm = provider or get_provider(model=model_name, task="context")
+        llm = provider or get_provider(model=model_name, task=task)
         model_name = getattr(llm, "_model", model_name)
         batches: list[list] = [[]]
         chars = 0
@@ -150,7 +154,7 @@ def generate_summary(snapshot: SummaryInput, *, provider=None) -> SummaryResult:
             )
             part = llm.complete_structured(
                 system=_SYSTEM_PROMPT, user=snapshot.prefix + numbered,
-                schema=DocumentDigest, max_tokens=3000,
+                schema=DocumentDigest, max_tokens=8000 if profile == "aprofundada" else 3000,
             )
             allowed = {chunk.id for chunk in batch}
             if not part.citations:
@@ -168,10 +172,10 @@ def generate_summary(snapshot: SummaryInput, *, provider=None) -> SummaryResult:
                for field in ("fatos", "pedidos", "decisoes", "prazos", "incertezas", "citations")},
         )
     except InvalidCitationError as exc:
-        return SummaryResult(None, model_name, error=str(exc))
+        return SummaryResult(None, model_name, error=str(exc), profile=profile)
     except Exception as exc:  # noqa: BLE001 - falha de LLM vira estado observável
-        return SummaryResult(None, model_name, error=type(exc).__name__)
-    return SummaryResult(digest, model_name, parts=len(batches))
+        return SummaryResult(None, model_name, error=type(exc).__name__, profile=profile)
+    return SummaryResult(digest, model_name, parts=len(batches), profile=profile)
 
 
 def persist_summary(session: Session, snapshot: SummaryInput, result: SummaryResult) -> models.DocumentoResumo:
@@ -202,7 +206,7 @@ def persist_summary(session: Session, snapshot: SummaryInput, result: SummaryRes
         "decisoes": digest.decisoes,
         "prazos": digest.prazos,
         "incertezas": digest.incertezas,
-        "processamento": {"trechos": len(snapshot.chunks), "partes": result.parts},
+        "processamento": {"trechos": len(snapshot.chunks), "partes": result.parts, "perfil": result.profile},
     }
     resumo_row.citations = [citation.model_dump() for citation in digest.citations]
     resumo_row.error = None

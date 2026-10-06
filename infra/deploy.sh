@@ -27,6 +27,8 @@ compose() {
 }
 compose config --quiet
 compose pull
+docker run --rm --network none --user "$(id -u):$(id -g)" --mount "type=bind,src=$PWD,dst=/deploy" \
+  "ghcr.io/arthurmoreiras/causor-backend:$IMAGE_TAG" python -m app.agent.model_config --env-file /deploy/.env
 compose run --rm migrate
 
 if [[ -f docker-compose.yml ]]; then cp -p docker-compose.yml docker-compose.previous.yml; fi
@@ -42,6 +44,7 @@ for service in backend worker autos-worker capture-scheduler frontend; do
   if [[ "$service" == frontend ]]; then image_name=causor-frontend; fi
   [[ "$actual_image" == "ghcr.io/arthurmoreiras/$image_name:$IMAGE_TAG" ]]
 done
+compose exec -T backend python -m app.agent.model_config --show
 
 mv "$candidate" docker-compose.yml
 printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG" > .image_tag.candidate.env

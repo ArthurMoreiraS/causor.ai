@@ -889,12 +889,13 @@ export async function enviarAutos(
   processoId: number,
   arquivos: File[],
   grau: string = "1",
-  complemento?: { tarefa?: Pick<Tarefa, "id" | "versao"> }
+  complemento?: { tarefa?: Pick<Tarefa, "id" | "versao">; perfilResumo?: "padrao" | "aprofundada" }
 ): Promise<CapturaAutos> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   const form = new FormData();
   form.append("grau", grau);
+  form.append("perfil_resumo", complemento?.perfilResumo || "padrao");
   if (complemento) {
     form.append("complementar", "true");
     if (complemento.tarefa) {

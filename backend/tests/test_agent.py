@@ -279,4 +279,4 @@ def test_minuta_usa_sonnet_por_padrao(monkeypatch):
         contexto_processo={},
     )
 
-    assert seen["model"] == "claude-sonnet-5"
+    assert seen["model"] == "claude-sonnet-5-5"

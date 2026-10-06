@@ -22,6 +22,7 @@ docker() {
     return 0
   fi
   if [[ " $* " == *" pull "* && "$FAIL_AT" == pull ]]; then return 17; fi
+  if [[ "$*" == *"app.agent.model_config --env-file"* && "$FAIL_AT" == model_config ]]; then return 20; fi
   if [[ " $* " == *" run --rm migrate "* && "$FAIL_AT" == migrate ]]; then return 18; fi
   if [[ " $* " == *" up -d "* && "$FAIL_AT" == up ]]; then return 19; fi
   if [[ " $* " == *" ps -q "* ]]; then printf '%s\n' "${@: -1}"; fi
@@ -37,7 +38,7 @@ source "$DEPLOY_SCRIPT"
 '''
 
 
-@pytest.mark.parametrize("failure", ["pull", "migrate", "up", "stale", "stale_scheduler", "none"])
+@pytest.mark.parametrize("failure", ["pull", "model_config", "migrate", "up", "stale", "stale_scheduler", "none"])
 def test_deploy_stops_on_failure_and_verifies_release(tmp_path, failure):
     bash = ("C:/Program Files/Git/bin/bash.exe" if os.name == "nt" else shutil.which("bash"))
     if not bash or not Path(bash).exists():
@@ -55,13 +56,15 @@ def test_deploy_stops_on_failure_and_verifies_release(tmp_path, failure):
         assert result.returncode != 0
         assert "https://api.causorai.com/health" not in calls
         assert (tmp_path / ".image_tag.env").read_text() == "IMAGE_TAG=previous\n"
-        if failure == "pull":
+        if failure in {"pull", "model_config"}:
             assert "run --rm migrate" not in calls
             assert "up -d" not in calls
     else:
         assert result.returncode == 0, result.stderr
         assert "ps -q autos-worker" in calls
         assert "ps -q capture-scheduler" in calls
+        assert "app.agent.model_config --env-file /deploy/.env" in calls
+        assert "app.agent.model_config --show" in calls
         assert "https://api.causorai.com/health" in calls
         assert (tmp_path / ".image_tag.env").read_text() == "IMAGE_TAG=" + "a" * 40 + "\n"
         assert (tmp_path / "docker-compose.previous.yml").read_text() == "previous compose"

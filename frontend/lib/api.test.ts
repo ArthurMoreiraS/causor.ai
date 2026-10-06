@@ -57,6 +57,16 @@ describe("API client critical workflows", () => {
     expect(new URL(String(fetchMock.mock.calls[1][0])).searchParams.getAll("ids")).toHaveLength(5);
   });
 
+  it("preserves the document summary choice in authenticated multipart upload", async () => {
+    const fetchMock = mockFetch({ "POST /processos/2/autos/upload": { body: { id: 7 } } });
+    vi.stubGlobal("fetch", fetchMock);
+    const { enviarAutos } = await import("./api");
+    await enviarAutos(2, [], "1", { perfilResumo: "aprofundada" });
+    const init = fetchMock.mock.calls[0][1]!;
+    expect((init.body as FormData).get("perfil_resumo")).toBe("aprofundada");
+    expect((init.headers as Record<string, string>).Authorization).toBe("Bearer test-token");
+  });
+
   it("loads core dashboard data and sends the bearer token", async () => {
     const fetchMock = mockFetch({
       "GET /intimacoes": { body: [] },

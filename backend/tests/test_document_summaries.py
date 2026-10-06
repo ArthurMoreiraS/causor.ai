@@ -160,6 +160,29 @@ class _FakeProvider:
         raise NotImplementedError
 
 
+@pytest.mark.parametrize("profile,task", [("padrao", "context"), ("aprofundada", "draft")])
+def test_summary_profile_routes_to_task_model_and_keeps_citation_checks(
+    db_session, document_with_chunks, monkeypatch, profile, task,
+):
+    from app.settings import settings
+    version, chunks = document_with_chunks
+    digest = DocumentDigest(resumo="Resumo", fatos=[], pedidos=[], decisoes=[], prazos=[],
+                            incertezas=[], citations=[ChunkCitation(chunk_id=chunks[0].id, quote=chunks[0].texto[:60])])
+    calls = []
+    def provider(**kw):
+        calls.append(kw)
+        return _FakeProvider(digest)
+    monkeypatch.setattr("app.autos.summarizer.get_provider", provider)
+    snapshot = load_summary_input(db_session, version)
+    result = generate_summary(snapshot, profile=profile)
+    assert result.digest is not None
+    assert calls == [{"model": getattr(settings, f"claude_{'context' if task == 'context' else 'draft'}_model"), "task": task}]
+    summary = persist_summary(db_session, snapshot, result)
+    assert summary.dados["processamento"]["perfil"] == profile
+    digest.citations[0].quote = "Citação ausente no original"
+    assert generate_summary(snapshot, profile=profile).digest is None
+
+
 def test_summary_checkpoint_rejects_changed_source(db_session, document_with_chunks):
     version, chunks = document_with_chunks
     snapshot = load_summary_input(db_session, version)

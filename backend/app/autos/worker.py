@@ -348,7 +348,7 @@ def _process_document_stages(
     from app.autos.summarizer import generate_summary, load_summary_input, persist_summary
 
     with session_factory() as session:
-        guard_lease(session, job_id, token)
+        job = guard_lease(session, job_id, token)
         version = session.get(models.DocumentoArquivo, version_id)
         if version is None:
             raise DocumentProcessingError("not_found")
@@ -388,7 +388,7 @@ def _process_document_stages(
             session.commit()
 
     with session_factory() as session:
-        guard_lease(session, job_id, token)
+        job = guard_lease(session, job_id, token)
         summary = session.scalar(select(models.DocumentoResumo).where(
             models.DocumentoResumo.documento_arquivo_id == version_id,
         ))
@@ -398,7 +398,8 @@ def _process_document_stages(
         if version is None:
             raise DocumentProcessingError("not_found")
         snapshot = load_summary_input(session, version)
-    result = generate_summary(snapshot)
+        profile = (job.payload or {}).get("summary_profile", "padrao")
+    result = generate_summary(snapshot, profile=profile)
     heartbeat.check()
     with session_factory() as session:
         job = guard_lease(session, job_id, token)

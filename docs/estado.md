@@ -1,5 +1,17 @@
 # Proximos passos - MVP
 
+> **06/10 — modelos por tarefa atualizados localmente.** Sonnet 5.5 para análise
+> de evidências/minutas e resumo aprofundado escolhido no envio; Haiku 4.5
+> mantido na triagem, chat e resumo padrão. Perfil persiste nas tentativas;
+> citações originais e resumos completos preservados. Comparação por modelo
+> disponível no CLI; Sonnet 5/5.5 e resumo aprofundado passaram com dados
+> fictícios nas APIs reais. Não é avaliação de qualidade jurídica.
+> Frontend lint/tipos/163 testes/build e 61 regressões backend aprovados.
+> [Operação](operacao/modelos-llm.md) e
+> [plano/evidência](desenvolvimento/planos/2026-10-06-modelos-por-tarefa.md).
+> Suíte completa: 843 backend/112 ignorados e Ruff aprovados, SQLite descartável
+> e credenciais externas vazias. CI/deploy pendentes; produção na versão abaixo.
+
 > **06/10 — retomada do MVP em 48 horas; captura periódica implantada (`fb80cfc`).**
 > Implementado `capture-scheduler`: fila persistente, tick de 300s, espera após
 > falha de 900s, intervalo por OAB, deduplicação com consulta manual e validação

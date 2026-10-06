@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.env.pre-models
+.env.models-candidate
 .pytest_cache/
 .ruff_cache/
 *.db

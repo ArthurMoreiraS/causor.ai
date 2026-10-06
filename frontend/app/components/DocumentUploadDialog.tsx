@@ -11,6 +11,7 @@ export default function DocumentUploadDialog({ processos, processoId, initialDeg
   const [process, setProcess] = useState(String(task?.processo_id || processoId || ""));
   const [degree, setDegree] = useState(initialDegree);
   const [files, setFiles] = useState<File[]>([]);
+  const [summaryProfile, setSummaryProfile] = useState<"padrao" | "aprofundada">("padrao");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const options = processos.filter(p => !task?.cliente_id || p.cliente_id === task.cliente_id);
@@ -18,7 +19,7 @@ export default function DocumentUploadDialog({ processos, processoId, initialDeg
     event.preventDefault();
     if (!process || !files.length || busy || offline) return;
     setBusy(true); setError(null);
-    try { await enviarAutos(Number(process), files, degree, { tarefa: task || undefined }); onSaved(); }
+    try { await enviarAutos(Number(process), files, degree, { tarefa: task || undefined, perfilResumo: summaryProfile }); onSaved(); }
     catch (err) { setError(humanError(err, "Não foi possível receber os documentos")); }
     finally { setBusy(false); }
   }
@@ -37,6 +38,11 @@ export default function DocumentUploadDialog({ processos, processoId, initialDeg
       </select></label>
       <label>Arquivos PDF<input type="file" accept="application/pdf,.pdf" multiple required disabled={busy}
         onChange={e => setFiles(Array.from(e.target.files || []))} /></label>
+      <label>Resumo dos documentos<select value={summaryProfile} disabled={busy}
+        onChange={e => setSummaryProfile(e.target.value as "padrao" | "aprofundada")}>
+        <option value="padrao">Padrão</option><option value="aprofundada">Aprofundado</option>
+      </select></label>
+      <p className="officeHint">Use aprofundado para peças complexas: pode levar mais tempo e consumir mais créditos de IA. A escolha vale para novos documentos; arquivos idênticos já resumidos mantêm o resultado existente.</p>
       <p className="officeHint">Os arquivos serão acrescentados ao conjunto existente deste grau. Reenviar o mesmo nome cria uma versão do documento. As versões anteriores permanecem disponíveis.</p>
       <p className="officeHint">O envio registra os documentos fornecidos por você; a íntegra do tribunal e a suficiência das provas precisam ser conferidas.</p>
       <div className="modalActions"><button type="button" className="toolbarButton" disabled={busy} onClick={onClose}>Cancelar</button>
