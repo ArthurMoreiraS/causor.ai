@@ -79,11 +79,15 @@ def test_corrupt_backup_rejected(tmp_path):
 def test_public_list_preserves_acl_and_audit_trigger():
     toc = "4; 2615 2200 SCHEMA - public postgres\n5; 0 0 COMMENT - SCHEMA public postgres\n"
     toc += "8; 0 2200 ACL - SCHEMA public postgres\n17; 2620 40000 TRIGGER public audit_log audit_log_append_only postgres\n"
+    toc += "20; 826 30000 DEFAULT ACL public DEFAULT PRIVILEGES FOR TABLES supabase_admin\n"
+    toc += "21; 826 30001 DEFAULT ACL public DEFAULT PRIVILEGES FOR TABLES postgres\n"
     filtered = migration.public_restore_list(toc)
     assert "SCHEMA - public" not in filtered
     assert "COMMENT" not in filtered
     assert "ACL - SCHEMA public" in filtered
     assert "audit_log_append_only" in filtered
+    assert "supabase_admin" not in filtered
+    assert "DEFAULT PRIVILEGES FOR TABLES postgres" in filtered
 
 
 @dataclass(frozen=True, repr=False)

@@ -112,3 +112,16 @@ aplicada; não depender dessa hipótese para afirmar login restabelecido.
   futuro de anon/authenticated/PUBLIC. CI de `9229819` aprovou Backend/Frontend,
   mas PG17 detectou contrato de head ainda esperando revision anterior (102
   outros passaram). Corrigida a expectativa para a nova revision; repetir CI.
+- Preflight real de schema (sem linhas): dump PG17 gerado e trigger de auditoria
+  preservado. Três DEFAULT ACL de supabase_admin omitidos na restauração, pois
+  postgres não é membro dessa role gerenciada; destino já tem esses defaults.
+  Defaults/grants da aplicação continuam tratados e protegidos. 18 regressões
+  locais aprovadas/2 PG opcionais ignoradas nessa revisão.
+- CI/deploy de `5328fcb` aprovados; pausa via Actions concluída e confirmada.
+  Backup final consistente criado no diretório privado em 19:36 UTC.
+- Restore real gerenciado concluído: 62 tabelas/fingerprints e sequences iguais;
+  um usuário e 1.235 eventos de auditoria preservados, trigger ALWAYS, nenhuma
+  tabela public legível por anon/authenticated, chamada REST anônima recusada.
+- Configure inicial falhou antes de alterar env: comando Docker continha
+  tokens "+" devido à construção do patch. Corrigido em linha única; repetir.
+  Serviços permanecem pausados e configuração de origem preservada.

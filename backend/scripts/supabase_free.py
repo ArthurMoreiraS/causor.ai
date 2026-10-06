@@ -225,10 +225,12 @@ def pristine_target(conn, manifest: dict):
 
 
 def public_restore_list(toc: str) -> str:
-    # Supabase already has public. Preserve grants/functions/triggers/RLS;
-    # omit only creation/comment for that existing namespace, never drop it.
+    # Supabase already has public and managed supabase_admin defaults. The
+    # postgres migration user cannot alter that managed role's defaults.
+    # Preserve application grants/functions/triggers/RLS, never drop public.
     return "\n".join(line for line in toc.splitlines()
-                     if not re.match(r"^\d+; \d+ \d+ (SCHEMA - public |COMMENT - SCHEMA public )", line)) + "\n"
+                     if not re.match(r"^\d+; \d+ \d+ (SCHEMA - public |COMMENT - SCHEMA public )", line)
+                     and not re.match(r"^\d+; \d+ \d+ DEFAULT ACL .* supabase_admin\s*$", line)) + "\n"
 
 
 def restore(dest: Database, directory: Path, manifest: dict, confirmed_ref: str):

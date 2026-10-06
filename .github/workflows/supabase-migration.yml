@@ -63,6 +63,6 @@ jobs:
               curl -fsS "https://raw.githubusercontent.com/ArthurMoreiraS/causor.ai/$RELEASE_SHA/infra/supabase_env.py" -o supabase_env.py
               image_tag=$(sed -n 's/^IMAGE_TAG=//p' .image_tag.env)
               echo "$image_tag" | grep -Eq '^[a-f0-9]{40}$'
-              docker run --rm -i --network none --user 0 +                --mount type=bind,src="$PWD",dst=/deploy +                --env CAUSOR_MIGRATION_DATABASE_URL +                --env CAUSOR_MIGRATION_SUPABASE_URL +                --env CAUSOR_MIGRATION_JWT_SECRET +                "ghcr.io/arthurmoreiras/causor-backend:$image_tag" +                python /deploy/supabase_env.py "$ACTION" "$SOURCE_REF" "$TARGET_REF"
+              docker run --rm -i --network none --user 0 --mount type=bind,src="$PWD",dst=/deploy --env CAUSOR_MIGRATION_DATABASE_URL --env CAUSOR_MIGRATION_SUPABASE_URL --env CAUSOR_MIGRATION_JWT_SECRET "ghcr.io/arthurmoreiras/causor-backend:$image_tag" python /deploy/supabase_env.py "$ACTION" "$SOURCE_REF" "$TARGET_REF"
               echo "Configuration changed; services remain paused."
             fi

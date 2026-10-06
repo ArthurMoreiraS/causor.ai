@@ -87,6 +87,11 @@ usar outro inventário. Não extrapolar os testes locais para todo schema Supaba
 Documentação oficial de referência:
 [backup e restauração](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore).
 
+Defaults pertencentes a supabase_admin não são reaplicados: a role postgres
+não tem autorização para alterá-los, e eles já existem no destino gerenciado.
+Defaults/grants da aplicação são preservados e depois restringidos. Nenhuma
+role gerenciada é recriada nem há concessão de superuser.
+
 ## Troca de produção e retorno
 
 A conexão local não configura automaticamente a VPS. Depois da conferência:
