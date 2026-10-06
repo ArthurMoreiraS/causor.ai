@@ -105,6 +105,9 @@ def fixture_databases():
     with psycopg.connect(host="127.0.0.1", port=55433, user="postgres",
                          password="fixture", dbname="postgres", autocommit=True) as admin:
         try:
+            for role in ("anon", "authenticated"):
+                if not admin.execute("SELECT 1 FROM pg_roles WHERE rolname=%s", (role,)).fetchone():
+                    admin.execute(sql.SQL("CREATE ROLE {} NOLOGIN").format(sql.Identifier(role)))
             for name in names:
                 admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
             origin, target = [FixtureDatabase(ref, "host.docker.internal", "postgres", "fixture", name)
@@ -130,6 +133,8 @@ def fixture_databases():
                     CREATE TRIGGER audit_log_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.audit_log
                         FOR EACH STATEMENT EXECUTE FUNCTION public.reject_audit();
                     ALTER TABLE public.audit_log ENABLE ALWAYS TRIGGER audit_log_append_only;
+                    GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, PUBLIC;
+                    GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, PUBLIC;
                     INSERT INTO auth.users VALUES ('00000000-0000-0000-0000-000000000001', 'fixture-password-hash');
                     INSERT INTO auth.identities VALUES ('00000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001');
                 """)
@@ -147,6 +152,9 @@ def test_pg_backup_restore_preserves_auth_audit_and_sequence(fixture_databases, 
     migration.restore(target, directory, manifest, target.ref)
     migration.verify(target, manifest)
     with target.connect() as conn:
+        for role in ("anon", "authenticated"):
+            assert not conn.execute("SELECT has_table_privilege(%s,'public.audit_log','SELECT')", (role,)).fetchone()[0]
+            assert not conn.execute("SELECT has_sequence_privilege(%s,'public.escritorio_id_seq','USAGE')", (role,)).fetchone()[0]
         assert conn.execute("SELECT encrypted_password FROM auth.users").fetchone()[0] == "fixture-password-hash"
         assert conn.execute("SELECT version FROM auth.schema_migrations").fetchone()[0] == "managed-schema-local"
         assert conn.execute("INSERT INTO public.escritorio(nome) VALUES ('Novo') RETURNING id").fetchone()[0] == 2

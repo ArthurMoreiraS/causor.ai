@@ -72,7 +72,11 @@ Somente dados Auth são restaurados; seu schema gerenciado não é substituído.
 O restore recusa origem, destino com estruturas/dados existentes, versão PG
 diferente, colunas Auth incompatíveis e backup corrompido. Não há DROP/clean.
 O namespace public existente é conservado; grants e trigger de auditoria
-permanecem no dump. Schema/dados public e dados Auth entram em uma transação:
+permanecem no dump. O acesso amplo de anon/authenticated/PUBLIC encontrado na
+origem é retirado na mesma transação: SOR permanece acessível pelo backend
+privado e não pela API pública Supabase. Defaults de tabelas/sequences futuras
+também ficam privados. Migração Alembic aplica essa regra nos deploys.
+Schema/dados public e dados Auth entram em uma transação:
 erro SQL interrompe e reverte toda a restauração. A conferência posterior
 compara conteúdo e sequences; divergência impede liberar a troca de produção.
 

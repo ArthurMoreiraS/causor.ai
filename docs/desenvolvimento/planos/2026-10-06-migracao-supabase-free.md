@@ -98,3 +98,12 @@ aplicada; não depender dessa hipótese para afirmar login restabelecido.
   mesmo SHA aprovado e main. Nada pode incluir segredo no frontend/repositório.
 - 40 testes direcionados aprovados/2 opcionais ignorados, Ruff aprovado;
   ensaio PG17 anterior aprovado. Backup final/restore/cutover ainda pendentes.
+- Preflight gerenciado compatível: 62 tabelas incluindo Auth, sem substituir
+  schema gerenciado. Origem sem jobs queued/running.
+- Encontrada permissão real de leitura direta: 36 tabelas public, zero RLS,
+  SELECT para anon/authenticated em todas. Frontend usa somente Auth Supabase;
+  SOR é via FastAPI com isolamento. Migração Alembic bloqueia grants dessas
+  roles e PUBLIC em tabelas/sequences e defaults futuros, preservando backend.
+  Restore aplica bloqueio na mesma transação antes de publicar dados; nenhum
+  acesso público intermediário. Downgrade não recria ACL ampla desconhecida.
+  Catálogo indica permissões; não foi feita extração anônima de dados pessoais.

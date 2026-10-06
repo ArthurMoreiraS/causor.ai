@@ -20,6 +20,8 @@ import psycopg
 from psycopg import sql
 from sqlalchemy.engine import make_url
 
+from app.sor.permissions import LOCKDOWN_SQL
+
 ROOT = Path(__file__).resolve().parents[1]
 FILES = ("public.dump", "auth-data.sql")
 IMAGE = "postgres:17"
@@ -241,6 +243,7 @@ def restore(dest: Database, directory: Path, manifest: dict, confirmed_ref: str)
            "--file=/backup/public.sql", "/backup/public.dump")
     client(dest, directory, "psql", "--no-psqlrc", "--single-transaction", "--set=ON_ERROR_STOP=1",
            "--command=SET timezone='UTC'", "--file=/backup/public.sql",
+           "--command=SET search_path=public", "--command=" + LOCKDOWN_SQL,
            "--command=SET session_replication_role=replica", "--file=/backup/auth-data.sql",
            read_only=True)
     verify(dest, manifest)
