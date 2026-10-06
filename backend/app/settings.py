@@ -55,8 +55,11 @@ class Settings(BaseSettings):
     smtp_from: str = ""
 
     # Auth (Supabase). Aceita segredo HS256 legado ou chave PEM ES256;
-    # tokens ES256 tambem podem ser validados pelo JWKS anunciado no issuer.
+    # tokens ES256 tambem podem ser validados pelo JWKS do projeto confiavel.
     supabase_jwt_secret: str = ""
+    # Trusted Auth project for ES256/JWKS; never derive a remote key URL from an
+    # unverified token alone. Fixed PEM/legacy HS256 remain supported.
+    supabase_url: str = ""
 
     # Agente / LLM. O Causor usa Claude; modelos por tarefa mantem custo baixo:
     # Haiku for routine chat/classification; Sonnet for legal drafting quality.

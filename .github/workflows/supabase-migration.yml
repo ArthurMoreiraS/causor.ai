@@ -1,0 +1,68 @@
+name: Supabase migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        required: true
+        options: [pause, configure, resume, rollback]
+      source_ref:
+        type: string
+        required: true
+      target_ref:
+        type: string
+        required: true
+
+concurrency:
+  group: causor-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  operate:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Controlled operation via existing VPS SSH
+        uses: appleboy/ssh-action@v1
+        env:
+          ACTION: ${{ inputs.action }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+          TARGET_REF: ${{ inputs.target_ref }}
+          RELEASE_SHA: ${{ github.sha }}
+          CAUSOR_MIGRATION_DATABASE_URL: ${{ secrets.CAUSOR_MIGRATION_DATABASE_URL }}
+          CAUSOR_MIGRATION_SUPABASE_URL: ${{ secrets.CAUSOR_MIGRATION_SUPABASE_URL }}
+          CAUSOR_MIGRATION_JWT_SECRET: ${{ secrets.CAUSOR_MIGRATION_JWT_SECRET }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: ACTION,SOURCE_REF,TARGET_REF,RELEASE_SHA,CAUSOR_MIGRATION_DATABASE_URL,CAUSOR_MIGRATION_SUPABASE_URL,CAUSOR_MIGRATION_JWT_SECRET
+          script: |
+            set -eu
+            cd /opt/causor
+            case "$ACTION" in pause|configure|resume|rollback) ;; *) exit 2 ;; esac
+            echo "$SOURCE_REF" | grep -Eq '^[a-z0-9]{20}$'
+            echo "$TARGET_REF" | grep -Eq '^[a-z0-9]{20}$'
+            echo "$RELEASE_SHA" | grep -Eq '^[a-f0-9]{40}$'
+            test "$SOURCE_REF" != "$TARGET_REF"
+            compose() { docker compose --env-file .env --env-file .image_tag.env "$@"; }
+            if [ "$ACTION" = pause ]; then
+              compose stop -t 120 backend capture-scheduler
+              compose stop -t 300 worker autos-worker
+              echo "Database writers paused; no database/configuration changed."
+            elif [ "$ACTION" = resume ]; then
+              compose up -d --wait --wait-timeout 120
+              echo "Services resumed with current configuration."
+            else
+              # Editing configuration requires all application writers stopped.
+              test -z "$(compose ps --status running -q backend worker autos-worker capture-scheduler)"
+              curl -fsS "https://raw.githubusercontent.com/ArthurMoreiraS/causor.ai/$RELEASE_SHA/infra/supabase_env.py" -o supabase_env.py
+              image_tag=$(sed -n 's/^IMAGE_TAG=//p' .image_tag.env)
+              echo "$image_tag" | grep -Eq '^[a-f0-9]{40}$'
+              docker run --rm -i --network none --user 0 +                --mount type=bind,src="$PWD",dst=/deploy +                --env CAUSOR_MIGRATION_DATABASE_URL +                --env CAUSOR_MIGRATION_SUPABASE_URL +                --env CAUSOR_MIGRATION_JWT_SECRET +                "ghcr.io/arthurmoreiras/causor-backend:$image_tag" +                python /deploy/supabase_env.py "$ACTION" "$SOURCE_REF" "$TARGET_REF"
+              echo "Configuration changed; services remain paused."
+            fi

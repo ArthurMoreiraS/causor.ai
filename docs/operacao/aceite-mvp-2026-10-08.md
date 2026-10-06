@@ -8,6 +8,9 @@ automática de autos não são necessários para esta aceitação.
 
 - Confirmar login e `/me` no ambiente de piloto; `/health` sozinho não basta.
   Em 06/10 o Supabase Auth respondeu 402. Manter Free; não há liberação confirmada.
+  Fundador escolheu preparar outro projeto Free; estrutura de
+  [migração](migracao-supabase-free.md) pronta localmente, aguardando suas
+  credenciais. Somente após restore/conferência e login real seguir o percurso.
 - Separar um caso autorizado, número/tribunal, cliente e polo representado,
   objetivo do trabalho, publicação/demanda e arquivos disponíveis.
 - Preparar inventário externo dos arquivos: peça, versão, páginas e o que falta.

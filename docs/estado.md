@@ -1,6 +1,6 @@
 # Proximos passos - MVP
 
-> **06/10 — retomada do MVP em 48 horas; captura periódica pronta localmente.**
+> **06/10 — retomada do MVP em 48 horas; captura periódica implantada (`fb80cfc`).**
 > Implementado `capture-scheduler`: fila persistente, tick de 300s, espera após
 > falha de 900s, intervalo por OAB, deduplicação com consulta manual e validação
 > de cadastro ativo. Cursor só avança após janela concluída; falha conserva
@@ -10,13 +10,35 @@
 > lint/tipos/testes/build aprovados. Edge com dados/PDFs/providers fictícios
 > percorreu criação, upload, escopo, fontes, pendência, conferência, minuta,
 > recarga e mobile. Encontrada/corrigida lista de PDFs que não atualizava após
-> upload, preservando campos em edição. Ainda sem CI PG16/17/deploy desta versão.
+> upload, preservando campos em edição.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37511358811):
+> 803 backend, 161 frontend e 102 PostgreSQL em cada versão 16/17.
+> [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37511754978):
+> log verificou SHA `fb80cfc8dc6a982a52c8169ca804b6b43e4b1b54` nos cinco
+> serviços (incluindo scheduler); consulta externa posterior health 200.
 > Auth Supabase continua 402 e API `/health` 200; suporte humano sem retorno.
 > Advisor trará OAB aleatória; caso com documentos/revisão real não definido.
 > Captura vazia não é falha e OAB não fornece automaticamente os autos completos.
 > [Plano de 48h](desenvolvimento/planos/2026-10-06-mvp-48-horas.md),
 > [operação do agendador](operacao/captura-periodica.md) e
 > [aceite do primeiro caso](operacao/aceite-mvp-2026-10-08.md).
+
+> **06/10 — migração Free preparada localmente; aguardando credenciais do destino.**
+> Fundador escolheu outro projeto Free e depois delimitou: apenas preparar a
+> estrutura, conectar/migrar quando enviar as chaves. Criados modelo privado,
+> script offline/backup/restore/verify e procedimento para VPS/Compose.
+> Script recusa origem e destino ocupado, usa snapshot comum, verifica hashes,
+> conteúdo e sequences; restaura public/Auth em transação, preservando auditoria.
+> 14 testes da migração aprovados, incluindo dois restores em PostgreSQL 17
+> local com Auth reduzido e dados fictícios. Não validam schema gerenciado real.
+> Correção local de JWKS aceita apenas projeto confiável configurado/derivado
+> do DSN; testes impedem token externo de escolher chaves e assumir usuário.
+> Suíte completa desta preparação: 821 aprovados/110 ignorados, credenciais
+> externas vazias e SQLite descartável; Ruff completo aprovado.
+> Não houve backup final, restore real, alteração de env de produção ou deploy
+> desta preparação. Credenciais ficam em arquivo ignorado pelo Git.
+> [Procedimento](operacao/migracao-supabase-free.md) e
+> [escopo autorizado](desenvolvimento/planos/2026-10-06-migracao-supabase-free.md).
 
 > **05/10 — consumo Supabase diagnosticado e correção local validada.**
 > Painel informado pelo fundador: 37,39 GB de egress não cacheado / 5 GB,

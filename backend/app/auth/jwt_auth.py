@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from functools import lru_cache
+import re
 
 import httpx
 import jwt
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from app.settings import settings
@@ -67,6 +69,9 @@ def _decode_es256(token: str) -> dict:
     issuer = claims.get("iss")
 
     configured_key = _normalize_pem(settings.supabase_jwt_secret)
+    expected = _configured_issuer()
+    if expected and issuer != expected:
+        raise jwt.InvalidIssuerError("unexpected issuer")
     if configured_key.startswith("-----BEGIN"):
         return jwt.decode(
             token,
@@ -76,14 +81,33 @@ def _decode_es256(token: str) -> dict:
             issuer=issuer,
         )
 
-    signing_key = _public_key_from_jwks(token, _jwks_url_from_issuer(issuer))
+    if not expected:
+        raise jwt.InvalidIssuerError("trusted Supabase project not configured")
+    signing_key = _public_key_from_jwks(token, _jwks_url_from_issuer(expected))
     return jwt.decode(
         token,
         signing_key,
         algorithms=["ES256"],
         audience="authenticated",
-        issuer=issuer,
+        issuer=expected,
     )
+
+
+def _configured_issuer() -> str | None:
+    if settings.supabase_url.strip():
+        return settings.supabase_url.strip().rstrip("/") + "/auth/v1"
+    # Backward compatibility for existing hosted deployments: the database
+    # connection is trusted configuration, unlike a token's unsigned claims.
+    url = make_url(settings.database_url)
+    host = url.host or ""
+    ref = None
+    if host.endswith(".pooler.supabase.com"):
+        ref = (url.username or "").rsplit(".", 1)[-1]
+    elif host.startswith("db.") and host.endswith(".supabase.co"):
+        ref = host.removeprefix("db.").removesuffix(".supabase.co")
+    if ref and re.fullmatch(r"[a-z0-9]{20}", ref):
+        return f"https://{ref}.supabase.co/auth/v1"
+    return None
 
 
 def decode_supabase_jwt(token: str) -> dict:

@@ -1,6 +1,7 @@
 name: Deploy
 
 on:
+  workflow_dispatch:
   workflow_run:
     workflows: ["CI"]
     types: [completed]
@@ -12,15 +13,23 @@ concurrency:
 
 jobs:
   build-push:
-    if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository) }}
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      actions: read
       packages: write
     steps:
+      - name: Require successful CI for manual rebuild
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs?head_sha=$RELEASE_SHA&per_page=100" --jq 'any(.workflow_runs[]; .name == "CI" and .event == "push" and .conclusion == "success")' | grep -qx true
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Log in to ghcr
         uses: docker/login-action@v3
@@ -38,7 +47,7 @@ jobs:
           context: ./backend
           push: true
           tags: |
-            ghcr.io/arthurmoreiras/causor-backend:${{ github.event.workflow_run.head_sha }}
+            ghcr.io/arthurmoreiras/causor-backend:${{ github.event.workflow_run.head_sha || github.sha }}
             ghcr.io/arthurmoreiras/causor-backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -53,7 +62,7 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
           tags: |
-            ghcr.io/arthurmoreiras/causor-frontend:${{ github.event.workflow_run.head_sha }}
+            ghcr.io/arthurmoreiras/causor-frontend:${{ github.event.workflow_run.head_sha || github.sha }}
             ghcr.io/arthurmoreiras/causor-frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -70,7 +79,7 @@ jobs:
         env:
           GHCR_USER: ${{ github.actor }}
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          IMAGE_TAG: ${{ github.event.workflow_run.head_sha }}
+          IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
