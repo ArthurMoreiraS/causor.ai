@@ -107,3 +107,8 @@ aplicada; não depender dessa hipótese para afirmar login restabelecido.
   Restore aplica bloqueio na mesma transação antes de publicar dados; nenhum
   acesso público intermediário. Downgrade não recria ACL ampla desconhecida.
   Catálogo indica permissões; não foi feita extração anônima de dados pessoais.
+- Fundador confirmou organização diferente da restrita.
+- 21 regressões locais PG17/migração/env aprovadas, incluindo bloqueio atual e
+  futuro de anon/authenticated/PUBLIC. CI de `9229819` aprovou Backend/Frontend,
+  mas PG17 detectou contrato de head ainda esperando revision anterior (102
+  outros passaram). Corrigida a expectativa para a nova revision; repetir CI.
