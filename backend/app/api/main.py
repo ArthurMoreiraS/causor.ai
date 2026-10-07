@@ -1510,6 +1510,8 @@ def create_app() -> FastAPI:
         prazo.data_fatal = fatal
         prazo.dias = payload.dias
         prazo.dias_uteis = payload.dias_uteis
+        if payload.descricao and payload.descricao.strip():
+            prazo.descricao = payload.descricao.strip()
         if existing is None:
             session.add(prazo)
         session.flush()

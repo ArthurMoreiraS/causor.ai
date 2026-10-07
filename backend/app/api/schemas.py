@@ -133,6 +133,8 @@ class ConfirmarPrazoRequest(BaseModel):
     dias_uteis: bool
     justificativa: str = Field(min_length=20, max_length=1000)
     dias_sem_expediente: list[date] = Field(default_factory=list, max_length=730)
+    # Ato escolhido entre as alternativas sugeridas (ex.: "Embargos de declaração").
+    descricao: str | None = Field(default=None, max_length=200)
 
 
 class CaptureOabRequest(BaseModel):

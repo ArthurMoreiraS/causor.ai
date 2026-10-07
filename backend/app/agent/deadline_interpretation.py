@@ -27,9 +27,70 @@ class DeadlineInterpretation(BaseModel):
     regra_id: Literal["cpc_1010_1", "cpc_1023_2", "cpc_437_1"] | None = None
     comando: str | None = Field(default=None, max_length=500)
     citacao_normativa: str | None = Field(default=None, max_length=200)
+    # Classificação do ato comunicado e do rito: a duração por ato vem do
+    # catálogo determinístico (app.prazo_engine.atos), nunca do modelo.
+    ato: Literal[
+        "sentenca", "acordao", "decisao_interlocutoria", "decisao_monocratica_tribunal",
+        "inadmissao_recurso_excepcional", "intimacao_manifestacao", "pauta_julgamento",
+        "distribuicao_ou_expediente", "citacao", "outro",
+    ] = "outro"
+    rito: Literal["comum", "juizado", "trabalhista", "criminal", "outro", "incerto"] = "incerto"
+    confianca_ato: float = Field(default=0, ge=0, le=1)
 
 
-_SYSTEM = (
+class _ModelOutput(BaseModel):
+    """Esquema enviado ao modelo: todos os campos obrigatórios.
+
+    Campo opcional multiplica a gramática compilada da saída estruturada; com
+    os campos de ato a API passou a recusar o esquema ("too complex"). Os
+    anuláveis continuam aceitando null e o resultado é validado no modelo
+    interno, que mantém os limites de tamanho.
+    """
+
+    status: Literal["prazo", "sem_prazo", "incerto"]
+    regime: Literal["cpc_civel_djen", "outro", "incerto"]
+    dias: int | None
+    unidade: Literal["dias_uteis", "dias_corridos", "incerta"]
+    termo: Literal["publicacao_djen", "outro", "incerto"]
+    evidencia: str | None
+    fundamento: str | None
+    confianca: float
+    multiplos_atos: bool
+    multiplas_partes: bool
+    motivo: str | None
+    origem_duracao: Literal["judicial_expressa", "regra_legal"] | None
+    regra_id: Literal["cpc_1010_1", "cpc_1023_2", "cpc_437_1"] | None
+    comando: str | None
+    citacao_normativa: str | None
+    ato: Literal[
+        "sentenca", "acordao", "decisao_interlocutoria", "decisao_monocratica_tribunal",
+        "inadmissao_recurso_excepcional", "intimacao_manifestacao", "pauta_julgamento",
+        "distribuicao_ou_expediente", "citacao", "outro",
+    ]
+    rito: Literal["comum", "juizado", "trabalhista", "criminal", "outro", "incerto"]
+    confianca_ato: float
+
+
+_ATO_INSTRUCOES = (
+    "Classifique SEMPRE o ato principal comunicado em `ato`, mesmo sem duração expressa: "
+    "sentenca; acordao (decisão colegiada); decisao_interlocutoria (decisão de 1º grau no curso "
+    "do processo); decisao_monocratica_tribunal (decisão de relator, presidente ou vice em "
+    "tribunal); inadmissao_recurso_excepcional (decisão que não admite ou nega seguimento a "
+    "recurso especial, extraordinário ou de revista); intimacao_manifestacao (intima a parte a "
+    "se manifestar, falar ou dar ciência, sem duração fixada); pauta_julgamento; "
+    "distribuicao_ou_expediente (distribuição, conclusão, remessa, mero expediente sem comando à "
+    "parte); citacao; outro. Se a comunicação traz a íntegra de uma decisão, o ato é a decisão. "
+    "Classifique o rito em `rito`: comum (cível pelo CPC, inclusive mandado de segurança, família, "
+    "execução e cumprimento de sentença), juizado (juizados especiais estaduais, federais ou da "
+    "Fazenda Pública; turmas recursais), trabalhista, criminal, outro ou incerto. "
+    "Recursos e processos de matéria cível em tribunais superiores (STJ, STF: REsp, RE, AREsp, "
+    "agravo interno) seguem o CPC: rito comum, salvo se originários de juizado (rito juizado), "
+    "trabalhistas ou criminais. Execução fiscal e seus embargos: rito outro. "
+    "Use os metadados oficiais (tribunal, classe, órgão) para o rito. Informe confianca_ato "
+    "de 0 a 1 para ato e rito juntos. Não informe duração para o ato: ela vem de tabela própria. "
+)
+
+_SYSTEM = _ATO_INSTRUCOES + (
     "Para regra legal sem duração expressa, somente classifique prazo se o comando atual "
     "e a citação literal do CPC forem verificáveis: cpc_1010_1 para contrarrazões "
     "de apelação (art. 1.010 §1), cpc_1023_2 para manifestação do embargado sobre "
@@ -69,26 +130,41 @@ def duration_in_evidence(days: int, evidence: str) -> bool:
     return bool(word and re.search(rf"\b{re.escape(word)}\s+dias?\b", evidence, re.IGNORECASE))
 
 
+MAX_TEXT = 30000
+
+
+def text_for_model(text: str) -> str:
+    """Comunicações longas: início (identificação) e fim (dispositivo) da decisão."""
+    if len(text) <= MAX_TEXT:
+        return text
+    half = MAX_TEXT // 2
+    return text[:half] + "\n[... trecho intermediário omitido por tamanho ...]\n" + text[-half:]
+
+
 def interpret_deadline(text: str, *, context: dict[str, str] | None = None,
                        provider: LLMProvider | None = None) -> DeadlineInterpretation:
-    if len(text) > 30000:
-        return DeadlineInterpretation(status="incerto", regime="incerto", confianca=0,
-                                      motivo="Teor excede limite de análise; revisão manual necessária")
     if provider is None:
         provider = get_provider(model=settings.claude_classification_model, task="classification")
         # Deadline triage must not hold a worker forever on a provider call.
         from app.agent.llm import ClaudeProvider
         if isinstance(provider, ClaudeProvider):
             import anthropic
-            provider = ClaudeProvider(client=anthropic.Anthropic(timeout=45.0, max_retries=1),
+            provider = ClaudeProvider(client=anthropic.Anthropic(timeout=60.0, max_retries=3),
                                       model=settings.claude_classification_model)
     safe_context = {key: str(value)[:160] for key, value in (context or {}).items()
                     if key in {"fonte", "tipo_comunicacao", "tribunal", "classe", "orgao"}}
     result = provider.complete_structured(
-        system=_SYSTEM, user=f"Metadados oficiais: {safe_context}\nComunicação DJEN:\n{text}",
-        schema=DeadlineInterpretation, max_tokens=1200,
+        system=_SYSTEM, user=f"Metadados oficiais: {safe_context}\nComunicação DJEN:\n{text_for_model(text)}",
+        schema=_ModelOutput, max_tokens=1200,
     )
-    return DeadlineInterpretation.model_validate(result)
+    data = result.model_dump() if isinstance(result, BaseModel) else dict(result)
+    for key, limit in _TEXT_LIMITS.items():
+        if isinstance(data.get(key), str):
+            data[key] = data[key][:limit]
+    return DeadlineInterpretation.model_validate(data)
+
+
+_TEXT_LIMITS = {"evidencia": 500, "fundamento": 500, "motivo": 500, "comando": 500, "citacao_normativa": 200}
 
 
 def supported(result: DeadlineInterpretation, text: str) -> tuple[bool, str | None]:
