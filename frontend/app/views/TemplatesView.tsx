@@ -9,7 +9,7 @@ import {
   TemplatePeticao
 } from "@/lib/api";
 import { humanError } from "@/lib/errors";
-import { Empty } from "../components/ui";
+import { Empty, PageHeader } from "../components/ui";
 
 type FormState = {
   id: number | null;
@@ -85,19 +85,14 @@ export default function TemplatesView({ offline }: { offline: boolean }) {
   }
 
   return (
-    <section className="templatesSurface">
+    <section className="workSurface">
+      <PageHeader title="Modelos de peças" description="Modelos do escritório que estruturam a redação das minutas."
+        actions={<button className="toolbarButton primary" onClick={() => setForm(EMPTY_FORM)} disabled={offline}>
+          <FilePlus2 size={15} />
+          Novo template
+        </button>} />
+      <div className="templatesSurface">
       <div className="templatesColumn">
-        <div className="templatesHead">
-          <strong>Modelos do escritório</strong>
-          <button
-            className="toolbarButton compact"
-            onClick={() => setForm(EMPTY_FORM)}
-            disabled={offline}
-          >
-            <FilePlus2 size={14} />
-            Novo template
-          </button>
-        </div>
         {error ? <div className="notice">{error}</div> : null}
         <div className="templatesList">
           {templates.map((template) => (
@@ -152,7 +147,7 @@ export default function TemplatesView({ offline }: { offline: boolean }) {
       </div>
 
       <div className="templatesEditor">
-        <strong>{form.id === null ? "Novo template" : "Editar template"}</strong>
+        <h2>{form.id === null ? "Novo template" : "Editar template"}</h2>
         <span className="templatesHint">
           A IA continua decidindo tipo e prazo da peça; o template estrutura a redação da minuta.
         </span>
@@ -203,6 +198,7 @@ export default function TemplatesView({ offline }: { offline: boolean }) {
             {form.id === null ? "Criar template" : "Salvar alterações"}
           </button>
         </div>
+      </div>
       </div>
     </section>
   );

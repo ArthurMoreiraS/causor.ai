@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Plus, RefreshCw, Users } from "lucide-react";
+import { Plus, RefreshCw, Search, Users } from "lucide-react";
 import { criarCliente, listarClientes, vincularCliente, type Cliente, type Processo, type TarefaInput } from "@/lib/api";
 import { humanError } from "@/lib/errors";
-import { EmptyState, LoadingButton, Modal } from "../components/ui";
+import { formatCnj } from "@/lib/format";
+import { EmptyState, LoadingButton, Modal, PageHeader } from "../components/ui";
 
 export default function ClientesView({ offline, processos, refreshKey, onChanged, onOpenProcess, onNewTask }: {
   offline: boolean; processos: Processo[]; refreshKey: number; onChanged: () => void;
@@ -60,10 +61,12 @@ export default function ClientesView({ offline, processos, refreshKey, onChanged
   }
   const linked = selected ? processos.filter(p => p.cliente_id === selected.id) : [];
   return <section className="officeSurface">
-    <header className="officeHead"><div><h1>Clientes</h1><p>Conecte cada cliente aos processos e às próximas providências.</p></div>
-      <button className="toolbarButton" disabled={offline} onClick={() => { setFormError(null); setCreating(true); }}><Plus size={16} />Novo cliente</button></header>
-    <div className="officeToolbar"><label>Buscar cliente<input value={query} placeholder="Nome do cliente" onChange={e => { setQuery(e.target.value); setOffset(0); }} /></label>
-      <button className="toolbarButton" disabled={loading || offline} onClick={() => setTick(v => v + 1)}><RefreshCw size={14} />Atualizar</button></div>
+    <PageHeader title="Clientes" description="Conecte cada cliente aos processos e às próximas providências."
+      actions={<>
+        <label className="search"><Search size={15} /><input value={query} placeholder="Buscar cliente" aria-label="Buscar cliente" onChange={e => { setQuery(e.target.value); setOffset(0); }} /></label>
+        <button className="toolbarButton" disabled={loading || offline} onClick={() => setTick(v => v + 1)}><RefreshCw size={14} />Atualizar</button>
+        <button className="toolbarButton primary" disabled={offline} onClick={() => { setFormError(null); setCreating(true); }}><Plus size={15} />Novo cliente</button>
+      </>} />
     {error ? <p role="alert" className="officeError">{error}</p> : null}
     {offline ? <p role="alert" className="officeError">Conecte-se ao servidor para consultar os clientes.</p> : null}
     {linkMessage ? <p role="status" className="officeNotice">{linkMessage}</p> : null}
@@ -85,12 +88,12 @@ export default function ClientesView({ offline, processos, refreshKey, onChanged
           <p className="officeHint">Documento: {selected.documento || "não informado"}</p>
           <button className="toolbarButton" disabled={offline} onClick={() => onNewTask({ titulo: "", cliente_id: selected.id, tipo: "atendimento" }, selected.nome)}><Plus size={14} />Nova tarefa para este cliente</button>
           <h3>Processos vinculados</h3>
-          {linked.map(process => <button key={process.id} className="officeProcessLink" onClick={() => onOpenProcess(process.id)}>{process.numero}<small>{process.tribunal || "Tribunal não informado"}</small></button>)}
+          {linked.map(process => <button key={process.id} className="officeProcessLink" onClick={() => onOpenProcess(process.id)}><span className="mono">{formatCnj(process.numero)}</span><small>{process.tribunal || "Tribunal não informado"}</small></button>)}
           {!linked.length ? <p className="officeHint">Nenhum processo vinculado na carteira carregada.</p> : null}
           <form className="officeForm" onSubmit={link}>
             <label>Vincular processo<select value={processId} onChange={e => setProcessId(e.target.value)}>
               <option value="">Escolha um processo sem cliente</option>
-              {processos.filter(p => !p.cliente_id).map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}
+              {processos.filter(p => !p.cliente_id).map(p => <option key={p.id} value={p.id}>{formatCnj(p.numero)}</option>)}
             </select></label>
             <LoadingButton type="submit" loading={busy} disabled={offline || !processId}>Vincular cliente representado</LoadingButton>
           </form>

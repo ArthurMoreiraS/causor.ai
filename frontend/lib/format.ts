@@ -22,6 +22,24 @@ export function statusLabel(status: Peticao["status"]) {
   return status;
 }
 
+/** Número CNJ no formato oficial NNNNNNN-DD.AAAA.J.TR.OOOO; outros valores ficam como vieram. */
+export function formatCnj(numero: string | null | undefined): string {
+  if (!numero) return "";
+  const digits = numero.replace(/\D/g, "");
+  if (digits.length !== 20) return numero;
+  return `${digits.slice(0, 7)}-${digits.slice(7, 9)}.${digits.slice(9, 13)}.${digits.slice(13, 14)}.${digits.slice(14, 16)}.${digits.slice(16)}`;
+}
+
+const SISTEMA_NOMES: Record<string, string> = {
+  PJE: "PJe", EPROC: "eproc", "E-PROC": "eproc", "E-STJ": "e-STJ", ESTJ: "e-STJ", "E-SAJ": "e-SAJ", ESAJ: "e-SAJ",
+  PROJUDI: "Projudi", "E-STF": "e-STF", ESTF: "e-STF", SEEU: "SEEU", TUCUJURIS: "Tucujuris", THEMIS: "Themis"
+};
+
+/** Nome do sistema como o tribunal escreve (PJe, eproc, e-STJ), não em caixa alta. */
+export function sistemaNome(sistema: string): string {
+  return SISTEMA_NOMES[sistema.trim().toUpperCase()] ?? sistema.trim();
+}
+
 export function sistemaBadge(sistema: string | null | undefined): {
   label: string;
   className: string;
@@ -35,7 +53,8 @@ export function sistemaBadge(sistema: string | null | undefined): {
       title: "Sistema não identificado"
     };
   }
-  return { label: sistema, className: "sistemaOutro", title: `${sistema} · sistema informado para este processo` };
+  const nome = sistemaNome(sistema);
+  return { label: nome, className: "sistemaOutro", title: `${nome} · sistema informado para este processo` };
 }
 
 export function connectorStatusLabel(status: string) {

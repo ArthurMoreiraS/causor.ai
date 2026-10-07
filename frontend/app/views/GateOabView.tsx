@@ -3,7 +3,7 @@
 import { CheckCircle2, FilePenLine } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Peticao } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { formatCnj, formatDate } from "@/lib/format";
 import type { PeticaoRow } from "@/lib/views";
 import { CommandStat, Empty } from "../components/ui";
 
@@ -84,7 +84,7 @@ function GateLane({
           <article className="gateCard" key={peticao.id}>
             <div>
               <strong>{peticao.tipo ?? "Petição"}</strong>
-              <span className="mono">{processo?.numero ?? `Processo #${peticao.processo_id}`}</span>
+              <span className="mono">{processo?.numero ? formatCnj(processo.numero) : `Processo #${peticao.processo_id}`}</span>
             </div>
             <p>{peticao.conteudo ?? "Sem conteúdo"}</p>
             <small>{prazo ? `Vence em ${formatDate(prazo.data_fatal)}` : "Sem prazo vinculado"}</small>

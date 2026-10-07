@@ -12,7 +12,7 @@ it("uses São Paulo civil dates even before UTC midnight", () => {
   expect(daysUntil("2026-09-29")).toBe(0);
   expect(daysUntil("2026-09-30")).toBe(1);
   render(<DeadlineBadge prazo={{ data_fatal: "2026-09-29", cumprido: false, revisao_status: "confirmado" }} />);
-  expect(screen.getByText("Hoje")).toBeTruthy();
+  expect(screen.getByText("Vence hoje")).toBeTruthy();
 });
 
 it("distinguishes automatic suggestions and unresolved analysis", () => {
@@ -20,6 +20,6 @@ it("distinguishes automatic suggestions and unresolved analysis", () => {
     <DeadlineBadge prazo={{ data_fatal: "2026-09-29", cumprido: false, revisao_status: "calculado_a_revisar" }} />
     <DeadlineBadge prazo={null} analise={{ status: "falha", motivo: "Provedor indisponível" }} />
   </>);
-  expect(screen.getByText("Calculado · revisar")).toBeTruthy();
+  expect(screen.getByText("29/09 · conferir")).toBeTruthy();
   expect(screen.getByText("Falha na análise").getAttribute("title")).toBe("Provedor indisponível");
 });

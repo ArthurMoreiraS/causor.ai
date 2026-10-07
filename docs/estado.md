@@ -64,7 +64,12 @@ material, repetir em cinco casos.
 2. **Coleta automática dos autos:** comparar um fornecedor (Judit, Escavador ou
    alternativa) com o inventário manual do mesmo caso — cobertura por
    documento, faltas, custo, atraso e intervenção. Só então integrar.
-3. Interface: revisão do frontend depois que o fluxo estiver validado.
+3. Interface: reformulação "Papel e tinta" feita em 07/10 (**local**, não
+   implantada): um sistema visual só, com Satoshi nos títulos e Inter na
+   interface, fundo papel e verde da landing, tabelas com colunas alinhadas e
+   selos em frase normal. `pnpm check` e `pnpm build` verdes; conferida em
+   prints com API simulada de dados fictícios. Plano em
+   [`desenvolvimento/planos/2026-10-07-reformulacao-ui.md`](desenvolvimento/planos/2026-10-07-reformulacao-ui.md).
 
 ## Fora do escopo agora
 

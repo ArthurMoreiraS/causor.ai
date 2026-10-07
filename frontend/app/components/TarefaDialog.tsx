@@ -1,5 +1,6 @@
 "use client";
 
+import { formatCnj } from "@/lib/format";
 import { useEffect, useState, type FormEvent } from "react";
 import { atualizarTarefa, criarTarefa, listarUsuarios, type Processo, type Tarefa, type TarefaInput, type Usuario } from "@/lib/api";
 import { humanError } from "@/lib/errors";
@@ -70,7 +71,7 @@ export default function TarefaDialog({ initial, task, contextLabel, processos, o
       <label>Processo<select disabled={lockedSource} value={form.processo_id ?? ""} onChange={e => change("processo_id", e.target.value ? Number(e.target.value) : null)}>
         <option value="">{initial.intimacao_id && !form.processo_id ? "Vínculo definido pela intimação de origem" : "Sem processo vinculado"}</option>
         {form.processo_id && !options.some(p => p.id === form.processo_id) ? <option value={form.processo_id}>{task?.processo_numero || "Processo de origem"}</option> : null}
-        {options.map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}
+        {options.map(p => <option key={p.id} value={p.id}>{formatCnj(p.numero)}</option>)}
       </select></label>
       <div className="modalActions">
         <button type="button" className="toolbarButton" onClick={close} disabled={busy}>Cancelar</button>

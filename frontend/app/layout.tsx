@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./styles/tokens.css";
 import "./globals.css";
 import { AuthProvider } from "./AuthProvider";
 import { ToastProvider } from "./components/Toast";

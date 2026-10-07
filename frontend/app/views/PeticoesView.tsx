@@ -2,7 +2,7 @@
 
 import { FilePenLine } from "lucide-react";
 import type { Peticao } from "@/lib/api";
-import { formatDate, sistemaBadge, statusLabel } from "@/lib/format";
+import { formatCnj, formatDate, sistemaBadge, statusLabel } from "@/lib/format";
 import type { PeticaoRow } from "@/lib/views";
 import { Empty } from "../components/ui";
 
@@ -29,7 +29,7 @@ export default function PeticoesView({
         <div className="dataHead" aria-hidden="true">
           <span>Minuta</span>
           <span>Processo</span>
-          <span>Status</span>
+          <span>Situação</span>
           <span>Sistema</span>
           <span>Prazo</span>
           <span className="dataRowEnd">Ação</span>
@@ -44,9 +44,10 @@ export default function PeticoesView({
               <strong>{peticao.tipo ?? "Petição"}</strong>
               <span>{peticao.conteudo ?? "Sem conteúdo"}</span>
             </div>
-            <span className="cellDate mono">
-              {processo?.numero ?? `Processo #${peticao.processo_id}`}
-            </span>
+            <div className="dataRowMain">
+              <span className="mono">{processo?.numero ? formatCnj(processo.numero) : `Processo #${peticao.processo_id}`}</span>
+              <span>{processo?.tribunal ?? "Tribunal não informado"}</span>
+            </div>
             <span className={`pill ${peticao.status}`}>{statusLabel(peticao.status)}</span>
             <span
               className={`pill ${sistemaBadge(processo?.sistema).className}`}
@@ -58,10 +59,10 @@ export default function PeticoesView({
               {prazo ? formatDate(prazo.data_fatal) : "—"}
             </span>
             <div className="dataRowEnd">
-              <span className="redactionOpen">
+              <button type="button" className="toolbarButton compact" onClick={(event) => { event.stopPropagation(); onOpenEditor(peticao); }}>
                 <FilePenLine size={14} />
                 Abrir editor
-              </span>
+              </button>
             </div>
           </article>
         ))}

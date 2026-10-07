@@ -5,7 +5,9 @@ import { humanError } from "@/lib/errors";
 import DocumentEvidenceDialog, { documentStatus } from "../components/DocumentEvidenceDialog";
 import DocumentUploadDialog from "../components/DocumentUploadDialog";
 import ProcessContextStatus from "../components/ProcessContextStatus";
-import { EmptyState } from "../components/ui";
+import { Upload } from "lucide-react";
+import { formatCnj } from "@/lib/format";
+import { EmptyState, PageHeader } from "../components/ui";
 
 export default function DocumentosView({ processos, offline, initialProcessId, initialTask, onChanged, onTasks, onAll }: {
   processos: Processo[]; offline: boolean; initialProcessId?: number; initialTask?: Tarefa | null;
@@ -53,9 +55,8 @@ export default function DocumentosView({ processos, offline, initialProcessId, i
     return () => { active = false; };
   }, [initialTask, offline, tick]);
   return <section className="officeSurface">
-    <header className="officeHead"><div><h1>Documentos e evidências</h1><p>Arquivos, versões e fontes para conferir o contexto das minutas.</p></div>
-      <button className="toolbarButton" disabled={receivingDisabled}
-        onClick={() => setUpload(true)}>Receber documentos</button></header>
+    <PageHeader title="Documentos e evidências" description="Arquivos, versões e fontes para conferir o contexto das minutas."
+      actions={<button className="toolbarButton primary" disabled={receivingDisabled} onClick={() => setUpload(true)}><Upload size={15} />Receber documentos</button>} />
     {notice ? <p role="status" className="officeNotice">{notice}</p> : null}
     {offline ? <p role="alert" className="officeError">Conecte-se ao servidor para consultar e receber documentos.</p> : null}
     {task ? <section className="officePanel documentTaskPanel"><div className="officeItemHead"><div><span className="sectionKicker">Documentos da pendência</span><h2>{task.titulo}</h2></div>
@@ -72,7 +73,7 @@ export default function DocumentosView({ processos, offline, initialProcessId, i
     <div className="officeToolbar"><label>Processo<select value={processId} disabled={Boolean(task?.processo_id)} onChange={e => { setProcessId(e.target.value); setOffset(0); }}>
       <option value="">Todos os processos</option>
       {processId && !processos.some(p => String(p.id) === processId) ? <option value={processId}>{task?.processo_numero || `Processo #${processId}`}</option> : null}
-      {processos.map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}
+      {processos.map(p => <option key={p.id} value={p.id}>{formatCnj(p.numero)}</option>)}
     </select></label><label>Buscar documento<input value={query} placeholder="Nome do arquivo" maxLength={200} onChange={e => { setQuery(e.target.value); setOffset(0); }} /></label>
       <button className="toolbarButton" disabled={offline || loading} onClick={() => setTick(v => v + 1)}>Atualizar</button></div>
     {processId && !offline ? <ProcessContextStatus key={`${processId}-${tick}`} processoId={Number(processId)}
@@ -81,7 +82,7 @@ export default function DocumentosView({ processos, offline, initialProcessId, i
     {loading ? <p role="status">Carregando documentos…</p> : null}
     <div className="officeList" aria-busy={loading}>
       {items.map(doc => <article className="officeItem" key={doc.id}><div className="officeItemHead"><div>
-        <span className="sectionKicker">{doc.processo_numero || "Sem processo"}{doc.grau ? ` · ${doc.grau}º grau` : ""}</span><h2>{doc.nome}</h2></div>
+        <span className="sectionKicker">{doc.processo_numero ? formatCnj(doc.processo_numero) : "Sem processo"}{doc.grau ? ` · ${doc.grau}º grau` : ""}</span><h2>{doc.nome}</h2></div>
         <button className="toolbarButton" disabled={offline} onClick={() => setEvidence({ id: doc.id, name: doc.nome, version: doc.versao?.id })}>Conferir evidências</button></div>
         <div className="officeMeta">{doc.cliente_nome ? <span>{doc.cliente_nome}</span> : null}
           <span>{doc.versao ? documentStatus(doc.versao.extracao, doc.versao.resumo_status) : "Sem arquivo verificado"}</span><span>{doc.versao?.paginas ?? "—"} páginas</span></div>

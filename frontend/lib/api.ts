@@ -11,7 +11,16 @@ export type Intimacao = {
   teor: string | null;
   data_disponibilizacao: string | null;
   data_publicacao: string | null;
-  prazo_analise?: { status: string; job_id?: number; motivo?: string | null; prazo_id?: number; dias?: number | null; unidade?: string; publicacao?: string; primeiro_dia?: string; data_fatal?: string; evidencia?: string | null; fundamento?: string | null; calendario?: string } | null;
+  prazo_analise?: PrazoAnalise | null;
+};
+
+/** Providência cabível sugerida pelo tipo de ato, com data já calculada. */
+export type PrazoAlternativa = { ato_cabivel: string; dias: number; fundamento: string; fonte: string; data_fatal: string };
+
+export type PrazoAnalise = {
+  status: string; job_id?: number; motivo?: string | null; prazo_id?: number; dias?: number | null; unidade?: string;
+  publicacao?: string; primeiro_dia?: string; data_fatal?: string; evidencia?: string | null; fundamento?: string | null;
+  calendario?: string; ato?: string; rito?: string; origem_duracao?: string | null; alternativas?: PrazoAlternativa[];
 };
 
 export type Processo = {
@@ -141,7 +150,7 @@ export function repetirAnalisePrazo(id: number): Promise<{ job_id: number | null
 }
 
 export async function confirmarPrazoIntimacao(intimacaoId: number, payload: {
-  data_base: string; dias: number; dias_uteis: boolean; justificativa: string; dias_sem_expediente: string[];
+  data_base: string; dias: number; dias_uteis: boolean; justificativa: string; dias_sem_expediente: string[]; descricao?: string;
 }): Promise<Prazo> {
   return request(`/intimacoes/${intimacaoId}/prazo`, { method: "POST", body: JSON.stringify(payload) });
 }

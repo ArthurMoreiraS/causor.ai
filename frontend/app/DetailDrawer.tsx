@@ -2,9 +2,9 @@
 
 import { CalendarDays, FilePenLine, X } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
-import type { Intimacao, Peticao, Prazo, Processo } from "@/lib/api";
-import { formatDate, statusLabel } from "@/lib/format";
-import { sanitizeHtml } from "@/lib/sanitize";
+import type { Intimacao, Peticao, Prazo, PrazoAnalise, Processo } from "@/lib/api";
+import { formatCnj, formatDate, statusLabel } from "@/lib/format";
+import { decodeEntities, sanitizeHtml } from "@/lib/sanitize";
 import ConfirmarPrazo from "./components/ConfirmarPrazo";
 
 export type DetailSelection =
@@ -122,7 +122,7 @@ function ProcessoDetail({
 }) {
   return (
     <div className="detailBody">
-      <h2 className="detailTitle">{processo.numero}</h2>
+      <h2 className="detailTitle">{formatCnj(processo.numero)}</h2>
       <p className="detailSub">{processo.classe ?? "Classe não informada"}</p>
 
       <div className="detailMetaGrid">
@@ -199,6 +199,18 @@ function ProcessoDetail({
   );
 }
 
+function analysisNote(analise: PrazoAnalise): string {
+  const motivo = analise.motivo ? ` ${analise.motivo}` : "";
+  switch (analise.status) {
+    case "analisando": return "Analisando o prazo desta intimação…";
+    case "calculado_a_revisar": return `Prazo calculado automaticamente, aguardando sua conferência.${motivo}`;
+    case "sem_prazo_identificado": return `Sem prazo para a parte.${motivo}`;
+    case "confirmado": return "Prazo conferido e confirmado.";
+    case "falha": return `A análise automática falhou.${motivo}`;
+    default: return `O prazo não foi identificado automaticamente; informe-o abaixo.${motivo}`;
+  }
+}
+
 function IntimacaoDetail({
   intimacao,
   processo,
@@ -220,7 +232,7 @@ function IntimacaoDetail({
     <div className="detailBody">
       <h2 className="detailTitle">{intimacao.tipo_comunicacao ?? "Comunicação judicial"}</h2>
       <p className="detailSub">
-        {intimacao.numero_processo ?? processo?.numero ?? "Processo não identificado"}
+        {formatCnj(intimacao.numero_processo ?? processo?.numero) || "Processo não identificado"}
       </p>
 
       <div className="detailMetaGrid">
@@ -234,14 +246,14 @@ function IntimacaoDetail({
         <div className="detailCallout">
           <CalendarDays size={15} />
           <span>
-            Prazo: <strong>{formatDate(prazo.data_fatal)}</strong> ({prazo.dias}{" "}
+            {prazo.descricao ? `${prazo.descricao}: ` : "Prazo: "}<strong>{formatDate(prazo.data_fatal)}</strong> ({prazo.dias}{" "}
             {prazo.dias_uteis ? "dias úteis" : "dias corridos"})
-            {prazo.revisao_status !== "confirmado" ? " · calculado a revisar" : " · confirmado"}
+            {prazo.revisao_status !== "confirmado" ? " · sugerido, a conferir" : " · confirmado"}
           </span>
         </div>
       ) : null}
 
-      {intimacao.prazo_analise ? <p role="status" className="officeHint">Análise: {intimacao.prazo_analise.status}. {intimacao.prazo_analise.motivo}</p> : null}
+      {intimacao.prazo_analise ? <p role="status" className="officeHint deadlineAnalysisNote">{analysisNote(intimacao.prazo_analise)}</p> : null}
       {!offline && (!prazo || prazo.revisao_status !== "confirmado") && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} analise={intimacao.prazo_analise} onConfirmed={onPrazoConfirmed} />}
       <DetailSection title="Teor da intimação">
         <TeorHtml teor={intimacao.teor} />
@@ -307,5 +319,5 @@ function TeorHtml({ teor }: { teor: string | null | undefined }) {
   if (looksLikeHtml) {
     return <div className="detailTeor" dangerouslySetInnerHTML={{ __html: html }} />;
   }
-  return <p className="detailTeor">{teor}</p>;
+  return <p className="detailTeor">{decodeEntities(teor)}</p>;
 }

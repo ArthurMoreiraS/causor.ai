@@ -3,7 +3,7 @@
 import { FilePenLine, Table2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { Peticao, ReviewQueueItem } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { formatCnj, formatDate } from "@/lib/format";
 import type { ViewKey } from "@/lib/views";
 import { Empty, Pagination } from "../components/ui";
 
@@ -38,11 +38,11 @@ function badgeDePrazo(item: ReviewQueueItem) {
   if (item.status === "cumprido") {
     return <span className="dayBadge done">Prazo cumprido</span>;
   }
-  if (dias === null) return <span className="dayBadge neutral">Prazo a revisar</span>;
+  if (dias === null) return <span className="dayBadge warn">Prazo a revisar</span>;
   if (dias < 0) return <span className="dayBadge risk">Vencido há {Math.abs(dias)}d</span>;
   if (dias === 0) return <span className="dayBadge risk">Vence hoje</span>;
   if (dias === 1) return <span className="dayBadge risk">Vence em 1 dia</span>;
-  if (dias <= 3) return <span className="dayBadge today">Vence em {dias} dias</span>;
+  if (dias <= 3) return <span className="dayBadge warn">Vence em {dias} dias</span>;
   return <span className="dayBadge neutral">Vence em {dias} dias</span>;
 }
 
@@ -168,7 +168,7 @@ export default function FilaDoDiaView({
               <div className="dataRowMain">
                 <strong>{peca}</strong>
                 <span className="mono">
-                  {item.intimacao.numero_processo ?? item.processo?.numero ?? "Processo não identificado"}
+                  {formatCnj(item.intimacao.numero_processo ?? item.processo?.numero) || "Processo não identificado"}
                 </span>
               </div>
               <div className="filaMeta">{badgeDePrazo(item)}</div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileSearch, Loader2, RefreshCcw, ShieldAlert, Upload } from "lucide-react";
+import { FileUp, Info, Loader2, RefreshCcw, ShieldAlert, Upload } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import {
   AutosStatus,
@@ -38,6 +38,16 @@ export function deriveUiState(status: AutosStatus | null): ContextUiState {
   }
   return "blocked";
 }
+
+const STATE_TONE: Record<ContextUiState, string> = {
+  not_captured: "neutral",
+  capturing: "info",
+  incomplete: "warn",
+  processing: "info",
+  ready: "ok",
+  stale: "warn",
+  blocked: "risk"
+};
 
 const STATE_LABEL: Record<ContextUiState, string> = {
   not_captured: "Autos não capturados",
@@ -142,8 +152,8 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
 
   if (loading) {
     return (
-      <section className="contextStatus">
-        <Loader2 className="spin" size={14} /> Carregando contexto do processo…
+      <section className="contextStatus contextLoading">
+        <Loader2 className="spin" size={14} /> Carregando autos do processo…
       </section>
     );
   }
@@ -157,20 +167,34 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
       return total + Math.max(captura.expected_count - captura.captured_count, 0);
     }, 0) ?? 0;
 
+  const contexto = status?.contexto;
+  const capturadas = status?.instancias.filter((instancia) => instancia.captura) ?? [];
+
   return (
     <section className="contextStatus">
-      <header>
-        <strong>
-          <FileSearch size={14} style={{ verticalAlign: "-2px", marginRight: 6 }} />
-          {STATE_LABEL[uiState]}
-        </strong>
-        <button
-          className="toolbarButton compact"
-          onClick={() => void reload()}
-          aria-label="Recarregar status do contexto"
-        >
-          <RefreshCcw size={13} />
-        </button>
+      <header className="contextHead">
+        <div className="contextTitle">
+          <h3>Autos do processo</h3>
+          <span className={`statusBadge ${STATE_TONE[uiState]}`}>{STATE_LABEL[uiState]}</span>
+        </div>
+        <div className="contextHeadActions">
+          <div className="segmented" role="group" aria-label="Grau dos autos">
+            {(["1", "2"] as const).map((value) => (
+              <button key={value} type="button" aria-pressed={grau === value} disabled={Boolean(busy)} onClick={() => setGrau(value)}>
+                {value}º grau
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="iconButton"
+            onClick={() => void reload()}
+            aria-label="Recarregar status do contexto"
+            title="Recarregar"
+          >
+            <RefreshCcw size={15} />
+          </button>
+        </div>
       </header>
 
       {error && (
@@ -179,9 +203,9 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
         </p>
       )}
 
-      {status && (
+      {capturadas.length > 0 && (
         <ul className="contextInstances">
-          {status.instancias.map((instancia) => (
+          {capturadas.map((instancia) => (
             <li key={instancia.processo_instancia_id}>
               <strong>
                 {instancia.sistema} · {instancia.tribunal} · {instancia.grau}º grau
@@ -210,9 +234,7 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
                       : ""}
                   </span>
                 </>
-              ) : (
-                <span className="contextMeta">sem captura</span>
-              )}
+              ) : null}
             </li>
           ))}
         </ul>
@@ -222,38 +244,42 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
         <p className="contextPending">{pendentes} documentos pendentes</p>
       )}
 
-      <div className="contextActions">
-        <label className="officeField contextDegree">Grau dos autos
-          <select aria-label="Grau dos autos" value={grau} disabled={Boolean(busy)} onChange={(e) => setGrau(e.target.value as "1" | "2")}>
-            <option value="1">1º grau</option><option value="2">2º grau</option>
-          </select>
-        </label>
-        {onReceiveDocuments ? <button className="toolbarButton compact" disabled={receivingDisabled} onClick={onReceiveDocuments}>Receber documentos</button> : <label className="toolbarButton compact contextUpload">
-          {busy === "upload" ? <Loader2 className="spin" size={13} /> : <Upload size={13} />}
-          Enviar os autos
-          <input
-            type="file"
-            multiple
-            accept="application/pdf"
-            aria-label="Enviar os autos que você baixou no tribunal"
-            disabled={busy === "upload"}
-            onChange={(event) => void enviar(event.target.files)}
-          />
-        </label>}
-        {!assistedOnly && blocked && !overrideOk && (
-          <button className="toolbarButton compact" onClick={() => setShowOverride(true)}>
-            <ShieldAlert size={13} /> Liberar excepcionalmente
-          </button>
-        )}
+      <div className="contextDrop">
+        <FileUp size={20} aria-hidden="true" />
+        <div className="contextDropText">
+          <strong>{onReceiveDocuments ? "Receba documentos do processo" : `Envie os autos do ${grau}º grau`}</strong>
+          <span>{onReceiveDocuments ? "Acrescente arquivos ao conjunto existente e confira o destino do envio." : "PDF, um ou vários arquivos. Um novo envio substitui o inventário anterior deste grau."}</span>
+        </div>
+        <div className="contextActions">
+          {onReceiveDocuments ? <button className="toolbarButton" disabled={receivingDisabled} onClick={onReceiveDocuments}><Upload size={14} />Receber documentos</button> : <label className="toolbarButton contextUpload">
+            {busy === "upload" ? <Loader2 className="spin" size={14} /> : <Upload size={14} />}
+            Escolher arquivos
+            <input
+              type="file"
+              multiple
+              accept="application/pdf"
+              aria-label="Enviar os autos que você baixou no tribunal"
+              disabled={busy === "upload"}
+              onChange={(event) => void enviar(event.target.files)}
+            />
+          </label>}
+          {!assistedOnly && blocked && !overrideOk && (
+            <button className="toolbarButton" onClick={() => setShowOverride(true)}>
+              <ShieldAlert size={14} /> Liberar excepcionalmente
+            </button>
+          )}
+        </div>
       </div>
 
-      <p>{onReceiveDocuments ? "Use Receber documentos para acrescentar arquivos ao conjunto existente e conferir o destino do envio." : "Envie o conjunto de arquivos do grau selecionado. Um novo envio substitui o inventário anterior desse grau."}</p>
-      {status?.contexto && (
-        <p aria-live="polite">
-          {status.contexto.documents_extracted ?? 0} documentos extraídos · {status.contexto.documents_summarized ?? 0} resumidos de {status.contexto.documents_total ?? 0} recebidos.
-        </p>
+      {contexto && (
+        <dl className="contextStats" aria-live="polite">
+          <div><dt>Recebidos</dt><dd>{contexto.documents_total ?? 0}</dd></div>
+          <div><dt>Extraídos</dt><dd>{contexto.documents_extracted ?? 0}</dd></div>
+          <div><dt>Resumidos</dt><dd>{contexto.documents_summarized ?? 0}</dd></div>
+        </dl>
       )}
-      {blocked && (status?.contexto?.documents_total ?? 0) > 0 && <LoadingButton className="toolbarButton compact" loading={busy === "processar"} disabled={Boolean(busy)} onClick={() => void reprocessar()}>Retomar processamento</LoadingButton>}
+      {blocked && (contexto?.documents_total ?? 0) > 0 && <LoadingButton className="toolbarButton compact contextRetry" loading={busy === "processar"} disabled={Boolean(busy)} onClick={() => void reprocessar()}>Retomar processamento</LoadingButton>}
+
       <details className="contextDeclaration">
         <summary>O processo não possui autos no {grau}º grau</summary>
         <div className="officeForm contextDeclarationBody">
@@ -265,8 +291,11 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
 
       {blocked && !overrideOk && (
         <p className="contextBlockedReason">
-          O contexto ainda possui pendências. Confira os graus, os arquivos e o processamento.
-          O envio manual declara o escopo recebido; não comprova a íntegra dos autos no tribunal.
+          <Info size={14} aria-hidden="true" />
+          <span>
+            O contexto ainda possui pendências: confira os graus, os arquivos e o processamento.
+            O envio manual registra o que foi enviado e não comprova a íntegra dos autos no tribunal.
+          </span>
         </p>
       )}
 

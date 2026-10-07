@@ -23,12 +23,14 @@ import {
 } from "@/lib/api";
 import { listarTrabalhos } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
+import { statusLabel as statusLabelMinuta } from "@/lib/format";
+import { PageHeader } from "../components/ui";
 import type { ViewKey } from "@/lib/views";
 
 function statusLabel(done: boolean, blocked = false) {
-  if (done) return "Concluido";
+  if (done) return "Concluído";
   if (blocked) return "Pendente";
-  return "Proximo";
+  return "Próximo";
 }
 
 export default function OnboardingView({
@@ -99,10 +101,10 @@ export default function OnboardingView({
   const steps = [
     {
       icon: <UserRound size={16} />,
-      title: "Conta e escritorio",
+      title: "Conta e escritório",
       detail: me
-        ? `Usuario #${me.usuario_id} no escritorio #${me.escritorio_id}`
-        : "Crie o usuario no Supabase Auth e rode provision-pilot.",
+        ? `Usuário #${me.usuario_id} no escritório #${me.escritorio_id}`
+        : "Crie o usuário no Supabase Auth e rode provision-pilot.",
       done: Boolean(me),
       action: "Ver perfil",
       onClick: onOpenSettings
@@ -121,8 +123,8 @@ export default function OnboardingView({
       icon: <Clock3 size={16} />,
       title: "Fila inicial",
       detail: hasCapture
-        ? `${data.intimacoes.length} intimacao(oes), ${data.prazos.length} prazo(s)`
-        : "A captura inicial ainda nao populou a fila.",
+        ? `${data.intimacoes.length} ${data.intimacoes.length === 1 ? "intimação" : "intimações"}, ${data.prazos.length} ${data.prazos.length === 1 ? "prazo" : "prazos"}`
+        : "A captura inicial ainda não populou a fila.",
       done: hasCapture && hasDeadline,
       action: "Ver prazos",
       onClick: () => onNavigate(hasCapture ? "prazos" : "intimacoes")
@@ -149,10 +151,10 @@ export default function OnboardingView({
     },
     {
       icon: <BookOpen size={16} />,
-      title: "Templates do escritorio",
+      title: "Modelos do escritório",
       detail: hasTemplate
         ? `${templates.filter((template) => template.ativo).length} template(s) ativo(s)`
-        : "Crie ao menos um modelo recorrente de peca.",
+        : "Crie ao menos um modelo recorrente de peça.",
       done: hasTemplate,
       action: "Abrir templates",
       onClick: () => onNavigate("templates")
@@ -161,7 +163,7 @@ export default function OnboardingView({
       icon: <FilePenLine size={16} />,
       title: "Primeira minuta",
       detail: firstDraft
-        ? `${firstDraft.tipo ?? "Minuta"} em ${firstDraft.status}`
+        ? `${firstDraft.tipo ?? "Minuta"}: ${statusLabelMinuta(firstDraft.status).toLowerCase()}`
         : "Prepare uma minuta a partir de um trabalho com documentos e fontes conferíveis.",
       done: Boolean(firstDraft),
       action: "Abrir trabalhos",
@@ -181,17 +183,9 @@ export default function OnboardingView({
 
   return (
     <section className="onboardingSurface">
-      <div className="onboardingHero">
-        <div>
-          <span className="sectionKicker">Onboarding de piloto</span>
-          <h2>Ativacao do primeiro escritorio</h2>
-          <p>
-            Prepare a entrada do primeiro caso, confira documentos e prazos,
-            gere uma minuta e registre a revisão humana.
-          </p>
-        </div>
-        {loading ? <div className="onboardingScore" role="status"><Loader2 className="spin" size={18} /><span>Atualizando etapas</span></div> : null}
-      </div>
+      <PageHeader title="Configuração inicial"
+        description="Prepare a entrada do primeiro caso, confira documentos e prazos, gere uma minuta e registre a revisão humana."
+        actions={loading ? <span className="onboardingScore" role="status"><Loader2 className="spin" size={16} />Atualizando etapas</span> : null} />
 
       {offline ? <div className="notice">Backend offline. O onboarding precisa da API.</div> : null}
       {error ? <div className="notice">{error}</div> : null}

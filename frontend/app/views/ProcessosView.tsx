@@ -2,7 +2,7 @@
 
 import { FileSearch } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
-import { formatDate, sistemaBadge } from "@/lib/format";
+import { formatCnj, formatDate, sistemaBadge } from "@/lib/format";
 import type { ProcessoRow } from "@/lib/views";
 import ProcessContextStatus from "../components/ProcessContextStatus";
 import { DeadlineBadge, Empty } from "../components/ui";
@@ -41,7 +41,6 @@ export default function ProcessosView({
 
   return (
     <section className="dataTable processTable">
-      {onPrepareWork ? <div className="officeToolbar"><button className="toolbarButton primary" onClick={() => onPrepareWork()}>Novo processo / trabalho</button></div> : null}
       <div className="dataHead" aria-hidden="true">
         <span>Processo</span>
         <span>Órgão julgador</span>
@@ -55,7 +54,7 @@ export default function ProcessosView({
         <Fragment key={processo.id}>
           <article className="dataRow clickable" onClick={() => onOpen(processo.id)}>
             <div className="dataRowMain">
-              <strong className="mono">{processo.numero}</strong>
+              <span className="mono">{formatCnj(processo.numero)}</span>
               <span>{processo.classe ?? "Classe não informada"}</span>
             </div>
             <div className="dataRowMain">
@@ -82,14 +81,15 @@ export default function ProcessosView({
             <div className="dataRowEnd">
               {onPrepareWork ? <button className="toolbarButton compact" onClick={event => { event.stopPropagation(); onPrepareWork(processo.id); }}>Preparar trabalho</button> : null}
               <button
-                className="toolbarButton compact"
-                title="Contexto dos autos (captura, extração e gate)"
+                className={contextoAberto === processo.id ? "toolbarButton compact accentOn" : "toolbarButton compact"}
+                aria-expanded={contextoAberto === processo.id}
+                title="Autos do processo: envio, extração e contexto"
                 onClick={(event) => {
                   event.stopPropagation();
                   setContextoAberto((atual) => (atual === processo.id ? null : processo.id));
                 }}
               >
-                <FileSearch size={13} /> Autos
+                <FileSearch size={14} /> Autos
               </button>
             </div>
           </article>

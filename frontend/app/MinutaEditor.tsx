@@ -4,7 +4,7 @@ import { Check, Copy, Download, Loader2, RotateCcw, Save, X } from "lucide-react
 import { useEffect, useState } from "react";
 import { baixarPeticaoPdf, baixarFonteCitada, type Peticao, type Prazo, type Processo } from "@/lib/api";
 import { humanError } from "@/lib/errors";
-import { formatDate } from "@/lib/format";
+import { formatCnj, formatDate } from "@/lib/format";
 
 export default function MinutaEditor({
   peticao,
@@ -141,7 +141,7 @@ export default function MinutaEditor({
         <div className="detailBody">
           <h2 className="detailTitle" id="minutaEditorTitle">{peticao.tipo ?? "Petição"}</h2>
           <p className="detailSub">
-            {processo?.numero ?? `Processo #${peticao.processo_id}`}
+            {processo?.numero ? formatCnj(processo.numero) : `Processo #${peticao.processo_id}`}
             {prazo ? ` · prazo ${formatDate(prazo.data_fatal)}` : ""}
           </p>
 

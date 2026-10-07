@@ -121,7 +121,7 @@ export default function HomeDashboard({
         </div>
         <div className="quickActions">
           <LoadingButton
-            className="toolbarButton primary"
+            className="toolbarButton"
             icon={<Search size={15} />}
             loading={busy === "capture"}
             onClick={onOpenOab}

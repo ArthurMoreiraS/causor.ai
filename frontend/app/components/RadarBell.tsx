@@ -3,7 +3,7 @@
 import { Bell, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertaPrazo, carregarAlertas } from "@/lib/api";
-import { formatDate } from "@/lib/format";
+import { formatCnj, formatDate } from "@/lib/format";
 
 const READ_KEY = "causor.radar.read.v1";
 
@@ -110,7 +110,7 @@ export default function RadarBell({
       >
         <Bell size={15} />
         {unread.length ? (
-          <span className="radarCount mono" aria-hidden="true">
+          <span className="radarCount" aria-hidden="true">
             {unread.length}
           </span>
         ) : null}
@@ -138,7 +138,7 @@ export default function RadarBell({
                 >
                   <div>
                     <strong>{alerta.descricao ?? "Prazo"}</strong>
-                    <span className="mono">{alerta.processo_numero ?? "Processo não identificado"}</span>
+                    <span className="mono">{formatCnj(alerta.processo_numero) || "Processo não identificado"}</span>
                   </div>
                   <div className="radarItemMeta">
                     <span className={`dayBadge ${alerta.revisao_status === "confirmado" && (alerta.nivel === "vencido" || alerta.nivel === "d0" || alerta.nivel === "d1") ? "risk" : "today"}`}>

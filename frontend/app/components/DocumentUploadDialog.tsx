@@ -1,4 +1,5 @@
 "use client";
+import { formatCnj } from "@/lib/format";
 import { useState, type FormEvent } from "react";
 import { enviarAutos, type Processo, type Tarefa } from "@/lib/api";
 import { humanError } from "@/lib/errors";
@@ -31,7 +32,7 @@ export default function DocumentUploadDialog({ processos, processoId, initialDeg
       <label>Processo de destino<select required value={process} disabled={fixedProcess || Boolean(task?.processo_id) || busy} onChange={e => setProcess(e.target.value)}>
         <option value="">Selecione o processo</option>
         {process && !options.some(p => String(p.id) === process) ? <option value={process}>{task?.processo_numero || `Processo #${process}`}</option> : null}
-        {options.map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}
+        {options.map(p => <option key={p.id} value={p.id}>{formatCnj(p.numero)}</option>)}
       </select></label>
       <label>Grau de destino<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value as "1" | "2")}>
         <option value="1">1º grau</option><option value="2">2º grau</option>

@@ -79,23 +79,46 @@ export function sanitizeHtml(input: string): string {
   return root.innerHTML;
 }
 
+const NAMED_ENTITIES: Record<string, string> = {
+  nbsp: " ", amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", ordm: "º", ordf: "ª", deg: "°",
+  sect: "§", para: "¶", middot: "·", laquo: "«", raquo: "»", ndash: "–", mdash: "—", hellip: "…",
+  lsquo: "‘", rsquo: "’", ldquo: "“", rdquo: "”", euro: "€", copy: "©", reg: "®"
+};
+// Marcas combinantes Unicode; "a" + agudo normaliza (NFC) para "á".
+const DIACRITICS: Record<string, number> = { acute: 0x301, grave: 0x300, circ: 0x302, tilde: 0x303, uml: 0x308, cedil: 0x327 };
+
+/**
+ * Decodifica entidades HTML de texto puro (ex.: "N&ordm;", "Ju&iacute;za"), que
+ * os tribunais publicam mesmo fora de HTML. Devolve texto: renderize sempre
+ * como texto (o React escapa), nunca como HTML.
+ */
+export function decodeEntities(input: string): string {
+  if (!input || !input.includes("&")) return input;
+  return input.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (match, body: string) => {
+    if (body[0] === "#") {
+      const code = body[1].toLowerCase() === "x" ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+      return Number.isFinite(code) && code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : match;
+    }
+    if (body in NAMED_ENTITIES) return NAMED_ENTITIES[body];
+    const accented = /^([a-z])(acute|grave|circ|tilde|uml|cedil)$/i.exec(body);
+    if (accented) return (accented[1] + String.fromCharCode(DIACRITICS[accented[2].toLowerCase()])).normalize("NFC");
+    return match;
+  });
+}
+
 /**
  * Extrai uma versão curta de texto puro (sem tags) para uso em previews/truncate
  * de listas. Converte <br> e </p> em quebra de linha, depois stripa o resto.
  */
 export function previewText(input: string, maxChars = 180): string {
   if (!input) return "";
-  // Converte quebras HTML em espaço, descarta tags, normaliza espaços.
-  const withBreaks = input
-    .replace(/<\/(p|div|li|h[1-6])>/gi, " ")
-    .replace(/<br\s*\/?>/gi, " ")
-    .replace(/<[^>]+>/g, "")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+  // Converte quebras HTML em espaço, descarta tags, decodifica entidades e normaliza espaços.
+  const withBreaks = decodeEntities(
+    input
+      .replace(/<\/(p|div|li|h[1-6])>/gi, " ")
+      .replace(/<br\s*\/?>/gi, " ")
+      .replace(/<[^>]+>/g, "")
+  );
   const flat = withBreaks.replace(/\s+/g, " ").trim();
   return flat.length > maxChars ? flat.slice(0, maxChars).trimEnd() + "…" : flat;
 }

@@ -58,6 +58,13 @@ python -m app.cli poll --oab 12345 --uf SP --escritorio 1   # one bounded captur
 Frontend (run from `frontend/`): `pnpm check` (lint + types + tests) and
 `pnpm build`. On Windows PowerShell use `pnpm.cmd`.
 
+Frontend styling: every font size, weight, family and color comes from the
+tokens in `frontend/app/styles/tokens.css` (Satoshi for titles, Inter for the
+interface, JetBrains Mono only for CNJ numbers). Use `PageHeader`, the
+`.dataTable` subgrid table and the badge classes in `components/ui.tsx` and
+`globals.css` instead of new one-off styles. `lib/design-tokens.guard.test.ts`
+fails on anything outside the tokens.
+
 Local setup and troubleshooting: [`docs/operacao/local-dev.md`](docs/operacao/local-dev.md).
 Production: [`docs/operacao/deploy.md`](docs/operacao/deploy.md).
 

@@ -9,13 +9,14 @@ import {
   Info,
   Loader2,
   Moon,
+  MoreHorizontal,
   RefreshCw,
   Sun
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import type { Prazo } from "@/lib/api";
-import { daysUntil } from "@/lib/format";
+import { daysUntil, formatDate } from "@/lib/format";
 
 /** Placeholder de carregamento com shimmer. Usa tokens do design system. */
 export function Skeleton({
@@ -438,16 +439,87 @@ export function DeadlineBadge({
   analise?: { status: string; motivo?: string | null } | null;
 }) {
   if (!prazo) {
-    const labels: Record<string, string> = { analisando: "Analisando", pendente: "Revisar dados", calculado_a_revisar: "Calculado · revisar", sem_prazo_identificado: "Sem prazo identificado", falha: "Falha na análise" };
-    return <span className="dayBadge neutral" title={analise?.motivo ?? undefined}>{labels[analise?.status ?? ""] ?? "Pendente"}</span>;
+    const states: Record<string, [string, string]> = {
+      analisando: ["Analisando", "info"],
+      pendente: ["Informar prazo", "warn"],
+      calculado_a_revisar: ["Calculado · conferir", "warn"],
+      sem_prazo_identificado: ["Sem prazo", "neutral"],
+      falha: ["Falha na análise", "risk"]
+    };
+    const [label, tone] = states[analise?.status ?? ""] ?? ["Pendente", "neutral"];
+    return <span className={`dayBadge ${tone}`} title={analise?.motivo ?? undefined}>{label}</span>;
   }
   const remaining = daysUntil(prazo.data_fatal);
-  if (prazo.cumprido) return <span className="dayBadge done">Concluído</span>;
-  if (prazo.revisao_status !== "confirmado") return <span className="dayBadge neutral" title="Confira calendário e suspensões locais">{prazo.revisao_status === "calculado_a_revisar" ? "Calculado · revisar" : "Revisão pendente"}</span>;
+  if (prazo.cumprido) return <span className="dayBadge ok">Concluído</span>;
+  if (prazo.revisao_status !== "confirmado") return <span className="dayBadge warn" title="Prazo sugerido: confira calendário e suspensões locais">{prazo.revisao_status === "calculado_a_revisar" ? `${formatDate(prazo.data_fatal).slice(0, 5)} · conferir` : "Revisão pendente"}</span>;
   if (remaining < 0) return <span className="dayBadge risk">Vencido</span>;
-  if (remaining === 0) return <span className="dayBadge today">Hoje</span>;
-  if (remaining <= 3) return <span className="dayBadge today">{remaining}d</span>;
-  return <span className="dayBadge neutral">{remaining}d</span>;
+  if (remaining === 0) return <span className="dayBadge risk">Vence hoje</span>;
+  if (remaining <= 3) return <span className="dayBadge warn">Vence em {remaining} {remaining === 1 ? "dia" : "dias"}</span>;
+  return <span className="dayBadge neutral">{remaining} dias</span>;
+}
+
+/** Cabeçalho de página: título, descrição ou contagem e ações, igual em todas as telas. */
+export function PageHeader({
+  title,
+  description,
+  actions,
+  id
+}: {
+  title: string;
+  description?: ReactNode;
+  actions?: ReactNode;
+  id?: string;
+}) {
+  return (
+    <header className="pageHeader">
+      <div className="pageHeaderText">
+        <h1 id={id}>{title}</h1>
+        {description ? <p>{description}</p> : null}
+      </div>
+      {actions ? <div className="pageHeaderActions">{actions}</div> : null}
+    </header>
+  );
+}
+
+/** Menu de ações secundárias de uma linha: abre ao lado do botão, fecha com Esc ou clique fora. */
+export function RowMenu({ label = "Mais ações", children }: { label?: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (event: MouseEvent) => {
+      if (!ref.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+  return (
+    <div className="rowMenu" ref={ref} onClick={(event) => event.stopPropagation()}>
+      <button
+        type="button"
+        className="iconButton"
+        aria-label={label}
+        title={label}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <MoreHorizontal size={16} />
+      </button>
+      {open ? (
+        <div className="rowMenuList" role="menu" onClick={() => setOpen(false)}>
+          {children}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function Empty({ label }: { label: string }) {

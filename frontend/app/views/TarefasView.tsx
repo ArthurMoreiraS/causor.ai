@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Plus, RefreshCw } from "lucide-react";
+import { Check, Plus, RefreshCw, Search } from "lucide-react";
 import { atualizarTarefa, listarTarefas, type Tarefa, type TarefaStatus } from "@/lib/api";
 import { humanError } from "@/lib/errors";
-import { formatDate } from "@/lib/format";
+import { formatCnj, formatDate } from "@/lib/format";
 import { TASK_STATUSES, TASK_TYPES } from "../components/TarefaDialog";
-import { EmptyState, LoadingButton } from "../components/ui";
+import { EmptyState, LoadingButton, PageHeader } from "../components/ui";
 
 export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpenProcess, onOpenNotice, onOpenDraft, onDocuments }: {
   offline: boolean; refreshKey: number; onNew: () => void; onEdit: (task: Tarefa) => void;
@@ -50,15 +50,15 @@ export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpen
     finally { setBusy(null); }
   }
   return <section className="officeSurface">
-    <header className="officeHead"><div><h1>Tarefas e pendências</h1><p>Providências, documentos e revisões com contexto e responsável.</p></div>
-      <button className="toolbarButton" disabled={offline} onClick={onNew}><Plus size={16} />Nova tarefa</button></header>
-    <div className="officeToolbar">
-      <label>Buscar tarefas<input value={query} onChange={e => { setQuery(e.target.value); setOffset(0); }} placeholder="Título ou descrição" /></label>
-      <label>Situação<select value={status} onChange={e => { setStatus(e.target.value as TarefaStatus | ""); setOffset(0); }}>
-        <option value="">Todas</option>{Object.entries(TASK_STATUSES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
-      </select></label>
-      <button className="toolbarButton" onClick={() => setTick(v => v + 1)} disabled={loading || offline}><RefreshCw size={14} />Atualizar</button>
-    </div>
+    <PageHeader title="Tarefas e pendências" description="Providências, documentos e revisões com contexto e responsável."
+      actions={<>
+        <label className="search"><Search size={15} /><input value={query} aria-label="Buscar tarefas" onChange={e => { setQuery(e.target.value); setOffset(0); }} placeholder="Buscar tarefas" /></label>
+        <label className="selectControl"><span className="sr-only">Situação</span><select aria-label="Situação" value={status} onChange={e => { setStatus(e.target.value as TarefaStatus | ""); setOffset(0); }}>
+          <option value="">Todas as situações</option>{Object.entries(TASK_STATUSES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
+        </select></label>
+        <button className="toolbarButton" onClick={() => setTick(v => v + 1)} disabled={loading || offline}><RefreshCw size={14} />Atualizar</button>
+        <button className="toolbarButton primary" disabled={offline} onClick={onNew}><Plus size={15} />Nova tarefa</button>
+      </>} />
     {offline ? <p role="alert" className="officeError">Conecte-se ao servidor para consultar e atualizar tarefas.</p> : null}
     {error ? <p role="alert" className="officeError">{error}</p> : null}
     {loading ? <p role="status">Carregando tarefas…</p> : null}
@@ -77,7 +77,7 @@ export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpen
         <div className="officeActions">
           {task.trabalho_id ? <a className="toolbarButton compact" href={`/?trabalho=${task.trabalho_id}#trabalhos`}>Retomar trabalho</a> : null}
           {onDocuments ? <button className="toolbarButton compact" disabled={offline} onClick={() => onDocuments(task)}>Documentos da pendência</button> : null}
-          {task.processo_id ? <button className="toolbarButton compact" onClick={() => onOpenProcess(task.processo_id!)}>{task.processo_numero || "Abrir processo"}</button> : null}
+          {task.processo_id ? <button className="toolbarButton compact" onClick={() => onOpenProcess(task.processo_id!)}>{task.processo_numero ? formatCnj(task.processo_numero) : "Abrir processo"}</button> : null}
           {task.intimacao_id ? <button className="toolbarButton compact" onClick={() => onOpenNotice(task.intimacao_id!)}>Intimação de origem</button> : null}
           {task.peticao_id ? <button className="toolbarButton compact" onClick={() => onOpenDraft(task.peticao_id!)}>Minuta de origem</button> : null}
           <button className="toolbarButton compact" disabled={offline || busy !== null || loading} onClick={() => onEdit(task)}>Editar</button>

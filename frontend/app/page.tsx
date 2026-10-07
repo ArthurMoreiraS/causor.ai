@@ -14,6 +14,7 @@ import {
   Download,
   HelpCircle,
   Loader2,
+  Plus,
   Search,
   Settings,
   SlidersHorizontal,
@@ -62,7 +63,7 @@ import ProfileModal from "./components/ProfileModal";
 import RadarBell from "./components/RadarBell";
 import { useToast } from "./components/Toast";
 import UfSearchSelect from "./components/UfSearchSelect";
-import { LoadingButton, Modal, NavItem, Skeleton, ThemeToggle } from "./components/ui";
+import { LoadingButton, Modal, NavItem, PageHeader, Skeleton, ThemeToggle } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
 import FilaDoDiaView from "./views/FilaDoDiaView";
 import GateOabView from "./views/GateOabView";
@@ -109,6 +110,14 @@ const emptyData: DashboardData = {
 };
 
 const API_BASE_LABEL = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8000";
+
+const VIEW_COUNT_NOUN: Partial<Record<ViewKey, string>> = {
+  processos: "processos",
+  intimacoes: "intimações",
+  prazos: "prazos",
+  peticoes: "minutas",
+  gate: "minutas"
+};
 
 function actionSuccessTitle(key: string) {
   if (key.startsWith("draft-")) return "Minuta gerada";
@@ -745,6 +754,14 @@ export default function Home() {
     }
   }
 
+  function openNewWork(id?: number) {
+    setWorkOrigin(undefined); setWorkProcessId(id); setNewWorkKey(value => value + 1);
+    const url = new URL(window.location.href); url.searchParams.delete("trabalho"); url.searchParams.set("novo", "1");
+    if (id) url.searchParams.set("processo", String(id)); else url.searchParams.delete("processo");
+    url.searchParams.delete("intimacao"); url.searchParams.delete("prazo");
+    window.history.replaceState(null, "", url); setView("trabalhos");
+  }
+
   const offline = Boolean(data.backendOffline);
   const operationalConnectors = data.operational?.connectors ?? [];
 
@@ -1009,27 +1026,27 @@ export default function Home() {
           />
         ) : view === "auditoria" ? (
           <section className="workSurface auditSurface">
+            <PageHeader title="Histórico de ações" description="Registro imutável das ações de pessoas e do agente no escritório." />
             <AuditPanel offline={offline} />
           </section>
         ) : (
         <section className="workSurface">
-          <div className="viewbar">
-            <div className="viewTitleBlock">
-              <h1 className="viewTitle">{VIEW_LABEL[view]}</h1>
-              <span className="viewMeta">{viewCount.toLocaleString("pt-BR")} registros</span>
-            </div>
-            <div className="viewActions">
+          <PageHeader
+            title={VIEW_LABEL[view]}
+            description={`${viewCount.toLocaleString("pt-BR")} ${VIEW_COUNT_NOUN[view] ?? "registros"}`}
+            actions={<>
               <label className="search">
                 <Search size={15} />
                 <input
                   placeholder="Buscar processo, tribunal ou ato"
+                  aria-label="Buscar processo, tribunal ou ato"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
               <div className="filterWrap">
                 <button
-                  className={`toolbarButton compact ${filtersActive ? "accentOn" : ""}`}
+                  className={`toolbarButton ${filtersActive ? "accentOn" : ""}`}
                   onClick={() => setShowFilters((s) => !s)}
                 >
                   <SlidersHorizontal size={15} />
@@ -1045,16 +1062,22 @@ export default function Home() {
                   />
                 ) : null}
               </div>
-              <button className="toolbarButton compact" onClick={exportCurrentView}>
+              <button className="toolbarButton" onClick={exportCurrentView}>
                 <Download size={15} />
                 Exportar
               </button>
-            </div>
-          </div>
+              {view === "processos" ? (
+                <button className="toolbarButton primary" disabled={offline} onClick={() => openNewWork()}>
+                  <Plus size={15} />
+                  Novo processo ou trabalho
+                </button>
+              ) : null}
+            </>}
+          />
 
           {view === "processos" ? (
             <ProcessosView
-              onPrepareWork={id => { setWorkOrigin(undefined); setWorkProcessId(id); setNewWorkKey(value => value + 1); const url = new URL(window.location.href); url.searchParams.delete("trabalho"); url.searchParams.set("novo", "1"); url.searchParams.set("processo", String(id)); url.searchParams.delete("intimacao"); url.searchParams.delete("prazo"); window.history.replaceState(null, "", url); setView("trabalhos"); }}
+              onPrepareWork={openNewWork}
               rows={processoRows}
               total={data.processosResumo?.total}
               loaded={data.processosResumo?.items.length}

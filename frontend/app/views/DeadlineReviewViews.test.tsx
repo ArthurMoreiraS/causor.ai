@@ -25,7 +25,7 @@ it("shows provisional date as review work, without claiming a confirmed due date
   />);
   expect(screen.getByText(/aguardando revisão/)).toBeTruthy();
   expect(screen.queryByText(/Manifestação vence em/)).toBeNull();
-  expect(screen.getByText("Calculado · revisar")).toBeTruthy();
+  expect(screen.getByText("05/10 · conferir")).toBeTruthy();
   expect(screen.getByText("a revisar")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Revisar prazos" }));
   expect(navigate).toHaveBeenCalledWith("prazos");

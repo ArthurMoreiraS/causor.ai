@@ -54,7 +54,7 @@ it("atualiza badges com estados compactos e recarrega as listas só ao terminar 
     await act(async () => { render(<Home />); });
     fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
     await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-    expect(screen.getByText("Calculado · revisar")).toBeTruthy();
+    expect(screen.getByText("Calculado · conferir")).toBeTruthy();
     expect(screen.getByText("Analisando")).toBeTruthy();
     expect(api.loadDashboard).toHaveBeenCalledTimes(1);
     api.loadDashboard.mockResolvedValue({ ...dashboard, intimacoes: notices.map(item => ({

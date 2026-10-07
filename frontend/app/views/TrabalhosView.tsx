@@ -4,12 +4,14 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { criarCliente, listarClientes, vincularCliente, type Cliente, type Processo } from "@/lib/api";
 import { atualizarTrabalho, criarProcesso, criarTrabalho, listarTrabalhos, obterTrabalho, type Trabalho } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
+import { formatCnj } from "@/lib/format";
 import ProcessContextStatus from "../components/ProcessContextStatus";
 import DocumentUploadDialog from "../components/DocumentUploadDialog";
 import WorkEvidence from "../components/WorkEvidence";
 import WorkScope from "../components/WorkScope";
 import WorkAssistant from "../components/WorkAssistant";
-import { LoadingButton } from "../components/ui";
+import { Clock3, Plus } from "lucide-react";
+import { LoadingButton, PageHeader } from "../components/ui";
 
 export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, onUnsavedChange, onRouteChange, refreshKey = 0, focusOnOpen = false }: {
   processos: Processo[]; offline: boolean; initialProcessId?: number; initialOrigin?: { intimacaoId: number; prazoId: number | null }; onChanged: () => void;
@@ -189,21 +191,22 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     target?.focus({ preventScroll: true });
   }
 
+  const hasList = works.length > 0 || offset > 0;
   return <section className="legalWorkspace" aria-label="Preparar trabalho jurídico">
-    <header className="officeToolbar"><div><h2>Preparar trabalho</h2><p>Defina a providência, confira os documentos e as fontes, depois revise a minuta.</p></div>
-      <button className="toolbarButton" disabled={busy || offline} onClick={startNewWork}>Novo trabalho</button></header>
+    <PageHeader title="Trabalhos" description="Defina a providência, confira os documentos e as fontes, depois revise a minuta."
+      actions={<button className="toolbarButton primary" disabled={busy || offline} onClick={startNewWork}><Plus size={15} />Novo trabalho</button>} />
     {error ? <p role="alert" className="officeError">{error}</p> : null}
-    <div className="legalWorkLayout"><aside className="legalWorkList" aria-label="Trabalhos salvos">
+    <div className={hasList ? "legalWorkLayout" : "legalWorkLayout single"}>{hasList ? <aside className="legalWorkList" aria-label="Trabalhos salvos">
+      <p className="legalWorkListTitle">Trabalhos salvos <span>{total}</span></p>
       {works.map(item => <button key={item.id} className={`legalWorkItem ${work?.id === item.id ? "active" : ""}`} disabled={busy}
-        onClick={() => selectWork(item)}><strong>{item.providencia}</strong><span>Processo {processOptions.find(p => p.id === item.processo_id)?.numero || `#${item.processo_id || "removido"}`}</span></button>)}
-      {!works.length ? <p>Nenhum trabalho salvo neste recorte.</p> : null}
-      <div className="tablePager"><button className="toolbarButton" disabled={!offset || busy} onClick={() => setOffset(v => Math.max(0, v - 50))}>Anterior</button>
-        <span>{total} trabalhos</span><button className="toolbarButton" disabled={offset + 50 >= total || busy} onClick={() => setOffset(v => v + 50)}>Próximos</button></div>
-    </aside><div className="legalWorkBody">
+        onClick={() => selectWork(item)}><strong>{item.providencia}</strong><span>Processo {formatCnj(processOptions.find(p => p.id === item.processo_id)?.numero) || `#${item.processo_id || "removido"}`}</span></button>)}
+      {total > 50 ? <div className="tablePager"><button className="toolbarButton compact" disabled={!offset || busy} onClick={() => setOffset(v => Math.max(0, v - 50))}>Anterior</button>
+        <span>{offset + 1}–{Math.min(total, offset + 50)}</span><button className="toolbarButton compact" disabled={offset + 50 >= total || busy} onClick={() => setOffset(v => v + 50)}>Próximos</button></div> : null}
+    </aside> : null}<div className="legalWorkBody">
       {work ? <>
         <header className="workContextHeader">
           <strong>{work.providencia}</strong>
-          <p>Processo {processOptions.find(item => item.id === work.processo_id)?.numero ?? `#${work.processo_id}`} · {work.grau}º grau · {work.prazo_id ? `Prazo vinculado #${work.prazo_id}` : "Prazo não vinculado"}</p>
+          <p>Processo {formatCnj(processOptions.find(item => item.id === work.processo_id)?.numero) || `#${work.processo_id}`} · {work.grau}º grau · {work.prazo_id ? `Prazo vinculado #${work.prazo_id}` : "Prazo não vinculado"}</p>
         </header>
         <nav className="workStageNavigation" aria-label="Etapas deste trabalho">
           <button type="button" onClick={() => jumpToStage("work-objective")}>Objetivo</button>
@@ -212,9 +215,12 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
         </nav>
       </> : null}
       <form ref={formRef} id="work-objective" tabIndex={-1} className="officeForm workStageAnchor" onSubmit={save}>
-        <h3>{work ? "1. Objetivo e parte representada" : "Novo trabalho · objetivo e parte representada"}</h3>
+        <div className="formHeading"><h3>{work ? "Objetivo e parte representada" : "Novo trabalho"}</h3>{work ? null : <p>Objetivo e parte representada</p>}</div>
         {!work && origin ? <p className="officeHint">Intimação #{origin.intimacaoId} vinculada{origin.prazoId ? ` · prazo #${origin.prazoId} a revisar` : " · sem prazo vinculado"}. A providência depende da sua análise.</p> : null}
-        {!work ? <label className="workCheckboxLabel"><input type="checkbox" checked={newProcess} disabled={busy} onChange={e => setNewProcess(e.target.checked)} /> Cadastrar processo manualmente</label> : null}
+        {!work ? <div className="segmented" role="group" aria-label="Origem do processo">
+          <button type="button" aria-pressed={!newProcess} disabled={busy} onClick={() => setNewProcess(false)}>Processo acompanhado</button>
+          <button type="button" aria-pressed={newProcess} disabled={busy} onClick={() => setNewProcess(true)}>Cadastrar processo</button>
+        </div> : null}
         {newProcess && !work ? <>
           <label>Número CNJ<input required value={number} maxLength={25} disabled={busy} onChange={e => setNumber(e.target.value)} placeholder="0000000-00.0000.0.00.0000" /></label>
           <label>Tribunal informado<input value={court} maxLength={50} disabled={busy} onChange={e => setCourt(e.target.value.toUpperCase())} placeholder="Ex.: TJSP" /></label>
@@ -225,7 +231,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
         </> : <label>Processo<select required value={process} disabled={busy || Boolean(work)} onChange={e => setProcess(e.target.value)}>
           <option value="">Selecione o processo</option>
           {process && !processOptions.some(p => String(p.id) === process) ? <option value={process}>Processo #{process}</option> : null}
-          {processOptions.map(p => <option key={p.id} value={p.id}>{p.numero}</option>)}</select></label>}
+          {processOptions.map(p => <option key={p.id} value={p.id}>{formatCnj(p.numero)}{p.tribunal ? ` · ${p.tribunal}` : ""}</option>)}</select></label>}
         {work?.processo_id ? <div className="workClientLink"><p>Cliente representado: <strong>{currentClient?.nome || (selectedProcess?.cliente_id ? `Cliente #${selectedProcess.cliente_id}` : "não vinculado")}</strong></p>
           {!editingClient ? <button type="button" className="toolbarButton compact" disabled={busy || offline} onClick={() => { setClient(String(selectedProcess?.cliente_id || "")); setEditingClient(true); }}>{selectedProcess?.cliente_id ? "Alterar vínculo do cliente" : "Vincular ou cadastrar cliente"}</button> : <div className="officeForm">
             <label>Buscar cliente<input value={clientQuery} disabled={busy} onChange={e => setClientQuery(e.target.value)} /></label>
@@ -234,13 +240,13 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
             <div className="officeToolbar"><button type="button" className="toolbarButton" disabled={busy || offline} onClick={() => void saveClient()}>Salvar vínculo</button><button type="button" className="toolbarButton" disabled={busy} onClick={() => { setEditingClient(false); setClient(""); setNewClientName(""); }}>Cancelar</button></div>
           </div>}</div> : null}
         <label>Providência<input required minLength={3} maxLength={255} value={purpose} disabled={busy} onChange={e => setPurpose(e.target.value)} placeholder="Ex.: Manifestação sobre o laudo" /></label>
-        <label>Instruções para o trabalho<textarea maxLength={20000} rows={4} value={instructions} disabled={busy} onChange={e => setInstructions(e.target.value)} /></label>
-        <p className="officeHint">Relatos e instruções serão confrontados com as fontes. Não equivalem a prova documentada.</p>
+        <label>Instruções para o trabalho<textarea maxLength={20000} rows={4} value={instructions} disabled={busy} placeholder="O que a peça precisa atacar, pedir ou evitar" onChange={e => setInstructions(e.target.value)} />
+          <span className="fieldHint">Relatos e instruções serão confrontados com as fontes. Não equivalem a prova documentada.</span></label>
         <div className="legalWorkFields"><label>Instância do trabalho<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value as "1" | "2")}><option value="1">1º grau</option><option value="2">2º grau</option></select></label>
           <label>Polo representado<input maxLength={100} value={party} disabled={busy} onChange={e => setParty(e.target.value)} placeholder="Ex.: Autor, réu, interessado" /></label></div>
-        <p className="officeHint">{work?.prazo_id ? `Prazo vinculado #${work.prazo_id}.` : "Prazo não vinculado. Nenhuma data de vencimento será presumida."}</p>
+        <p className="formCallout"><Clock3 size={15} aria-hidden="true" />{work?.prazo_id ? `Prazo vinculado #${work.prazo_id}.` : "Prazo não vinculado. Nenhuma data de vencimento será presumida."}</p>
         {work && (!selectedProcess?.cliente_id || !party.trim()) ? <p role="status">Antes de gerar a minuta, {selectedProcess?.cliente_id ? "informe o polo representado" : party.trim() ? "vincule o cliente representado" : "vincule o cliente representado e informe o polo"}.</p> : null}
-        <LoadingButton type="submit" loading={busy} disabled={offline || (!newProcess && !process) || !purpose.trim()}>{work ? "Salvar objetivo" : "Criar trabalho"}</LoadingButton>
+        <LoadingButton type="submit" className="toolbarButton primary" loading={busy} disabled={offline || (!newProcess && !process) || !purpose.trim()}>{work ? "Salvar objetivo" : "Criar trabalho"}</LoadingButton>
       </form>
       {work?.processo_id ? <section id="work-documents" tabIndex={-1} className="legalWorkStage workStageAnchor"><h3>2. Documentos e contexto</h3>
         <p>Envie os autos e os documentos do cliente. A cobertura do tribunal permanece declarada por quem envia.</p>
