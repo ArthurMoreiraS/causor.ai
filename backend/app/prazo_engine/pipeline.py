@@ -8,7 +8,7 @@ from hashlib import sha256
 import json
 import re
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.agent.deadline_interpretation import DeadlineInterpretation, interpret_deadline, supported
@@ -21,9 +21,19 @@ from app.sor import models
 
 KEY = "_causor_prazo"
 RULE = "djen_civel_cpc219_220_224_v1"
-TERMINAL = {"calculado_a_revisar", "pendente", "sem_prazo_identificado", "confirmado"}
+TERMINAL = {"calculado_a_revisar", "triagem", "pendente", "sem_prazo_identificado", "confirmado"}
 # 2: classificação do ato e sugestão pelo catálogo de prazos por ato.
-ANALYSIS_VERSION = 2
+# 3: incerto e falha persistente recebem data de triagem.
+ANALYSIS_VERSION = 3
+# Falhas do provedor são repetidas pelo agendador; esgotadas, vira triagem.
+MAX_ATTEMPTS = 3
+# Data de triagem: o menor prazo supletivo, para nenhuma intimação ficar sem
+# data. Não é o prazo do ato; o rótulo diz isso em todo lugar onde aparece.
+TRIAGE_DESCRIPTION = "Triagem — prazo real não identificado"
+TRIAGE_RULES = {
+    "criminal": (2, "Menor prazo comum do processo penal (embargos de declaração, CPP, art. 619)"),
+    "default": (5, "Prazo supletivo de 5 dias úteis (CPC, art. 218, § 3º)"),
+}
 
 
 def memory(notice: models.Intimacao) -> dict:
@@ -78,11 +88,43 @@ def enqueue_analysis(session: Session, notice: models.Intimacao, *, retry: bool 
         return existing
     from app.queue.jobs import create_job
 
+    attempts = memory(notice).get("tentativas", 0) if state == "falha" else 0
     job = create_job(session, tipo="analise_prazo", entidade="intimacao", entidade_id=notice.id,
                      payload={"escritorio_id": notice.escritorio_id})
     set_memory(notice, {"status": "analisando", "job_id": job.id,
-                        "fonte_sha256": source_hash(notice)})
+                        "fonte_sha256": source_hash(notice), "tentativas": attempts})
     return job
+
+
+def requeue_analyses(session: Session, *, limit: int = 100) -> int:
+    """Refaz sem clique o que ficou para trás: nunca analisada, versão antiga, falha.
+
+    Roda a cada ciclo do agendador. Confirmação humana e resultados da versão
+    atual nunca são tocados (``enqueue_analysis`` decide); o filtro em SQL só
+    evita varrer o histórico inteiro a cada ciclo.
+    """
+    analysis = models.Intimacao.payload[KEY]
+    status = analysis["status"].as_string()
+    version = analysis["analise_versao"].as_integer()
+    has_deadline = select(models.Prazo.id).where(
+        models.Prazo.intimacao_id == models.Intimacao.id,
+        models.Prazo.escritorio_id == models.Intimacao.escritorio_id,
+    ).exists()
+    candidates = session.scalars(select(models.Intimacao).where(
+        models.Intimacao.escritorio_id.is_not(None),
+        or_(
+            status.is_(None),
+            and_(status == "falha", func.coalesce(analysis["tentativas"].as_integer(), 0) < MAX_ATTEMPTS),
+            and_(status.in_(["pendente", "sem_prazo_identificado"]), ~has_deadline,
+                 analysis["job_id"].as_integer().is_not(None),
+                 or_(version.is_(None), version != ANALYSIS_VERSION)),
+        ),
+    ).order_by(models.Intimacao.id.desc()).limit(limit)).all()
+    queued = 0
+    for notice in candidates:
+        if notice.escritorio_id is not None and enqueue_analysis(session, notice, retry=True) is not None:
+            queued += 1
+    return queued
 
 
 MIN_ACT_CONFIDENCE = 0.6
@@ -127,7 +169,8 @@ def _djen_deadline(notice: models.Intimacao, days: int):
 
 
 def _record_deadline(session: Session, notice: models.Intimacao, tenant: int, record: dict,
-                     days: int, description: str | None, motivo: str, *, options=()) -> list[dict]:
+                     days: int, description: str | None, motivo: str, *, options=(),
+                     status: str = "calculado_a_revisar") -> list[dict]:
     """Cria o prazo sugerido (a revisar) e devolve as datas das alternativas."""
     if notice.fonte != "DJEN" or notice.data_disponibilizacao is None:
         record["motivo"] = "Fonte ou data de disponibilização ausente"
@@ -147,7 +190,7 @@ def _record_deadline(session: Session, notice: models.Intimacao, tenant: int, re
     session.add(prazo)
     session.flush()
     record.update({
-        "status": "calculado_a_revisar", "prazo_id": prazo.id,
+        "status": status, "prazo_id": prazo.id,
         "disponibilizacao": result.disponibilizacao.isoformat(),
         "publicacao": result.publicacao.isoformat(),
         "primeiro_dia": result.primeiro_dia.isoformat(),
@@ -157,6 +200,33 @@ def _record_deadline(session: Session, notice: models.Intimacao, tenant: int, re
     })
     return [{**option.as_dict(), "data_fatal": _djen_deadline(notice, option.dias).data_fatal.isoformat()}
             for option in options]
+
+
+def _today() -> date:
+    return date.today()
+
+
+def _record_triage(session: Session, notice: models.Intimacao, tenant: int, record: dict,
+                   rito: str | None, motivo: str) -> None:
+    """Sem prazo identificado com segurança: data de triagem, nunca o prazo do ato.
+
+    Triagem que já teria passado (acervo antigo reanalisado) não vira prazo: seria
+    um "vencido" fabricado no radar e no e-mail. A intimação fica para o advogado.
+    """
+    days, fundamento = TRIAGE_RULES["criminal" if rito == "criminal" else "default"]
+    if (notice.fonte == "DJEN" and notice.data_disponibilizacao is not None
+            and _djen_deadline(notice, days).data_fatal < _today()):
+        record["motivo"] = (f"{motivo} A data de triagem já passou; confira se o ato foi "
+                            "praticado e informe o prazo, se houver.").strip()
+        return
+    previous = {key: record.get(key) for key in ("dias", "unidade", "termo", "origem_duracao", "fundamento")}
+    record.update({"dias": days, "unidade": "dias_uteis", "termo": "publicacao_djen",
+                   "origem_duracao": "triagem", "fundamento": fundamento})
+    _record_deadline(session, notice, tenant, record, days, TRIAGE_DESCRIPTION,
+                     f"{motivo} Revise até a data de triagem e informe o prazo real.".strip(),
+                     status="triagem")
+    if record.get("status") != "triagem":
+        record.update(previous)
 
 
 def run_analysis(
@@ -211,8 +281,15 @@ def run_analysis(
         session.commit()
         return
     if interpretation is None:
-        set_memory(notice, {"status": "falha", "job_id": job.id,
-                            "motivo": "Análise indisponível; tente novamente"})
+        attempts = memory(notice).get("tentativas", 0) + 1
+        record = {"status": "falha", "job_id": job.id, "tentativas": attempts,
+                  "motivo": "Análise indisponível; nova tentativa automática em breve",
+                  "fonte_sha256": snapshot_hash, "analise_versao": ANALYSIS_VERSION}
+        if attempts >= MAX_ATTEMPTS:
+            record["status"] = "pendente"
+            _record_triage(session, notice, tenant, record, None,
+                           f"Análise automática indisponível após {attempts} tentativas.")
+        set_memory(notice, record)
         mark_failed(session, job, "Análise indisponível")
         session.commit()
         return
@@ -272,13 +349,15 @@ def run_analysis(
         )
         if alternatives:
             record["alternativas"] = alternatives
-        if record.get("data_fatal") and record["data_fatal"] < date.today().isoformat():
+        if record.get("data_fatal") and record["data_fatal"] < _today().isoformat():
             record["motivo"] = ("A data fatal sugerida já passou; confira se o ato foi praticado. "
                                 + record["motivo"])
     elif rito == "criminal":
         record["motivo"] = "Rito criminal: prazos e contagem próprios; revise manualmente"
     elif interpretation.ato == "citacao":
         record["motivo"] = "Citação: o termo inicial depende da forma de citação; revise manualmente"
+    if record["status"] == "pendente" and not record.get("prazo_id"):
+        _record_triage(session, notice, tenant, record, rito, record.get("motivo") or "")
     set_memory(notice, record)
     session.add(models.AuditLog(escritorio_id=tenant, ator="system", acao="prazo_analisado",
                                 entidade="intimacao", entidade_id=notice.id,

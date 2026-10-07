@@ -3,7 +3,7 @@
 import { BookOpen, Bot, CheckCircle2, Clock3, FilePenLine, Inbox, MessageCircle, Scale, Search, ShieldCheck, Users } from "lucide-react";
 import type { ReactNode } from "react";
 import type { ConnectorStatus } from "@/lib/api";
-import { connectorStatusLabel, formatDate } from "@/lib/format";
+import { connectorStatusLabel, formatDate, isPrazoVigente } from "@/lib/format";
 import type { PrazoRow, ViewKey } from "@/lib/views";
 import { CommandStat, DeadlineBadge, Empty, FeatureTile, LoadingButton, Panel } from "../components/ui";
 
@@ -44,7 +44,7 @@ export default function HomeDashboard({
   onNavigate: (view: ViewKey) => void;
   greetingName: string | null;
 }) {
-  const nextDeadline = prazoRows.find((row) => !row.prazo.cumprido && row.prazo.revisao_status === "confirmado") ?? null;
+  const nextDeadline = prazoRows.find((row) => !row.prazo.cumprido && isPrazoVigente(row.prazo.revisao_status)) ?? null;
   const hora = new Date().getHours();
   const saudacao = hora < 12 ? "Bom dia" : hora < 18 ? "Boa tarde" : "Boa noite";
   const dataLonga = new Intl.DateTimeFormat("pt-BR", {
@@ -201,7 +201,7 @@ export default function HomeDashboard({
               <button className="deadlineAgendaItem" key={prazo.id} onClick={() => onNavigate("prazos")}>
                 <div className="dateBlock">
                   <strong>{formatDate(prazo.data_fatal).slice(0, 5)}</strong>
-                  <span>{prazo.revisao_status !== "confirmado" ? "a revisar" : dias < 0 ? "vencido" : `${dias}d`}</span>
+                  <span>{prazo.revisao_status === "triagem" ? "triagem" : !isPrazoVigente(prazo.revisao_status) ? "a revisar" : dias < 0 ? "vencido" : `${dias}d`}</span>
                 </div>
                 <div>
                   <strong>{prazo.descricao ?? "Prazo"}</strong>

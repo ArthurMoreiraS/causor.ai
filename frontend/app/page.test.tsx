@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const api = vi.hoisted(() => ({
   loadDashboard: vi.fn(), listarOabsMonitoradas: vi.fn(), listarCapturasOab: vi.fn(),
   iniciarCapturaOab: vi.fn(), consultarCapturaOab: vi.fn(), listarClientes: vi.fn(),
-  analisarPrazosExistentes: vi.fn(), repetirAnalisePrazo: vi.fn(), removerDadosOab: vi.fn(),
+  repetirAnalisePrazo: vi.fn(), removerDadosOab: vi.fn(),
   consultarAnalisesPrazo: vi.fn()
 }));
 const toast = vi.hoisted(() => vi.fn());
@@ -54,7 +54,7 @@ it("atualiza badges com estados compactos e recarrega as listas só ao terminar 
     await act(async () => { render(<Home />); });
     fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
     await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
-    expect(screen.getByText("Calculado · conferir")).toBeTruthy();
+    expect(screen.getByText("Calculado")).toBeTruthy();
     expect(screen.getByText("Analisando")).toBeTruthy();
     expect(api.loadDashboard).toHaveBeenCalledTimes(1);
     api.loadDashboard.mockResolvedValue({ ...dashboard, intimacoes: notices.map(item => ({
@@ -150,27 +150,6 @@ describe("Home OAB capture modal", () => {
     expect(api.iniciarCapturaOab).toHaveBeenCalledTimes(1);
     await act(async () => { releaseRefresh(dashboard); });
   });
-});
-
-it("retoma backfill após resposta perdida sem recomeçar o cursor", async () => {
-  localStorage.clear();
-  api.loadDashboard.mockResolvedValue(dashboard);
-  api.listarClientes.mockResolvedValue({ total: 0, items: [] });
-  api.listarOabsMonitoradas.mockResolvedValue([]);
-  api.listarCapturasOab.mockResolvedValue([]);
-  api.analisarPrazosExistentes.mockResolvedValueOnce({ enfileiradas: 1, ultimo_id: 100, ha_mais: true })
-    .mockRejectedValueOnce(new Error("resposta perdida"))
-    .mockResolvedValueOnce({ enfileiradas: 0, ultimo_id: 150, ha_mais: false });
-  render(<Home />);
-  fireEvent.click((await screen.findAllByRole("button", { name: "Intimações" }))[0]);
-  fireEvent.click(await screen.findByRole("button", { name: "Analisar prazos já capturados" }));
-  await waitFor(() => expect(screen.getByText(/Interrompido\. Use Continuar análise/)).toBeTruthy());
-  expect(localStorage.getItem("causor-prazo-backfill-user-1")).toBe("100");
-  fireEvent.click(screen.getByRole("button", { name: "Continuar análise" }));
-  await waitFor(() => expect(api.analisarPrazosExistentes).toHaveBeenCalledTimes(3));
-  expect(api.analisarPrazosExistentes.mock.calls.map(call => call[0])).toEqual([0, 100, 100]);
-  await waitFor(() => expect(localStorage.getItem("causor-prazo-backfill-user-1")).toBeNull());
-  cleanup();
 });
 
 it("abre a preparação pela intimação, protege edição e retoma a origem pela URL", async () => {

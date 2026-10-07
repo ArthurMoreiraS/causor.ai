@@ -1,5 +1,5 @@
 import type { DashboardData } from "@/lib/api";
-import { daysUntil } from "./format";
+import { daysUntil, isPrazoVigente } from "./format";
 
 export type DashboardMetrics = {
   monitored: number;
@@ -24,7 +24,8 @@ export type DashboardMetrics = {
  */
 export function computeDashboardMetrics(data: DashboardData): DashboardMetrics {
   const openDeadlines = data.prazos.filter((p) => !p.cumprido);
-  const confirmedDeadlines = openDeadlines.filter((p) => p.revisao_status === "confirmado");
+  // Vigente: confirmado ou calculado automaticamente (vale sem conferência).
+  const confirmedDeadlines = openDeadlines.filter((p) => isPrazoVigente(p.revisao_status));
 
   // Fallback client-side, derivado das listas paginadas (capadas em 100).
   const fromLists = {

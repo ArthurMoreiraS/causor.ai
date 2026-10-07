@@ -7,9 +7,16 @@ from app.agent.deadline_interpretation import DeadlineInterpretation
 from app.capture.djen import ComunicacaoDTO
 from app.capture.poll import poll_oab
 from app.prazo_engine.factory import build_calendar
+from app.prazo_engine import pipeline
 from app.prazo_engine.pipeline import memory, run_analysis
 from app.queue.jobs import mark_running
 from app.sor import models
+
+
+@pytest.fixture(autouse=True)
+def _hoje_fixo(monkeypatch):
+    """Datas de triagem dependem de "hoje"; os casos usam a semana de 25/09/2026."""
+    monkeypatch.setattr(pipeline, "_today", lambda: date(2026, 9, 28))
 
 
 class FakeDjen:
@@ -312,6 +319,8 @@ def test_official_juizado_metadata_blocks_even_supported_notice_text(db_session,
 
     run_analysis(db_session, job, interpreter=interpret)
     record = memory(db_session.get(models.Intimacao, notice.id))
-    assert record["status"] == "pendente"
+    # O regime especial bloqueia o cálculo pelo texto; resta só a data de triagem.
+    assert record["status"] == "triagem"
     assert "regime especial" in record["motivo"]
-    assert db_session.query(models.Prazo).filter_by(intimacao_id=notice.id).count() == 0
+    [prazo] = db_session.query(models.Prazo).filter_by(intimacao_id=notice.id).all()
+    assert prazo.dias == 5 and "não identificado" in prazo.descricao

@@ -2,12 +2,20 @@
 
 from datetime import date
 
+import pytest
 from sqlalchemy import select
 
 from app.agent.deadline_interpretation import MAX_TEXT, DeadlineInterpretation, text_for_model
+from app.prazo_engine import pipeline
 from app.prazo_engine.pipeline import enqueue_analysis, memory, run_analysis
 from app.queue.jobs import mark_running
 from app.sor import models
+
+
+@pytest.fixture(autouse=True)
+def _hoje_fixo(monkeypatch):
+    """Datas de triagem dependem de "hoje"; os casos usam a semana de 25/09/2026."""
+    monkeypatch.setattr(pipeline, "_today", lambda: date(2026, 9, 28))
 
 
 def _notice(db_session, *, classe="Procedimento Comum Cível", teor="Ante o exposto, JULGO IMPROCEDENTE o pedido."):
@@ -69,24 +77,26 @@ def test_pauta_de_julgamento_fica_sem_prazo_explicado(db_session):
     assert _deadlines(db_session, notice) == []
 
 
-def test_baixa_confianca_no_ato_nao_cria_prazo(db_session):
+def test_baixa_confianca_no_ato_fica_so_com_triagem(db_session):
     notice, job = _notice(db_session)
 
     run_analysis(db_session, job, interpreter=_reading("sentenca", confianca_ato=0.4))
 
-    assert memory(db_session.get(models.Intimacao, notice.id))["status"] == "pendente"
-    assert _deadlines(db_session, notice) == []
+    assert memory(db_session.get(models.Intimacao, notice.id))["status"] == "triagem"
+    [prazo] = _deadlines(db_session, notice)
+    assert prazo.descricao != "Apelação" and prazo.dias == 5
 
 
-def test_rito_criminal_nunca_recebe_sugestao(db_session):
+def test_rito_criminal_nunca_recebe_sugestao_do_catalogo(db_session):
     notice, job = _notice(db_session, classe="Ação Penal - Procedimento Ordinário")
 
     run_analysis(db_session, job, interpreter=_reading("sentenca", rito="comum"))
 
     record = memory(db_session.get(models.Intimacao, notice.id))
-    assert record["status"] == "pendente" and record["rito"] == "criminal"
+    assert record["status"] == "triagem" and record["rito"] == "criminal"
     assert "criminal" in record["motivo"]
-    assert _deadlines(db_session, notice) == []
+    [prazo] = _deadlines(db_session, notice)
+    assert prazo.descricao != "Apelação" and prazo.dias == 2
 
 
 def test_metadado_de_juizado_prevalece_sobre_a_leitura_do_modelo(db_session):

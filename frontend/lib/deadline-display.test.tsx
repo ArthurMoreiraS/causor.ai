@@ -15,11 +15,15 @@ it("uses São Paulo civil dates even before UTC midnight", () => {
   expect(screen.getByText("Vence hoje")).toBeTruthy();
 });
 
-it("distinguishes automatic suggestions and unresolved analysis", () => {
+it("treats automatic deadlines as in force and labels triage dates", () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-09-20T15:00:00Z"));
   render(<>
     <DeadlineBadge prazo={{ data_fatal: "2026-09-29", cumprido: false, revisao_status: "calculado_a_revisar" }} />
+    <DeadlineBadge prazo={{ data_fatal: "2026-09-22", cumprido: false, revisao_status: "triagem" }} />
     <DeadlineBadge prazo={null} analise={{ status: "falha", motivo: "Provedor indisponível" }} />
   </>);
-  expect(screen.getByText("29/09 · conferir")).toBeTruthy();
-  expect(screen.getByText("Falha na análise").getAttribute("title")).toBe("Provedor indisponível");
+  expect(screen.getByText("29/09 · 9 dias").getAttribute("title")).toMatch(/automaticamente/);
+  expect(screen.getByText("Triagem · 22/09")).toBeTruthy();
+  expect(screen.getByText("Nova tentativa em breve").getAttribute("title")).toBe("Provedor indisponível");
 });

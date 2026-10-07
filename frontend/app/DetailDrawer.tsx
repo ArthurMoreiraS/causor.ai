@@ -203,10 +203,11 @@ function analysisNote(analise: PrazoAnalise): string {
   const motivo = analise.motivo ? ` ${analise.motivo}` : "";
   switch (analise.status) {
     case "analisando": return "Analisando o prazo desta intimação…";
-    case "calculado_a_revisar": return `Prazo calculado automaticamente, aguardando sua conferência.${motivo}`;
+    case "calculado_a_revisar": return `Prazo calculado automaticamente e já em vigor; a conferência é opcional.${motivo}`;
+    case "triagem": return `Prazo real não identificado automaticamente. A data abaixo é de triagem: revise até ela e informe o prazo.${motivo}`;
     case "sem_prazo_identificado": return `Sem prazo para a parte.${motivo}`;
     case "confirmado": return "Prazo conferido e confirmado.";
-    case "falha": return `A análise automática falhou.${motivo}`;
+    case "falha": return `A análise automática falhou; o Causor tenta de novo sozinho.${motivo}`;
     default: return `O prazo não foi identificado automaticamente; informe-o abaixo.${motivo}`;
   }
 }
@@ -248,7 +249,10 @@ function IntimacaoDetail({
           <span>
             {prazo.descricao ? `${prazo.descricao}: ` : "Prazo: "}<strong>{formatDate(prazo.data_fatal)}</strong> ({prazo.dias}{" "}
             {prazo.dias_uteis ? "dias úteis" : "dias corridos"})
-            {prazo.revisao_status !== "confirmado" ? " · sugerido, a conferir" : " · confirmado"}
+            {prazo.revisao_status === "confirmado" ? " · confirmado"
+              : prazo.revisao_status === "calculado_a_revisar" ? " · calculado automaticamente"
+              : prazo.revisao_status === "triagem" ? " · triagem, prazo real não identificado"
+              : " · a conferir"}
           </span>
         </div>
       ) : null}

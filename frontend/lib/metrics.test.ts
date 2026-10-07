@@ -121,10 +121,10 @@ describe("computeDashboardMetrics", () => {
     expect(m.compliance).toBe(100); // pending 0 -> 100
   });
 
-  it("separa sugestão provisória de risco e vencimento confirmados", () => {
+  it("separa triagem de risco e vencimento vigentes", () => {
     const data = makeData({
       prazos: [
-        { ...prazo(1, "2000-01-01"), revisao_status: "calculado_a_revisar" },
+        { ...prazo(1, "2000-01-01"), revisao_status: "triagem" },
         prazo(2, "2000-01-01")
       ]
     });

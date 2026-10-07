@@ -435,6 +435,7 @@ def fail_stale_running_jobs(
                         and memory(notice).get("status") == "analisando"
                         and memory(notice).get("job_id") == job.id):
                     set_memory(notice, {"status": "falha", "job_id": job.id,
-                                        "motivo": "Análise interrompida; tente novamente"})
+                                        "tentativas": memory(notice).get("tentativas", 0) + 1,
+                                        "motivo": "Análise interrompida; nova tentativa automática em breve"})
             stale.append(job)
     return stale

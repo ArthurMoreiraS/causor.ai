@@ -68,12 +68,17 @@ export function connectorStatusLabel(status: string) {
   return status;
 }
 
+/** Prazo que vale sem conferência: confirmado ou calculado pela análise automática. */
+export function isPrazoVigente(status?: string | null) {
+  return status === "confirmado" || status === "calculado_a_revisar";
+}
+
 export function reviewStatusLabel(status: string) {
   if (status === "capturada") return "Capturada";
   if (status === "analisando") return "Analisando prazo";
   if (status === "pendente") return "Prazo: dados pendentes";
   if (status === "sem_prazo_identificado") return "Sem prazo identificado";
-  if (status === "falha") return "Falha na análise de prazo";
+  if (status === "falha") return "Análise de prazo: nova tentativa em breve";
   if (status === "prazo_a_revisar") return "Prazo a revisar";
   if (status === "prazo_calculado") return "Prazo calculado";
   if (status === "minuta_em_revisao") return "Minuta em revisão";

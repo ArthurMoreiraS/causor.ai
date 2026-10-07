@@ -16,7 +16,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
 import type { Prazo } from "@/lib/api";
-import { daysUntil, formatDate } from "@/lib/format";
+import { daysUntil, formatDate, isPrazoVigente } from "@/lib/format";
 
 /** Placeholder de carregamento com shimmer. Usa tokens do design system. */
 export function Skeleton({
@@ -442,20 +442,25 @@ export function DeadlineBadge({
     const states: Record<string, [string, string]> = {
       analisando: ["Analisando", "info"],
       pendente: ["Informar prazo", "warn"],
-      calculado_a_revisar: ["Calculado · conferir", "warn"],
+      // Análise concluída; o prazo chega no próximo carregamento da lista.
+      calculado_a_revisar: ["Calculado", "info"],
+      triagem: ["Triagem", "warn"],
       sem_prazo_identificado: ["Sem prazo", "neutral"],
-      falha: ["Falha na análise", "risk"]
+      falha: ["Nova tentativa em breve", "info"]
     };
     const [label, tone] = states[analise?.status ?? ""] ?? ["Pendente", "neutral"];
     return <span className={`dayBadge ${tone}`} title={analise?.motivo ?? undefined}>{label}</span>;
   }
   const remaining = daysUntil(prazo.data_fatal);
+  const date = formatDate(prazo.data_fatal).slice(0, 5);
   if (prazo.cumprido) return <span className="dayBadge ok">Concluído</span>;
-  if (prazo.revisao_status !== "confirmado") return <span className="dayBadge warn" title="Prazo sugerido: confira calendário e suspensões locais">{prazo.revisao_status === "calculado_a_revisar" ? `${formatDate(prazo.data_fatal).slice(0, 5)} · conferir` : "Revisão pendente"}</span>;
-  if (remaining < 0) return <span className="dayBadge risk">Vencido</span>;
-  if (remaining === 0) return <span className="dayBadge risk">Vence hoje</span>;
-  if (remaining <= 3) return <span className="dayBadge warn">Vence em {remaining} {remaining === 1 ? "dia" : "dias"}</span>;
-  return <span className="dayBadge neutral">{remaining} dias</span>;
+  if (prazo.revisao_status === "triagem") return <span className="dayBadge warn" title="Prazo real não identificado: revise até esta data e informe o prazo">Triagem · {date}</span>;
+  if (!isPrazoVigente(prazo.revisao_status)) return <span className="dayBadge warn" title="Confira a origem deste prazo">Revisão pendente</span>;
+  const title = prazo.revisao_status === "calculado_a_revisar" ? "Calculado automaticamente; a conferência é opcional" : undefined;
+  if (remaining < 0) return <span className="dayBadge risk" title={title}>Vencido</span>;
+  if (remaining === 0) return <span className="dayBadge risk" title={title}>Vence hoje</span>;
+  if (remaining <= 3) return <span className="dayBadge warn" title={title}>Vence em {remaining} {remaining === 1 ? "dia" : "dias"}</span>;
+  return <span className="dayBadge neutral" title={title}>{date} · {remaining} dias</span>;
 }
 
 /** Cabeçalho de página: título, descrição ou contagem e ações, igual em todas as telas. */

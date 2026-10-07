@@ -15,9 +15,11 @@ export default function ConfirmarPrazo({ intimacaoId, analise, onConfirmed }: {
   intimacaoId: number; analise?: PrazoAnalise | null; onConfirmed?: (prazo: Prazo) => void;
 }) {
   const options = analise?.alternativas ?? [];
+  // A duração da triagem não é o prazo do ato: o advogado informa o real.
+  const suggestedDays = analise?.origem_duracao === "triagem" ? null : analise?.dias;
   const [choice, setChoice] = useState(0);
   const [base, setBase] = useState(analise?.publicacao ?? "");
-  const [dias, setDias] = useState(analise?.dias ? String(analise.dias) : "");
+  const [dias, setDias] = useState(suggestedDays ? String(suggestedDays) : "");
   const [uteis, setUteis] = useState(true);
   const [excecoes, setExcecoes] = useState("");
   const [reason, setReason] = useState("");
@@ -28,8 +30,8 @@ export default function ConfirmarPrazo({ intimacaoId, analise, onConfirmed }: {
   useEffect(() => {
     if (edited) return;
     setBase(analise?.publicacao ?? "");
-    setDias(analise?.dias ? String(analise.dias) : "");
-  }, [analise?.publicacao, analise?.dias, edited]);
+    setDias(suggestedDays ? String(suggestedDays) : "");
+  }, [analise?.publicacao, suggestedDays, edited]);
 
   async function confirmar(payload: { dias: number; dias_uteis: boolean; justificativa: string; descricao?: string; dias_sem_expediente: string[] }) {
     setBusy(true); setError(null);

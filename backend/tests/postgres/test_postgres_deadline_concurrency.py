@@ -45,3 +45,37 @@ def test_same_source_is_separate_per_tenant_and_one_job_per_notice(pg_engine):
             models.JobExecucao.tipo == "analise_prazo")).all()
         assert len(notices) == len(jobs) == 2
         assert {job.payload["escritorio_id"] for job in jobs} == set(ids)
+
+
+def test_requeue_filters_json_memory_on_postgres(pg_engine):
+    from datetime import date
+
+    from app.prazo_engine.pipeline import ANALYSIS_VERSION, memory, requeue_analyses
+
+    with Session(pg_engine, autoflush=False, expire_on_commit=False) as session:
+        office = models.Escritorio(nome="Reanálise")
+        session.add(office)
+        session.flush()
+
+        def notice(fonte_id, analysis=None):
+            item = models.Intimacao(escritorio_id=office.id, fonte="DJEN", fonte_id=fonte_id,
+                                    teor="Vistos.", data_disponibilizacao=date(2026, 9, 25),
+                                    payload={"_causor_prazo": analysis} if analysis else {})
+            session.add(item)
+            return item
+
+        never = notice("nunca")
+        old = notice("antiga", {"status": "pendente", "job_id": 1, "analise_versao": 2})
+        failed = notice("falha", {"status": "falha", "job_id": 2, "tentativas": 1})
+        exhausted = notice("esgotada", {"status": "falha", "job_id": 3, "tentativas": 3})
+        current = notice("atual", {"status": "sem_prazo_identificado", "job_id": 4,
+                                    "analise_versao": ANALYSIS_VERSION})
+        session.commit()
+
+        assert requeue_analyses(session) == 3
+        session.commit()
+        states = {item.fonte_id: memory(session.get(models.Intimacao, item.id))["status"]
+                  for item in (never, old, failed, exhausted, current)}
+        assert states == {"nunca": "analisando", "antiga": "analisando", "falha": "analisando",
+                          "esgotada": "falha", "atual": "sem_prazo_identificado"}
+        assert requeue_analyses(session) == 0

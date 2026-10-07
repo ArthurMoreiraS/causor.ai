@@ -375,11 +375,8 @@ def test_revisar_prazo_atualiza_e_audita(client, db_session, seeded):
 
 
 def test_marcar_prazo_cumprido(client, db_session, seeded):
+    # Cumprir não exige conferência: prazo calculado automaticamente já vale.
     prazo = db_session.query(models.Prazo).filter_by(descricao="A").one()
-    assert client.post(f"/prazos/{prazo.id}/cumprir").status_code == 409
-    notice = db_session.get(models.Intimacao, prazo.intimacao_id)
-    notice.payload = {"_causor_prazo": {"status": "confirmado", "prazo_id": prazo.id}}
-    db_session.flush()
     resp = client.post(f"/prazos/{prazo.id}/cumprir")
 
     assert resp.status_code == 200

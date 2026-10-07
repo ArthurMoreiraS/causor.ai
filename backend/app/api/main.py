@@ -169,7 +169,7 @@ def _status_revisao(
     if peticao is not None and peticao.status == "rascunho":
         return "minuta_em_revisao"
     if prazo is not None:
-        if prazo.revisao_status != "confirmado":
+        if prazo.revisao_status not in ("confirmado", "calculado_a_revisar"):
             return "prazo_a_revisar"
         return "prazo_calculado"
     return "capturada"
@@ -1396,9 +1396,9 @@ def create_app() -> FastAPI:
         session: Session = Depends(get_session),
         current: CurrentUser = Depends(get_current_user),
     ) -> models.Prazo:
+        # Cumprir é ato humano e não depende de conferência: prazo calculado
+        # automaticamente já vale (decisão de 07/10/2026).
         prazo = get_owned_or_404(session, models.Prazo, prazo_id, current)
-        if prazo.revisao_status != "confirmado":
-            raise HTTPException(status_code=409, detail="Confirme o prazo antes de marcar como cumprido")
         prazo.cumprido = True
         _audit(
             session,

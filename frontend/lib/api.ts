@@ -141,10 +141,6 @@ export type Prazo = {
   revisao_status?: string;
 };
 
-export type PrazoBackfill = { enfileiradas: number; ultimo_id: number; ha_mais: boolean };
-export function analisarPrazosExistentes(afterId = 0): Promise<PrazoBackfill> {
-  return request(`/intimacoes/analisar-prazos?after_id=${afterId}`, { method: "POST" });
-}
 export function repetirAnalisePrazo(id: number): Promise<{ job_id: number | null }> {
   return request(`/intimacoes/${id}/analisar-prazo`, { method: "POST" });
 }

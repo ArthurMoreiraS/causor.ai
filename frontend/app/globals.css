@@ -984,6 +984,7 @@ h3 {
 .inboxAnalysisText { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; min-width: 0; }
 .inboxAnalysisText svg { align-self: center; color: var(--green); }
 .inboxAnalysisText strong { font-size: var(--text-sm); font-weight: 600; }
+.inboxAnalysisBar .segmented { max-width: 100%; overflow-x: auto; }
 .inboxAnalysisText p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
 @media (max-width: 850px) {
   .heroNotice, .inboxAnalysisBar { flex-wrap: wrap; }

@@ -2,14 +2,15 @@
 
 import { CalendarDays, CheckCircle2, Loader2 } from "lucide-react";
 import type { Prazo } from "@/lib/api";
-import { formatCnj, formatDate } from "@/lib/format";
+import { formatCnj, formatDate, isPrazoVigente } from "@/lib/format";
 import type { PrazoRow } from "@/lib/views";
 import type { DetailSelection } from "../DetailDrawer";
 import { DeadlineBadge, Empty, RowMenu } from "../components/ui";
 
 function dueHint(prazo: Prazo, dias: number) {
   if (prazo.cumprido) return "cumprido";
-  if (prazo.revisao_status !== "confirmado") return "a revisar";
+  if (prazo.revisao_status === "triagem") return "triagem";
+  if (!isPrazoVigente(prazo.revisao_status)) return "a revisar";
   if (dias < 0) return "vencido";
   if (dias === 0) return "hoje";
   return dias === 1 ? "em 1 dia" : `em ${dias} dias`;
@@ -46,10 +47,11 @@ export default function PrazosView({
           : intimacao
             ? { kind: "intimacao", id: intimacao.id }
             : null;
-        const confirmed = prazo.revisao_status === "confirmado";
-        const tone = prazo.cumprido ? "done" : !confirmed ? "" : dias <= 1 ? "risk" : dias <= 3 ? "warn" : "";
+        const vigente = isPrazoVigente(prazo.revisao_status);
+        const tone = prazo.cumprido ? "done" : !vigente ? "" : dias <= 1 ? "risk" : dias <= 3 ? "warn" : "";
         const numero = processo?.numero ?? intimacao?.numero_processo;
-        const review = !confirmed && intimacao;
+        // Conferir é opcional no prazo calculado e o caminho principal na triagem.
+        const review = prazo.revisao_status !== "confirmado" && intimacao;
         return (
           <article className="dataRow" key={prazo.id}>
             <div className={tone ? `filaDate ${tone}` : "filaDate"}>
@@ -71,7 +73,7 @@ export default function PrazosView({
             <DeadlineBadge prazo={prazo} />
             <div className="dataRowEnd">
               <button
-                className={review ? "toolbarButton compact primary" : "toolbarButton compact"}
+                className={review && !vigente ? "toolbarButton compact primary" : "toolbarButton compact"}
                 disabled={busy === `edit-${prazo.id}` || offline}
                 onClick={() => review ? onOpen({ kind: "intimacao", id: intimacao.id }) : onEditPrazo(prazo)}
               >
@@ -80,8 +82,7 @@ export default function PrazosView({
               </button>
               <button
                 className="toolbarButton compact"
-                disabled={prazo.cumprido || !confirmed || busy === `done-${prazo.id}` || offline}
-                title={!confirmed ? "Confirme o prazo antes de marcar como cumprido" : undefined}
+                disabled={prazo.cumprido || busy === `done-${prazo.id}` || offline}
                 onClick={() => onDonePrazo(prazo)}
               >
                 {busy === `done-${prazo.id}` ? <Loader2 className="spin" size={14} /> : <CheckCircle2 size={14} />}

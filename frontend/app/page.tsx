@@ -24,7 +24,6 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   aprovarPeticao,
-  analisarPrazosExistentes,
   CaptureResult,
   cumprirPrazo,
   DashboardData,
@@ -216,13 +215,6 @@ export default function Home() {
   const [detail, setDetail] = useState<DetailSelection | null>(null);
   const [editorPeticao, setEditorPeticao] = useState<Peticao | null>(null);
   const [prazoEdit, setPrazoEdit] = useState<Prazo | null>(null);
-  const [backfillProgress, setBackfillProgress] = useState<string | null>(null);
-  const [backfillBusy, setBackfillBusy] = useState(false);
-  useEffect(() => {
-    if (!session?.user?.id) return;
-    const cursor = window.localStorage.getItem(`causor-prazo-backfill-${session.user.id}`);
-    if (cursor) setBackfillProgress(`Análise interrompida após intimação ${cursor}. Use Continuar análise.`);
-  }, [session?.user?.id]);
   const [filters, setFilters] = useState<{ tribunal: string; sistema: string; risco: string }>({
     tribunal: "",
     sistema: "",
@@ -333,8 +325,6 @@ export default function Home() {
       const result = await removerDadosOab(oab.oab, oab.uf);
       capture.forget(oab.oab, oab.uf);
       setCaptureResult(null); setCaptureContext(null);
-      setBackfillProgress(null);
-      if (session?.user?.id) window.localStorage.removeItem(`causor-prazo-backfill-${session.user.id}`);
       await loadOabsMonitoradas();
       await refresh();
       setOabToRemove(null);
@@ -385,38 +375,6 @@ export default function Home() {
       await revisarPrazo(id, patch);
     });
     setPrazoEdit(null);
-  }
-
-  async function backfillPrazos() {
-    const key = `causor-prazo-backfill-${session?.user?.id ?? "unknown"}`;
-    setBackfillBusy(true);
-    setBackfillProgress("Preparando análise...");
-    try {
-      let cursor = Number(window.localStorage.getItem(key) ?? "0") || 0;
-      let queued = 0;
-      let hasMore = false;
-      for (let page = 0; page < 20; page++) {
-        const batch = await analisarPrazosExistentes(cursor);
-        queued += batch.enfileiradas;
-        hasMore = batch.ha_mais;
-        setBackfillProgress(`${queued} intimações encaminhadas para análise. O processamento ocorre em segundo plano.`);
-        if (!batch.ha_mais || batch.ultimo_id <= cursor) break;
-        cursor = batch.ultimo_id;
-        window.localStorage.setItem(key, String(cursor));
-      }
-      await refresh();
-      if (hasMore) {
-        setBackfillProgress(`${queued} análises enfileiradas. Há mais registros; use Continuar análise.`);
-      } else {
-        window.localStorage.removeItem(key);
-        setBackfillProgress(`${queued} análises enfileiradas. Acompanhe os estados nesta lista.`);
-      }
-    } catch (err) {
-      setBackfillProgress("Interrompido. Use Continuar análise; registros já enfileirados serão preservados.");
-      toast({ kind: "error", title: humanError(err, "Falha ao enfileirar prazos") });
-    } finally {
-      setBackfillBusy(false);
-    }
   }
 
   useDeadlineAnalysis(session?.user?.id, data.intimacoes, (states, expected) => {
@@ -1088,9 +1046,6 @@ export default function Home() {
             <IntimacoesView
               rows={intimacaoRows}
               offline={offline}
-              onBackfill={() => void backfillPrazos()}
-              backfillProgress={backfillProgress}
-              backfillBusy={backfillBusy}
               onRetry={id => { void repetirAnalisePrazo(id).then(() => refresh()).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao repetir análise") })); }}
               onOpen={(id) => setDetail({ kind: "intimacao", id })}
               onPrepareWork={prepareWorkFromNotice}

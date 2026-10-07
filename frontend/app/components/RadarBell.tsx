@@ -3,7 +3,7 @@
 import { Bell, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertaPrazo, carregarAlertas } from "@/lib/api";
-import { formatCnj, formatDate } from "@/lib/format";
+import { formatCnj, formatDate, isPrazoVigente } from "@/lib/format";
 
 const READ_KEY = "causor.radar.read.v1";
 
@@ -141,8 +141,10 @@ export default function RadarBell({
                     <span className="mono">{formatCnj(alerta.processo_numero) || "Processo não identificado"}</span>
                   </div>
                   <div className="radarItemMeta">
-                    <span className={`dayBadge ${alerta.revisao_status === "confirmado" && (alerta.nivel === "vencido" || alerta.nivel === "d0" || alerta.nivel === "d1") ? "risk" : "today"}`}>
-                      {alerta.revisao_status === "confirmado" ? nivelLabel(alerta.nivel, alerta.dias_para_vencer) : `Revisar data sugerida · ${nivelLabel(alerta.nivel, alerta.dias_para_vencer)}`}
+                    <span className={`dayBadge ${isPrazoVigente(alerta.revisao_status) && (alerta.nivel === "vencido" || alerta.nivel === "d0" || alerta.nivel === "d1") ? "risk" : "today"}`}>
+                      {isPrazoVigente(alerta.revisao_status) ? nivelLabel(alerta.nivel, alerta.dias_para_vencer)
+                        : alerta.revisao_status === "triagem" ? `Triagem · ${nivelLabel(alerta.nivel, alerta.dias_para_vencer)}`
+                        : `Revisar data sugerida · ${nivelLabel(alerta.nivel, alerta.dias_para_vencer)}`}
                     </span>
                     <small>{formatDate(alerta.data_fatal)}</small>
                   </div>

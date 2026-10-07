@@ -16,7 +16,8 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 | Etapa | O que existe | Evidência mais forte |
 |---|---|---|
 | Captura de publicações | DJEN por OAB, enriquecimento DataJud, agendador persistente (`capture-scheduler`, ciclo de 300s, intervalo por OAB). | Implantado. Captura real de 601 intimações em 27/09; agendador sem captura real observada após a migração do banco. |
-| Prazos | Motor determinístico; catálogo CPC restrito a três atos com fonte normativa; demais casos ficam "a revisar". Calendários locais não homologados. | Implantado. Sem validação jurídica em casos reais. |
+| Prazos | Análise automática após cada captura: motor determinístico, catálogo CPC e prazo por tipo de ato; prazo calculado vale sem conferência; incerto recebe data de triagem (5 dias úteis; 2 no criminal); falha é repetida sozinha. Calendários locais não homologados. | Catálogo por ato implantado. Triagem, reanálise automática e "cumprir sem confirmar" só **local** (07/10). Sem validação jurídica em casos reais. |
+| Avisos | E-mail por escritório: prazo novo e D-3/D-1/D-0/vencido, enviado pelo `capture-scheduler` entre 7h e 21h. WhatsApp fica para depois, como outro canal. | **Local** (07/10). Em produção falta configurar SMTP; até aqui nenhum aviso saía porque o comando não era agendado. |
 | Documentos | Upload manual por grau, SHA-256, validação de PDF, extração/OCR, resumos com citação literal (padrão Haiku ou aprofundado Sonnet). | Implantado. Percurso com PDFs fictícios. |
 | Contexto e evidências | Trabalho jurídico com escopo declarado, índice de peças, busca nos originais, lacunas viram pendências, gate de contexto. | Implantado. Percurso sintético no navegador. |
 | Minuta e revisão | Análise e redação em fila persistente e retomável; editor com proteção de texto; aprovação humana; PDF com timbrado. | Implantado. Sonnet 5.5 testado nas APIs reais com caso fictício. |
@@ -64,7 +65,12 @@ material, repetir em cinco casos.
 2. **Coleta automática dos autos:** comparar um fornecedor (Judit, Escavador ou
    alternativa) com o inventário manual do mesmo caso — cobertura por
    documento, faltas, custo, atraso e intervenção. Só então integrar.
-3. Interface: reformulação "Papel e tinta" **implantada** em 07/10
+3. **Prazo automático** (07/10, **local**): publicar e configurar o SMTP na
+   VPS ([plano](desenvolvimento/planos/2026-10-07-prazo-automatico.md),
+   [operação](operacao/captura-periodica.md)). Na primeira execução, o
+   agendador reanalisa em lotes de 100 por ciclo as intimações da versão
+   anterior (custo de chamadas ao Haiku).
+4. Interface: reformulação "Papel e tinta" **implantada** em 07/10
    (`0db2b1b`, [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37585288275)
    e deploy verdes): um sistema visual só, com Satoshi nos títulos e Inter na
    interface, fundo papel e verde da landing, tabelas com colunas alinhadas e

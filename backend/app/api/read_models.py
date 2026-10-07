@@ -62,16 +62,17 @@ def operational_counts(session, current, today: date):
         numeric = func.json_typeof(pointer) == "number"
     else:
         numeric = func.json_type(pointer).in_(["integer", "real"])
-    confirmed = func.coalesce(and_(
+    # Vigente: confirmado ou calculado pela análise automática (vale sem conferência).
+    vigente = func.coalesce(and_(
         case((numeric, pointer.as_float()), else_=None) == models.Prazo.id,
-        analysis["status"].as_string() == "confirmado",
+        analysis["status"].as_string().in_(["confirmado", "calculado_a_revisar"]),
     ), False)
     pending = models.Prazo.cumprido.is_(False)
     conditions = {
         "prazos": pending,
-        "prazos_a_revisar": and_(pending, ~confirmed),
-        "risco": and_(pending, confirmed, models.Prazo.data_fatal <= today + timedelta(days=3)),
-        "vencidos": and_(pending, confirmed, models.Prazo.data_fatal < today),
+        "prazos_a_revisar": and_(pending, ~vigente),
+        "risco": and_(pending, vigente, models.Prazo.data_fatal <= today + timedelta(days=3)),
+        "vencidos": and_(pending, vigente, models.Prazo.data_fatal < today),
     }
     row = session.execute(select(*[
         func.coalesce(func.sum(case((condition, 1), else_=0)), 0).label(key)

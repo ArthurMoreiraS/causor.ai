@@ -106,8 +106,12 @@ deep summary. Avoid premium models in the default/test path. Details:
 
 1. **Deadlines are deterministic and reviewable.** Date math lives in
    `prazo_engine` with unit tests for every edge case (TDD, target ≥99% on
-   tested cases). The LLM may only interpret the publication text. Uncertain
-   cases stay pending for human confirmation; never invent a due date.
+   tested cases). The LLM may only interpret the publication text. Never
+   invent a due date. An automatically calculated deadline is in force without
+   confirmation (review is optional). An uncertain case gets a **triage date**
+   (5 business days, CPC art. 218 § 3; 2 in criminal cases), always labelled
+   "prazo real não identificado" and never presented as the act's deadline
+   (founder decision, 07/10/2026).
 2. **Human review before anything leaves Causor.** The lawyer is professionally
    responsible. A draft is approved by a person; if filing returns later, it
    goes behind a configurable human-approval gate that is never removed.
