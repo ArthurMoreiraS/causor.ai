@@ -67,8 +67,8 @@ export default function ProcessosView({
             >
               {sistemaBadge(processo.sistema).label}
             </span>
-            <span className="cellCount">{intimacoesCount}</span>
-            <span className="cellCount">{peticoesCount}</span>
+            <span className="cellCount" data-label={intimacoesCount === 1 ? "intimação" : "intimações"}>{intimacoesCount}</span>
+            <span className="cellCount" data-label={peticoesCount === 1 ? "minuta" : "minutas"}>{peticoesCount}</span>
             {/* Data e risco são a mesma informação ("quando" e "quão perto"),
                 então dividem a coluna "Próximo prazo". A ação fica em coluna
                 própria, como na tabela de Intimações. */}

@@ -116,8 +116,10 @@ button:disabled {
   transition: grid-template-columns 180ms ease;
 }
 
-.shell.sidebarCollapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
+@media (min-width: 1081px) {
+  .shell.sidebarCollapsed {
+    grid-template-columns: 64px minmax(0, 1fr);
+  }
 }
 
 .sidebar {
@@ -169,7 +171,8 @@ button:disabled {
   line-height: 1;
 }
 
-.sidebarToggle {
+.sidebarToggle,
+.drawerClose {
   position: absolute;
   right: 10px;
   top: 50%;
@@ -185,9 +188,17 @@ button:disabled {
   transition: background 140ms ease, color 140ms ease;
 }
 
-.sidebarToggle:hover {
+.sidebarToggle:hover,
+.drawerClose:hover {
   background: var(--hover);
   color: var(--ink);
+}
+
+/* Só aparecem quando a sidebar vira gaveta (max-width: 1080px). */
+.drawerClose,
+.appbar .appMenuButton,
+.navBackdrop {
+  display: none;
 }
 
 .brandAssetLight {
@@ -303,66 +314,69 @@ button:disabled {
   border-top: 1px solid var(--line);
 }
 
-.sidebarCollapsed .brand {
-  padding: 0;
-}
+/* Recolher a sidebar só existe no desktop; abaixo de 1080px ela é gaveta. */
+@media (min-width: 1081px) {
+  .sidebarCollapsed .brand {
+    padding: 0;
+  }
 
-.sidebarCollapsed .brandLockup {
-  opacity: 0;
-  pointer-events: none;
-  transform: scale(0.92);
-}
+  .sidebarCollapsed .brandLockup {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.92);
+  }
 
-.sidebarCollapsed .sidebarToggle {
-  left: 50%;
-  right: auto;
-  transform: translate(-50%, -50%);
-}
+  .sidebarCollapsed .sidebarToggle {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+  }
 
-.sidebarCollapsed .sideNav,
-.sidebarCollapsed .sidebarFooter {
-  padding-right: 10px;
-  padding-left: 10px;
-}
+  .sidebarCollapsed .sideNav,
+  .sidebarCollapsed .sidebarFooter {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
 
-.sidebarCollapsed .sideNav {
-  gap: 8px;
-}
+  .sidebarCollapsed .sideNav {
+    gap: 8px;
+  }
 
-.sidebarCollapsed .navGroupLabel {
-  min-height: 1px;
-  margin: 6px 8px;
-  padding: 0;
-  overflow: hidden;
-  background: var(--line);
-}
+  .sidebarCollapsed .navGroupLabel {
+    min-height: 1px;
+    margin: 6px 8px;
+    padding: 0;
+    overflow: hidden;
+    background: var(--line);
+  }
 
-.sidebarCollapsed .navGroupLabel span,
-.sidebarCollapsed .navGroupLabel svg,
-.sidebarCollapsed .sideNav a span,
-.sidebarCollapsed .sideNav .navItem span,
-.sidebarCollapsed .sidebarFooter a span,
-.sidebarCollapsed .sidebarFooter .navItem span,
-.sidebarCollapsed .profile > div:not(.avatar),
-.sidebarCollapsed .profile > svg {
-  display: none;
-}
+  .sidebarCollapsed .navGroupLabel span,
+  .sidebarCollapsed .navGroupLabel svg,
+  .sidebarCollapsed .sideNav a span,
+  .sidebarCollapsed .sideNav .navItem span,
+  .sidebarCollapsed .sidebarFooter a span,
+  .sidebarCollapsed .sidebarFooter .navItem span,
+  .sidebarCollapsed .profile > div:not(.avatar),
+  .sidebarCollapsed .profile > svg {
+    display: none;
+  }
 
-.sidebarCollapsed .sideNav a,
-.sidebarCollapsed .sideNav .navItem,
-.sidebarCollapsed .sidebarFooter a,
-.sidebarCollapsed .sidebarFooter .navItem {
-  justify-content: center;
-  min-height: 34px;
-  padding: 0;
-}
+  .sidebarCollapsed .sideNav a,
+  .sidebarCollapsed .sideNav .navItem,
+  .sidebarCollapsed .sidebarFooter a,
+  .sidebarCollapsed .sidebarFooter .navItem {
+    justify-content: center;
+    min-height: 34px;
+    padding: 0;
+  }
 
-.sidebarCollapsed .profile {
-  display: grid;
-  width: 100%;
-  grid-template-columns: 1fr;
-  justify-items: center;
-  padding: 6px 0;
+  .sidebarCollapsed .profile {
+    display: grid;
+    width: 100%;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 6px 0;
+  }
 }
 
 .profile {
@@ -451,7 +465,7 @@ button:disabled {
   justify-content: space-between;
   gap: 16px;
   height: 52px;
-  padding: 0 32px;
+  padding: 0 var(--gutter);
   border-bottom: 1px solid var(--line);
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(12px);
@@ -665,7 +679,7 @@ h3 {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 0 28px 16px;
+  margin: 0 var(--gutter) 16px;
   padding: 10px 12px;
   color: var(--risk);
   border: 1px solid color-mix(in srgb, var(--risk) 30%, var(--line));
@@ -711,7 +725,7 @@ h3 {
 .noticeWithAction .dismiss-notice {
   margin-left: 0;
 }
-@media (max-width: 640px) {
+@media (max-width: 680px) {
   .noticeWithAction {
     position: relative;
     flex-wrap: wrap;
@@ -806,19 +820,19 @@ h3 {
 
 /* Área de conteúdo de todas as telas: mesmo respiro. */
 .workSurface {
-  padding: 28px 32px 48px;
+  padding: 28px var(--gutter) 48px;
 }
 
 .homeSurface {
   display: grid;
   gap: 20px;
-  padding: 28px 32px 48px;
+  padding: 28px var(--gutter) 48px;
 }
 
 .onboardingSurface {
   display: grid;
   gap: 16px;
-  padding: 28px 32px 48px;
+  padding: 28px var(--gutter) 48px;
 }
 
 .onboardingHero {
@@ -986,7 +1000,7 @@ h3 {
 .inboxAnalysisText strong { font-size: var(--text-sm); font-weight: 600; }
 .inboxAnalysisBar .segmented { max-width: 100%; overflow-x: auto; }
 .inboxAnalysisText p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
-@media (max-width: 850px) {
+@media (max-width: 1080px) {
   .heroNotice, .inboxAnalysisBar { flex-wrap: wrap; }
   .heroNotice p, .inboxAnalysisBar > div { flex-basis: 100%; }
 }
@@ -1713,7 +1727,7 @@ h3 {
   grid-template-columns: minmax(236px, 284px) minmax(0, 1fr);
   gap: 18px;
   overflow: hidden;
-  padding: 18px 24px 22px;
+  padding: 18px var(--gutter) 22px;
 }
 
 .assistantHistoryPanel {
@@ -2203,7 +2217,7 @@ h3 {
   .assistantWorkspace {
     grid-template-columns: 1fr;
     min-height: 0;
-    padding: 16px;
+    padding: 16px var(--gutter);
   }
 
   .assistantHistoryPanel {
@@ -2229,10 +2243,6 @@ h3 {
 }
 
 @media (max-width: 680px) {
-  .assistantWorkspace {
-    padding: 14px;
-  }
-
   .assistantSessionHeader {
     flex-direction: column;
     align-items: stretch;
@@ -2293,19 +2303,47 @@ h3 {
 }
 
 @media (max-width: 1080px) {
+  /* Em telas estreitas a sidebar vira gaveta: a appbar fica numa linha só
+     (menu, página, ações) e o conteúdo começa logo abaixo dela. */
   .shell,
   .shell.sidebarCollapsed {
-    /* minmax(0, …) impede que a faixa de navegação alargue o shell inteiro. */
     grid-template-columns: minmax(0, 1fr);
     height: auto;
     overflow: visible;
   }
 
   .sidebar {
-    min-width: 0;
-    min-height: auto;
-    height: auto;
-    border-right: 0;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: min(288px, 86vw);
+    border-right: 1px solid var(--line);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition: transform 200ms ease, visibility 0s linear 200ms;
+  }
+
+  .shell.navOpen .sidebar {
+    transform: none;
+    visibility: visible;
+    transition: transform 200ms ease;
+  }
+
+  .navBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 39;
+    background: var(--overlay);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 200ms ease;
+  }
+
+  .shell.navOpen .navBackdrop {
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .workspace {
@@ -2313,109 +2351,40 @@ h3 {
     overflow: visible;
   }
 
-  /* Em telas estreitas o menu lateral vira uma faixa horizontal rolável —
-     a navegação continua acessível em vez de desaparecer. */
   .sidebarToggle {
     display: none;
   }
 
-  .sideNav {
-    display: flex;
+  .drawerClose {
+    display: grid;
+  }
+
+  .appbar {
+    justify-content: flex-start;
+    gap: 10px;
+  }
+
+  .appbar .appMenuButton {
+    display: inline-flex;
     flex: 0 0 auto;
-    align-items: center;
-    gap: 6px;
+    width: 36px;
+    height: 36px;
+    margin-left: -9px;
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .crumbs {
+    flex: 1 1 auto;
     min-width: 0;
-    overflow-x: auto;
-    overflow-y: visible;
-    padding: 10px 16px;
-    scrollbar-width: thin;
   }
 
-  .navGroup {
-    display: contents;
-  }
-
-  .navGroupLabel,
-  .shell.sidebarCollapsed .navGroupLabel {
-    display: none;
-  }
-
-  .sideNav a,
-  .sideNav .navItem,
-  .sidebarFooter a,
-  .sidebarFooter .navItem {
-    flex: 0 0 auto;
-    width: auto;
-    min-height: 34px;
-    padding: 0 12px;
-    border: 1px solid var(--line);
-    border-radius: var(--radius-sm);
-    background: var(--panel);
+  .crumbs strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
   }
 
-  .sideNav a.active,
-  .sideNav .navItem.active {
-    border-color: var(--accent);
-    background: var(--accent-bg);
-    color: var(--accent);
-    box-shadow: none;
-  }
-
-  .sidebarFooter {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow-x: auto;
-    padding: 0 16px 12px;
-    border-top: 0;
-    scrollbar-width: thin;
-  }
-
-  .sidebarFooter .profile {
-    width: auto;
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    margin-top: 0;
-    padding: 4px 8px;
-  }
-
-  .sidebarFooter .profile > div:not(.avatar) {
-    min-width: 0;
-    max-width: 180px;
-  }
-
-  /* Mesmo com a sidebar "colapsada" no desktop, a faixa horizontal mantém
-     rótulos e espaçamentos visíveis. */
-  .shell.sidebarCollapsed .sideNav a,
-  .shell.sidebarCollapsed .sideNav .navItem,
-  .shell.sidebarCollapsed .sidebarFooter a,
-  .shell.sidebarCollapsed .sidebarFooter .navItem {
-    justify-content: flex-start;
-    min-height: 34px;
-    padding: 0 12px;
-  }
-
-  .shell.sidebarCollapsed .sideNav a span,
-  .shell.sidebarCollapsed .sideNav .navItem span,
-  .shell.sidebarCollapsed .sidebarFooter a span,
-  .shell.sidebarCollapsed .sidebarFooter .navItem span {
-    display: inline;
-  }
-
-  .shell.sidebarCollapsed .brandLockup {
-    opacity: 1;
-    transform: none;
-    pointer-events: auto;
-  }
-
-  .shell.sidebarCollapsed .brand {
-    padding: 0 42px 0 18px;
-  }
-
-  .appbar,
   .viewbar {
     align-items: stretch;
     flex-direction: column;
@@ -2424,7 +2393,6 @@ h3 {
     padding-bottom: 10px;
   }
 
-  .appActions,
   .viewActions {
     flex-wrap: wrap;
   }
@@ -2509,14 +2477,18 @@ h3 {
 }
 
 @media (max-width: 680px) {
-  .workSurface,
-  .homeSurface,
-  .onboardingSurface,
-  .filaSurface,
-  .templatesSurface,
-  .assistantWorkspace {
-    padding-left: 16px;
-    padding-right: 16px;
+  /* No celular a appbar mostra só a página atual e ações em ícone. */
+  .crumbs > :not(strong) {
+    display: none;
+  }
+
+  .appbarCapture {
+    width: 36px;
+    padding: 0;
+  }
+
+  .appbarLabel {
+    display: none;
   }
 
   .gateLanes,
@@ -2558,9 +2530,12 @@ h3 {
   }
 
   .statusTabs {
+    gap: 16px;
     overflow-x: auto;
-    padding-left: 16px;
-    padding-right: 16px;
+  }
+
+  .segmented button {
+    padding: 0 8px;
   }
 
   .search {
@@ -2571,8 +2546,14 @@ h3 {
     justify-content: flex-start;
   }
 
+  /* Data à esquerda, texto e selo empilhados à direita. */
   .deadlineAgendaItem {
-    grid-template-columns: 1fr;
+    grid-template-columns: 56px minmax(0, 1fr);
+  }
+
+  .deadlineAgendaItem > :last-child {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .featureTile,
@@ -3086,7 +3067,7 @@ h3 {
   align-items: flex-start;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 680px) {
   .settingsCard {
     height: min(720px, 92vh);
   }
@@ -3857,7 +3838,9 @@ h3 {
   font-size: var(--text-sm);
   text-align: center;
 }
-/* Em telas estreitas cada linha vira um cartão: título, selos e ações. */
+/* Em telas estreitas cada linha vira um cartão: data e selo no topo (quando
+   houver data), título com subtítulo, as outras células como uma linha curta
+   de metadados cada, selos juntos e ações no rodapé. */
 @media (max-width: 1080px) {
   .dataTable {
     display: block;
@@ -3871,17 +3854,62 @@ h3 {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px 12px;
+    gap: 6px 8px;
+    padding-top: 14px;
+    padding-bottom: 14px;
   }
 
   .dataTable > .dataRow > .dataRowMain {
     flex: 1 1 100%;
   }
 
+  .dataTable > .dataRow > .dataRowMain ~ .dataRowMain {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .dataTable > .dataRow > .dataRowMain ~ .dataRowMain > :first-child {
+    flex: 0 0 auto;
+  }
+
+  .dataTable > .dataRow > .dataRowMain ~ .dataRowMain > * + *::before {
+    content: "·";
+    margin-right: 6px;
+    color: var(--muted-2);
+  }
+
+  .dataTable > .dataRow > .filaDate {
+    order: -2;
+    display: flex;
+    flex: 1 1 auto;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .dataTable > .dataRow:has(> .filaDate) > :is(.dayBadge, .filaMeta) {
+    order: -1;
+  }
+
+  .dataTable > .dataRow > .cellCount[data-label]::after {
+    content: " " attr(data-label);
+    color: var(--muted);
+    font-size: var(--text-xs);
+  }
+
   .dataTable > .dataRow > .dataRowEnd {
     flex: 1 1 100%;
     justify-content: flex-start;
     flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 4px;
+  }
+}
+
+/* No tablet há largura para duas linhas de metadados lado a lado. */
+@media (min-width: 681px) and (max-width: 1080px) {
+  .dataTable > .dataRow > .dataRowMain ~ .dataRowMain {
+    flex: 1 1 calc(50% - 8px);
   }
 }
 /* ===== Menu de linha ("Mais ações") ===== */
@@ -4006,7 +4034,7 @@ h3 {
 .filaSurface {
   display: grid;
   gap: 14px;
-  padding: 16px 28px 24px;
+  padding: 16px var(--gutter) 24px;
 }
 
 /* Data fatal sem caixa: dd/mm mono + ano, cor pelo risco. */
@@ -4085,13 +4113,7 @@ h3 {
   user-select: none;
 }
 
-@media (max-width: 880px) {
-
-  .filaMeta {
-    grid-column: 2;
-    justify-content: flex-start;
-  }
-
+@media (max-width: 1080px) {
   .pagination {
     justify-content: center;
   }

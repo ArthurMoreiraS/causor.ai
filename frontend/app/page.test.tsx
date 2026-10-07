@@ -179,3 +179,26 @@ it("abre a preparação pela intimação, protege edição e retoma a origem pel
     expect(screen.getByText(/Intimação #8 vinculada/)).toBeTruthy();
   } finally { confirm.mockRestore(); cleanup(); window.history.replaceState(null, "", "/"); }
 });
+
+it("abre o menu em gaveta e fecha ao navegar ou com Esc, devolvendo o foco", async () => {
+  api.loadDashboard.mockResolvedValue(dashboard);
+  api.listarOabsMonitoradas.mockResolvedValue([]);
+  api.listarCapturasOab.mockResolvedValue([]);
+  api.listarClientes.mockResolvedValue({ total: 0, items: [] });
+  try {
+    const { container } = render(<Home />);
+    const shell = container.querySelector(".shell")!;
+    const menu = screen.getByRole("button", { name: "Abrir menu" });
+    fireEvent.click(menu);
+    expect(shell.classList.contains("navOpen")).toBe(true);
+    expect(menu.getAttribute("aria-expanded")).toBe("true");
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Fechar menu" }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(shell.classList.contains("navOpen")).toBe(false);
+    expect(document.activeElement).toBe(menu);
+    fireEvent.click(menu);
+    fireEvent.click(within(screen.getByRole("navigation", { name: "Módulos do Causor" })).getByRole("button", { name: "Prazos" }));
+    expect(shell.classList.contains("navOpen")).toBe(false);
+    expect(window.location.hash).toBe("#prazos");
+  } finally { cleanup(); window.history.replaceState(null, "", "/"); vi.clearAllMocks(); }
+});

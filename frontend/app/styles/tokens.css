@@ -141,6 +141,22 @@
   --text-xl: 28px;   /* título de página */
 
   --tracking-display: -0.02em;
+
+  /* Margem lateral única: barra do topo, avisos e telas alinham pela mesma
+     linha. Encolhe nos dois únicos pontos de quebra (1080 e 680). */
+  --gutter: 32px;
+}
+
+@media (max-width: 1080px) {
+  :root {
+    --gutter: 24px;
+  }
+}
+
+@media (max-width: 680px) {
+  :root {
+    --gutter: 16px;
+  }
 }
 
 [data-theme="dark"] {

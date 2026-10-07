@@ -14,6 +14,7 @@ import {
   Download,
   HelpCircle,
   Loader2,
+  Menu,
   Plus,
   Search,
   Settings,
@@ -170,6 +171,20 @@ export default function Home() {
   }, []);
   function openTask(input: TarefaInput, context?: string) { setTaskDialog({ input, context }); }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  // Abaixo de 1080px a sidebar vira gaveta, aberta pelo botão de menu da appbar.
+  const [navOpen, setNavOpen] = useState(false);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const drawerClose = useRef<HTMLButtonElement>(null);
+  const closeNav = useCallback(() => { setNavOpen(false); menuButton.current?.focus(); }, []);
+  useEffect(() => {
+    if (!navOpen) return;
+    drawerClose.current?.focus();
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") closeNav(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [navOpen, closeNav]);
+  function navigateFromMenu(next: ViewKey) { setNavOpen(false); setView(next); }
+  function openFromMenu(next: "help" | "settings" | "profile") { setNavOpen(false); setOverlay(next); }
   const [statusFilter, setStatusFilter] = useState<StatusKey>("pendentes");
   const [error, setError] = useState<string | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
@@ -763,8 +778,8 @@ export default function Home() {
   }
 
   return (
-    <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}${view === "assistente" ? " assistantShell" : ""}`}>
-      <aside className="sidebar">
+    <main className={`shell${sidebarCollapsed ? " sidebarCollapsed" : ""}${navOpen ? " navOpen" : ""}${view === "assistente" ? " assistantShell" : ""}`}>
+      <aside className="sidebar" id="app-sidebar" aria-label="Menu">
         <div className="brand">
           <span className="brandLockup" aria-label="Causor" title="Causor">
             <span className="brandArt">
@@ -796,22 +811,25 @@ export default function Home() {
           >
             {sidebarCollapsed ? <ChevronsRight size={15} /> : <ChevronsLeft size={15} />}
           </button>
+          <button ref={drawerClose} className="drawerClose" type="button" aria-label="Fechar menu" onClick={closeNav}>
+            <X size={16} />
+          </button>
         </div>
 
-        <SidebarNavigation view={view} onNavigate={setView} />
+        <SidebarNavigation view={view} onNavigate={navigateFromMenu} />
 
         <div className="sidebarFooter">
           <NavItem
             icon={<HelpCircle size={15} />}
             label="Ajuda"
-            onClick={() => setOverlay("help")}
+            onClick={() => openFromMenu("help")}
           />
           <NavItem
             icon={<Settings size={15} />}
             label="Configurações"
-            onClick={() => setOverlay("settings")}
+            onClick={() => openFromMenu("settings")}
           />
-          <button className="profile" onClick={() => setOverlay("profile")}>
+          <button className="profile" onClick={() => openFromMenu("profile")}>
             <div className="avatar">{userInitials}</div>
             <div>
               <strong>Conta</strong>
@@ -821,9 +839,21 @@ export default function Home() {
           </button>
         </div>
       </aside>
+      <div className="navBackdrop" aria-hidden="true" onClick={closeNav} />
 
       <section className={view === "assistente" ? "workspace assistantWorkspaceHost" : "workspace"}>
         <header className="appbar">
+          <button
+            ref={menuButton}
+            className="iconButton appMenuButton"
+            type="button"
+            aria-label="Abrir menu"
+            aria-controls="app-sidebar"
+            aria-expanded={navOpen}
+            onClick={() => setNavOpen(true)}
+          >
+            <Menu size={18} />
+          </button>
           <div className="crumbs">
             <span>Legal Ops</span>
             <ChevronRight size={13} />
@@ -836,9 +866,9 @@ export default function Home() {
               refreshKey={refreshTick}
               onGoToPrazos={() => setView("prazos")}
             />
-            <button className="toolbarButton primary" onClick={openOab} disabled={offline}>
+            <button className="toolbarButton primary appbarCapture" onClick={openOab} disabled={offline} aria-label="Captura por OAB">
               <Search size={15} />
-              Captura por OAB
+              <span className="appbarLabel">Captura por OAB</span>
             </button>
           </div>
         </header>
