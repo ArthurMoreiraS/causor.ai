@@ -149,6 +149,14 @@ export default function Home() {
     setCurrentView(next);
     if (window.location.hash !== `#${next}`) window.location.hash = next;
   }, []);
+  // O Next sincroniza o roteador a cada history.replaceState e reaplica a URL
+  // gravada: um hash trocado logo depois é desfeito e a tela volta para trás.
+  // Por isso a URL do trabalho já é gravada com o hash de destino.
+  const openWorkRoute = useCallback((url: URL) => {
+    url.hash = "trabalhos";
+    window.history.replaceState(null, "", url);
+    setView("trabalhos");
+  }, [setView]);
   useEffect(() => {
     const update = () => {
       const next = viewFromHash(window.location.hash);
@@ -323,8 +331,7 @@ export default function Home() {
     url.searchParams.set("processo", String(processoId));
     url.searchParams.set("intimacao", String(intimacaoId));
     if (prazoId) url.searchParams.set("prazo", String(prazoId)); else url.searchParams.delete("prazo");
-    window.history.replaceState(null, "", url);
-    setView("trabalhos");
+    openWorkRoute(url);
   }
 
   async function runCaptureOab() {
@@ -374,7 +381,7 @@ export default function Home() {
   function continueFromPetition(peticao: Peticao) {
     if (peticao.dossie?.trabalho_id) {
       const url = new URL(window.location.href); url.searchParams.set("trabalho", String(peticao.dossie.trabalho_id));
-      window.history.replaceState(null, "", url); setWorkProcessId(peticao.processo_id); setView("trabalhos"); return;
+      setWorkProcessId(peticao.processo_id); openWorkRoute(url); return;
     }
     setView("gate");
   }
@@ -732,7 +739,7 @@ export default function Home() {
     const url = new URL(window.location.href); url.searchParams.delete("trabalho"); url.searchParams.set("novo", "1");
     if (id) url.searchParams.set("processo", String(id)); else url.searchParams.delete("processo");
     url.searchParams.delete("intimacao"); url.searchParams.delete("prazo");
-    window.history.replaceState(null, "", url); setView("trabalhos");
+    openWorkRoute(url);
   }
 
   const offline = Boolean(data.backendOffline);

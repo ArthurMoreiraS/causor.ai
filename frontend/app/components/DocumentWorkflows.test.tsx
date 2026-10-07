@@ -82,3 +82,21 @@ it("não incorpora conteúdo HTML como se fosse um PDF", async () => {
   expect(screen.queryByTitle("PDF de Arquivo")).toBeNull();
   expect(URL.createObjectURL).not.toHaveBeenCalled();
 });
+
+it("lista os PDFs escolhidos, acrescenta novas escolhas, remove e ignora outros formatos", async () => {
+  vi.mocked(enviarAutos).mockResolvedValue({ id: 4 } as Awaited<ReturnType<typeof enviarAutos>>);
+  render(<DocumentUploadDialog processos={[]} processoId={2} offline={false} onClose={vi.fn()} onSaved={vi.fn()} />);
+  const input = screen.getByLabelText("Arquivos PDF");
+  const first = new File(["%PDF-1"], "inicial.pdf", { type: "application/pdf" });
+  const second = new File(["%PDF-22"], "contestacao.pdf", { type: "application/pdf" });
+  fireEvent.change(input, { target: { files: [first] } });
+  fireEvent.change(input, { target: { files: [second, new File(["x"], "foto.png", { type: "image/png" })] } });
+  expect(screen.getByText("inicial.pdf")).toBeTruthy();
+  expect(screen.getByText("contestacao.pdf")).toBeTruthy();
+  expect(screen.queryByText("foto.png")).toBeNull();
+  expect(screen.getByRole("alert").textContent).toMatch(/1 arquivo ignorado/);
+  expect(screen.getByText(/2 arquivos ·/)).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Remover inicial.pdf" }));
+  fireEvent.submit(screen.getByRole("button", { name: "Enviar documentos" }).closest("form")!);
+  await waitFor(() => expect(enviarAutos).toHaveBeenCalledWith(2, [second], "1", { tarefa: undefined, perfilResumo: "padrao" }));
+});

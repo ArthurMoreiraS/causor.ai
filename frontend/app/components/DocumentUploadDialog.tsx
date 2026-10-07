@@ -3,6 +3,7 @@ import { formatCnj } from "@/lib/format";
 import { useState, type FormEvent } from "react";
 import { enviarAutos, type Processo, type Tarefa } from "@/lib/api";
 import { humanError } from "@/lib/errors";
+import FilePicker from "./FilePicker";
 import { LoadingButton, Modal } from "./ui";
 
 export default function DocumentUploadDialog({ processos, processoId, initialDegree = "1", fixedProcess = false, tarefa, offline, onClose, onSaved }: {
@@ -37,8 +38,8 @@ export default function DocumentUploadDialog({ processos, processoId, initialDeg
       <label>Grau de destino<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value as "1" | "2")}>
         <option value="1">1º grau</option><option value="2">2º grau</option>
       </select></label>
-      <label>Arquivos PDF<input type="file" accept="application/pdf,.pdf" multiple required disabled={busy}
-        onChange={e => setFiles(Array.from(e.target.files || []))} /></label>
+      <FilePicker label="Arquivos PDF" kind="PDFs" accept="application/pdf,.pdf" multiple disabled={busy}
+        files={files} onChange={setFiles} hint="Um ou vários arquivos, até 50 por envio." />
       <label>Resumo dos documentos<select value={summaryProfile} disabled={busy}
         onChange={e => setSummaryProfile(e.target.value as "padrao" | "aprofundada")}>
         <option value="padrao">Padrão</option><option value="aprofundada">Aprofundado</option>

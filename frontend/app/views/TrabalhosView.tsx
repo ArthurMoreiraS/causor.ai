@@ -216,7 +216,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
       </> : null}
       <form ref={formRef} id="work-objective" tabIndex={-1} className="officeForm workStageAnchor" onSubmit={save}>
         <div className="formHeading"><h3>{work ? "Objetivo e parte representada" : "Novo trabalho"}</h3>{work ? null : <p>Objetivo e parte representada</p>}</div>
-        {!work && origin ? <p className="officeHint">Intimação #{origin.intimacaoId} vinculada{origin.prazoId ? ` · prazo #${origin.prazoId} a revisar` : " · sem prazo vinculado"}. A providência depende da sua análise.</p> : null}
+        {!work && origin ? <p className="officeHint">Intimação #{origin.intimacaoId} vinculada{origin.prazoId ? ` · prazo #${origin.prazoId}` : " · sem prazo vinculado"}. A providência depende da sua análise.</p> : null}
         {!work ? <div className="segmented" role="group" aria-label="Origem do processo">
           <button type="button" aria-pressed={!newProcess} disabled={busy} onClick={() => setNewProcess(false)}>Processo acompanhado</button>
           <button type="button" aria-pressed={newProcess} disabled={busy} onClick={() => setNewProcess(true)}>Cadastrar processo</button>
@@ -244,7 +244,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
           <span className="fieldHint">Relatos e instruções serão confrontados com as fontes. Não equivalem a prova documentada.</span></label>
         <div className="legalWorkFields"><label>Instância do trabalho<select value={degree} disabled={busy} onChange={e => setDegree(e.target.value as "1" | "2")}><option value="1">1º grau</option><option value="2">2º grau</option></select></label>
           <label>Polo representado<input maxLength={100} value={party} disabled={busy} onChange={e => setParty(e.target.value)} placeholder="Ex.: Autor, réu, interessado" /></label></div>
-        <p className="formCallout"><Clock3 size={15} aria-hidden="true" />{work?.prazo_id ? `Prazo vinculado #${work.prazo_id}.` : "Prazo não vinculado. Nenhuma data de vencimento será presumida."}</p>
+        <p className="formCallout"><Clock3 size={15} aria-hidden="true" />{work?.prazo_id ? `Prazo vinculado #${work.prazo_id}.` : !work && origin?.prazoId ? `O prazo #${origin.prazoId} da intimação será vinculado ao criar o trabalho.` : "Prazo não vinculado. Nenhuma data de vencimento será presumida."}</p>
         {work && (!selectedProcess?.cliente_id || !party.trim()) ? <p role="status">Antes de gerar a minuta, {selectedProcess?.cliente_id ? "informe o polo representado" : party.trim() ? "vincule o cliente representado" : "vincule o cliente representado e informe o polo"}.</p> : null}
         <LoadingButton type="submit" className="toolbarButton primary" loading={busy} disabled={offline || (!newProcess && !process) || !purpose.trim()}>{work ? "Salvar objetivo" : "Criar trabalho"}</LoadingButton>
       </form>
