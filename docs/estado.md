@@ -16,8 +16,8 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 | Etapa | O que existe | Evidência mais forte |
 |---|---|---|
 | Captura de publicações | DJEN por OAB, enriquecimento DataJud, agendador persistente (`capture-scheduler`, ciclo de 300s, intervalo por OAB). | Implantado. Captura real de 601 intimações em 27/09; agendador sem captura real observada após a migração do banco. |
-| Prazos | Análise automática após cada captura: motor determinístico, catálogo CPC e prazo por tipo de ato; prazo calculado vale sem conferência; incerto recebe data de triagem (5 dias úteis; 2 no criminal); falha é repetida sozinha. Calendários locais não homologados. | Catálogo por ato implantado. Triagem, reanálise automática e "cumprir sem confirmar" só **local** (07/10). Sem validação jurídica em casos reais. |
-| Avisos | E-mail por escritório: prazo novo e D-3/D-1/D-0/vencido, enviado pelo `capture-scheduler` entre 7h e 21h. WhatsApp fica para depois, como outro canal. | **Local** (07/10). Em produção falta configurar SMTP; até aqui nenhum aviso saía porque o comando não era agendado. |
+| Prazos | Análise automática após cada captura: motor determinístico, catálogo CPC e prazo por tipo de ato; prazo calculado vale sem conferência; incerto recebe data de triagem (5 dias úteis; 2 no criminal); falha é repetida sozinha. Calendários locais não homologados. | Implantado em 07/10 (`c72e776`). Reanálise automática do acervo em produção ainda não conferida. Sem validação jurídica em casos reais. |
+| Avisos | E-mail por escritório: prazo novo e D-3/D-1/D-0/vencido, enviado pelo `capture-scheduler` entre 7h e 21h. WhatsApp fica para depois, como outro canal. | Implantado em 07/10 (`c72e776`), **inativo**: falta configurar o SMTP na VPS. Sem SMTP nada é enviado. |
 | Documentos | Upload manual por grau, SHA-256, validação de PDF, extração/OCR, resumos com citação literal (padrão Haiku ou aprofundado Sonnet). | Implantado. Percurso com PDFs fictícios. |
 | Contexto e evidências | Trabalho jurídico com escopo declarado, índice de peças, busca nos originais, lacunas viram pendências, gate de contexto. | Implantado. Percurso sintético no navegador. |
 | Minuta e revisão | Análise e redação em fila persistente e retomável; editor com proteção de texto; aprovação humana; PDF com timbrado. | Implantado. Sonnet 5.5 testado nas APIs reais com caso fictício. |
@@ -25,13 +25,15 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 
 ## Produção
 
-- **Versão implantada:** `b0fd16c` (07/10): reestruturação com remoção do
-  agente local e do protocolo.
+- **Versão implantada:** `c72e776` (07/10): prazo automático após a captura.
+  [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37637027333) (inclui a suíte Postgres) e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37637262854) aprovados; o
+  deploy verifica o SHA nos cinco serviços. Conferência externa: `/health` 200.
+- **Reestruturação** (`b0fd16c`, 07/10): remoção do agente local e do
+  protocolo.
   [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37576541510) e
   [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37576706835)
-  aprovados; o deploy verifica o SHA nos cinco serviços. Conferência externa:
-  `/health` 200, `/me` sem sessão 401, rotas de agente e conectores 404,
-  OpenAPI sem rotas de protocolo, login do frontend 200.
+  aprovados. Conferência externa: `/me` sem sessão 401, rotas de agente e
+  conectores 404, OpenAPI sem rotas de protocolo, login do frontend 200.
 - **Infra:** VPS Hostinger com Docker Compose (`backend`, `worker`,
   `autos-worker`, `capture-scheduler`, `frontend`), atrás do Caddy
   compartilhado. `app.causorai.com` e `api.causorai.com`.
@@ -65,11 +67,13 @@ material, repetir em cinco casos.
 2. **Coleta automática dos autos:** comparar um fornecedor (Judit, Escavador ou
    alternativa) com o inventário manual do mesmo caso — cobertura por
    documento, faltas, custo, atraso e intervenção. Só então integrar.
-3. **Prazo automático** (07/10, **local**): publicar e configurar o SMTP na
-   VPS ([plano](desenvolvimento/planos/2026-10-07-prazo-automatico.md),
-   [operação](operacao/captura-periodica.md)). Na primeira execução, o
-   agendador reanalisa em lotes de 100 por ciclo as intimações da versão
-   anterior (custo de chamadas ao Haiku).
+3. **Prazo automático** (implantado em 07/10, `c72e776`): configurar o SMTP
+   na VPS (`CAUSOR_SMTP_HOST`, `CAUSOR_SMTP_USER`, `CAUSOR_SMTP_FROM`,
+   `CAUSOR_SMTP_PASSWORD`) e conferir na conta de teste que a reanálise
+   automática converteu as intimações da versão anterior
+   ([plano](desenvolvimento/planos/2026-10-07-prazo-automatico.md),
+   [operação](operacao/captura-periodica.md)). Custo estimado da reanálise:
+   cerca de US$ 0,005 por intimação (Haiku), uma vez.
 4. Interface: reformulação "Papel e tinta" **implantada** em 07/10
    (`0db2b1b`, [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37585288275)
    e deploy verdes): um sistema visual só, com Satoshi nos títulos e Inter na
