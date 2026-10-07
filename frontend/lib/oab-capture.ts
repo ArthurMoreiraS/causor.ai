@@ -11,7 +11,9 @@ export function captureResultFromJob(job: JobExecucao): CaptureResult {
     prazos_registrados: count("prazos_registrados"),
     prazos_historicos: count("prazos_historicos"),
     djen_indisponivel: Boolean(result.djen_indisponivel),
-    djen_erro: typeof result.djen_erro === "string" ? result.djen_erro : null
+    djen_erro: typeof result.djen_erro === "string" ? result.djen_erro : null,
+    ...(typeof result.publicacoes_encontradas === "number" ? { publicacoes_encontradas: result.publicacoes_encontradas } : {}),
+    ...(Array.isArray(result.ufs_sugeridas) ? { ufs_sugeridas: result.ufs_sugeridas.map(String) } : {})
   };
 }
 

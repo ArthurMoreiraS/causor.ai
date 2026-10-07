@@ -628,6 +628,56 @@ h2 {
   background: var(--ok-bg);
 }
 
+/* Aviso com título, explicação e uma ação: ícone | texto | botão | fechar. */
+.noticeWithAction {
+  gap: 12px;
+  padding: 12px 12px 12px 14px;
+}
+.noticeWithAction .noticeIcon {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: 1px;
+}
+.noticeBody {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 1.4;
+}
+.noticeBody strong {
+  font-weight: 600;
+}
+.noticeBody span {
+  color: var(--muted);
+}
+.noticeWithAction .noticeAction {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.noticeWithAction .dismiss-notice {
+  margin-left: 0;
+}
+@media (max-width: 640px) {
+  .noticeWithAction {
+    position: relative;
+    flex-wrap: wrap;
+    padding-right: 40px;
+  }
+  .noticeWithAction .noticeBody {
+    flex-basis: calc(100% - 30px);
+  }
+  .noticeWithAction .noticeAction {
+    margin-left: 30px;
+  }
+  .noticeWithAction .dismiss-notice {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+  }
+}
+
 .classificationNotice {
   align-items: stretch;
   gap: 14px;

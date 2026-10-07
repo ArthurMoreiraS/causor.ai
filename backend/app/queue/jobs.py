@@ -10,6 +10,7 @@ from collections.abc import Callable
 from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -225,6 +226,7 @@ def run_capture_oab_job(
         )
         outcome = {
                 "intimacoes_novas": result.intimacoes_novas,
+                "publicacoes_encontradas": result.publicacoes_encontradas,
                 "processos_enriquecidos": result.processos_enriquecidos,
                 "prazos_registrados": result.prazos_registrados,
                 "prazos_historicos": result.prazos_historicos,
@@ -235,6 +237,8 @@ def run_capture_oab_job(
             job.resultado = outcome
             mark_failed(session, job, result.djen_erro or "DJEN indisponível")
         else:
+            outcome.update(_sugestao_uf(djen, oab=oab, uf=uf, data_inicio=data_inicio,
+                                        data_fim=data_fim, publicacoes=result.publicacoes_encontradas))
             mark_completed(session, job, outcome)
         _advance_manual_oab_cursor(session, job, data_inicio, data_fim)
         return job
@@ -262,6 +266,7 @@ def run_capture_oab_job(
         )
         totals = PollResult(
             intimacoes_novas=totals.intimacoes_novas + partial.intimacoes_novas,
+            publicacoes_encontradas=totals.publicacoes_encontradas + partial.publicacoes_encontradas,
             processos_enriquecidos=totals.processos_enriquecidos + partial.processos_enriquecidos,
             prazos_registrados=totals.prazos_registrados + partial.prazos_registrados,
             prazos_historicos=totals.prazos_historicos + partial.prazos_historicos,
@@ -273,6 +278,7 @@ def run_capture_oab_job(
             djen_erro = partial.djen_erro
         job.resultado = {
             "intimacoes_novas": totals.intimacoes_novas,
+            "publicacoes_encontradas": totals.publicacoes_encontradas,
             "processos_enriquecidos": totals.processos_enriquecidos,
             "prazos_registrados": totals.prazos_registrados,
             "prazos_historicos": totals.prazos_historicos,
@@ -302,6 +308,7 @@ def run_capture_oab_job(
         job,
         {
             "intimacoes_novas": totals.intimacoes_novas,
+            "publicacoes_encontradas": totals.publicacoes_encontradas,
             "processos_enriquecidos": totals.processos_enriquecidos,
             "prazos_registrados": totals.prazos_registrados,
             "prazos_historicos": totals.prazos_historicos,
@@ -309,10 +316,27 @@ def run_capture_oab_job(
             "windows_total": total_windows,
             "djen_indisponivel": djen_indisponivel,
             "djen_erro": djen_erro,
+            **_sugestao_uf(djen, oab=oab, uf=uf, data_inicio=data_inicio, data_fim=data_fim,
+                           publicacoes=totals.publicacoes_encontradas),
         },
     )
     _advance_manual_oab_cursor(session, job, data_inicio, data_fim)
     return job
+
+
+def _sugestao_uf(djen, *, oab: str, uf: str, data_inicio: date | None, data_fim: date | None,
+                 publicacoes: int) -> dict:
+    """Quando o DJEN não devolve nada para OAB/UF, sugere as UFs da inscrição.
+
+    Melhor esforço: falha na consulta extra não altera o resultado da captura.
+    """
+    if publicacoes or data_inicio is None or data_fim is None or not hasattr(djen, "ufs_da_inscricao"):
+        return {}
+    try:
+        ufs = djen.ufs_da_inscricao(oab, data_inicio=data_inicio, data_fim=data_fim)
+    except httpx.HTTPError:
+        return {}
+    return {"ufs_sugeridas": [item for item in ufs if item != uf.upper()][:5]}
 
 
 def _lock_capture_job(session: Session, job_id: int) -> models.JobExecucao:

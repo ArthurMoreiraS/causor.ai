@@ -11,7 +11,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   defaultOab: "",
-  defaultUf: "SP",
+  defaultUf: "",
   confidenceThreshold: 0.75
 };
 

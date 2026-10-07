@@ -123,3 +123,23 @@ def test_consultar_retries_read_timeout(httpx_mock):
 
     assert len(result) == 2
     assert len(httpx_mock.get_requests()) == 2
+
+
+def test_ufs_da_inscricao_consulta_sem_uf_e_ordena_por_ocorrencia(httpx_mock, client):
+    def item(*advogados):
+        return {"id": 1, "destinatarioadvogados": [{"advogado": {"numero_oab": n, "uf_oab": uf}} for n, uf in advogados]}
+
+    httpx_mock.add_response(json={"items": [
+        item(("68703", "SC"), ("1", "SC")),
+        item(("068703", "DF")),
+        item(("68703", "SC")),
+        item(("99999", "SP")),
+    ]})
+
+    ufs = client.ufs_da_inscricao("68703", data_inicio=date(2026, 7, 9), data_fim=date(2026, 10, 7))
+
+    assert ufs == ["SC", "DF"]
+    params = httpx_mock.get_requests()[0].url.params
+    assert "ufOab" not in params
+    assert params["numeroOab"] == "68703"
+    assert params["dataDisponibilizacaoFim"] == "2026-10-07"

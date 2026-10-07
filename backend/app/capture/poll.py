@@ -34,6 +34,9 @@ class UnboundedCaptureError(ValueError):
 @dataclass
 class PollResult:
     intimacoes_novas: int = 0
+    # Publicações devolvidas pelo DJEN na janela, novas ou já conhecidas. Zero
+    # distingue "a fonte não tem nada para esta OAB/UF" de "nada novo".
+    publicacoes_encontradas: int = 0
     processos_enriquecidos: int = 0
     # Intimações antigas cujo prazo provisório já venceria antes de hoje: a
     # intimação é gravada, o prazo não (seria alarme falso no painel de risco).
@@ -131,6 +134,7 @@ def poll_oab(
             result.djen_erro = f"DJEN HTTP {status}" if status else "DJEN indisponível por falha de rede"
             return result
 
+        result.publicacoes_encontradas += 1
         intimacao = normalize_intimacao(session, comunicacao, escritorio_id=escritorio_id)
         is_new = intimacao in session.new or getattr(intimacao, "_capture_created", False)
         session.flush()

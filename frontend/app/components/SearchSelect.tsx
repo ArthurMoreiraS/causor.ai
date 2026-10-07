@@ -23,12 +23,15 @@ export default function SearchSelect({
   emptyLabel = "Nenhum resultado encontrado",
   name,
   options,
+  placeholder,
   value,
   onChange
 }: {
   disabled?: boolean;
   emptyLabel?: string;
   name?: string;
+  /** Com placeholder, valor sem opção correspondente fica vazio em vez de cair na primeira opção. */
+  placeholder?: string;
   options: SearchSelectOption[];
   value: string;
   onChange: (value: string) => void;
@@ -38,7 +41,8 @@ export default function SearchSelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const selectedOption = options.find((option) => option.value === value) ?? options[0];
+  const selectedOption: SearchSelectOption | undefined =
+    options.find((option) => option.value === value) ?? (placeholder === undefined ? options[0] : undefined);
   const filteredOptions = useMemo(() => {
     const normalizedQuery = normalizeSearch(query);
     if (!normalizedQuery) return options;
@@ -113,7 +117,7 @@ export default function SearchSelect({
         }
       }}
     >
-      {name ? <input type="hidden" name={name} value={selectedOption.value} /> : null}
+      {name ? <input type="hidden" name={name} value={selectedOption?.value ?? ""} /> : null}
       <div className="searchSelectControl">
         <Search size={13} aria-hidden="true" />
         <input
@@ -123,7 +127,8 @@ export default function SearchSelect({
           aria-expanded={open}
           aria-controls={listboxId}
           aria-autocomplete="list"
-          value={open ? query : selectedOption.label}
+          value={open ? query : selectedOption?.label ?? ""}
+          placeholder={placeholder}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -140,11 +145,11 @@ export default function SearchSelect({
               <button
                 type="button"
                 className={`searchSelectOption${option.detail ? " withDetail" : ""}${
-                  option.value === selectedOption.value ? " selected" : ""
+                  option.value === selectedOption?.value ? " selected" : ""
                 }${index === activeIndex ? " active" : ""}`}
                 key={option.value}
                 role="option"
-                aria-selected={option.value === selectedOption.value}
+                aria-selected={option.value === selectedOption?.value}
                 onMouseEnter={() => setActiveIndex(index)}
                 onMouseDown={(event) => event.preventDefault()}
                 onClick={() => selectOption(option)}

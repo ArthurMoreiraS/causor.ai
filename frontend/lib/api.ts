@@ -222,6 +222,10 @@ export type CaptureResult = {
   // gravadas, mas não geram prazo (evita parede de alarme falso no painel de
   // risco). Opcional porque backend anterior à mudança não envia o campo.
   prazos_historicos?: number;
+  /** Publicações devolvidas pelo DJEN na janela (novas ou já conhecidas). */
+  publicacoes_encontradas?: number;
+  /** UFs em que o número da OAB aparece quando a UF informada não trouxe nada. */
+  ufs_sugeridas?: string[];
 };
 
 export type ReviewQueueItem = {

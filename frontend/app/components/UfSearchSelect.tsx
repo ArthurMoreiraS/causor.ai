@@ -7,11 +7,13 @@ import SearchSelect from "./SearchSelect";
 export default function UfSearchSelect({
   disabled,
   name = "uf",
+  placeholder,
   value,
   onChange
 }: {
   disabled?: boolean;
   name?: string;
+  placeholder?: string;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -32,6 +34,7 @@ export default function UfSearchSelect({
       emptyLabel="Nenhuma UF encontrada"
       name={name}
       options={options}
+      placeholder={placeholder}
       value={value.toUpperCase()}
       onChange={onChange}
     />

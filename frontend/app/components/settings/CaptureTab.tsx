@@ -89,6 +89,7 @@ export default function CaptureTab({
           <label>
             UF
             <UfSearchSelect
+              placeholder="Sem UF padrão"
               value={settings.defaultUf}
               disabled={offline}
               name="default_uf"

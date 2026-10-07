@@ -12,6 +12,7 @@ params/field names against the live Swagger before production use.
 from __future__ import annotations
 
 import time
+from collections import Counter
 from collections.abc import Callable
 from datetime import date
 
@@ -97,6 +98,39 @@ class DjenClient:
         body = response.json()
         items = body.get("items") or []
         return [ComunicacaoDTO.from_item(item) for item in items]
+
+    def ufs_da_inscricao(
+        self,
+        oab: str,
+        *,
+        data_inicio: date,
+        data_fim: date,
+    ) -> list[str]:
+        """UFs em que o número aparece como advogado destinatário na janela.
+
+        Uma página, sem filtro de UF: serve para sugerir a UF quando a consulta
+        com a UF informada não devolve nada. Cada UF é uma inscrição diferente;
+        a escolha continua sendo da pessoa.
+        """
+        params: dict[str, str | int] = {
+            "numeroOab": oab,
+            "pagina": 1,
+            "itensPorPagina": 100,
+            "dataDisponibilizacaoInicio": data_inicio.isoformat(),
+            "dataDisponibilizacaoFim": data_fim.isoformat(),
+        }
+        response = self._get_with_retry("/comunicacao", params=params)
+        response.raise_for_status()
+        alvo = oab.strip().upper().lstrip("0")
+        contagem: Counter[str] = Counter()
+        for item in response.json().get("items") or []:
+            for destinatario in item.get("destinatarioadvogados") or []:
+                advogado = destinatario.get("advogado") or {}
+                numero = str(advogado.get("numero_oab") or "").strip().upper().lstrip("0")
+                uf = str(advogado.get("uf_oab") or "").strip().upper()
+                if numero == alvo and uf:
+                    contagem[uf] += 1
+        return [uf for uf, _ in contagem.most_common()]
 
     def _get_with_retry(
         self, path: str, *, params: dict[str, str | int]

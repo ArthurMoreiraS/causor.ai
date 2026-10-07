@@ -305,3 +305,60 @@ def test_manual_cursor_so_avanca_com_janela_concluida_e_valida(db_session, escri
     monitored.ativo = False
     _advance_manual_oab_cursor(db_session, job, start, date(2024, 2, 1))
     assert monitored.cursor_data == end
+
+
+class FakeDjenComSugestao(FakeDjen):
+    def __init__(self, items, ufs):
+        super().__init__(items)
+        self.ufs = ufs
+        self.sugestao_calls = 0
+
+    def ufs_da_inscricao(self, oab, *, data_inicio, data_fim):
+        self.sugestao_calls += 1
+        return self.ufs
+
+
+def _job_janela(db_session, escritorio, uf="SP"):
+    job = create_job(
+        db_session, tipo="captura_oab", entidade="oab_monitorada", entidade_id=1,
+        payload={"oab": "68703", "uf": uf, "escritorio_id": escritorio.id,
+                 "data_inicio": "2024-09-01", "data_fim": "2024-09-30"},
+    )
+    db_session.flush()
+    return job
+
+
+def test_captura_vazia_sugere_ufs_da_inscricao(db_session, escritorio, calendar):
+    job = _job_janela(db_session, escritorio)
+    djen = FakeDjenComSugestao([], ["SC", "SP", "DF"])
+
+    run_capture_oab_job(db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar)
+
+    assert job.status == "completed"
+    assert job.resultado["publicacoes_encontradas"] == 0
+    assert job.resultado["ufs_sugeridas"] == ["SC", "DF"]
+
+
+def test_captura_com_publicacoes_nao_consulta_sugestao(db_session, escritorio, calendar):
+    job = _job_janela(db_session, escritorio)
+    djen = FakeDjenComSugestao([_comunicacao()], ["SC"])
+
+    run_capture_oab_job(db_session, job.id, djen=djen, datajud=FakeDatajud(), calendar=calendar,
+                        hoje=date(2024, 9, 9))
+
+    assert job.resultado["publicacoes_encontradas"] == 1
+    assert "ufs_sugeridas" not in job.resultado
+    assert djen.sugestao_calls == 0
+
+
+def test_falha_na_sugestao_nao_altera_a_captura(db_session, escritorio, calendar):
+    class DjenSugestaoFalha(FakeDjen):
+        def ufs_da_inscricao(self, oab, *, data_inicio, data_fim):
+            raise httpx.ConnectError("offline")
+
+    job = _job_janela(db_session, escritorio)
+    run_capture_oab_job(db_session, job.id, djen=DjenSugestaoFalha([]), datajud=FakeDatajud(), calendar=calendar)
+
+    assert job.status == "completed"
+    assert job.resultado["publicacoes_encontradas"] == 0
+    assert "ufs_sugeridas" not in job.resultado

@@ -81,7 +81,7 @@ import { humanError } from "@/lib/errors";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import { computeDashboardMetrics } from "@/lib/metrics";
-import { captureFailureMessage } from "@/lib/capture-outcome";
+import { captureEmptyMessage, captureFailureMessage } from "@/lib/capture-outcome";
 import {
   daysUntil,
   matchesQuery,
@@ -174,7 +174,7 @@ export default function Home() {
   const [oabForm, setOabForm] = useState<{ open: boolean; oab: string; uf: string }>({
     open: false,
     oab: "",
-    uf: "SP"
+    uf: ""
   });
   const [oabsMonitoradas, setOabsMonitoradas] = useState<OabMonitorada[]>([]);
   const [oabsLoaded, setOabsLoaded] = useState(false);
@@ -182,8 +182,15 @@ export default function Home() {
     void loadOabsMonitoradas();
   }, (job: JobExecucao) => {
     const result = captureResultFromJob(job);
-    setCaptureContext({ oab: String(job.payload?.oab ?? ""), uf: String(job.payload?.uf ?? "") });
-    if (job.status === "completed") {
+    const jobOab = String(job.payload?.oab ?? "");
+    const jobUf = String(job.payload?.uf ?? "");
+    setCaptureContext({ oab: jobOab, uf: jobUf });
+    const empty = job.status === "completed" ? captureEmptyMessage(result, jobOab, jobUf) : null;
+    if (empty) {
+      // Mantém o modal aberto: o próximo passo provável é corrigir a UF.
+      setCaptureResult(result);
+      toast({ kind: "error", title: "Nenhuma publicação encontrada", description: empty });
+    } else if (job.status === "completed") {
       setCaptureResult(result);
       setOabForm((f) => ({ ...f, open: false }));
       toast({ kind: "success", title: "Captura concluída", description: `${result.intimacoes_novas} intimações novas. Confira a origem e o prazo antes de preparar o trabalho.` });
@@ -231,8 +238,8 @@ export default function Home() {
   }
 
   function openOab() {
-    const defaultUf = (settings.defaultUf || "SP").toUpperCase();
-    const validUf = BRASIL_UFS.some((uf) => uf.sigla === defaultUf) ? defaultUf : "SP";
+    const defaultUf = (settings.defaultUf || "").toUpperCase();
+    const validUf = BRASIL_UFS.some((uf) => uf.sigla === defaultUf) ? defaultUf : "";
     setOabForm((f) => ({
       ...f,
       open: true,
@@ -879,16 +886,30 @@ export default function Home() {
           </div>
         ) : null}
 
-        {captureResult && resultVisible ? (
-          <div className="notice success">
-            <CheckCircle2 size={18} />
-            <span>
-              Captura concluída
-              {captureContext ? ` para OAB ${captureContext.oab}/${captureContext.uf}` : ""}:{" "}
-              {captureResult.intimacoes_novas} intimações novas. Acompanhe a análise de prazos em Intimações.
-              Os prazos sugeridos exigem conferência; os autos dependem dos documentos recebidos.
-              <button type="button" className="toolbarButton compact" onClick={() => setView("intimacoes")}>Revisar intimações</button>
-            </span>
+        {captureResult && resultVisible && captureContext ? (
+          <div className={captureEmptyMessage(captureResult, captureContext.oab, captureContext.uf) ? "notice noticeWithAction" : "notice success noticeWithAction"}>
+            {captureEmptyMessage(captureResult, captureContext.oab, captureContext.uf) ? (
+              <>
+                <AlertTriangle size={18} className="noticeIcon" />
+                <div className="noticeBody">
+                  <strong>Nenhuma publicação encontrada para a OAB {captureContext.oab}/{captureContext.uf}</strong>
+                  <span>{captureEmptyMessage(captureResult, captureContext.oab, captureContext.uf)}</span>
+                </div>
+                <button type="button" className="toolbarButton compact noticeAction" onClick={openOab}>Corrigir OAB</button>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 size={18} className="noticeIcon" />
+                <div className="noticeBody">
+                  <strong>
+                    Captura concluída para a OAB {captureContext.oab}/{captureContext.uf}: {captureResult.intimacoes_novas}{" "}
+                    {captureResult.intimacoes_novas === 1 ? "intimação nova" : "intimações novas"}
+                  </strong>
+                  <span>Os prazos sugeridos exigem conferência em Intimações; os autos dependem dos documentos enviados.</span>
+                </div>
+                <button type="button" className="toolbarButton compact noticeAction" onClick={() => setView("intimacoes")}>Revisar intimações</button>
+              </>
+            )}
             <button
               className="dismiss-notice"
               onClick={() => setCaptureResult(null)}
@@ -1101,6 +1122,7 @@ export default function Home() {
               <label>
                 UF
                 <UfSearchSelect
+                  placeholder="Selecione a UF da inscrição"
                   value={oabForm.uf}
                   disabled={capture.phase === "sending"}
                   onChange={(uf) => setOabForm((f) => ({ ...f, uf }))}
@@ -1113,7 +1135,10 @@ export default function Home() {
                     {capture.phase === "sending" ? "Registrando OAB e solicitando captura..." : null}
                     {capture.phase === "queued" ? `${captureLabel}: aguardando início da consulta.` : null}
                     {capture.phase === "running" ? `${captureLabel}: consulta em andamento. ${capture.job ? captureProgress(capture.job) ?? "Aguardando confirmação do primeiro período." : ""}` : null}
-                    {capture.phase === "completed" && capture.job ? `${captureLabel}: captura concluída, ${captureResultFromJob(capture.job).intimacoes_novas} intimações novas. Acompanhe a análise de prazos em Intimações.` : null}
+                    {capture.phase === "completed" && capture.job
+                      ? captureEmptyMessage(captureResultFromJob(capture.job), String(capture.job.payload?.oab ?? ""), String(capture.job.payload?.uf ?? ""))
+                        ?? `${captureLabel}: captura concluída, ${captureResultFromJob(capture.job).intimacoes_novas} intimações novas. Acompanhe a análise de prazos em Intimações.`
+                      : null}
                     {capture.phase === "failed" && capture.job ? `${captureLabel}: captura falhou. ${captureFailureMessage(captureResultFromJob(capture.job)) ?? capture.job.erro ?? "Consulte o histórico."}` : null}
                     {capture.phase === "lost" ? `Acompanhamento interrompido${capture.job ? ` para ${captureLabel}` : ""}. ${capture.trackingError ?? "Verifique novamente; o trabalho pode continuar no servidor."}` : null}
                     {capture.phase === "queued" && capture.job && capture.now - new Date(capture.job.created_at).getTime() > 30000 ? " A consulta ainda não começou. Você pode fechar e acompanhar depois." : null}

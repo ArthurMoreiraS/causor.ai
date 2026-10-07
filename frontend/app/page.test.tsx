@@ -127,6 +127,10 @@ describe("Home OAB capture modal", () => {
     await waitFor(() => expect(api.listarCapturasOab).toHaveBeenCalledTimes(2));
     await act(async () => {});
     fireEvent.change(within(modal()).getByPlaceholderText("Número da OAB"), { target: { value: "249340" } });
+    // Sem UF escolhida não há captura: evita consultar a inscrição errada.
+    expect((within(modal()).getByRole("button", { name: "Capturar" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.focus(within(modal()).getByPlaceholderText("Selecione a UF da inscrição"));
+    fireEvent.click(within(modal()).getByRole("option", { name: /^SP/ }));
     fireEvent.click(within(modal()).getByRole("button", { name: "Capturar" }));
     await waitFor(() => expect(within(modal()).getByRole("status").textContent).toContain("aguardando início"));
     expect(api.iniciarCapturaOab).toHaveBeenCalledTimes(1);
