@@ -64,11 +64,13 @@ material, repetir em cinco casos.
 2. **Coleta automática dos autos:** comparar um fornecedor (Judit, Escavador ou
    alternativa) com o inventário manual do mesmo caso — cobertura por
    documento, faltas, custo, atraso e intervenção. Só então integrar.
-3. Interface: reformulação "Papel e tinta" feita em 07/10 (**local**, não
-   implantada): um sistema visual só, com Satoshi nos títulos e Inter na
+3. Interface: reformulação "Papel e tinta" **implantada** em 07/10
+   (`0db2b1b`, [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37585288275)
+   e deploy verdes): um sistema visual só, com Satoshi nos títulos e Inter na
    interface, fundo papel e verde da landing, tabelas com colunas alinhadas e
-   selos em frase normal. `pnpm check` e `pnpm build` verdes; conferida em
-   prints com API simulada de dados fictícios. Plano em
+   selos em frase normal. Aprovada pelo fundador no ambiente local; em
+   produção, conferidos `/health` 200, `/me` sem sessão 401, app 200 e as
+   fontes novas servidas. Plano em
    [`desenvolvimento/planos/2026-10-07-reformulacao-ui.md`](desenvolvimento/planos/2026-10-07-reformulacao-ui.md).
 
 ## Fora do escopo agora
