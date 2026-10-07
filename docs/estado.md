@@ -24,9 +24,13 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 
 ## Produção
 
-- **Versão implantada:** `0fa24e2` (06/10). A reestruturação de 06–07/10
-  (limpeza de docs, remoção do agente local e do protocolo) entra na próxima
-  publicação; confira o SHA implantado antes de considerá-la em produção.
+- **Versão implantada:** `b0fd16c` (07/10): reestruturação com remoção do
+  agente local e do protocolo.
+  [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37576541510) e
+  [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37576706835)
+  aprovados; o deploy verifica o SHA nos cinco serviços. Conferência externa:
+  `/health` 200, `/me` sem sessão 401, rotas de agente e conectores 404,
+  OpenAPI sem rotas de protocolo, login do frontend 200.
 - **Infra:** VPS Hostinger com Docker Compose (`backend`, `worker`,
   `autos-worker`, `capture-scheduler`, `frontend`), atrás do Caddy
   compartilhado. `app.causorai.com` e `api.causorai.com`.
