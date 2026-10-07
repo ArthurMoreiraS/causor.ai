@@ -1,0 +1,695 @@
+# Proximos passos - MVP
+
+> **06/10 — modelos por tarefa implantados (`0fa24e2`).** Sonnet 5.5 para análise
+> de evidências/minutas e resumo aprofundado escolhido no envio; Haiku 4.5
+> mantido na triagem, chat e resumo padrão. Perfil persiste nas tentativas;
+> citações originais e resumos completos preservados. Comparação por modelo
+> disponível no CLI; Sonnet 5/5.5 e resumo aprofundado passaram com dados
+> fictícios nas APIs reais. Não é avaliação de qualidade jurídica.
+> Frontend lint/tipos/163 testes/build e 61 regressões backend aprovados.
+> [Operação](../operacao/modelos-llm.md) e
+> [plano/evidência](desenvolvimento/planos/2026-10-06-modelos-por-tarefa.md).
+> Suíte completa local: 843 backend/112 ignorados e Ruff aprovados, SQLite
+> descartável e credenciais externas vazias.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37538041609):
+> 843 backend, 163 frontend e 104 PostgreSQL em cada versão 16/17.
+> [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37538261729):
+> SHA `0fa24e2cce9d4dffacc900462f23aa54f481ec51` conferido nos cinco serviços.
+> Log da VPS confirmou Sonnet 5.5 em draft e Haiku 4.5 em context/classification/chat.
+> Verificação externa: health/login 200, sessão Auth técnica sem email,
+> usuário/escritório original e oito rotas autenticadas 200. Novo campo
+> `perfil_resumo` rejeitou valor inválido com 422 antes de processar arquivos.
+> Sem sessão: 401; REST direto ao SOR: 403; frontend no novo Supabase Free.
+> Percurso com documentos fictícios aprovado localmente; avaliação jurídica
+> com caso real e revisão pelo advisor continuam pendentes.
+
+> **06/10 — retomada do MVP em 48 horas; captura periódica implantada (`fb80cfc`).**
+> Implementado `capture-scheduler`: fila persistente, tick de 300s, espera após
+> falha de 900s, intervalo por OAB, deduplicação com consulta manual e validação
+> de cadastro ativo. Cursor só avança após janela concluída; falha conserva
+> período anterior. Compose/deploy incluem saúde e SHA do novo serviço.
+> 54 testes direcionados, 803 backend aprovados/108 ignorados e Ruff aprovado;
+> credenciais externas vazias e SQLite descartável na suíte completa. Frontend
+> lint/tipos/testes/build aprovados. Edge com dados/PDFs/providers fictícios
+> percorreu criação, upload, escopo, fontes, pendência, conferência, minuta,
+> recarga e mobile. Encontrada/corrigida lista de PDFs que não atualizava após
+> upload, preservando campos em edição.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37511358811):
+> 803 backend, 161 frontend e 102 PostgreSQL em cada versão 16/17.
+> [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37511754978):
+> log verificou SHA `fb80cfc8dc6a982a52c8169ca804b6b43e4b1b54` nos cinco
+> serviços (incluindo scheduler); consulta externa posterior health 200.
+> Antes da migração abaixo, Auth da origem respondia 402 e API health 200;
+> suporte humano ainda sem retorno.
+> Advisor trará OAB aleatória; caso com documentos/revisão real não definido.
+> Captura vazia não é falha e OAB não fornece automaticamente os autos completos.
+> [Plano de 48h](../desenvolvimento/planos/2026-10-06-mvp-48-horas.md),
+> [operação do agendador](../operacao/captura-periodica.md) e
+> [aceite do primeiro caso](../operacao/aceite-mvp-2026-10-08.md).
+
+> **06/10 — novo Supabase Free conectado e validado em produção (`8ee24b7`).**
+> Fundador enviou credenciais, autorizou a troca e confirmou outra organização.
+> Backup final com escritas pausadas e restore real gerenciado concluídos:
+> 62 tabelas conferidas por fingerprints, sequences iguais, usuário/UUID/hash
+> de senha e 1.235 eventos de auditoria preservados. Origem e backups mantidos.
+> VPS e envs locais apontam ao destino; frontend reconstruído com chave pública.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37522418524):
+> 829 backend/111 ignorados, 161 frontend, 103 PG em cada versão 16/17 e Ruff.
+> [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37522648602)
+> verificou SHA nos cinco serviços e health 200. Sessão Auth real criada por
+> token técnico, sem enviar email; `/me` confirmou usuário/escritório original.
+> Perfil, dashboard, OABs, intimações, processos, prazos, petições e jobs: 200.
+> Login HTML/chunks: 200, projeto/chave pública novos, sem chave administrativa.
+> API sem sessão: 401; REST direto ao SOR com sessão Supabase: 403. Grants
+> public/sequences bloqueados para anon/authenticated/PUBLIC; JWKS limitado ao
+> projeto confiável. Segredo HS256 antigo retirado e secrets temporários removidos.
+> Sem upgrade. Login com senha no navegador do fundador ainda requer sua
+> conferência; sessão técnica não equivale a piloto jurídico. OAB/caso/documentos
+> reais e revisão da minuta pelo advisor continuam pendentes.
+> [Procedimento](operacao/migracao-supabase-free.md) e
+> [escopo autorizado](desenvolvimento/planos/2026-10-06-migracao-supabase-free.md).
+
+> **05/10 — consumo Supabase diagnosticado e correção local validada.**
+> Painel informado pelo fundador: 37,39 GB de egress não cacheado / 5 GB,
+> concentrados em 30/09 e 01/10. Auth respondeu HTTP 402; API `/health` 200.
+> Banco ainda acessível em READ ONLY. Estatísticas históricas mostram leituras
+> repetidas de texto/payload de intimações; não atribuem integralmente o consumo
+> deste ciclo. Métricas agora agregam no SQL; listagens projetam apenas campos
+> necessários e memória de prazo. Acompanhamento usa estados compactos,
+> pausa em aba oculta e recarrega listas ao terminar. 37 testes backend
+> direcionados, Ruff, lint/tipos e 160 testes frontend aprovados. Novas consultas
+> executadas em PostgreSQL real somente leitura, com registros atuais zerados;
+> casos PostgreSQL preenchidos aguardam CI descartável. Sem deploy nem upgrade.
+> Fundador confirmou permanecer no Free. Liberação automática gratuita depende
+> da renovação indicada no email em 22/10; fundador confirmou envio do pedido
+> de exceção ao suporte, ainda sem resposta ou liberação confirmada.
+> Consumo mensal da versão corrigida ainda não medido.
+> Fundador retirou o fluxo obrigatório Astra/Sol; execução direta nesta sessão,
+> sem alterar modelos do produto. [Registro e limites](desenvolvimento/planos/2026-10-05-consumo-supabase.md).
+
+> **02/10 — contexto e minuta recuperável implantados (`edf41d1`).** Trabalhos
+> passa a executar análise/redação em fila persistente, com retomada ao voltar
+> à tela e repetição da solicitação sem duplicar a peça. Usa comunicação atual,
+> autos recebidos e histórico SOR identificado; fonte, objetivo ou prazo alterado
+> impedem publicar resultado obsoleto. Recuperação protege contra retorno de
+> executor antigo; minuta, resultado e auditoria são gravados juntos.
+> Executor: 775 testes backend aprovados/97 ignorados na suíte completa antes
+> da última regressão; 54 direcionados finais, Ruff, lint/tipos e 151 testes
+> frontend aprovados. Coordenador revisou o diff e repetiu 54 backend e 20
+> frontend, aprovados. Percurso HTTP integrado passou com providers simulados
+> e PDF em diretório temporário. [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36968706729),
+> incluindo PostgreSQL 16/17 e build Linux do frontend;
+> [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36968854757).
+> Log confirmou SHA `edf41d1afb06308b80e50cb9b0d354e56f1a1294` nos quatro
+> serviços; consulta externa posterior `/health` respondeu `status: ok`.
+> Sem validação visual ou jurídica real. Agendamento periódico da captura e
+> coleta automática de autos continuam sem comprovação operacional.
+> [Plano e limites](desenvolvimento/planos/2026-10-01-contexto-manual-e-minuta.md).
+
+> **01/10 — retomada: intimação e histórico na preparação da minuta, local.**
+> Bloco 4a concluído e revisado: análise recebe o teor atual junto ao acervo e ao
+> histórico SOR identificado; snapshots de fontes/metadados/prazo impedem
+> publicação obsoleta. Minutas do próprio trabalho não viram evidência; cortes
+> do histórico ficam explícitos e prazo a revisar é informado como provisório.
+> Executor e coordenador verificaram 54 testes relacionados, Ruff e diff check,
+> aprovados. Bloco 4b em execução: fila persistente e retomada da análise/redação
+> na tela, ainda sem implantação. Consulta somente leitura nesta retomada
+> confirmou `main` remoto em `5a8426689676b9420c9a63c94342f3a080161863` e API
+> externa `/health` normal; isso não comprova o novo bloco nem o cron de captura.
+> Inventário de navegador vazio; verificação visual, PostgreSQL concorrente e
+> caso jurídico real continuam pendentes. Nenhum lote real foi reprocessado.
+> [Plano da continuação](desenvolvimento/planos/2026-10-01-contexto-manual-e-minuta.md).
+
+> **01/10 — duração legal de prazo implantada (`5a84266`).**
+> Catálogo inicial restrito a três atos CPC: contrarrazões de apelação,
+> manifestação do embargado e manifestação sobre novos documentos. Exige
+> comando atual e artigo/parágrafo literais no teor; a duração vem do catálogo,
+> com fonte normativa, versão e prova guardadas na memória. Prazo judicial
+> expresso conserva seu caminho. Regime especial em classe/órgão oficial,
+> comando anterior, ambiguidade ou conflito permanecem como exceção explicada.
+> Executor: 753 testes backend aprovados/82 ignorados antes das últimas guardas,
+> 21 testes finais direcionados e Ruff aprovados. Coordenador revisou os cinco
+> arquivos e repetiu 27 testes de interpretação/captura/matemática, aprovados.
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36916027697)
+> e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36916241217).
+> Calendários locais ainda não homologados: resultados automáticos continuam
+> identificados como calculados a revisar. Não houve teste jurídico com casos
+> reais nem reprocessamento da produção. Próximo bloco em execução: integrar
+> intimação atual e histórico à análise dos autos e descartar minuta se a fonte
+> ou o prazo mudar durante a geração.
+
+> **01/10 — preparação do contexto implantada (`602de50`).** Trabalhos reúne
+> Objetivo, Documentos e contexto, Minuta e revisão. Processo capturado permite
+> vincular/cadastrar cliente; envio herda processo e grau. Campos de objetivo,
+> índice e perguntas são protegidos durante atualização/navegação; respostas
+> antigas não publicam em outro trabalho. Alterar perguntas/fontes impede usar
+> conferência anterior. Inventário distingue versões recebidas de texto extraído.
+> Executor: lint, tipos e 144 testes frontend aprovados. Coordenador revisou o
+> diff e repetiu 33 regressões, aprovadas. [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36914544310)
+> e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36914779203):
+> SHA conferido nos quatro serviços e saúde normal registrada pelo deploy.
+> Sem conferência visual real. Segue implementação do catálogo restrito de regras
+> CPC para duração legal, mantendo cálculo determinístico e motivos de exceção.
+
+> **01/10 — isolamento dos arquivos por ambiente implantado (`45ff3dd`).**
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36815849559),
+> incluindo concorrência em PostgreSQL 16/17; [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36815996053).
+> O deploy verificou a mesma versão em backend, worker, autos-worker e frontend
+> e registrou `/health` normal. A consulta externa adicional não foi executada:
+> a revisão automática de aprovação atingiu o limite de uso da conta.
+> Workers locais não reivindicam jobs cujos PDFs pertencem ao disco de produção
+> e vice-versa. Jobs legados exigem acesso aos bytes; downloads/reprocessamentos
+> indisponíveis retornam 409. Isso não cria armazenamento compartilhado: ainda
+> é necessário configurar um bucket privado para usar os mesmos PDFs nos dois
+> ambientes. Coordenador repetiu 34 testes de storage/upload/recuperação,
+> aprovados. A revisão de cliente, grau de upload e campos de contexto em
+> Trabalhos continua local, sem novo deploy.
+> Consulta somente leitura após a limpeza feita pelo fundador encontrou zero
+> OABs ativas, processos, intimações e prazos na conta consultada; nenhuma
+> exclusão foi executada pelo agente como teste.
+
+> **01/10 — correções de OAB, formulários e análise de prazos implantadas (`cd09869`).**
+> [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36814603047):
+> backend, frontend com build Linux e PostgreSQL 16/17. O primeiro CI encontrou
+> apenas uma expectativa desatualizada da versão de migração; corrigida antes
+> do deploy. [Deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36814744430)
+> verificou o SHA completo em backend, worker, autos-worker e frontend. API
+> externa `/health` 200 e rota `/capturas/oab/remover-dados` presentes após deploy.
+> O feedback de captura fica condicionado ao cadastro ativo; remoção limpa dados
+> exclusivos e preserva registros com autoria/revisão humana ou outra OAB ativa.
+> Nenhuma limpeza real foi executada como teste. A captura inicia análise de prazo
+> assíncrona; casos suportados geram sugestão a revisar, casos incertos conservam
+> motivo pendente. Isso não comprova acerto jurídico dos casos reais.
+> Validação local desta entrega: 742 testes backend e 132 frontend, lint e tipos.
+> Conferência visual real permanece pendente por falta de navegador conectado.
+> Retomada a etapa de contexto manual: primeiro isolar jobs de documentos pelo
+> storage acessível, pois local e produção usam o mesmo banco e discos distintos;
+> depois corrigir cliente, destino do upload e preservação dos campos de contexto.
+
+> **29/09 — execução do fluxo simplificado autorizada.** Após novos relatos do
+> fundador, as correções anteriores de navegação/layout não são consideradas
+> suficientes. O plano reúne correção dos formulários e entradas em Trabalhos,
+> prazos disparados pela captura, contexto manual e geração/revisão da minuta.
+> A implementação está em andamento; não há novo deploy desta etapa.
+> [Plano e critérios de aceite](desenvolvimento/planos/2026-09-29-fluxo-mvp-simplificado.md).
+> Em 30/09: navegação/formulários e pipeline de análise de prazos implementados
+> localmente. Executor registrou 41 testes backend direcionados, 22 selecionados
+> de API/agente e 123 frontend, lint e tipos aprovados. Coordenador repetiu 28
+> testes backend de prazo/captura/agente e Ruff, aprovados. Revisão encontrou
+> indicadores que ainda tratavam sugestão automática como prazo confirmado;
+> indicadores/alertas corrigidos. Confirmação de prazo legado reutiliza a linha;
+> edição preserva feriados locais e atualiza a memória de cálculo. Formulário
+> recebe sugestão atrasada somente enquanto não foi editado.
+> Contexto manual e geração recuperável permanecem na sequência do plano.
+> PostgreSQL/CI e conferência visual ainda pendentes;
+> browser indisponível nesta sessão. Storage local confirmado como disco local,
+> com PostgreSQL compartilhado; PDFs locais não ficam acessíveis em produção.
+> Na revisão dos três screenshots de 30/09, corrigidos alinhamento e quebra de
+> linha do painel de autos, acompanhamento da análise de prazos e avisos da
+> Visão geral; também padronizados campos do índice e caixas de conferência.
+> `pnpm.cmd check`: lint, tipos e 132 testes aprovados. Sem conferência visual
+> real: navegador não conectado e ponte nativa indisponível. Alterações locais,
+> ainda sem deploy; retomada a revisão funcional de prazos e contexto.
+> Em 01/10: corrigido feedback histórico de OAB removida, inclusive resposta
+> atrasada e reabertura. Modal/Configurações usam a mesma limpeza; é possível
+> informar número/UF para limpar uma OAB cujo cadastro já foi removido. Dados
+> exclusivos de captura são removidos, preservando auditoria, casos com trabalho,
+> minuta/documento/tarefa, prazo confirmado e comunicações de outra OAB ativa.
+> Jobs cancelados conservam identidade para impedir retry tardio; cada janela
+> de captura confere o cancelamento. Suíte backend completa: 742 aprovados,
+> 81 ignorados (incluindo PostgreSQL/live); Ruff aprovado. Identificação de OAB
+> preserva o sufixo alfabético para não confundir inscrições diferentes.
+> Nenhuma limpeza real foi executada como teste.
+> [Plano da correção](desenvolvimento/planos/2026-09-30-remocao-oab.md).
+
+> **29/09 — feedback, Novo trabalho e revisão de prazos implantados (`83e4914`).**
+> O commit `cab194d` passou no CI (backend, frontend, PostgreSQL 16 e 17) e
+> no deploy em 28/09. API `/health` 200 e OpenAPI com `request_id` conferidos.
+> O fundador confirmou recebimento de intimações/processos. Consulta READ ONLY
+> de 29/09: 614 intimações, 359 processos, zero prazos e uma OAB ativa; último
+> job concluído com 13 intimações novas e 7/7 janelas, sem erro DJEN.
+> A captura não dispara cálculo: duração, data base e calendário são conferidos
+> no endpoint de revisão de prazo. Tornar esse caminho visível e atualizar o
+> painel após confirmação, corrigir Novo trabalho e animação de carregamento.
+> Correções implementadas e revisadas localmente: 115 testes frontend, lint,
+> tipos e 4 regressões backend aprovados. [CI aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36575280431)
+> (backend, frontend, PostgreSQL 16/17) e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36575485494).
+> API externa `/health` 200 após implantação. Browser indisponível nesta sessão.
+> A captura continua sem calcular automaticamente: a revisão humana informa
+> duração, data base e exceções ao calendário para o motor existente. Extração
+> automática dos parâmetros e validação jurídica de casos reais seguem pendentes.
+> [Plano atual](desenvolvimento/planos/2026-09-29-captura-trabalho-prazo.md).
+
+> **28/09 — acompanhamento da captura implementado.** A consulta somente leitura
+> feita em 27/09 encontrou uma captura concluída com 601 intimações novas;
+> havia 601 intimações e 350 processos no banco. O monitoramento foi removido
+> nove segundos antes de a captura terminar, por isso não havia OAB cadastrada.
+> Uma consulta DJEN limitada feita da máquina local respondeu HTTP 200.
+> Isso atualiza o diagnóstico abaixo: o 403 histórico não explica sozinho a
+> tela presa atual. O frontend aguarda captura síncrona e refresh sem timeout.
+> A correção usa a fila persistente, estados de acompanhamento, timeout e
+> retomada após perda de resposta, com chave de idempotência e isolamento por
+> escritório. Fechar o modal não cancela o job. O resultado aparece antes do
+> refresh do dashboard; enriquecimento DataJud ocorre separadamente.
+> [CI cab194d](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36493631376)
+> e [deploy aprovado](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/36493774462).
+> Validação local: 719 testes backend aprovados (73 ignorados), 105 frontend,
+> lint, tipos e build aprovados. Modal verificado em DOM; navegador e captura
+> autenticada automatizada após a mudança ainda não verificados; fundador
+> confirmou manualmente o recebimento dos dados.
+> [Plano e verificação](desenvolvimento/planos/2026-09-27-captura-oab-responsiva.md)
+> e [diagnóstico atualizado](produto/diagnostico-captura-producao-2026-09-26.md).
+
+> **26/09 — captura em produção diagnosticada.** Auditoria do banco mostra
+> HTTP 403 do DJEN em duas tentativas de 22/09, ambas sem intimações. Hoje não
+> há OAB monitorada nem dados capturados após remoções com limpeza. O checkout
+> local corrige o falso aviso de sucesso, preserva dados ao parar monitoramento,
+> mantém o cursor em falhas e usa paginação conforme o Swagger atual. O bloqueio
+> 403 exige diagnóstico de rede na VPS; confirmar o deploy antes de considerar
+> as correções ativas em produção.
+> O Compose não declara o cron periódico; verificar se existe agendamento
+> externo. [Evidência e roteiro](produto/diagnostico-captura-producao-2026-09-26.md).
+
+> **25/09 — direção após a reunião jurídica e revisão da interface.** O fundador
+> rejeitou a interface condensada “Hoje” e pediu a volta da Visão geral
+> informativa, da navegação por módulos e do tema claro anterior. O checkout
+> local restaura esse desenho, mantém Clientes, Documentos e Trabalhos e passa
+> a organizar o ciclo visível em captura, prazo, contexto, minuta e revisão.
+> Na lista de intimações, “Preparar trabalho” leva a intimação e o prazo
+> vinculados ao formulário de trabalho; a providência é definida pela pessoa e
+> a minuta depende da conferência dos documentos e das fontes.
+> Trabalhos e Assistente Causor estão visíveis; ações de envio judicial e
+> acesso automático aos autos não aparecem no caminho principal do MVP. O
+> Assistente consulta os dados e abre um trabalho, sem oferecer atalho para
+> gerar ou aprovar uma peça fora da conferência das fontes. O percurso
+> sintético no navegador cobre upload, escopo, evidências, minuta e retomada;
+> isso ainda não valida a qualidade jurídica com um caso real.
+> PJe/protocolo ficam fora da interface do MVP até validação de uma rota
+> judicial específica.
+> O próximo marco é um caso real autorizado, upload manual dos autos disponíveis,
+> fontes conferidas e minuta avaliada pelo advogado com tempo e erros registrados.
+> [Direção e ordem de execução](../produto/direcao-pos-reuniao-2026-09-25.md).
+> O fundador autorizou usar o PostgreSQL compartilhado no desenvolvimento local.
+> Em 25/09, as três migrações aditivas foram aplicadas: revisão
+> `b0d6e2f8a4c7`, com contagens das tabelas existentes preservadas. A chave
+> pública de Auth local foi corrigida; API `/health` e tela `/login` responderam
+> localmente. Ainda falta o fundador confirmar a entrada com sua senha. PDFs
+> gravados pelo backend local ficam no disco local
+> e não estarão disponíveis para a API implantada. [Marco e ficha de avaliação](../produto/marco-caso-real-2026-09-25.md).
+
+> **21/09 — contexto e protocolo assistido implementados localmente.**
+> Cadastro de processo/cliente e trabalho sem intimação fictícia; declaração
+> de escopo/índice de peças; diagnóstico e retomada de OCR por página;
+> evidências buscadas nos textos originais; revisão e tarefas vinculadas;
+> pacote versionado com destino/anexos; tentativa externa e comprovante
+> conferido pelo advogado. Assistente consulta o trabalho com isolamento;
+> executor 0.2.0 tem identidade/destinação, capacidades e proteção contra
+> repetição após envio incerto. O percurso sintético passou no navegador,
+> inclusive comprovante divergente e retomada móvel. Migrações aditivas até
+> `b0d6e2f8a4c7` testadas em PostgreSQL local descartável. À data deste
+> registro, produção permanecia no último deploy registrado abaixo. Leitura/assinatura/
+> envio judicial real continuam dependentes de implementação e homologação.
+> [Entrega, validação e operação](produto/entrega-contexto-protocolo-2026-09-21.md).
+
+> **05/09 — Documentos e evidências implantado (`7aacbf2`).**
+> Biblioteca por processo, versões históricas, resumo, busca em trechos e PDF
+> citado. Recebimento por tarefa preserva a versão exata e deixa a pendência
+> em andamento. Upload complementar mantém o inventário anterior e atualiza
+> o contexto após processamento. Migração `a7d3f9b5c1e4` aplicada. CI aprovado:
+> **682 backend, 79 frontend e 49 em cada PostgreSQL (16/17)**, lint, tipos
+> e build. Quatro serviços saudáveis e versão exata verificada na VPS em
+> 05/09 às 03h37 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33950069870). Conferência visual
+> indisponível nesta sessão. [Registro e próximo aceite](produto/documentos-e-evidencias-2026-09-05.md).
+
+> **05/09 — correção de remoção de OAB implantada (`ad9bfb6`).** Erro 500 reproduzido
+> com FKs ativas; limpeza passou a excluir os dependentes dos autos/contexto
+> e notificações antes do processo/prazo. Jobs limitados ao escritório correto.
+> Clientes, tarefas e auditoria preservados. Sem mudança de esquema ou remoção
+> de OAB real nesta execução. Veja o [registro da correção](produto/correcao-remocao-oab-2026-09-05.md).
+> CI aprovado: **676 backend, 42 em cada PostgreSQL (16/17), 75 frontend**,
+> lint, tipos e build. Quatro serviços saudáveis e versão exata conferida na
+> VPS em 05/09 às 01h53 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33945546116).
+
+> **05/09 — escritório integrado: primeira expansão implantada (`c0e18fb`).** A visão
+> autorizada agora inclui atendimento, agenda, documentos, honorários e portal,
+> em entregas sucessivas ligadas ao mesmo cliente/caso. A primeira entrega
+> adiciona Clientes e Tarefas persistentes, associações com processo/intimação/
+> alerta da minuta, responsável, data interna, controle de versão e auditoria.
+> A sidebar foi ampliada e organizada por rotina; minutas `em_revisao` voltam
+> à fila de aprovação. Não há navegador disponível para validação visual.
+> CI aprovado: **670 testes gerais backend, 36 em cada PostgreSQL (16/17),
+> 75 frontend**, lint, tipos e build Linux. Migração `a6c2e8f4b0d3` aplicada;
+> imagens e saúde dos quatro serviços verificadas em 05/09 às 01h21 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33944092928).
+> Veja o [mapa de módulos e ordem de execução](produto/escritorio-integrado-2026-09-05.md).
+> O próximo bloco continua sendo a revisão dos cinco casos pelo advogado;
+> exemplos reais e homologação de tribunal permanecem pendentes.
+
+> **05/09 — checkpoints e revisão cega implantados (`1466537`).** OCR/IA rodam
+> sem transações abertas; extração/resumo concluídos sobrevivem à interrupção,
+> e resultados de workers sem posse vigente são descartados. Há comando local
+> para preparar minutas e ficha de revisão sem metadados do modelo.
+> CI: **658 testes gerais backend, 22 em cada PostgreSQL (16/17), 70 frontend**,
+> lint, tipos e build aprovados. Migração `a5f1b7d3c9e2`, imagens dos quatro
+> serviços e API verificadas na VPS em 05/09 às 00h22 (Brasília).
+> [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33941434207).
+> O fundador confirmou um advogado revisor. Próximo foco: avaliar cinco casos
+> e melhorar as evidências conforme os erros encontrados. Veja o
+> [roteiro do piloto](produto/piloto-cinco-casos-2026-09-05.md) e o
+> [registro técnico](produto/execucao-2026-09-04.md). Qualidade jurídica real e
+> protocolo automatizado permanecem sem validação; casos e acesso ao tribunal
+> ainda precisam ser disponibilizados.
+
+> **04/09/2026 — Postgres, recuperação e auditoria implantados (`12b5709`).** A etapa
+> adiciona CI com Postgres 16/17 e migrações reais; proteção de `audit_log`
+> contra UPDATE/DELETE/TRUNCATE; preservação de eventos na limpeza de OAB/demo;
+> retomada auditada de jobs documentais legados, sem tomar jobs bloqueados.
+> Protocolo judicial fica fora da recuperação por tempo. CI aprovado: **640
+> testes gerais backend, 14 cenários em cada Postgres (16/17), 70 frontend**,
+> lint e build. Migração `a4d9e2c7b6f1` aplicada e quatro serviços verificados
+> na VPS. [Deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33937823777).
+> Limites: OCR/LLM ainda mantêm uma transação; administradores do banco podem
+> alterar DDL. Próximo bloco: leases/checkpoints, transações curtas e rejeição
+> de resultados de workers que perderam a posse. Veja o [registro](produto/execucao-2026-09-04.md).
+
+> **04/09/2026 — continuação com push autorizado.** `bb75395` está na `main`;
+> CI/Linux aprovado, incluindo o build de produção. O deploy antigo deu falso
+> sucesso: download das imagens recusado pelo registro, seguido de `/health`
+> da versão anterior. O script corrigido autentica com token temporário, para
+> em falhas, sincroniza o Compose e confere as imagens dos quatro serviços.
+> **Implantação confirmada de `69ac8cb`:** login no registro bem-sucedido,
+> quatro serviços iniciados, imagens conferidas e API saudável. O worker de
+> autos foi criado na VPS. [Logs do deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/33932711859).
+>
+> Redação com inventário/resumos preservados, seleção lexical de excertos,
+> limites explícitos e fontes enviadas registradas no dossiê. Divergência entre
+> prazo da IA e prazo cadastrado fica sinalizada; redação usa o cadastrado.
+> Validação no CI/Linux: **635 testes backend, 6 pulados; 70 frontend**,
+> lint, tipos e build de produção aprovados.
+> Próxima etapa interna: Postgres/recuperação e auditoria. Veja os limites e
+> configurações no [registro de execução](produto/execucao-2026-09-04.md).
+
+> **04/09/2026 — execução autorizada e implementada localmente.** O fluxo por
+> upload agora liga extração, resumos citados, contexto e minuta. O painel e o
+> gate consultam a prontidão real. Há seleção de grau, declaração justificada de
+> ausência e retomada de documentos legados. A captura deixou de fabricar prazos
+> de 15 dias; prazo incerto fica pendente e pode ser confirmado com auditoria.
+> Aprovação usa PDF persistido por hash; edição invalida aprovação. Registro
+> manual distingue ausência/referência de comprovante e identifica o declarante.
+> Console não marca alertas como entregues. Adapter Astra e harness de avaliação
+> estão disponíveis por configuração de tarefa.
+>
+> **Validação final:** 620 testes de backend passaram, 6 foram pulados; 69 testes
+> de frontend passaram, com ESLint e TypeScript. Ruff e `git diff --check` passaram.
+> O teste HTTP ponta a ponta usa provedores simulados. O build compilou e gerou
+> as páginas com valores fictícios de Supabase do CI; a montagem `standalone`
+> foi bloqueada por permissões de symlink do Windows. Não houve deploy nem
+> avaliação paga de modelo. Banco de testes: SQLite, sem homologação Postgres.
+>
+> O fundador confirmou desenvolvimento solo e ausência de acesso a qualquer
+> tribunal. Leitura/protocolo pelo agente local seguem sem handlers operacionais.
+> Leia o [registro de execução e operação](produto/execucao-2026-09-04.md), o
+> [plano de evolução](produto/plano-evolucao-2026-09-04.md), a
+> [pesquisa](../mercado/pesquisa-mercado-2026-09-04.md) e o
+> [diagnóstico anterior à implementação](pesquisas/diagnostico-causor-2026-09-04.md).
+> Os registros datados abaixo não substituem este estado corrente.
+
+> **2026-08-01 — o que executar agora está em
+> [`superpowers/plans/2026-08-01-execucao-imediata.md`](superpowers/plans/2026-08-01-execucao-imediata.md)**,
+> que detalha as duas semanas seguintes do plano de 90 dias a partir da
+> [`areas/analise-competitiva-2026-08-01.md`](pesquisas/analise-competitiva-2026-08-01.md).
+> Aquela pesquisa confirmou a rota de 29-30/07 (Enter virou unicornio de US$ 1,2 bi
+> sem construir a camada de dados e sem protocolar; Eve e EvenUp idem) e trouxe um
+> fato que reprecifica a venda: o **Jus IA do Jusbrasil passou a ser gratuito em
+> todos os planos** (13/04/2026, 300 mil advogados/mes). Redacao assistida virou
+> item de plano basico; o diferencial que sobra e o que esta embaixo dela.
+
+## Onde estamos
+
+- **2026-07-31 — Upload dos autos pelo advogado.** `POST
+  /processos/{id}/autos/upload` (multipart) + botao "Enviar os autos" no painel
+  de Autos. Reusa as quatro etapas do agente (`open_capture` com
+  `fonte="upload"` → `record_initial_manifest` → `confirm_document_upload` →
+  `finalize_capture`), entao hash recomputado, magic bytes, versao imutavel e
+  extracao enfileirada valem igual. **Unico caminho de captura sem gate
+  externo.** A completude e registrada como *declarada pelo advogado* em
+  `evidence` — no upload as duas enumeracoes sao a mesma lista que o advogado
+  entregou, e isso nao pode ser vendido como a prova que a captura de tribunal
+  da. Ver `autos/upload.py`.
+
+  **2026-08-01 — a declaracao passou a ser confrontada.** `autos/conferencia.py`
+  consulta o DataJud e compara os movimentos de juntada do tribunal com os
+  arquivos recebidos; o resultado fica em `evidence.conferencia_datajud` e sai
+  na resposta do upload (`CapturaOut.conferencia_datajud`). **Continua sendo
+  sinal, nao prova**: movimento processual nao e peca dos autos, entao
+  divergencia serve para perguntar ao advogado se faltou peca, nunca para
+  reprovar a captura. Falha ou indisponibilidade do DataJud e engolida (uma
+  tentativa so, via `get_datajud_client`), porque a captura ja esta completa
+  quando a conferencia roda.
+
+  **Contexto que mudou no mesmo dia:** o acesso ao advogado-advisor acabou (sem
+  credencial de eproc, sem processos ativos). As Tasks 6-9 saem do roadmap por
+  falta de acesso, nao por prioridade, e o gargalo do projeto passa a ser
+  **falta de usuario**, nao falta de tribunal. Plano revisado em
+  [`areas/plano-90-dias-2026-07-30.md`](pesquisas/plano-90-dias-2026-07-30.md).
+
+- **2026-07-21/22 — Canal oficial MNI: leitura implementada, endpoints
+  verificados.** Cliente SOAP no backend, credencial por tribunal no vault,
+  captura roteada por `CapturaAutos.fonte` ("mni" | "agente") pelo mesmo
+  pipeline de integridade do Plano 2, UI em Configuracoes → Acesso aos
+  tribunais. O assistente JIT deixou de pedir pareamento/login quando a rota
+  tem credencial MNI — era a unica repeticao entre os dois fluxos.
+
+  Varredura de 2026-07-22 sobre 303 URLs candidatas: 16 responderam,
+  consolidadas em **14 perfis `(tribunal, grau)`** em 9 tribunais, todos MNI
+  2.2.2 com `consultarProcesso` e `entregarManifestacaoProcessual`. A lista
+  vive so em [`areas/mni-credenciamento.md`](trilhas-adiadas/mni-credenciamento.md) e no
+  codigo (`connectors/mni/profiles.py`). A tabela de perfis
+  passou a aceitar **so endpoint confirmado**: falha de MNI marca a captura
+  `failed` e nao cai para o agente, entao perfil palpitado mandava o advogado
+  para um erro em vez do caminho que funciona. Sairam TJMG/TJDFT/TJBA e os 24
+  TRTs (padrao registrado estava errado — 404).
+
+  Autenticacao confirmada como usuario/senha no schema real
+  (`idConsultante`/`senhaConsultante`), batendo com o que o `MniClient` ja
+  enviava. Endpoints, ressalvas e o checklist do oficio:
+  [`areas/mni-credenciamento.md`](trilhas-adiadas/mni-credenciamento.md).
+
+  **CORRIGIDO EM 2026-07-29 — o credenciamento nao e "bloqueio unico", e uma
+  aposta nao verificada.** A pesquisa de mercado
+  ([`areas/viabilidade-mercado-2026-07-29.md`](pesquisas/viabilidade-mercado-2026-07-29.md) §2)
+  mostrou que o MNI e desenhado para orgao publico: o Termo de Adesao do STF
+  restringe a orgaos do art. 246 §2 do CPC, o TRF6 exige matricula funcional e
+  delegacao formal de competencia, o webservice do eproc e descrito como
+  autorizado so a orgaos do Judiciario, e o CNJ atende o advogado por outro
+  caminho (Escritorio Digital, CNJ + OAB, gratuito). Pode ser um "nao"
+  estrutural, nao uma fila burocratica. **Testar por escrito antes de investir
+  mais** (checklist na secao 0 de
+  [`areas/mni-credenciamento.md`](trilhas-adiadas/mni-credenciamento.md)).
+  Independente disso: WSDL acessivel nao e servico funcional.
+
+- **2026-07-10 — Plano 2 (autos integrais e contexto citado): COMPLETO
+  (Tasks 1–10)** (branch `feat/autos-contexto-integral`):
+  - Captura integral com prova de completude: enumeracao inicial/final com
+    fingerprint SHA-256, versoes imutaveis por hash, HTML disfarcado de PDF
+    rejeitado por magic bytes; `complete` so com enumeracoes identicas e todo
+    item verificado.
+  - Extracao de texto por pagina com OCR (Tesseract `por`) apenas em pagina
+    sem camada textual; worker persistente `process-autos-due` fora do request.
+  - Trechos citaveis (chunks por pagina) com busca lexical (FTS portugues no
+    Postgres; migracao `c8e6f0a4b3d2`).
+  - Resumo estruturado por documento com citacoes verificadas contra os
+    chunks — quote inventado marca o resumo `failed`.
+  - `ContextoProcesso` ready exige 1o e 2o grau completos (ou not_applicable
+    com evidencia) + 100% dos arquivos extraidos e resumidos; o drafter passa
+    a receber inventario + excertos citados com rotulos [DOC-N p.M].
+  - **Gate fail-closed**: minuta e protocolo bloqueiam (HTTP 409) sem contexto
+    ready/atual; override do advogado e de uso unico, expira em 30 min, exige
+    justificativa 20–1000 chars e gera auditoria.
+  - UI: painel "Autos" por processo (captura, contagens, motivo do bloqueio,
+    liberacao excepcional com aviso).
+  - Download privado por ticket assinado de 300s (auditado, URL nunca
+    persistida; localdev usa rota autenticada da API) e descarte explicito:
+    `purge_process_objects` apaga em lotes de 100 com hashes na auditoria;
+    sem expiracao automatica por idade. Chaves de objeto imutaveis por SHA-256.
+  - O que resta do Plano 2 e homologacao com dados reais (Marco B: primeiro
+    processo PJe integral), que depende do acesso do advisor.
+
+- **2026-07-10 — Marco A (Fundacao do agente local) concluido.** Plano 1 do
+  roadmap de autos/conectores executado integralmente
+  (`docs/superpowers/plans/2026-07-10-fundacao-automacao-judicial-agente-local.md`):
+  - Contratos neutros de sistema (`app/connectors/contracts.py`):
+    `CourtReaderDriver`/`FilingDriver` sem dependencia de PJe.
+  - `ProcessoInstancia` modela 1o/2o grau por processo; migracao Alembic
+    `a6c4d8e2f1b0` aplicada.
+  - Agente Windows local (`python -m app.local_agent pair|login|run`):
+    pareamento one-time (10 min), token no keyring (hash-only no banco,
+    revogavel), perfil Playwright persistente por (sistema, tribunal, grau)
+    em `%LOCALAPPDATA%\Causor\profiles`.
+  - Protocolo de comandos idempotente (claim unico via SKIP LOCKED,
+    heartbeat, complete/fail com auditoria) + API `/agent/*`.
+  - Storage privado de documentos (localdev/S3) com URL pre-assinada de
+    15 min; backend recomputa SHA-256 na ingestao.
+  - UI: secao "Agente local" em Configuracoes (parear, status
+    Online/Offline, revogar).
+  - O backend hospedado nao abre mais navegador de tribunal; quem executa
+    Playwright e o agente na maquina do advogado.
+  - Proximo: Plano 2 (autos integrais com driver fake) e infra do Plano 3;
+    conectores reais PJe/eproc/e-SAJ/Projudi dependem dos acessos do advisor.
+
+- SOR + prazo engine deterministico implementados.
+- Captura real via DJEN/Comunica + DataJud funcionando.
+- Supabase Postgres e Supabase Auth funcionando com `causorai@gmail.com`.
+- Backend valida JWT, isola por `escritorio_id` e o frontend envia Bearer token.
+- IA roda em Claude:
+  - chat operacional: `claude-haiku-4-5`;
+  - classificacao de intimacao: `claude-haiku-4-5`;
+  - redacao de minuta: `claude-sonnet-5`.
+- PJe assistido iniciado: protocolo prepara ate `ready_to_sign`; assinatura/envio
+  final ainda fica com o advogado no PJe/PJeOffice.
+- Captura agendada possui retry exponencial limitado, recuperacao de jobs
+  interrompidos e codigo de saida nao-zero em falha definitiva.
+- CI valida Ruff, pytest, Vitest e build do Next.js.
+- Testes do frontend cobrem autenticacao HTTP e os principais contratos do
+  fluxo de captura, prazo, aprovacao e protocolo assistido.
+- PDF de protocolo com papel timbrado por escritorio: logo + cabecalho +
+  rodape configuraveis em Configuracoes; preview via "Baixar PDF" na minuta;
+  o job de protocolo anexa esse mesmo PDF.
+
+## Chaves/servicos
+
+- `CAUSOR_DATABASE_URL` - Supabase Postgres.
+- `CAUSOR_DATAJUD_API_KEY` - DataJud.
+- `ANTHROPIC_API_KEY` - Claude.
+- `CAUSOR_SUPABASE_JWT_SECRET` - Supabase Auth/JWT.
+
+## Como o MNI reordena o Plano 3 (Tasks 6-9)
+
+As Tasks 6-9 (`superpowers/plans/2026-07-10-conectores-reais-multissistema.md`)
+sao **4 sistemas x (reader + filing) = 8 entregas**, cada uma travada num
+*external gate* — conta de tribunal autorizada, que depende do advisor. Elas
+estao paradas por isso ha semanas.
+
+O MNI e **um** par de drivers cobrindo N tribunais, travado num gate que o
+proprio Causor conduz (o oficio). E o `MniFilingDriver` reusa a MESMA
+credencial, endpoint, vault, perfis e erros canonicos ja construidos para
+leitura — e trabalho incremental sobre fundacao pronta, nao um conector novo.
+
+O que muda em cada frente:
+
+| Frente | Situacao |
+|---|---|
+| **Leitura** (metade "reader" das Tasks 6-9) | **Superada onde ha MNI.** O `MniReader` implementa o mesmo `CourtReaderDriver`; o pipeline de integridade nao sabe a fonte. |
+| **Protocolo** (metade "filing") | **Nao superada ainda.** Hoje so o agente local protocola. O `MniFilingDriver` nao existe. |
+| **Tribunal sem MNI** | Tasks 6-9 seguem validas como fallback. O roteamento ja cai no agente sozinho. |
+
+**Ressalva honesta:** a varredura testou padroes de URL do **PJe**. A ausencia
+de evidencia para eproc/e-SAJ/Projudi e limite do metodo, nao prova de que
+esses sistemas nao expoem MNI. Antes de investir nas Tasks 7-9, verificar se o
+tribunal daquele sistema atende por MNI.
+
+Consequencia: as Tasks 6-9 **descem de prioridade** e deixam de ser o caminho
+critico. Nenhuma delas e cancelada — todas continuam sendo o fallback para
+tribunal onde o MNI nao entregar.
+
+## Ainda falta para MVP real
+
+Sao **duas trilhas paralelas**, nao uma fila. A trilha do piloto nao depende de
+terceiro e entrega valor sozinha; a trilha MNI espera o deferimento do oficio.
+O piloto **nao espera tribunal** — o agente local captura hoje, sem credencial
+nenhuma.
+
+### Trilha do piloto (sem gate externo)
+
+1. Publicar backend e frontend com CI verde.
+2. Configurar em producao o cron que chama `capture-due` e alertar quando seu
+   codigo de saida for diferente de zero.
+3. Validar o Vault Supabase no ambiente publicado (referencias de assinatura
+   `cloud_cert` e senhas MNI; o cofre de sessao de tribunal foi removido —
+   sessao vive so no agente local, Plano 3 Task 3).
+4. Adicionar monitoramento externo do backend, cron e jobs `failed`.
+5. Executar um piloto ponta a ponta com OAB e dados reais, **pelo agente
+   local**: capturar, prazo, minuta e revisao nao dependem de MNI.
+6. ~~Alertas de prazo por e-mail ou WhatsApp.~~ **Implementado em 2026-07-30**
+   (`app/alertas/`): regra unica do radar (`radar.prazos_em_alerta`, consumida
+   tambem pelo `GET /alertas`), notificacao com dedupe por `(prazo, nivel)` na
+   tabela `notificacao_prazo`, envio por SMTP com fallback para log
+   (`ConsoleSender`) e comando `python -m app.cli notificar-prazos` para o cron.
+   **Falta em producao:** aplicar a migration `a3e7b1c9d2f8`, definir
+   `CAUSOR_SMTP_HOST/PORT/USER/FROM` + `CAUSOR_SMTP_PASSWORD` no `.env` da VPS e
+   agendar o comando. Sem SMTP configurado o aviso cai no log e nada quebra.
+   WhatsApp entra depois como um segundo `AlertSender` — so esse arquivo muda.
+
+### Trilha MNI (aposta paralela — testar viabilidade antes de investir)
+
+7. **Consultar por escrito se CNPJ privado pode ser credenciado** — duas DTIs
+   de tribunal e `integracaopdpj@cnj.jus.br`. Custo: dois e-mails; resolve a
+   duvida de vez (ver secao 0 de
+   [`areas/mni-credenciamento.md`](trilhas-adiadas/mni-credenciamento.md)). Se a resposta
+   for negativa, esta trilha inteira morre e o agente local vira o unico
+   caminho — o que **nao** bloqueia o piloto.
+   Deferida a consulta, **solicitar o credenciamento** no tribunal do piloto.
+   Oficio redigido, com placeholders, em
+   [`areas/oficio-credenciamento-mni.md`](trilhas-adiadas/oficio-credenciamento-mni.md);
+   endpoints e ressalvas em
+   [`areas/mni-credenciamento.md`](trilhas-adiadas/mni-credenciamento.md).
+8. Deferido: rodar `RUN_MNI_LIVE=1` e confirmar que o tribunal entrega **o
+   teor** dos documentos — e onde mais tribunais falham na pratica.
+9. **So entao** construir o `MniFilingDriver` (`entregarManifestacaoProcessual`).
+
+   *Nao antecipar este item.* Protocolo e irreversivel e a regra e nunca marcar
+   "protocolada" sem comprovante verificado — nao da para projetar a
+   verificacao do comprovante sem ter visto um comprovante real. Tres respostas
+   do oficio mudam o desenho: se a autenticacao exige mTLS (pergunta 2), se o
+   credenciamento dispensa certificado (5) e se a resposta traz o comprovante
+   (6). Construir contra simulador proprio antes disso e codificar as nossas
+   suposicoes e chamar de verificado — exatamente o erro de 21/07, agora na
+   metade irreversivel do sistema.
+
+### Fallback (so quando o MNI nao cobrir o tribunal do piloto)
+
+10. Fechar um unico conector Playwright real ate a tela de assinatura
+    (Plano 3 Task 6), escolhendo tribunal, grau e tipo de peticao.
+11. Integracao com certificado em nuvem, se o piloto exigir envio final
+    automatizado **e** o credenciamento MNI nao dispensar a assinatura.
+
+## Ordem de execucao
+
+> **SUBSTITUIDA EM 2026-07-30 por
+> [`areas/plano-90-dias-2026-07-30.md`](pesquisas/plano-90-dias-2026-07-30.md).**
+> A pesquisa de 30/07 ([`areas/rota-produto-2026-07-30.md`](pesquisas/rota-produto-2026-07-30.md))
+> mostrou que o CNJ esta unificando consulta processual e peticionamento
+> intercorrente no **jus.br** (Res. CNJ 455/2022 + 624/2025; ~39 tribunais ja
+> integrados), o que rebaixa os conectores por sistema (Tasks 6-9) a fallback, e
+> que os perfis MNI confirmados **nao cobrem o TJTO**, tribunal do piloto. A
+> ordem abaixo fica como registro historico; siga o plano de 90 dias.
+
+As duas trilhas acima intercaladas no tempo real. A consulta ao tribunal sai
+primeiro porque e a de maior latencia e menor esforco — **mas o piloto nao
+espera por ela.** O caminho critico e o piloto real; o MNI e aposta paralela.
+
+1. Enviar a consulta de viabilidade do MNI + o oficio (nao bloqueia nada abaixo
+   enquanto tramita).
+2. Publicar backend e frontend com CI verde.
+3. Provisionar o primeiro escritorio conforme `onboarding-piloto.md`.
+4. Ativar o cron e acompanhar ao menos dois ciclos de captura.
+5. Validar captura, prazo e minuta com o advogado — pelo agente local, que
+   funciona hoje.
+6. Deferido o credenciamento: cadastrar a credencial, rodar `RUN_MNI_LIVE=1` e
+   deixar o roteamento migrar a leitura para `fonte="mni"` sozinho.
+7. Concluir um protocolo real — via MNI se a resposta do tribunal permitir,
+   senao assistido pelo agente.
+
+Nao ampliar para novos tribunais, billing ou RAG antes dessa validacao.
+
+## Decisoes de custo de IA
+
+Nao usar modelos premium em teste. O custo padrao fica:
+
+- Haiku para chat e classificacao.
+- Sonnet para minuta.
+
+Modelos mais caros ficam fora do caminho padrao e so devem ser reintroduzidos
+se houver uma tarefa juridica que Sonnet nao resolva bem.

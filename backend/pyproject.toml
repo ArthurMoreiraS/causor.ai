@@ -1,7 +1,7 @@
 [project]
 name = "causor-backend"
 version = "0.1.0"
-description = "Agente Operacional Juridico - capture + prazo engine"
+description = "Causor - captura, prazo, contexto e minuta com revisao humana"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.111",
@@ -19,10 +19,8 @@ dependencies = [
     "anthropic>=0.40",
     "pyjwt>=2.8",
     "cryptography>=42",
-    "playwright>=1.45",
     "fpdf2>=2.8",
     "boto3>=1.35",
-    "keyring>=25.0",
     "PyMuPDF>=1.24",
     "Pillow>=10.4",
     "pytesseract>=0.3.13",
@@ -35,6 +33,8 @@ dev = [
     "pytest-httpx>=0.30",
     "pypdf>=5.0",
     "ruff>=0.5,<0.16",
+    # Percursos de navegador opcionais (tests/work_browser_smoke.py).
+    "playwright>=1.45",
 ]
 
 [tool.ruff]

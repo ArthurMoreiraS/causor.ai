@@ -78,8 +78,7 @@ def test_seed_covers_all_petition_phases_and_receipt(db_session):
     protocolada = next(p for p in peticoes if p.status == "protocolada")
     assert protocolada.protocolada_em is not None
 
-    # O seed usa o fallback manual (confirm_manual_protocol), que registra
-    # auditoria + protocolo sem disparar o conector PJe real (sem job placebo).
+    # O seed registra o protocolo como declaração manual, com auditoria.
     audit = db_session.scalars(
         select(models.AuditLog).where(
             models.AuditLog.entidade == "peticao",

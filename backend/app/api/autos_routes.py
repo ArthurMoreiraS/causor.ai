@@ -1,9 +1,7 @@
 """Endpoints de captura integral dos autos.
 
-Plano do usuário (JWT): dispara captura por grau e consulta status.
-Plano do agente (``Authorization: Agent``): manifesto inicial, tickets de
-upload, confirmação e manifesto final. ``download_ref`` nunca sai para o
-frontend; segue apenas no payload do comando do agente.
+Plano do usuário (JWT): envia os autos, dispara captura MNI por grau quando
+houver credencial confirmada e consulta status.
 """
 
 from __future__ import annotations
@@ -16,10 +14,8 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.agent_routes import get_agent_principal
 from app.auth.jwt_auth import CurrentUser, get_current_user
 from app.autos.conferencia import CHAVE_EVIDENCIA
-from app.autos.contracts import ManifestInput
 from app.autos import service as autos_service
 from app.autos.upload import ArquivoEnviado, ingerir_autos_enviados
 from app.capture.court_routing import resolve_route
@@ -81,38 +77,6 @@ class AutosStatusOut(BaseModel):
     contexto: dict
 
 
-class UploadTicketIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    sha256: str
-    size_bytes: int
-    content_type: str = "application/pdf"
-
-
-class UploadTicketOut(BaseModel):
-    key: str
-    method: str
-    url: str
-    headers: dict[str, str]
-    expires_in: int
-
-
-class ConfirmUploadIn(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    object_key: str
-    sha256: str
-    mime_type: str = "application/pdf"
-
-
-class ItemOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    external_id: str
-    status: str
-    error_code: str | None
-
-
 def _get_owned_processo(
     session: Session, processo_id: int, current: CurrentUser
 ) -> models.Processo:
@@ -120,15 +84,6 @@ def _get_owned_processo(
     if processo is None or processo.escritorio_id != current.escritorio_id:
         raise HTTPException(status_code=404, detail="processo nao encontrado")
     return processo
-
-
-def _get_agent_capture(
-    session: Session, capture_id: int, installation: models.AgentInstallation
-) -> models.CapturaAutos:
-    capture = session.get(models.CapturaAutos, capture_id)
-    if capture is None or capture.escritorio_id != installation.escritorio_id:
-        raise HTTPException(status_code=404, detail="captura nao encontrada")
-    return capture
 
 
 @router.post("/processos/{processo_id}/autos/capturar", response_model=list[CapturaOut])
@@ -143,14 +98,18 @@ def capturar_autos(
     if not graus or any(grau not in {"1", "2"} for grau in graus):
         raise HTTPException(status_code=422, detail="graus deve conter apenas '1' e/ou '2'")
 
-    captures = [
-        autos_service.open_capture(
-            session,
-            processo_instancia=_resolve_or_create_instancia(session, processo, grau),
-            usuario_id=current.usuario_id,
-        )
-        for grau in graus
-    ]
+    try:
+        captures = [
+            autos_service.open_capture(
+                session,
+                processo_instancia=_resolve_or_create_instancia(session, processo, grau),
+                usuario_id=current.usuario_id,
+            )
+            for grau in graus
+        ]
+    except autos_service.CaptureError as exc:
+        session.rollback()
+        raise HTTPException(status_code=409, detail=exc.code) from exc
     session.commit()
     return captures
 
@@ -423,99 +382,6 @@ def reprocessar_autos(
     return {"reenfileirados": enqueued}
 
 
-@router.put("/agent/captures/{capture_id}/manifest/initial", response_model=CapturaOut)
-def manifesto_inicial(
-    capture_id: int,
-    manifest: ManifestInput,
-    session: Session = Depends(get_session),
-    installation: models.AgentInstallation = Depends(get_agent_principal),
-) -> models.CapturaAutos:
-    capture = _get_agent_capture(session, capture_id, installation)
-    try:
-        autos_service.record_initial_manifest(session, capture=capture, manifest=manifest)
-    except autos_service.CaptureError as exc:
-        raise HTTPException(status_code=409, detail=exc.code) from exc
-    session.commit()
-    return capture
-
-
-@router.post(
-    "/agent/captures/{capture_id}/documents/{external_id}/upload-ticket",
-    response_model=UploadTicketOut,
-)
-def ticket_upload_documento(
-    capture_id: int,
-    external_id: str,
-    payload: UploadTicketIn,
-    session: Session = Depends(get_session),
-    installation: models.AgentInstallation = Depends(get_agent_principal),
-) -> UploadTicketOut:
-    capture = _get_agent_capture(session, capture_id, installation)
-    item = session.scalars(
-        select(models.ManifestoItem).where(
-            models.ManifestoItem.captura_id == capture.id,
-            models.ManifestoItem.external_id == external_id,
-        )
-    ).first()
-    if item is None:
-        raise HTTPException(status_code=404, detail="item nao encontrado")
-    if payload.size_bytes > settings.agent_max_upload_bytes:
-        raise HTTPException(status_code=413, detail="arquivo acima do limite")
-
-    instancia = session.get(models.ProcessoInstancia, capture.processo_instancia_id)
-    key = (
-        f"tenant/{capture.escritorio_id}/process/{instancia.processo_id}"
-        f"/instance/{instancia.id}/document/{item.documento_id}/{payload.sha256}.bin"
-    )
-    ticket = get_object_store().create_upload_ticket(
-        key, payload.content_type, payload.sha256, payload.size_bytes
-    )
-    return UploadTicketOut(
-        key=ticket.key,
-        method=ticket.method,
-        url=ticket.url,
-        headers=ticket.headers,
-        expires_in=ticket.expires_in,
-    )
-
-
-@router.post(
-    "/agent/captures/{capture_id}/documents/{external_id}/confirm",
-    response_model=ItemOut,
-)
-def confirmar_documento(
-    capture_id: int,
-    external_id: str,
-    payload: ConfirmUploadIn,
-    session: Session = Depends(get_session),
-    installation: models.AgentInstallation = Depends(get_agent_principal),
-) -> models.ManifestoItem:
-    capture = _get_agent_capture(session, capture_id, installation)
-    if not payload.object_key.startswith(f"tenant/{capture.escritorio_id}/"):
-        raise HTTPException(status_code=403, detail="chave fora do tenant da captura")
-    try:
-        autos_service.confirm_document_upload(
-            session,
-            capture=capture,
-            external_id=external_id,
-            object_key=payload.object_key,
-            reported_sha256=payload.sha256,
-            object_store=get_object_store(),
-            mime_type=payload.mime_type,
-        )
-    except autos_service.CaptureError as exc:
-        session.commit()  # o item failed/error_code persiste para auditoria
-        raise HTTPException(status_code=422, detail=exc.code) from exc
-    session.commit()
-    item = session.scalars(
-        select(models.ManifestoItem).where(
-            models.ManifestoItem.captura_id == capture.id,
-            models.ManifestoItem.external_id == external_id,
-        )
-    ).first()
-    return item
-
-
 class DownloadTicketOut(BaseModel):
     url: str
     expires_in: int
@@ -673,19 +539,3 @@ def criar_override_contexto(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     session.commit()
     return override
-
-
-@router.put("/agent/captures/{capture_id}/manifest/final", response_model=CapturaOut)
-def manifesto_final(
-    capture_id: int,
-    manifest: ManifestInput,
-    session: Session = Depends(get_session),
-    installation: models.AgentInstallation = Depends(get_agent_principal),
-) -> models.CapturaAutos:
-    capture = _get_agent_capture(session, capture_id, installation)
-    try:
-        autos_service.finalize_capture(session, capture=capture, final_manifest=manifest)
-    except autos_service.CaptureError as exc:
-        raise HTTPException(status_code=409, detail=exc.code) from exc
-    session.commit()
-    return capture

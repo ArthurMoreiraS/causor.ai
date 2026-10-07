@@ -1,7 +1,7 @@
 """Orquestração resumível da captura integral dos autos.
 
-O agente local enumera, sobe arquivos e confirma; o backend prova a
-integridade: recomputa hash, valida PDF e só marca `complete` quando a
+O upload do advogado ou o leitor MNI enumeram, sobem arquivos e confirmam;
+o backend prova a integridade: recomputa hash, valida PDF e só marca `complete` quando a
 enumeração final é idêntica à inicial e todo item tem versão verificada.
 """
 
@@ -13,7 +13,6 @@ from hashlib import sha256 as sha256_digest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.agent_runtime.service import enqueue_command
 from app.autos.contracts import ManifestInput
 from app.autos.integrity import (
     CompletenessResult,
@@ -21,7 +20,6 @@ from app.autos.integrity import (
     fingerprint_manifest,
     validate_pdf,
 )
-from app.connectors.errors import InstanceNotFound
 from app.sor import models
 from app.storage.objects import ObjectStore
 
@@ -61,16 +59,23 @@ def _transition(capture: models.CapturaAutos, new_status: str) -> None:
 def resolve_capture_fonte(
     session: Session, instancia: models.ProcessoInstancia
 ) -> str:
-    """MNI quando ha credencial ativa + perfil para a rota; senao agente."""
+    """MNI quando ha credencial ativa + perfil confirmado para a rota.
+
+    Sem MNI nao ha captura automatica: o advogado envia os autos pelo upload.
+    """
     from app.connectors.mni.credentials import find_active_credencial
     from app.connectors.mni.profiles import resolve_mni_profile
 
-    if resolve_mni_profile(instancia.tribunal, instancia.grau) is None:
-        return "agente"
-    credencial = find_active_credencial(
-        session, escritorio_id=instancia.escritorio_id, tribunal=instancia.tribunal
+    if resolve_mni_profile(instancia.tribunal, instancia.grau) is not None:
+        credencial = find_active_credencial(
+            session, escritorio_id=instancia.escritorio_id, tribunal=instancia.tribunal
+        )
+        if credencial is not None:
+            return "mni"
+    raise CaptureError(
+        "sem_canal_automatico",
+        "Sem canal automatico para este tribunal; envie os autos pelo upload.",
     )
-    return "mni" if credencial is not None else "agente"
 
 
 def open_capture(
@@ -82,14 +87,11 @@ def open_capture(
 ) -> models.CapturaAutos:
     """Abre uma nova geração de captura e publica o trabalho na fonte certa.
 
-    ``fonte="mni"`` roda in-backend num job persistente; ``"agente"`` mantém o
-    comando enfileirado para o agente local; ``"upload"`` não despacha nada,
-    porque os bytes chegaram junto com a requisição.
+    ``fonte="mni"`` roda in-backend num job persistente; ``"upload"`` não
+    despacha nada, porque os bytes chegaram junto com a requisição.
 
-    ``"upload"`` **nunca** sai de ``resolve_capture_fonte`` — o roteamento
-    automático continua escolhendo só entre MNI e agente. Ele só entra por
-    ``fonte`` explícito, quando o advogado entrega os autos; por isso não é um
-    terceiro ponto de decisão.
+    ``"upload"`` **nunca** sai de ``resolve_capture_fonte``: ele só entra por
+    ``fonte`` explícito, quando o advogado entrega os autos.
     """
     processo = session.get(models.Processo, processo_instancia.processo_id)
     session.execute(select(models.Processo.id).where(models.Processo.id == processo.id).with_for_update())
@@ -110,9 +112,7 @@ def open_capture(
     session.add(capture)
     session.flush()
 
-    if resolved == "upload":
-        pass  # nada a despachar: o conteúdo já está em mãos
-    elif resolved == "mni":
+    if resolved == "mni":
         from app.queue.jobs import create_job
 
         create_job(
@@ -123,24 +123,6 @@ def open_capture(
             payload={"capture_id": capture.id, "escritorio_id": capture.escritorio_id},
             ator=f"usuario:{usuario_id}" if usuario_id else "system",
         )
-    else:
-        command = enqueue_command(
-            session,
-            escritorio_id=processo_instancia.escritorio_id,
-            usuario_id=usuario_id,
-            tipo="read_process",
-            idempotency_key=f"capture:{processo_instancia.id}:manifest:{capture.generation}",
-            payload={
-                "capture_id": capture.id,
-                "processo_instancia_id": processo_instancia.id,
-                "sistema": processo_instancia.sistema,
-                "tribunal": processo_instancia.tribunal,
-                "grau": processo_instancia.grau,
-                "numero_processo": processo.numero if processo else None,
-                "url_base": processo_instancia.url_base,
-            },
-        )
-        capture.agent_command_id = command.id
     session.flush()
     return capture
 
@@ -165,44 +147,6 @@ def mark_not_applicable(
     session.flush()
     _refresh_context(session, capture)
     return capture
-
-
-def apply_capture_failure(
-    session: Session,
-    *,
-    command: models.AgentCommand,
-    erro_codigo: str,
-    erro_detalhe: str | None = None,
-) -> models.CapturaAutos | None:
-    """Traduz a falha do comando do agente no estado da captura ligada.
-
-    Só ausência afirmada (`instance_not_found`) sela a instância. CAPTCHA ou
-    sessão expirada tratados como "instância inexistente" deixariam o contexto
-    ficar `ready` sem os autos daquele grau — fail-open.
-    """
-    if erro_codigo != InstanceNotFound.code:
-        return None
-    capture = session.scalars(
-        select(models.CapturaAutos).where(
-            models.CapturaAutos.agent_command_id == command.id
-        )
-    ).first()
-    if capture is None:
-        return None
-    if "not_applicable" not in CAPTURE_TRANSITIONS.get(capture.status, set()):
-        # Captura que já enumerou não é "instância inexistente"; a falha fica
-        # só no comando e o agente não leva 500 por reportar a verdade.
-        return None
-    return mark_not_applicable(
-        session,
-        capture=capture,
-        evidence={
-            "motivo": InstanceNotFound.code,
-            "fonte": "agente",
-            "agent_command_id": command.id,
-            "detalhe": erro_detalhe or "",
-        },
-    )
 
 
 def record_initial_manifest(

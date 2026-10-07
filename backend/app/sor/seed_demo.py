@@ -16,7 +16,6 @@ from datetime import date, datetime, time, timedelta, timezone
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app.queue.jobs import confirm_manual_protocol
 from app.sor import models
 from app.vault.service import store_signature_reference
 
@@ -52,6 +51,29 @@ def _audit(
             entidade_id=entidade_id,
             detalhe=detalhe or {},
         )
+    )
+
+
+def _registrar_protocolo_demo(session: Session, peticao: models.Peticao, *, protocolo: str) -> None:
+    """Marca a petição demo como protocolada fora do Causor, com auditoria."""
+    detalhe = {
+        "tipo": peticao.tipo,
+        "protocolo": protocolo,
+        "comprovante_uri": f"demo://peticoes/{peticao.id}/comprovante.pdf",
+        "origem": "declaracao_manual",
+        "comprovante_status": "referencia_nao_verificada",
+    }
+    peticao.status = "protocolada"
+    peticao.protocolada_em = datetime.now(timezone.utc)
+    peticao.dossie = {**(peticao.dossie or {}), "protocolo_registrado": detalhe}
+    _audit(
+        session,
+        acao="peticao_protocolada",
+        entidade="peticao",
+        entidade_id=peticao.id,
+        ator="system",
+        escritorio_id=peticao.escritorio_id,
+        detalhe=detalhe,
     )
 
 
@@ -638,12 +660,7 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         )
         peticoes_extra.append(peticao)
         if status_peticao == "protocolada":
-            confirm_manual_protocol(
-                session,
-                peticao.id,
-                protocolo=f"2026{peticao.id:08d}",
-                comprovante_uri=f"demo://peticoes/{peticao.id}/comprovante.pdf",
-            )
+            _registrar_protocolo_demo(session, peticao, protocolo=f"2026{peticao.id:08d}")
 
     for processo in processos:
         session.add(
@@ -754,15 +771,8 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
             detalhe={"tipo": peticao.tipo},
         )
 
-    # Protocola a réplica pelo mesmo caminho do produto (gate + auditoria),
-    # usando o fallback manual (registro do protocolo) — o conector PJe real
-    # so e disparado na operacao, nunca no seed de demonstracao.
-    confirm_manual_protocol(
-        session,
-        pet_replica.id,
-        protocolo=f"2026{pet_replica.id:08d}",
-        comprovante_uri=f"demo://peticoes/{pet_replica.id}/comprovante.pdf",
-    )
+    # Réplica registrada como protocolada fora do Causor (dado demonstrativo).
+    _registrar_protocolo_demo(session, pet_replica, protocolo=f"2026{pet_replica.id:08d}")
 
     store_signature_reference(
         session,

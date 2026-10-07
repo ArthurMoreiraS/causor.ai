@@ -1,132 +1,103 @@
 # Desenvolvimento local
 
-> **Quickstart:** para subir o backend e o frontend rapidamente, veja
-> [`RODAR-LOCAL.md`](../../RODAR-LOCAL.md) na raiz do repo. Este documento cobre
-> o setup completo (primeira instalação), troubleshooting e captura agendada.
+Comandos em PowerShell (Windows). No Linux/macOS, troque `.venv\Scripts\` por
+`.venv/bin/` e `pnpm.cmd` por `pnpm`.
 
-O caminho atual usa PostgreSQL. Em 25/09, o fundador autorizou o banco Supabase
-compartilhado para desenvolvimento local; ele está na revisão `b0d6e2f8a4c7`.
-O `frontend/.env.local` usa uma chave pública validada do mesmo projeto.
-Consulte [RODAR-LOCAL.md](../../RODAR-LOCAL.md) para o login e o limite do
-armazenamento de PDFs em disco local.
+## Pré-requisitos
 
-## Uso diario
+- Python 3.12+ e Node.js 22+ com pnpm (`npm i -g pnpm`).
+- `backend/.env` (copiar de `backend/.env.example`) com banco, chaves de API e
+  configuração de Auth. A URL do banco começa com `postgresql+psycopg://`.
+- `frontend/.env.local` (copiar de `frontend/.env.local.example`) com URL e
+  chave **pública** do mesmo projeto Supabase e
+  `NEXT_PUBLIC_API_BASE=http://127.0.0.1:8000`. Nunca colocar `service_role`
+  ou senha no frontend.
+- Tesseract com idioma `por`, se for testar OCR (`CAUSOR_TESSERACT_CMD` aponta
+  o executável quando não está no PATH).
 
-Com `backend/.env`, `frontend/.env.local`, a venv e as dependencias ja
-configuradas, abra três terminais na raiz do repositorio.
+## Banco
 
-Terminal 1:
+Duas opções:
 
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m alembic current
-.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
-```
+- **Postgres local descartável** (recomendado para testar mudanças):
+  `docker compose -f infra/docker-compose.yml up -d postgres` e
+  `CAUSOR_DATABASE_URL=postgresql+psycopg://causor:causor@localhost:5432/causor`,
+  depois `alembic upgrade head`.
+- **Supabase compartilhado com produção** (autorizado pelo fundador): use só
+  para conferência. Os workers locais consomem jobs reais dessa base, então não
+  rode captura ou processamento como teste. Consulte a revisão com
+  `alembic current` e só rode `upgrade head` com autorização.
 
-Terminal 2:
+SQLite não serve para validar migrações (a revisão `b7d5e9f3a2c1` altera uma
+constraint que ele não suporta). A suíte de testes usa SQLite descartável e
+ignora o que depende de PostgreSQL; esses casos rodam no CI.
 
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m app.cli worker
-```
-
-O worker consome jobs OAB do banco configurado. No banco compartilhado, só
-execute capturas autorizadas; não use jobs reais para testar alterações.
-
-Terminal 3:
-
-```powershell
-cd frontend
-pnpm.cmd dev
-```
-
-Valide `http://localhost:8000/health` e abra `http://localhost:3000`.
-
-## Backend
-
-Para a primeira instalacao, execute na raiz do repositorio:
+## Primeira instalação
 
 ```powershell
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e ".[dev]"
 Copy-Item .env.example .env
-# Configure CAUSOR_DATABASE_URL=postgresql+psycopg://... para o banco autorizado.
-# Rode upgrade head apenas se a revisão consultada estiver atrás da revisão atual.
-.\.venv\Scripts\python.exe -m alembic upgrade head
-# Opcional: habilita a geracao de minuta com o Claude. Sem isso, o botao
-# "Gerar minuta" responde 503 com mensagem clara (o resto do fluxo funciona).
-$env:ANTHROPIC_API_KEY="sk-ant-..."
-.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
-```
 
-API:
-
-- `http://localhost:8000/health`
-- `http://localhost:8000/dashboard/operational`
-- `http://localhost:8000/review/queue`
-- `POST http://localhost:8000/jobs/capture/oab` (cadastro e enfileiramento)
-- `GET http://localhost:8000/jobs/{id}` (acompanhamento)
-
-Não use SQLite para validar as migrações deste checkout: a revisão
-`b7d5e9f3a2c1` usa uma alteração de constraint que SQLite não suporta.
-
-## Frontend
-
-Em outro terminal:
-
-```powershell
-cd frontend
+cd ..\frontend
 pnpm.cmd install
-pnpm.cmd dev
 ```
 
-App:
+## Uso diário
 
-- `http://localhost:3000`
-
-O botão `Captura por OAB` cria um job persistente em `POST /jobs/capture/oab`.
-O botão permite fechar o modal e voltar ao acompanhamento. Sem o worker do
-segundo terminal, o job permanece aguardando execução. O endpoint síncrono
-`POST /capture/oab` permanece disponível para clientes legados.
-
-## Captura agendada
-
-Para executar as OABs que estiverem vencidas:
+Terminal 1 — API (http://127.0.0.1:8000, Swagger em `/docs`):
 
 ```powershell
 cd backend
-.\.venv\Scripts\python.exe -m app.cli capture-due
+.\.venv\Scripts\python.exe -m uvicorn app.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Falhas HTTP ou de banco recebem retry exponencial limitado. O comando retorna
-codigo `1` se alguma OAB falhar definitivamente, permitindo que cron,
-Agendador de Tarefas ou monitor externo disparem um alerta. As configuracoes
-ficam em `backend/.env.example`.
-
-Para registrar temporariamente a captura horaria no Windows:
+Terminal 2 — worker de jobs (captura OAB, análise de prazos, operações de
+trabalho):
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\register-local-capture-task.ps1
+cd backend
+.\.venv\Scripts\python.exe -m app.cli worker
 ```
 
-O task `Causor Capture Due` executa `scripts/run-capture-due.ps1` a cada hora.
-O computador precisa estar ligado e com o usuario conectado. O log local fica
-em `logs/capture-due.log` e nao e versionado.
-
-Para remover o agendamento quando o cron de producao estiver ativo:
+Terminal 3 — frontend (http://127.0.0.1:3000):
 
 ```powershell
-Unregister-ScheduledTask -TaskName "Causor Capture Due" -Confirm:$false
-```
-
-## Se a tela abrir sem CSS
-
-Pare o dev server e limpe o cache:
-
-```powershell
-Remove-Item -LiteralPath .\.next -Recurse -Force
+cd frontend
 pnpm.cmd dev
 ```
 
-Nao rode `pnpm build` enquanto `pnpm dev` estiver aberto; isso pode invalidar o `.next` do servidor de desenvolvimento.
+Opcionais, conforme o que for testar:
+
+```powershell
+.\.venv\Scripts\python.exe -m app.autos.worker        # extração/OCR/resumo dos documentos
+.\.venv\Scripts\python.exe -m app.capture.service     # agendador de captura por OAB
+```
+
+Sem o worker, a captura por OAB fica "aguardando execução"; a tela permite
+acompanhar e verificar de novo. Sem `ANTHROPIC_API_KEY`, as operações com IA
+respondem com erro explícito e o resto do fluxo funciona.
+
+## Arquivos dos autos
+
+O `localdev` grava os PDFs em `backend/artifacts/objects`, no disco desta
+máquina. A produção não enxerga esses arquivos, e o worker de produção não
+processa jobs cujos arquivos estão em outro ambiente. **Não envie autos reais
+pelo backend local.** Para compartilhar arquivos entre ambientes seria preciso
+um bucket privado (`CAUSOR_OBJECT_STORE_PROVIDER=s3`).
+
+## Problemas comuns
+
+- **Login falha:** confirme `http://127.0.0.1:8000/health` →
+  `{"status":"ok"}` e reinicie o frontend depois de editar `.env.local`. Erro no
+  Supabase Auth indica URL, chave pública ou conta; `401` em `/me` indica falha
+  ao validar o token; `403` em `/me` indica usuário sem vínculo no banco (ver
+  [onboarding](onboarding-piloto.md)).
+- **CORS:** a API aceita `localhost:3000` e `127.0.0.1:3000`. Se o Next subir em
+  outra porta, libere a 3000
+  (`Get-NetTCPConnection -LocalPort 3000 -State Listen`) ou adicione a origem em
+  `CAUSOR_CORS_ORIGINS`.
+- **Tela sem CSS:** pare o dev server, apague `frontend/.next` e rode
+  `pnpm.cmd dev`. Não rode `pnpm build` com o dev server aberto.
+- **`pnpm.ps1` bloqueado pela política de execução:** use `pnpm.cmd`.

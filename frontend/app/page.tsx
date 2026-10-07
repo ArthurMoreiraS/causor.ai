@@ -28,7 +28,6 @@ import {
   cumprirPrazo,
   DashboardData,
   editarPeticao,
-  gerarMinuta,
   listarOabsMonitoradas,
   loadDashboard,
   OabMonitorada,
@@ -57,7 +56,6 @@ import SettingsModal from "./SettingsModal";
 import DetailDrawer, { DetailSelection } from "./DetailDrawer";
 import MinutaEditor from "./MinutaEditor";
 import PrazoEditModal, { PrazoPatch } from "./PrazoEditModal";
-import AcessoTribunalWizard from "./components/AcessoTribunalWizard";
 import FiltersPanel from "./components/FiltersPanel";
 import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
@@ -66,12 +64,10 @@ import { useToast } from "./components/Toast";
 import UfSearchSelect from "./components/UfSearchSelect";
 import { LoadingButton, Modal, NavItem, Skeleton, ThemeToggle } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
-import ConectoresView from "./views/ConectoresView";
 import FilaDoDiaView from "./views/FilaDoDiaView";
 import GateOabView from "./views/GateOabView";
 import HomeDashboard from "./views/HomeDashboard";
 import OnboardingView from "./views/OnboardingView";
-import ProtocolosView from "./views/ProtocolosView";
 import TemplatesView from "./views/TemplatesView";
 import IntimacoesView from "./views/IntimacoesView";
 import PeticoesView from "./views/PeticoesView";
@@ -80,8 +76,8 @@ import ProcessosView from "./views/ProcessosView";
 import TrabalhosView from "./views/TrabalhosView";
 import { obterTrabalho } from "@/lib/work-api";
 import { useRequireAuth } from "./AuthProvider";
-import { CALENDAR_YEARS, useSettings } from "@/lib/settings";
-import { gateContexto, humanError } from "@/lib/errors";
+import { useSettings } from "@/lib/settings";
+import { humanError } from "@/lib/errors";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import { computeDashboardMetrics } from "@/lib/metrics";
@@ -170,11 +166,6 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [captureResult, setCaptureResult] = useState<CaptureResult | null>(null);
   const [captureContext, setCaptureContext] = useState<{ oab: string; uf: string } | null>(null);
-  const [lastClassificacao, setLastClassificacao] = useState<{
-    intimacaoId: number;
-    tipo: string;
-    confianca: number;
-  } | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [workProcessId, setWorkProcessId] = useState<number | undefined>();
   const [workOrigin, setWorkOrigin] = useState<{ intimacaoId: number; prazoId: number | null } | undefined>();
@@ -208,12 +199,6 @@ export default function Home() {
   const [overlay, setOverlay] = useState<null | "settings" | "help" | "profile">(null);
   const [detail, setDetail] = useState<DetailSelection | null>(null);
   const [editorPeticao, setEditorPeticao] = useState<Peticao | null>(null);
-  // Minuta barrada pelo gate de contexto: guarda a intimação para refazê-la
-  // sozinha assim que o assistente terminar de buscar os autos.
-  const [gateAssistente, setGateAssistente] = useState<{
-    intimacaoId: number;
-    processoId: number;
-  } | null>(null);
   const [prazoEdit, setPrazoEdit] = useState<Prazo | null>(null);
   const [backfillProgress, setBackfillProgress] = useState<string | null>(null);
   const [backfillBusy, setBackfillBusy] = useState(false);
@@ -230,20 +215,7 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(false);
 
   const filtersActive = Boolean(filters.tribunal || filters.sistema || filters.risco);
-  const classificacaoAbaixoLimiar = lastClassificacao
-    ? lastClassificacao.confianca < settings.confidenceThreshold
-    : false;
-  const confiancaClassificacaoPct = lastClassificacao
-    ? Math.round(lastClassificacao.confianca * 100)
-    : 0;
-  const limiarConfiancaPct = Math.round(settings.confidenceThreshold * 100);
 
-  const calendarYears = useMemo(() => {
-    const y = new Date().getFullYear();
-    const n = CALENDAR_YEARS;
-    const start = y - Math.floor((n - 1) / 2);
-    return Array.from({ length: n }, (_, i) => start + i);
-  }, []);
 
   async function loadOabsMonitoradas() {
     try {
@@ -310,29 +282,6 @@ export default function Home() {
     } finally {
       setBusy(null);
     }
-  }
-
-  /** Ponto único de geração de minuta.
-   *
-   * A minuta nasce de **intimação + autos completos**. Quando os autos ainda
-   * não estão íntegros o backend recusa com 409 estruturado (`next_step`,
-   * `processo_id`) — isso não é erro do advogado, é trabalho que falta. Em vez
-   * do toast genérico, abre o assistente, que conduz parear/logar/capturar e
-   * refaz a minuta sozinho ao terminar. */
-  async function minutar(intimacaoId: number) {
-    await runAction(
-      `draft-${intimacaoId}`,
-      async () => {
-        const cls = await gerarMinuta(intimacaoId, calendarYears);
-        if (cls) setLastClassificacao({ intimacaoId, tipo: cls.tipo, confianca: cls.confianca });
-      },
-      (err) => {
-        const gate = gateContexto(err);
-        if (!gate) return false;
-        setGateAssistente({ intimacaoId, processoId: gate.processo_id });
-        return true;
-      }
-    );
   }
 
   function prepareWorkFromNotice(intimacaoId: number, processoId: number | null, prazoId: number | null) {
@@ -950,46 +899,6 @@ export default function Home() {
           </div>
         ) : null}
 
-        {lastClassificacao ? (
-          <div
-            className={
-              classificacaoAbaixoLimiar
-                ? "notice classificationNotice"
-                : "notice success classificationNotice"
-            }
-          >
-            <div className="classificationNoticeIcon" aria-hidden="true">
-              {classificacaoAbaixoLimiar ? <AlertTriangle size={18} /> : <Sparkles size={18} />}
-            </div>
-            <div className="classificationNoticeBody">
-              <div className="classificationNoticeEyebrow">Classificação da IA</div>
-              <div className="classificationNoticeTitleRow">
-                <strong className="classificationNoticeTitle">{lastClassificacao.tipo}</strong>
-                <span className="classificationNoticeConfidence">
-                  confiança {confiancaClassificacaoPct}%
-                </span>
-              </div>
-              <p className="classificationNoticeText">
-                {classificacaoAbaixoLimiar ? (
-                  <>
-                    Abaixo do limiar operacional de <strong>{limiarConfiancaPct}%</strong>.
-                    Revise a peça com atenção antes de seguir para aprovação.
-                  </>
-                ) : (
-                  "Classificação dentro do limiar configurado, pronta para revisão final."
-                )}
-              </p>
-            </div>
-            <button
-              className="dismiss-notice classificationNoticeDismiss"
-              onClick={() => setLastClassificacao(null)}
-              aria-label="Fechar aviso de classificação"
-            >
-              <X size={16} />
-            </button>
-          </div>
-        ) : null}
-
         {view === "onboarding" ? (
           <OnboardingView
             data={data}
@@ -1023,19 +932,6 @@ export default function Home() {
           <DocumentosView key={`${documentContext?.processId || "all"}-${documentContext?.task?.id || "none"}`}
             processos={data.processos} offline={offline} initialProcessId={documentContext?.processId} initialTask={documentContext?.task}
             onChanged={() => setRefreshTick(v => v + 1)} onTasks={() => setView("tarefas")} onAll={() => setDocumentContext(null)} />
-        ) : view === "protocolos" ? (
-          <ProtocolosView
-            peticoes={data.peticoes}
-            processos={data.processos}
-            offline={offline}
-            refreshKey={refreshTick}
-            onChanged={async () => { await refresh(); }}
-          />
-        ) : view === "conectores" ? (
-          <ConectoresView
-            connectors={operationalConnectors}
-            onOpenVault={() => setOverlay("settings")}
-          />
         ) : view === "dashboard" ? (
           <HomeDashboard
             metrics={metrics}
@@ -1381,27 +1277,6 @@ export default function Home() {
             }}
             onPrazoConfirmed={() => { void refresh(); }}
           />
-        ) : null}
-
-        {/* Gate de contexto: a minuta parou porque faltam os autos. O assistente
-            conduz parear/logar/capturar e, quando o contexto fica pronto,
-            refaz a minuta sozinho — o advogado não clica de novo. */}
-        {gateAssistente ? (
-          <Modal
-            onClose={() => setGateAssistente(null)}
-            labelledBy="acessoWizardTitle"
-            className="acessoWizardCard"
-          >
-            <AcessoTribunalWizard
-              processoId={gateAssistente.processoId}
-              onReady={() => {
-                const alvo = gateAssistente;
-                setGateAssistente(null);
-                void minutar(alvo.intimacaoId);
-              }}
-              onClose={() => setGateAssistente(null)}
-            />
-          </Modal>
         ) : null}
 
         {editorPeticao ? (

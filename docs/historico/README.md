@@ -1,20 +1,17 @@
 # Histórico
 
-Esta pasta contém registros históricos de design e implementação — planos e
-specs que documentam decisões tomadas ao longo do desenvolvimento.
+**Estes arquivos não refletem o estado atual do produto.** Para o estado atual,
+consulte [`../estado.md`](../estado.md). Links internos destes documentos podem
+apontar para arquivos que já foram removidos; o git preserva todas as versões.
 
-**Aviso:** estes arquivos **não** refletem o estado atual do produto. Não os
-use para inferir o que existe hoje. Para o estado atual, consulte
-[`../estado.md`](../estado.md). Para decisões estratégicas vigentes, consulte
-[`../produto/PRD.md`](../produto/PRD.md).
-
-A pasta `superpowers/` contém:
-
-- `plans/` — planos de implementação por data.
-- `specs/` — documentos de design por data.
-
-Registros de sessão (a narrativa e o **porquê** das decisões; o resultado
-técnico vive em `../areas/`):
-
-- [`2026-07-21-22-sessao-mni.md`](2026-07-21-22-sessao-mni.md) — adoção do
-  canal oficial MNI e a repriorização das Tasks 6–9 do Plano 3.
+- [`estado-ate-2026-10-06.md`](estado-ate-2026-10-06.md) — registro
+  cronológico das entregas até 06/10/2026, com links de CI e deploy.
+- [`migracao-supabase-free-2026-10-06.md`](migracao-supabase-free-2026-10-06.md)
+  — procedimento usado na troca do projeto Supabase (reaproveitável).
+- `pesquisas/` — pesquisas de mercado e de produto de julho a setembro
+  (viabilidade, rota de produto, plano de 90 dias, Garfield, análise
+  competitiva, acesso aos autos via Enter/Judit/Escavador, diagnóstico de 04/09).
+  A pesquisa vigente está em [`../mercado/`](../mercado/).
+- `trilhas-adiadas/` — MNI (credenciamento, ofício, sessão de adoção), PJe
+  assistido e o PRD de julho, escrito quando protocolo automático era o
+  produto. O código do agente local e do protocolo foi removido em 06/10/2026.

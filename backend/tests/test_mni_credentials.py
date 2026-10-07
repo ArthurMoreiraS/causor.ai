@@ -108,7 +108,7 @@ def test_api_cadastra_lista_mascarada_e_revoga(client, seeded):
 
 
 # --- Fail-closed: credencial so para tribunal que atende por MNI -------------
-# Sem perfil na tabela, assistant.resolve_next_step nunca escolhe o canal
+# Sem perfil na tabela, a captura automatica nunca escolhe o canal
 # oficial: a credencial vira peso morto e simula um acesso que nao existe.
 
 

@@ -4,7 +4,6 @@ import { FileSearch, Loader2, RefreshCcw, ShieldAlert, Upload } from "lucide-rea
 import { useEffect, useRef, useState } from "react";
 import {
   AutosStatus,
-  capturarAutos,
   criarOverrideContexto,
   declararGrauNaoAplicavel,
   reprocessarAutos,
@@ -12,7 +11,6 @@ import {
   statusAutos
 } from "@/lib/api";
 import { humanError } from "@/lib/errors";
-import AcessoTribunalWizard from "./AcessoTribunalWizard";
 import { LoadingButton } from "./ui";
 
 export type ContextUiState =
@@ -61,7 +59,6 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
   const [showOverride, setShowOverride] = useState(false);
   const [justification, setJustification] = useState("");
   const [overrideOk, setOverrideOk] = useState(false);
-  const [showWizard, setShowWizard] = useState(false);
   const [grau, setGrau] = useState(initialDegree);
   useEffect(() => { setGrau(initialDegree); }, [initialDegree, processoId]);
   const [absence, setAbsence] = useState("");
@@ -96,18 +93,6 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
     return () => { requestEpoch.current += 1; inFlight.current = false; pendingReload.current = false; window.clearInterval(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [processoId]);
-
-  async function capturar() {
-    setBusy("capturar");
-    try {
-      await capturarAutos(processoId);
-      await reload();
-    } catch (err) {
-      setError(humanError(err, "Falha ao iniciar captura"));
-    } finally {
-      setBusy(null);
-    }
-  }
 
   // O advogado já tem acesso aos autos: deixar que ele entregue resolve o caso
   // em que nenhum canal automático alcança o tribunal.
@@ -243,13 +228,6 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
             <option value="1">1º grau</option><option value="2">2º grau</option>
           </select>
         </label>
-        {!assistedOnly ? <button
-          className="toolbarButton compact"
-          disabled={busy === "capturar" || uiState === "capturing"}
-          onClick={() => void capturar()}
-        >
-          {uiState === "not_captured" ? "Capturar autos" : "Retentar pendências"}
-        </button> : null}
         {onReceiveDocuments ? <button className="toolbarButton compact" disabled={receivingDisabled} onClick={onReceiveDocuments}>Receber documentos</button> : <label className="toolbarButton compact contextUpload">
           {busy === "upload" ? <Loader2 className="spin" size={13} /> : <Upload size={13} />}
           Enviar os autos
@@ -262,14 +240,6 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
             onChange={(event) => void enviar(event.target.files)}
           />
         </label>}
-        {!assistedOnly ? <button
-          className="toolbarButton primary compact"
-          onClick={() => {
-            setShowWizard(true);
-          }}
-        >
-          Ver acesso ao tribunal
-        </button> : null}
         {!assistedOnly && blocked && !overrideOk && (
           <button className="toolbarButton compact" onClick={() => setShowOverride(true)}>
             <ShieldAlert size={13} /> Liberar excepcionalmente
@@ -298,17 +268,6 @@ export default function ProcessContextStatus({ processoId, initialDegree = "1", 
           O contexto ainda possui pendências. Confira os graus, os arquivos e o processamento.
           O envio manual declara o escopo recebido; não comprova a íntegra dos autos no tribunal.
         </p>
-      )}
-
-      {showWizard && (
-        <AcessoTribunalWizard
-          processoId={processoId}
-          onReady={() => {
-            setShowWizard(false);
-            void reload();
-          }}
-          onClose={() => setShowWizard(false)}
-        />
       )}
 
       {!assistedOnly && showOverride && (

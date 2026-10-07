@@ -51,7 +51,7 @@ def _capture_with_file(db_session, seeded, store, external_id="a"):
         ],
         evidence={},
     )
-    capture = open_capture(db_session, processo_instancia=instancia, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instancia, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=manifest)
     data = b"%PDF-1.4\nconteudo\n%%EOF\n"
     key = (

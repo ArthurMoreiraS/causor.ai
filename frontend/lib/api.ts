@@ -354,38 +354,6 @@ export type OabRemovalResult = {
   removidos: Record<string, number>;
 };
 
-export type CredencialAssinatura = {
-  id: number;
-  usuario_id: number;
-  provedor: string;
-  tribunal: string | null;
-  sistema: string | null;
-  grau: string | null;
-  tipo: string | null;
-  modo: string;
-  referencia_vault: string;
-  ativo: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-/** Sistema + URLs resolvidos para um tribunal/grau (registro do backend). */
-export type CourtRouting = {
-  sistema: string;
-  url_login: string | null;
-  url_peticionamento: string | null;
-  verificado: boolean;
-};
-
-/** How the lawyer signs after the robot stops at ready_to_sign. Carries no secret. */
-export type SignatureHandoff = {
-  provedor: string;
-  modo: string;
-  mensagem: string;
-  instrucoes: string[];
-  acoes: string[];
-};
-
 export type TemplatePeticao = {
   id: number;
   escritorio_id: number;
@@ -612,18 +580,6 @@ export async function loadDashboard(): Promise<DashboardData> {
   };
 }
 
-export async function gerarMinuta(
-  intimacaoId: number,
-  calendarYears?: number[]
-): Promise<Classificacao | null> {
-  const body = calendarYears?.length ? { calendar_years: calendarYears } : {};
-  const resp = await request<{ classificacao: Classificacao }>(
-    `/intimacoes/${intimacaoId}/draft`,
-    { method: "POST", body: JSON.stringify(body) }
-  );
-  return resp.classificacao;
-}
-
 export async function editarPeticao(
   peticaoId: number,
   patch: { conteudo?: string; status?: "rascunho" | "em_revisao" }
@@ -640,33 +596,6 @@ export async function aprovarPeticao(peticaoId: number): Promise<void> {
   await request(`/peticoes/${peticaoId}/approve`, {
     method: "POST",
     body: JSON.stringify({ usuario_id: usuarioId })
-  });
-}
-
-/** Protocolo assíncrono: PJe assistido até ready_to_sign; demais conectores usam registro controlado. */
-export async function protocolarPeticaoAsync(
-  peticaoId: number,
-  credencialId?: number
-): Promise<JobExecucao> {
-  return request<JobExecucao>(`/peticoes/${peticaoId}/protocolar/async`, {
-    method: "POST",
-    body: JSON.stringify(credencialId != null ? { credencial_id: credencialId } : {})
-  });
-}
-
-export async function confirmarProtocoloManual(
-  peticaoId: number,
-  protocolo: string,
-  comprovanteUri?: string,
-  credencialId?: number
-): Promise<Peticao> {
-  return request<Peticao>(`/peticoes/${peticaoId}/protocolar/confirmar`, {
-    method: "POST",
-    body: JSON.stringify({
-      protocolo,
-      ...(comprovanteUri ? { comprovante_uri: comprovanteUri } : {}),
-      ...(credencialId != null ? { credencial_id: credencialId } : {})
-    })
   });
 }
 
@@ -750,34 +679,6 @@ export async function resolverEscritorioAtual(): Promise<number> {
   return (await carregarUsuarioAtual()).escritorio_id;
 }
 
-export async function listarCredenciais(usuarioId?: number): Promise<CredencialAssinatura[]> {
-  const id = usuarioId ?? (await resolverUsuarioAtual());
-  return request<CredencialAssinatura[]>(`/usuarios/${id}/credenciais-assinatura`);
-}
-
-export async function cadastrarCredencial(
-  provedor: string,
-  referenciaExterna: string,
-  usuarioId?: number
-): Promise<CredencialAssinatura> {
-  const id = usuarioId ?? (await resolverUsuarioAtual());
-  return request<CredencialAssinatura>(`/usuarios/${id}/credenciais-assinatura`, {
-    method: "POST",
-    body: JSON.stringify({ provedor, referencia_externa: referenciaExterna })
-  });
-}
-
-export async function desativarCredencial(credencialId: number): Promise<CredencialAssinatura> {
-  return request<CredencialAssinatura>(`/credenciais-assinatura/${credencialId}/desativar`, {
-    method: "PATCH"
-  });
-}
-
-export async function resolverRota(tribunal: string, grau: string): Promise<CourtRouting> {
-  const qs = new URLSearchParams({ tribunal, grau }).toString();
-  return request<CourtRouting>(`/court-routing?${qs}`);
-}
-
 export type CapturaAutos = {
   id: number;
   processo_instancia_id: number;
@@ -791,49 +692,6 @@ export type CapturaAutos = {
   completed_at: string | null;
   fonte?: string;
 };
-
-export type MniCredencial = {
-  id: number;
-  tribunal: string;
-  id_consultante_mask: string;
-  ativo: boolean;
-  last_validated_at: string | null;
-};
-
-export type MniTesteResultado = {
-  ok: boolean;
-  error_code: string | null;
-  documentos: number | null;
-};
-
-export async function listarMniCredenciais(): Promise<MniCredencial[]> {
-  return request<MniCredencial[]>("/mni/credenciais");
-}
-
-export async function cadastrarMniCredencial(payload: {
-  tribunal: string;
-  id_consultante: string;
-  senha: string;
-}): Promise<MniCredencial> {
-  return request<MniCredencial>("/mni/credenciais", {
-    method: "POST",
-    body: JSON.stringify(payload)
-  });
-}
-
-export async function revogarMniCredencial(credencialId: number): Promise<void> {
-  await request<MniCredencial>(`/mni/credenciais/${credencialId}`, { method: "DELETE" });
-}
-
-export async function testarMniCredencial(
-  credencialId: number,
-  numeroProcesso: string
-): Promise<MniTesteResultado> {
-  return request<MniTesteResultado>(`/mni/credenciais/${credencialId}/testar`, {
-    method: "POST",
-    body: JSON.stringify({ numero_processo: numeroProcesso })
-  });
-}
 
 export type AutosInstanciaStatus = {
   processo_instancia_id: number;
@@ -863,16 +721,6 @@ export async function declararGrauNaoAplicavel(processoId: number, grau: string,
 
 export async function reprocessarAutos(processoId: number) {
   return request(`/processos/${processoId}/autos/reprocessar`, { method: "POST" });
-}
-
-export async function capturarAutos(
-  processoId: number,
-  graus: string[] = ["1", "2"]
-): Promise<CapturaAutos[]> {
-  return request<CapturaAutos[]>(`/processos/${processoId}/autos/capturar`, {
-    method: "POST",
-    body: JSON.stringify({ graus })
-  });
 }
 
 export async function statusAutos(processoId: number): Promise<AutosStatus> {
@@ -927,135 +775,6 @@ export async function criarOverrideContexto(
     method: "POST",
     body: JSON.stringify({ action, justification })
   });
-}
-
-export type AgentInstallation = {
-  id: number;
-  nome: string;
-  ativo: boolean;
-  last_seen_at: string | null;
-  version: string | null;
-};
-
-export type AgentPairingCode = {
-  code: string;
-  expires_at: string;
-};
-
-export async function listarAgentes(): Promise<AgentInstallation[]> {
-  return request<AgentInstallation[]>("/agent/installations");
-}
-
-export async function criarCodigoPareamento(): Promise<AgentPairingCode> {
-  return request<AgentPairingCode>("/agent/pairing-codes", { method: "POST" });
-}
-
-export async function revogarAgente(installationId: number): Promise<void> {
-  // 204 sem corpo: não usa request() porque ele sempre faz response.json().
-  const { data } = await supabase.auth.getSession();
-  const token = data.session?.access_token;
-  const headers = withAuthHeaders({ "Content-Type": "application/json" }, token);
-  const response = await fetch(`${API_BASE}/agent/installations/${installationId}`, {
-    method: "DELETE",
-    headers,
-    cache: "no-store"
-  });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(detail || `Request failed: ${response.status}`);
-  }
-}
-
-/** Rota de sessão do tribunal por (sistema, tribunal, grau). Estado derivado do
- * login feito no agente local — nunca carrega cookie/sessão. */
-export type CourtSessionRota = {
-  sistema: string;
-  tribunal: string;
-  grau: string;
-  status: "desconectado" | "conectando" | "conectado" | "expirado";
-  version_marker: string | null;
-  last_confirmed_at: string | null;
-  last_error_code: string | null;
-};
-
-export type CourtSessionState = {
-  processo_id: number;
-  rotas: CourtSessionRota[];
-};
-
-export type CourtLoginResult = {
-  sistema: string;
-  tribunal: string;
-  grau: string;
-  status: string;
-  command_id: number;
-};
-
-/** Passo acionável do assistente JIT quando o contexto não está pronto. */
-export type ProximoPasso = {
-  processo_id: number;
-  ready: boolean;
-  next_step: "pair_agent" | "court_login" | "capture_autos" | "upload_autos" | null;
-  rota: { sistema: string; tribunal: string; grau: string };
-};
-
-export type ConnectorCoverageRow = {
-  profile_key: string;
-  sistema: string;
-  tribunal: string;
-  grau: string;
-  state: "experimental" | "supported" | "degraded" | "blocked";
-  reasons: string[];
-  read_autos: boolean;
-  prepare_filing: boolean;
-  submit_filing: boolean;
-  last_validation_at: string | null;
-};
-
-/** Dispara o login do tribunal: o agente abre o portal na máquina do advogado. */
-export async function loginTribunal(
-  processoId: number,
-  grau: string,
-  sistema?: string
-): Promise<CourtLoginResult> {
-  return request<CourtLoginResult>(`/processos/${processoId}/tribunal/login`, {
-    method: "POST",
-    body: JSON.stringify({ grau, sistema: sistema ?? null })
-  });
-}
-
-export async function statusSessaoTribunal(processoId: number): Promise<CourtSessionState> {
-  return request<CourtSessionState>(`/processos/${processoId}/tribunal/sessao`);
-}
-
-export async function proximoPassoContexto(processoId: number): Promise<ProximoPasso> {
-  return request<ProximoPasso>(`/processos/${processoId}/contexto/proximo-passo`);
-}
-
-export async function listarCoberturaConectores(): Promise<ConnectorCoverageRow[]> {
-  return request<ConnectorCoverageRow[]>(`/connectors/coverage`);
-}
-
-/** Uma das duas capacidades da rota: ler os autos ou protocolar. `falta` é a
- * próxima ação do advogado quando a capacidade não está disponível. */
-export type AcessoCapacidade = {
-  disponivel: boolean;
-  via: "oficial" | "computador" | null;
-  falta: "parear" | "logar" | "reconectar" | "integracao_indisponivel" | null;
-};
-
-export type AcessoTribunal = {
-  sistema: string;
-  tribunal: string;
-  grau: string;
-  processos: number;
-  ler_autos: AcessoCapacidade;
-  protocolar: AcessoCapacidade;
-  mni_disponivel: boolean;
-};
-
-export async function listarAcessoTribunais(): Promise<AcessoTribunal[]> {
-  return request<AcessoTribunal[]>("/tribunais/acesso");
 }
 
 export async function listarTemplates(escritorioId?: number): Promise<TemplatePeticao[]> {

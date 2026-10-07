@@ -60,7 +60,7 @@ def _manifest(ids=("a",)):
 
 
 def _confirmed_version(db_session, instance, object_store, data):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=_manifest())
     object_store.put_bytes("test/a.pdf", data, "application/pdf")
     return confirm_document_upload(

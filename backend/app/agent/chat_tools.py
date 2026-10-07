@@ -225,10 +225,7 @@ def execute_scoped_read_tool(session, name, tool_input, *, current, work_id=None
             citation = next((c for c in (work.evidencias or {}).get("citations", []) if c["chunk_id"] == int(tool_input["fonte_id"])), None)
             value = {"fonte": citation} if citation else {"erro": "Fonte não pertence à fotografia de evidências deste trabalho"}
         else:
-            from app.api.package_routes import attempt_out, package_out
-            package = session.scalar(tenant_select(models.PacoteProtocolo, current).where(models.PacoteProtocolo.trabalho_id == work.id).order_by(models.PacoteProtocolo.versao.desc()).limit(1))
-            attempts = session.scalars(tenant_select(models.TentativaProtocolo, current).where(models.TentativaProtocolo.pacote_id == package.id).order_by(models.TentativaProtocolo.id.desc()).limit(5)).all() if package else []
-            value = {"pacote": package_out(session, package) if package else None, "tentativas": [attempt_out(session, a) for a in attempts]}
+            value = {"erro": "Ferramenta não disponível"}
         return json.dumps(value, ensure_ascii=False, default=str)
     except (HTTPException, ValueError, KeyError, TypeError):
         return json.dumps({"erro": "Recurso não encontrado ou entrada inválida no escopo autorizado"})

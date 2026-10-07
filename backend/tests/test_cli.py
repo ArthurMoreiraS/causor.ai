@@ -150,8 +150,7 @@ def test_cli_capture_due_reports_failure_when_djen_down(db_session, monkeypatch)
 
 
 def test_parser_rejects_removed_pje_capture_session():
-    # A sessão de tribunal vive no agente local; o comando de captura via
-    # backend foi removido junto com o vault de sessão.
+    # O comando de captura de sessão de tribunal foi removido.
     parser = _build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["pje-capture-session", "--usuario", "7"])
@@ -236,15 +235,6 @@ def test_cli_enrich_processos_tolerates_datajud_failure(db_session, monkeypatch)
     assert rc == 0  # uma falha isolada nao derruba o comando
     db_session.refresh(processo)
     assert processo.sistema is None
-
-
-def test_parser_accepts_pje_simulator():
-    parser = _build_parser()
-    args = parser.parse_args(["pje-simulator", "--port", "8765"])
-
-    assert args.command == "pje-simulator"
-    assert args.host == "127.0.0.1"
-    assert args.port == 8765
 
 
 def test_cli_notificar_prazos_avisa_e_nao_repete(db_session, monkeypatch):

@@ -1,16 +1,15 @@
 """Endpoints MNI por (tribunal, grau).
 
 **Só entra aqui endpoint confirmado.** Falha de MNI marca a captura ``failed``
-e *não* cai para o agente local (ver ``executor.run_mni_capture_job``): um
-endpoint palpitado manda o advogado para um erro em vez do caminho que
-funciona. Sem entrada, o MNI está indisponível para a rota (fail-closed) e a
-captura vai pelo agente — que é o comportamento correto para tribunal
-desconhecido.
+e não tem fallback automático (ver ``executor.run_mni_capture_job``): um
+endpoint palpitado manda o advogado para um erro em vez do upload manual.
+Sem entrada, o MNI está indisponível para a rota (fail-closed) e a captura
+automática é recusada — o advogado envia os autos.
 
 Confirmação = o host serviu ``wsdl:definitions`` com o namespace
 ``servico-intercomunicacao-2.2.2`` e expôs ``consultarProcesso`` +
 ``entregarManifestacaoProcessual``. Varredura de 2026-07-22 sobre TJs, TRFs e
-TRTs; ver ``docs/areas/mni-credenciamento.md`` para a lista completa, os
+TRTs; ver ``docs/historico/trilhas-adiadas/mni-credenciamento.md`` para a lista completa, os
 padrões de URL testados e os tribunais que responderam 403 (WAF) — 403 não
 prova ausência de MNI, prova ausência de confirmação.
 

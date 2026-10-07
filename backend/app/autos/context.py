@@ -467,10 +467,15 @@ def require_ready_context(
         )
         if override is not None:
             return "override"
-    # Enriquece o gate com o passo acionável para o assistente JIT.
-    from app.connectors.assistant import resolve_next_step
+    # Sem captura automática homologada, o passo acionável é o upload manual.
+    from app.capture.court_routing import resolve_route
 
-    next_step, rota = resolve_next_step(session, processo=processo, context_ready=False)
+    route = resolve_route(processo.tribunal, "1")
+    rota = {
+        "sistema": processo.sistema or (route.sistema if route else None) or "DESCONHECIDO",
+        "tribunal": route.tribunal if route else (processo.tribunal or "DESCONHECIDO"),
+        "grau": "1",
+    }
     raise ContextNotReadyError(
-        processo_id=processo.id, missing=missing, next_step=next_step, rota=rota
+        processo_id=processo.id, missing=missing, next_step="upload_autos", rota=rota
     )

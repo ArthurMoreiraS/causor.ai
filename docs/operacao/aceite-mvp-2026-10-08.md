@@ -12,7 +12,7 @@ automática de autos não são necessários para esta aceitação.
   escritório e oito endpoints de produção. Frontend já usa o destino novo.
   Entrar novamente com a conta existente; senha/hash preservados, mas login
   com senha no navegador do fundador ainda não observado. Ver
-  [migração](migracao-supabase-free.md).
+  [migração](../historico/migracao-supabase-free-2026-10-06.md).
 - Separar um caso autorizado, número/tribunal, cliente e polo representado,
   objetivo do trabalho, publicação/demanda e arquivos disponíveis.
 - Preparar inventário externo dos arquivos: peça, versão, páginas e o que falta.

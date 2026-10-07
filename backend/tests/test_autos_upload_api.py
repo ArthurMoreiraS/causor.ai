@@ -193,11 +193,6 @@ def test_upload_worker_builds_context_and_retry_preserves_summary(
     assert preview.content.startswith(b"%PDF")
     assert client.post(f"/peticoes/{petition['id']}/approve").status_code == 200
     assert client.get(f"/peticoes/{petition['id']}/pdf").content == preview.content
-    filed = client.post(f"/peticoes/{petition['id']}/protocolar/confirmar", json={"protocolo": "DECLARACAO-TESTE"})
-    assert filed.status_code == 200
-    receipt = filed.json()["dossie"]["protocolo_registrado"]
-    assert receipt["origem"] == "declaracao_manual"
-    assert receipt["comprovante_status"] == "ausente"
 
 
 def test_general_worker_leaves_document_jobs_for_document_worker(db_session, seeded):

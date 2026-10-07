@@ -3,31 +3,22 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { listarDocumentos } from "@/lib/api";
 import { buscarFontesTrabalho, conferirEvidencias, criarPendenciaTrabalho, consultarOperacaoAtual, iniciarOperacaoTrabalho, type Trabalho } from "@/lib/work-api";
-import { listarPacotes, listarTentativas, iniciarEnvioExterno, baixarArquivoTrabalho, conferirComprovante, type Pacote } from "@/lib/package-api";
 import WorkEvidence from "./WorkEvidence";
-import WorkProtocol from "./WorkProtocol";
 
 vi.mock("@/lib/api", () => ({ listarDocumentos: vi.fn() }));
 vi.mock("./DocumentEvidenceDialog", () => ({ default: () => <div>Fonte original</div> }));
 vi.mock("@/lib/work-api", () => ({ conferirEvidencias: vi.fn(), criarPendenciaTrabalho: vi.fn(), iniciarOperacaoTrabalho: vi.fn(),
   consultarOperacaoAtual: vi.fn(), consultarOperacaoTrabalho: vi.fn(), obterTrabalhoAposOperacao: vi.fn(), buscarFontesTrabalho: vi.fn() }));
-vi.mock("@/lib/package-api", () => ({ listarPacotes: vi.fn(), listarTentativas: vi.fn(), iniciarEnvioExterno: vi.fn(), baixarArquivoTrabalho: vi.fn(), conferirComprovante: vi.fn(), aprovarPacote: vi.fn(), cancelarTentativa: vi.fn(), criarPacote: vi.fn(), informarEnvio: vi.fn(), receberComprovante: vi.fn() }));
 
 const work: Trabalho = { id: 1, processo_id: 2, intimacao_id: null, prazo_id: null, peticao_id: 3, responsavel_id: null,
   providencia: "Manifestação", instrucoes: "", grau: "2", polo: "Autor", versao: 7, created_at: "", updated_at: "",
   escopo: { data_referencia: "2026-09-20", declaracao: "Autos enviados para teste", documentos: [] },
   evidencias: { citations: [], analise: { fatos: [], cronologia: [], contradicoes: [], lacunas: ["Comprovante ausente"] },
     conferida: false, avisos: [], source_fingerprint: "abc", preparada_em: "", perguntas: [] } };
-const package_: Pacote = { id: 8, trabalho_id: 1, peticao_id: 3, versao: 1, fingerprint: "a".repeat(64), atual: true,
-  motivo: null, aprovada_em: "2026-09-20T12:00:00Z", destino: { tribunal: "TJSP", grau: "2", orgao: "Câmara", tipo_ato: "Manifestação", numero_processo: "0000123-45.2026.8.26.0100" },
-  items: [{ nome: "01-peticao.pdf", tipo: "peticao", sha256: "b".repeat(64), size_bytes: 200 }] };
-
 afterEach(cleanup);
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(listarDocumentos).mockResolvedValue({ total: 0, items: [] });
-  vi.mocked(listarPacotes).mockResolvedValue({ items: [package_] });
-  vi.mocked(listarTentativas).mockResolvedValue({ items: [] });
   vi.mocked(consultarOperacaoAtual).mockResolvedValue(null);
 });
 
@@ -167,27 +158,4 @@ it("não publica resposta de outro trabalho mesmo quando o componente é reutili
   await act(async () => finish({ items: [{ documento_id: 3, documento_arquivo_id: 4, chunk_id: 5, pagina: 1, quote: "Outro trabalho" }] }));
   expect(screen.queryByText("Outro trabalho")).toBeNull();
   expect((screen.getByLabelText("Buscar no texto original") as HTMLInputElement).value).toBe("");
-});
-
-it("baixar pacote aprovado não cria tentativa nem confirma envio", async () => {
-  render(<WorkProtocol work={work} disabled={false} onChanged={vi.fn()} />);
-  fireEvent.click(await screen.findByRole("button", { name: "Baixar pacote aprovado" }));
-  await waitFor(() => expect(baixarArquivoTrabalho).toHaveBeenCalledWith("/pacotes/8/exportar", "pacote-8.zip"));
-  expect(iniciarEnvioExterno).not.toHaveBeenCalled();
-  expect(conferirComprovante).not.toHaveBeenCalled();
-});
-
-it("comprovante divergente bloqueia confirmação mesmo após marcar a conferência", async () => {
-  vi.mocked(listarTentativas).mockResolvedValue({ items: [{ id: 4, pacote_id: 8, canal: "externo", status: "envio_informado", versao: 3,
-    dados: null, comprovantes: [{ id: 10, nome: "outro.pdf", sha256: "c", status: "divergente", dados: { numeros_extraidos: ["outro"], texto_disponivel: true } }] }] });
-  render(<WorkProtocol work={work} disabled={false} onChanged={vi.fn()} />);
-  await screen.findByText(/Número do processo divergente/);
-  fireEvent.change(screen.getByLabelText("Número do protocolo informado"), { target: { value: "TESTE-123" } });
-  fireEvent.change(screen.getByLabelText("Data e hora do ato"), { target: { value: "2026-09-20T12:00" } });
-  fireEvent.change(screen.getByLabelText("Observações da conferência"), { target: { value: "Conferi visualmente os dados do arquivo" } });
-  fireEvent.click(screen.getByLabelText("Conferi processo, destino, número, data do ato e correspondência com os arquivos aprovados."));
-  const button = screen.getByRole("button", { name: "Registrar conferência humana do comprovante" }) as HTMLButtonElement;
-  expect(button.disabled).toBe(true);
-  fireEvent.click(button);
-  expect(conferirComprovante).not.toHaveBeenCalled();
 });

@@ -67,7 +67,7 @@ def document_with_chunks(db_session, seeded, instance, object_store):
         ],
         evidence={},
     )
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=manifest)
     data = (FIXTURES / "textual.pdf").read_bytes()
     object_store.put_bytes("test/a.pdf", data, "application/pdf")

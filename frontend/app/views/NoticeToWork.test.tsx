@@ -15,7 +15,6 @@ vi.mock("../components/DocumentUploadDialog", () => ({ default: () => null }));
 vi.mock("../components/WorkEvidence", () => ({ default: () => null }));
 vi.mock("../components/WorkScope", () => ({ default: ({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) =>
   <button type="button" onClick={() => onDirtyChange(true)}>Editar índice</button> }));
-vi.mock("../components/WorkProtocol", () => ({ default: () => null }));
 vi.mock("../components/WorkAssistant", () => ({ default: () => null }));
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });

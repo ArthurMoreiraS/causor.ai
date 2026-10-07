@@ -18,10 +18,10 @@ class MniCredencialNotFound(RuntimeError):
 class TribunalSemPerfilMni(RuntimeError):
     """Cadastro de credencial para tribunal que não atende por MNI.
 
-    O roteamento (``assistant.resolve_next_step``) exige **perfil e
+    O roteamento (``autos.service.resolve_capture_fonte``) exige **perfil e
     credencial** para escolher o canal oficial. Sem perfil na tabela, a
     credencial nunca é usada: gravá-la só cria a ilusão de tribunal conectado
-    enquanto tudo continua indo pelo agente local. Mesma lógica fail-closed
+    enquanto os autos continuam dependendo do upload manual. Mesma lógica fail-closed
     que a tabela de perfis já aplica — endereço palpitado manda o advogado
     para um erro em vez do caminho que funciona.
     """
@@ -64,8 +64,8 @@ def store_mni_credencial(
     tribunal = tribunal.strip().upper()
     if not tribunal_atende_mni(tribunal):
         raise TribunalSemPerfilMni(
-            f"{tribunal} nao tem endpoint MNI confirmado; a leitura desse "
-            "tribunal roda pelo agente local (login do advogado no portal)"
+            f"{tribunal} nao tem endpoint MNI confirmado; envie os autos "
+            "desse tribunal pelo upload manual"
         )
     referencia = store_generic_secret(
         session,

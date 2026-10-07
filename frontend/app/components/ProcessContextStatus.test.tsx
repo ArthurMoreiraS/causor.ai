@@ -34,20 +34,11 @@ vi.mock("@/lib/api", () => ({
       }
     ]
   }),
-  capturarAutos: vi.fn(),
   criarOverrideContexto: vi.fn(),
-  proximoPassoContexto: vi.fn().mockResolvedValue({
-    processo_id: 7,
-    ready: false,
-    next_step: "court_login",
-    rota: { sistema: "PJe", tribunal: "TJMG", grau: "1" }
-  }),
-  loginTribunal: vi.fn(),
-  statusSessaoTribunal: vi.fn(),
   enviarAutos: vi.fn()
 }));
 
-test("shows missing documents and opens the access wizard from Gerar minuta", async () => {
+test("mostra documentos pendentes e não oferece captura automática dos autos", async () => {
   render(
     <ToastProvider>
       <ProcessContextStatus processoId={7} />
@@ -55,12 +46,7 @@ test("shows missing documents and opens the access wizard from Gerar minuta", as
   );
   expect(await screen.findByText("Contexto incompleto")).toBeInTheDocument();
   expect(screen.getByText(/2 documentos pendentes/)).toBeInTheDocument();
-
-  // Bloqueado: "Gerar minuta" abre o assistente de acesso em vez de redigir direto.
-  fireEvent.click(screen.getByRole("button", { name: "Ver acesso ao tribunal" }));
-  expect(
-    await screen.findByLabelText("Assistente de acesso ao tribunal")
-  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /Capturar autos|Retentar pendências|Ver acesso ao tribunal/ })).toBeNull();
 });
 
 test("state derivation covers capture lifecycle", () => {

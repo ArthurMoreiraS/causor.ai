@@ -91,7 +91,7 @@ def complete_extracted_process(db_session, seeded, tmp_path):
     db_session.flush()
 
     manifest = _manifest(("a", "b", "c"))
-    capture = open_capture(db_session, processo_instancia=first, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=first, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=manifest)
     pdf = (FIXTURES / "textual.pdf").read_bytes()
     for item in capture.items:
@@ -117,7 +117,7 @@ def complete_extracted_process(db_session, seeded, tmp_path):
     # Pelo caminho real de produção, não por linha escrita à mão — foi
     # exatamente essa fixture que escondeu o fato de que nada em produção
     # sabia selar `not_applicable`.
-    na = open_capture(db_session, processo_instancia=second, usuario_id=1)
+    na = open_capture(db_session, processo_instancia=second, usuario_id=1, fonte="upload")
     mark_not_applicable(
         db_session,
         capture=na,
@@ -178,7 +178,7 @@ def test_bundle_is_rejected_when_fingerprint_is_stale(
         .one()
     )
     manifest = _manifest(("a", "b", "c", "d"))
-    capture = open_capture(db_session, processo_instancia=instancia, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instancia, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=manifest)
     pdf = (FIXTURES / "textual.pdf").read_bytes()
     for item in capture.items:

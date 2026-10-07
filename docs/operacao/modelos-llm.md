@@ -40,3 +40,43 @@ Resumo aprofundado 5.5 passou na conferência literal. Um caso não estabelece
 superioridade jurídica, média de latência ou custo típico do produto.
 [Migração oficial](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide)
 e [preços](https://platform.claude.com/docs/en/about-claude/pricing).
+
+## Como a camada de IA funciona
+
+O código vive em `backend/app/agent/`. A IA interpreta, resume e redige sobre o
+contexto que o sistema determinístico já montou no SOR. Ela **não** calcula
+datas (o `prazo_engine` conta; o prompt proíbe recalcular), **não** consulta
+tribunal ou API externa e **não** recebe segredos.
+
+| Arquivo | Responsabilidade |
+|---|---|
+| `llm.py` | Contrato `LLMProvider` e o ponto único de escolha do provedor, `get_provider()`. |
+| `model_config.py` | Modelos por tarefa; o deploy usa este módulo para atualizar configurações legadas. |
+| `classifier.py`, `deadline_interpretation.py` | Classificação da publicação e interpretação do prazo (dias, contagem). |
+| `app/autos/summarizer.py` | Resumo dos documentos com citação literal conferida. |
+| `evidence.py`, `context_selection.py`, `work_service.py` | Análise de evidências e seleção de contexto do trabalho jurídico. |
+| `drafter.py` | Redação da minuta. |
+| `assistant.py`, `chat_tools.py` | Assistente com ferramentas somente de leitura; propõe abrir um trabalho. |
+| `evaluate.py` | Comparação reproduzível entre modelos (seção acima). |
+
+### Provedor
+
+`CAUSOR_LLM_PROVIDER` escolhe o provedor (`claude` é o padrão de produção).
+Há overrides por tarefa (`CAUSOR_LLM_DRAFT_PROVIDER`,
+`CAUSOR_LLM_CLASSIFICATION_PROVIDER`, `CAUSOR_LLM_CONTEXT_PROVIDER`), um
+provedor `openai` (Responses API) e um `openai_compat` para Groq, OpenRouter ou
+Ollama (`CAUSOR_LLM_BASE_URL`, `CAUSOR_LLM_API_KEY`, `CAUSOR_LLM_MODEL`,
+`CAUSOR_LLM_MAX_TOKENS`). No `openai_compat`, um único modelo atende todas as
+tarefas; serve para teste, não para medir qualidade jurídica. O assistente usa
+sempre Claude, porque depende de tool use nativo.
+
+### Salvaguardas
+
+1. Segredos nunca entram em prompt ou log. O contexto enviado ao redator usa
+   lista de campos permitidos; não fazer dump de modelos do SOR no prompt.
+2. Prazo é determinístico; a IA só informa duração e tipo de contagem.
+3. Citações de resumos e evidências são conferidas contra o texto original;
+   citação inexistente invalida o resultado.
+4. A minuta nasce como rascunho e só é aprovada por uma pessoa.
+5. Testes do agente usam providers falsos, sem rede. Chamadas reais são
+   opt-in e cobradas.

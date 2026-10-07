@@ -32,14 +32,13 @@ const MNI_MESSAGES: Record<string, string> = {
   mni_unavailable:
     "O webservice do tribunal não respondeu. Pode ser instabilidade — tente de novo mais tarde.",
   layout_unknown:
-    "O tribunal respondeu em formato inesperado. A leitura desse processo cai no computador do advogado.",
+    "O tribunal respondeu em formato inesperado. Envie os autos pelo upload manual.",
   document_download_failed:
-    "O tribunal listou o processo mas não entregou o documento. A captura vai pelo computador do advogado.",
+    "O tribunal listou o processo mas não entregou o documento. Envie os autos pelo upload manual.",
   cursor_incomplete:
     "A listagem do tribunal veio incompleta. O Causor não usa autos parciais para gerar minuta.",
   tribunal_sem_mni:
-    "Esse tribunal não atende por credencial oficial (MNI). A leitura dele roda pelo agente local: " +
-    "o advogado entra no portal com o login dele (OAB e senha) e a sessão fica no computador dele."
+    "Esse tribunal não atende por credencial oficial (MNI). Envie os autos pelo upload manual."
 };
 
 export function mniErrorMessage(code: string | null | undefined): string {

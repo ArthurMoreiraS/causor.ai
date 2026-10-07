@@ -243,49 +243,6 @@ class OperationalProfileUpdate(BaseModel):
         return valor
 
 
-class ProtocolarAsyncRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    credencial_id: int | None = None
-
-
-class ConfirmarProtocoloRequest(BaseModel):
-    protocolo: str = Field(min_length=3, max_length=100)
-    comprovante_uri: str | None = Field(default=None, max_length=1024)
-    credencial_id: int | None = None
-
-
-class CreateCredencialAssinaturaRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    provedor: str = Field(min_length=2, max_length=50)
-    referencia_externa: str = Field(min_length=4, max_length=255)
-
-
-class CourtRoutingOut(BaseModel):
-    sistema: str
-    url_login: str | None
-    url_peticionamento: str | None
-    verificado: bool
-
-
-class CredencialAssinaturaOut(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
-    id: int
-    usuario_id: int
-    provedor: str
-    tribunal: str | None
-    sistema: str | None = None
-    grau: str | None = None
-    tipo: str | None = None
-    modo: str
-    referencia_vault: str
-    ativo: bool
-    created_at: datetime
-    updated_at: datetime
-
-
 class TemplatePeticaoCreate(BaseModel):
     tipo: str = Field(min_length=2, max_length=100)
     area: str | None = Field(default=None, max_length=100)

@@ -87,7 +87,7 @@ def test_instancia_inexistente_no_tribunal_vira_not_applicable_com_evidencia(
     Sem isto o contexto de todo processo só de 1º grau fica preso em
     `building` e o gate exige override para qualquer minuta.
     """
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
 
     result = autos_service.mark_not_applicable(
         db_session,
@@ -107,7 +107,7 @@ def test_not_applicable_sem_evidencia_e_recusado(db_session, seeded, instance):
     transiciona mais e `build_process_context` acusa
     `not_applicable_sem_evidencia` para sempre.
     """
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
 
     with pytest.raises(CaptureError) as exc:
         autos_service.mark_not_applicable(db_session, capture=capture, evidence={})
@@ -119,7 +119,7 @@ def test_not_applicable_sem_evidencia_e_recusado(db_session, seeded, instance):
 def test_capture_only_completes_after_same_final_manifest(
     db_session, seeded, instance, object_store, complete_manifest
 ):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=complete_manifest)
     _upload_all(db_session, capture, object_store)
     result = finalize_capture(db_session, capture=capture, final_manifest=complete_manifest)
@@ -130,7 +130,7 @@ def test_capture_only_completes_after_same_final_manifest(
 def test_changed_final_manifest_marks_incomplete(
     db_session, seeded, instance, object_store, complete_manifest
 ):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=complete_manifest)
     _upload_all(db_session, capture, object_store)
     result = finalize_capture(db_session, capture=capture, final_manifest=_manifest(("a", "b")))
@@ -141,7 +141,7 @@ def test_changed_final_manifest_marks_incomplete(
 def test_missing_download_marks_incomplete(
     db_session, seeded, instance, object_store, complete_manifest
 ):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=complete_manifest)
     # Só sobe "a"; "b" e "c" ficam pending.
     data = b"%PDF-1.4\na\n%%EOF\n"
@@ -160,7 +160,7 @@ def test_missing_download_marks_incomplete(
 
 
 def test_hash_mismatch_is_rejected(db_session, seeded, instance, object_store, complete_manifest):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=complete_manifest)
     data = b"%PDF-1.4\na\n%%EOF\n"
     object_store.put_bytes("test/a.pdf", data, "application/pdf")
@@ -179,7 +179,7 @@ def test_hash_mismatch_is_rejected(db_session, seeded, instance, object_store, c
 def test_html_disguised_as_pdf_is_rejected(
     db_session, seeded, instance, object_store, complete_manifest
 ):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=complete_manifest)
     data = b"<html>sessao expirada</html>"
     object_store.put_bytes("test/a.pdf", data, "application/pdf")
@@ -196,7 +196,7 @@ def test_html_disguised_as_pdf_is_rejected(
 
 
 def test_confirm_is_idempotent(db_session, seeded, instance, object_store, complete_manifest):
-    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    capture = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=capture, manifest=complete_manifest)
     data = b"%PDF-1.4\na\n%%EOF\n"
     digest = sha256(data).hexdigest()
@@ -223,12 +223,12 @@ def test_confirm_is_idempotent(db_session, seeded, instance, object_store, compl
 def test_recapture_creates_new_generation_and_supersedes_versions(
     db_session, seeded, instance, object_store, complete_manifest
 ):
-    first = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    first = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     record_initial_manifest(db_session, capture=first, manifest=complete_manifest)
     _upload_all(db_session, first, object_store)
     finalize_capture(db_session, capture=first, final_manifest=complete_manifest)
 
-    second = open_capture(db_session, processo_instancia=instance, usuario_id=1)
+    second = open_capture(db_session, processo_instancia=instance, usuario_id=1, fonte="upload")
     assert second.generation == first.generation + 1
     record_initial_manifest(db_session, capture=second, manifest=complete_manifest)
     # Documento "a" mudou de conteúdo no portal: nova versão vira a atual.

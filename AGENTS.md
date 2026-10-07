@@ -1,164 +1,151 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents (opencode, Claude Code, and
-others) when working with code in this repository.
+Guidance for AI coding agents (Claude Code, opencode and others) working in this
+repository. `CLAUDE.md` is a thin pointer to this file; keep the rules here.
 
-`CLAUDE.md` at the repo root is a thin pointer to this file. Keep the rules
-here; do not duplicate them elsewhere.
+## What Causor is
+
+A SaaS for small and medium Brazilian law firms (solo to ~50 lawyers). The MVP
+proves one flow:
+
+**capture an OAB publication (or accept a manual demand) → calculate and review
+the deadline → gather the case files → draft with cited evidence → human review.**
+
+Filing (protocolo) is out of scope for now. The founder decided this after the
+22/09/2026 legal-advisor meeting: the flow before filing, done well, already
+carries most of the perceived value. The local agent and the PJe/Playwright
+filing connector were removed on 06/10/2026 for the same reason.
+
+Read before planning:
+
+1. [`docs/estado.md`](docs/estado.md) — what is deployed, what was validated
+   for real, and what is next. Source of truth for current status.
+2. [`docs/produto/direcao-pos-reuniao-2026-09-25.md`](docs/produto/direcao-pos-reuniao-2026-09-25.md)
+   — product direction and execution order.
+3. [`docs/mercado/pesquisa-mercado-2026-09-04.md`](docs/mercado/pesquisa-mercado-2026-09-04.md)
+   — market, vendors, official APIs. Read before any capture/vendor decision.
+
+`docs/historico/` holds superseded research and deferred tracks (MNI
+credentialing, PJe assisted filing, the July PRD). Never infer current state
+from it.
 
 ## Development workflow
 
-Read `docs/estado.md` and inspect the current diff before planning. Preserve
-existing user changes, including untracked files. For substantial work, record
-scope, acceptance criteria and verification in
-`docs/desenvolvimento/planos/YYYY-MM-DD-slug.md`. Review the actual diff and
-test evidence, and distinguish local, simulated, deployed and live-validated
-results. Questions and research-only requests do not authorize implementation
-of the product.
+- Read `docs/estado.md` and inspect the current diff before planning. Preserve
+  existing user changes, including untracked files.
+- For substantial work, record scope, acceptance criteria and verification in
+  `docs/desenvolvimento/planos/YYYY-MM-DD-slug.md`. When the work is done and
+  `docs/estado.md` reflects it, the plan may be deleted — git keeps it.
+- Review the actual diff and test evidence. Always distinguish **local**,
+  **simulated**, **deployed** and **live-validated** results.
+- Questions and research-only requests do not authorize implementation.
+- Push to `main` triggers CI and, on green, an automatic deploy to the VPS.
+  Do not push without the founder asking.
 
-## Repository status
+## Commands
 
-**2026-09-25 product direction — read first.** After the legal advisor meeting,
-the founder prioritized OAB publication capture, auditable deadlines, complete
-and reviewable case context, a useful draft, and human review. Manual upload is
-the immediate path for case files; automatic case-file collection must be
-validated against a real-case inventory before it is promised. Clients,
-documents, and legal works stay in the product. Filing and court-specific
-automation are secondary; PJe is one system among several, never a universal
-court route. The founder rejected the condensed “Hoje” UI and requested the
-previous informative overview and module navigation. Current execution order
-and acceptance criteria are in
-[`docs/produto/direcao-pos-reuniao-2026-09-25.md`](docs/produto/direcao-pos-reuniao-2026-09-25.md).
-
-**2026-09-04 factual correction — read first.** The code review in
-[`docs/areas/diagnostico-causor-2026-09-04.md`](docs/areas/diagnostico-causor-2026-09-04.md)
-supersedes readiness claims below where they conflict: local-agent read/filing
-handlers remain unimplemented. The follow-up execution integrates document
-extraction, cited summaries and context construction, with an HTTP end-to-end
-test using simulated providers. Passing tests does not establish a live pilot.
-Implementation and operational limits are recorded in
-[`docs/produto/execucao-2026-09-04.md`](docs/produto/execucao-2026-09-04.md).
-Current market findings are in
-[`docs/areas/pesquisa-mercado-2026-09-04.md`](docs/areas/pesquisa-mercado-2026-09-04.md).
-The founder confirmed solo development and no access to any court system yet.
-The founder authorized executing the plan. Internal assisted-flow changes are
-implemented; court homologation and legal quality evaluation remain pending.
-Preserve the constraints below, but consult the
-September diagnosis before relying on older statements of completed workflows.
-
-**MVP with tested components; end-to-end integration incomplete.** The repository
-contains the SOR, deterministic deadline engine, DJEN/DataJud capture, Claude
-agent layer, FastAPI API, Supabase auth/tenant isolation, Next.js frontend,
-templates, persistent jobs, vault adapters and a legacy assisted PJe connector.
-The current local-agent handlers do not execute reading or filing. The **MNI
-channel** (`connectors/mni/`) has a server-side reader implementation, subject
-to credentials and live validation. Upload now runs through extraction,
-summarization and context construction in the autos worker. The production
-Compose declares that worker. The first authorized push passed Linux CI, but
-the old deploy workflow falsely succeeded after denied image pulls. The
-follow-up fixes registry authentication, failure handling and Compose release
-synchronization. Consult `docs/estado.md` for the verified deployment status.
-
-Two rules that follow from the MNI work and are easy to get wrong:
-
-- **Court-source routing has one owner.** `resolve_capture_fonte` selects MNI
-  or the local-agent route per process. Drivers must honor `CourtReaderDriver`;
-  the local-agent implementation remains incomplete. Never add a third decision point.
-- **Only confirmed MNI endpoints belong in `mni/profiles.py`.** An MNI failure
-  marks the capture `failed` and does *not* fall back to the agent, so a guessed
-  endpoint sends the lawyer to an error instead of the path that works.
-
-**Market research of 2026-07-29 changed the priority order.** MNI credentialing
-is no longer "the single blocker" — it is an *unverified bet*: the MNI is
-designed for public bodies (STF's Termo de Adesão, TRF6's institutional
-requirements, eproc restricted to Judiciary organs), so a private CNPJ may
-simply not be granted access. Evidence and the cheap falsification test are in
-[`docs/areas/viabilidade-mercado-2026-07-29.md`](docs/areas/viabilidade-mercado-2026-07-29.md).
-
-The upload route allows an assisted pilot without a new court integration,
-once the internal processing gaps are fixed. It does not prove court-file
-completeness. Real reading/filing via the local agent requires implementing
-and validating the handlers. Current priorities and proposed acceptance tests
-are documented in the September diagnosis and evolution plan.
-
-Use `README.md` for repository orientation and `docs/estado.md` as the source
-of truth for current status and execution order. The PRD (`docs/produto/PRD.md`)
-is strategic; files in `docs/historico/superpowers/` are historical
-design/implementation records and must not be used to infer current state.
-For market/strategy questions, read `docs/areas/pesquisa-mercado-2026-09-04.md`
-first. July/August research preserves historical reasoning, but its claims
-about exclusivity, prices and universal access must not be repeated without
-current evidence. Jus.br is a candidate channel whose actual capability must
-be validated for the selected court; TJTO was a historical pilot, not a newly
-confirmed target.
-
-### Build / lint / test (run from `/backend`)
+Backend (run from `backend/`; on Linux/macOS use `.venv/bin/...`):
 
 ```bash
-python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -e ".[dev]"   # setup (Windows venv path)
-./.venv/Scripts/python.exe -m pytest -q          # full test suite (TDD)
+python -m venv .venv && ./.venv/Scripts/python.exe -m pip install -e ".[dev]"
+./.venv/Scripts/python.exe -m pytest -q          # full suite (TDD)
 ./.venv/Scripts/python.exe -m ruff check .       # lint
-docker compose -f ../infra/docker-compose.yml up -d postgres   # local Postgres + Redis
-CAUSOR_DATABASE_URL=postgresql+psycopg://causor:causor@localhost:5432/causor ./.venv/Scripts/alembic.exe upgrade head   # migrate
-RUN_LIVE=1 ./.venv/Scripts/python.exe -m pytest tests/test_live_integration.py   # opt-in live CNJ API tests
-python -m app.cli poll --oab 12345 --uf SP --escritorio 1       # one capture cycle, bounded window (--dias-janela, default from settings)
-python -m app.cli poll --oab 12345 --uf SP --escritorio 1 --historico-completo   # sweeps the OAB's ENTIRE DJEN history — explicit on purpose
+docker compose -f ../infra/docker-compose.yml up -d postgres   # local Postgres
+RUN_LIVE=1 ./.venv/Scripts/python.exe -m pytest tests/test_live_integration.py   # opt-in live CNJ APIs
+python -m app.cli poll --oab 12345 --uf SP --escritorio 1   # one bounded capture cycle
 ```
 
-On Linux/macOS use `.venv/bin/python` / `.venv/bin/alembic` instead of the `Scripts/` paths.
+Frontend (run from `frontend/`): `pnpm check` (lint + types + tests) and
+`pnpm build`. On Windows PowerShell use `pnpm.cmd`.
 
-**The current status document is the source of truth.** Read `docs/estado.md`
-before making product or architecture decisions.
-Decisions already settled with the user (do not re-litigate without being asked):
-- Market: Brazil; initial customer: small/medium law firms (solo to ~50 lawyers).
-- First value to prove: **capture an OAB publication or accept a manual demand → calculate/review the deadline → gather and scope case files → draft with cited evidence → human review**. Filing is a later lane, not a gate for the first pilot.
-- Product advantage to test: reliable reconstruction of the case, explicit gaps, auditable deadlines, cited drafting, and human supervision. Do not claim universal court-file completeness or competitive exclusivity without evidence. See the September market research and the direction document above.
+Local setup and troubleshooting: [`docs/operacao/local-dev.md`](docs/operacao/local-dev.md).
+Production: [`docs/operacao/deploy.md`](docs/operacao/deploy.md).
 
-## What this product is
+## Architecture
 
-A SaaS modeled on Handle.ai but for the Brazilian legal market: AI agents + "computer use" that operate fragmented court portals (PJe, e-SAJ, Projudi, EPROC) and automate the repetitive back-office work (monitoring intimations, tracking deadlines, filing petitions). Missing a deadline is professional malpractice, which makes the pain critical and the ROI measurable.
+Pattern: **System of Record + deterministic code + Claude for reasoning.** The
+LLM interprets, summarizes and drafts over context the deterministic layer has
+already assembled; it never does date math and never calls external systems.
 
-## Architecture (intended)
+Backend (`backend/app/`, FastAPI + SQLAlchemy + Alembic):
 
-Pattern: **System of Record (SOR) + deterministic connectors + agent layer (Claude)**. Do **not** use pure computer-use for every action (slow, expensive, fragile). Use deterministic flows for the known path and Claude for reasoning, normalization, drafting, and exceptions.
+| Package | Responsibility |
+|---|---|
+| `sor/` | Postgres models (multi-tenant by `escritorio`), permissions, demo seed. |
+| `capture/` | DJEN/Comunica publications by OAB, DataJud metadata, persistent scheduler (`capture-scheduler`). |
+| `prazo_engine/` | Deterministic deadline math (business days, holidays, recess) and the restricted CPC rule catalog. |
+| `autos/` | Manual upload of case files, integrity (SHA-256, PDF validation), extraction/OCR, cited summaries, process context and its fail-closed gate. |
+| `agent/` | Claude orchestration: classification, deadline interpretation, evidence analysis, drafting, chat assistant, model routing. |
+| `queue/` | Persistent DB-backed jobs and workers (capture, deadline analysis, legal-work operations). |
+| `api/` | HTTP endpoints for the frontend. |
+| `filing/` | PDF rendering of the draft with the office letterhead, and the approval snapshot. No filing. |
+| `connectors/mni/` | Dormant server-side reader for the CNJ MNI. Has no UI; see rules below. |
+| `vault/`, `storage/`, `auth/`, `alertas/`, `relatorios/` | Secrets, private object store, Supabase JWT, deadline alerts, OAB dossier. |
 
-Planned backend layout (`/backend`):
-- `sor/` — Postgres models + migrations. Core entities: `escritorio`, `usuario`, `cliente`, `processo`, `intimacao/comunicacao`, `prazo`, `peticao`, `andamento`, `documento`, `credencial_assinatura`, `audit_log`.
-- `capture/` — consumes **DJEN/Comunica** (intimations) and **DataJud** (process metadata/movements), normalizes, writes to SOR. Polls on schedule by OAB/court. **Capture uses official APIs, never scraping.**
-- `prazo_engine/` — **deterministic** deadline calculation (business-day counting per CPC/CLT, national/local holidays, recess/suspensions). This is plain testable code, not an LLM call. Claude only *interprets/classifies* the intimation's content; the date math itself is deterministic.
-- `agent/` — Claude orchestration via tool use: extract/classify intimation, decide the applicable petition and draft it, trigger the filing connector, fall back to vision/computer-use for new layouts.
-- `connectors/mni/` — SOAP client for the CNJ's **Modelo Nacional de Interoperabilidade**: reads the case file (`consultarProcesso`) and can file (`entregarManifestacaoProcessual`) server-side. Preferred over Playwright wherever the court is credentialed — official, free, standardised. Endpoint profiles are fail-closed and accept **confirmed URLs only**.
-- `connectors/pje/` — Playwright, one connector per court system, executed by the **local agent** (never by the hosted backend). The fallback for courts the MNI does not serve. Isolated browser session per lawyer.
-- `vault/` — credential/signature storage (cloud certificate reference or encrypted A1). Signing via the cloud-certificate provider's API.
-- `queue/` — Celery/RQ workers for async long-running captures and actions.
-- `api/` — FastAPI endpoints for the frontend.
+Frontend (`frontend/`): Next.js + React + Supabase Auth. Modules: Visão geral,
+Tarefas, Intimações, Prazos, Clientes, Processos, Documentos, Assistente,
+Trabalhos, Minutas, Modelos, Revisão e aprovação, Histórico, Configuração.
 
-Frontend (`/frontend`): Next.js (TypeScript) + React — inbox of intimations, deadline panel (with risk), petition approval queue, per-process timeline/audit, certificate onboarding. Infra (`/infra`): docker-compose, isolated browser workers per tenant.
+Infra: VPS (Hostinger) running Docker Compose with five services — `backend`,
+`worker`, `autos-worker`, `capture-scheduler`, `frontend` — behind a shared
+Caddy. Database and Auth are a managed Supabase project (Free plan).
 
-## Tech stack (intended)
-
-- Backend/agent: Python (FastAPI) + `anthropic` SDK + Playwright (Python).
-- Data: PostgreSQL. Queue/cache: Redis + Celery/RQ.
-- Frontend: Next.js (TypeScript) + React.
-- Deadline engine base: `workalendar` / `python-holidays` for Brazilian holidays.
-- Claude models: `claude-haiku-4-5` for chat/classification/default document summaries and `claude-sonnet-5-5` for evidence analysis/drafting/explicit deep document summaries. Avoid premium models in the default/test path.
+LLM models: `claude-haiku-4-5` for chat, classification and default document
+summaries; `claude-sonnet-5-5` for evidence analysis, drafting and the explicit
+deep summary. Avoid premium models in the default/test path. Details:
+[`docs/operacao/modelos-llm.md`](docs/operacao/modelos-llm.md).
 
 ## Non-negotiable constraints
 
-These define the architecture; violating them breaks the product's viability or legality:
+1. **Deadlines are deterministic and reviewable.** Date math lives in
+   `prazo_engine` with unit tests for every edge case (TDD, target ≥99% on
+   tested cases). The LLM may only interpret the publication text. Uncertain
+   cases stay pending for human confirmation; never invent a due date.
+2. **Human review before anything leaves Causor.** The lawyer is professionally
+   responsible. A draft is approved by a person; if filing returns later, it
+   goes behind a configurable human-approval gate that is never removed.
+3. **Immutable audit trail.** Every relevant mutation and agent step is logged
+   append-only.
+4. **Official APIs before scraping.** DJEN/Comunica and DataJud for capture.
+   Buying case files from a vendor (Judit, Escavador, etc.) is allowed and must
+   be measured against a manual inventory before it is promised.
+5. **Secrets out of prompts and logs.** Credential custody may be delegated to a
+   trusted vendor when that is the fastest working path; leak prevention still
+   applies regardless of who holds the credential.
+6. **No unproven claims.** Do not claim court-file completeness, coverage or
+   competitive exclusivity without evidence. A captured publication is not the
+   full case file.
 
-1. **Ship what works; custody purism is not a constraint.** Certificates, `.pfx` passwords, and signing/session credentials may be delegated to a trusted third-party vendor (e.g. Escavador, Judit, a cloud-signature provider) for reading the case file or for signing/filing, whenever that is the fastest path to a working flow. There is no rule requiring credentials to stay on the lawyer's machine or inside Causor's own vault — the lawyer cares whether it works, not where the bytes sit. Prefer cloud certificates (BirdID, VIDaaS, Certisign Cloud, SafeID) with API/push signing for convenience; encrypted A1 as fallback; A3 (physical token) stays non-automatable regardless of vendor. Keep secrets out of LLM prompts and application logs — that's leak prevention independent of custody, and still applies no matter who holds the credential.
-2. **Human approval gate before any irreversible action (filing/protocol).** The lawyer remains professionally responsible (OAB). Filing must pass a configurable human-approval gate; the gate is disengaged only as confidence grows, never removed from the codebase.
-3. **Immutable audit trail from day one.** Every step the agent takes is logged immutably.
-4. **Official APIs before scraping.** DJEN/Comunica and DataJud for capture; computer-use/Playwright is for *action* only, with human-in-the-loop fallback when captcha/layout changes block it.
+## MNI rules (dormant code, easy to get wrong)
 
-## Working agreements
+- **Capture routing has one owner:** `autos.service.resolve_capture_fonte`. It
+  returns `"mni"` only when the route has a confirmed profile *and* an active
+  credential; otherwise automatic capture is refused (`sem_canal_automatico`)
+  and the lawyer uploads the files. Never add a second decision point.
+- **Only confirmed MNI endpoints belong in `connectors/mni/profiles.py`.** An
+  MNI failure marks the capture `failed` with no fallback, so a guessed
+  endpoint sends the lawyer to an error.
 
-- **TDD, especially for `prazo_engine`.** Deadline math must have unit tests for edge cases (recess, local holidays, business-day counting) before implementation. Target ≥99% correct deadline calculation on tested cases.
-- Each component has a single responsibility and is testable in isolation (see the layout above).
-- Build order: prove one authorized case through manual upload, cited draft, and lawyer review; then compare an automatic collection route against that case's inventory. Expand court connectors and filing only after the core value is measured. Keep the human approval gate for any irreversible action.
+## Settled decisions (do not re-litigate unless asked)
+
+- Market: Brazil; customer: small/medium law firms.
+- First value to prove: the flow above, measured on one authorized real case
+  with a lawyer reviewer (time saved, material errors), then five cases.
+- Manual upload is the case-file route for the MVP. Automatic collection is
+  evaluated afterwards by comparing a vendor route document-by-document against
+  that case's manual inventory.
+- Filing, PJe-specific automation and the local agent are deferred. PJe is one
+  court system among several, never a universal route.
+- The founder works solo and has no court-system access yet.
 
 ## External API references (verified)
 
-- **DataJud (process metadata/movements):** `POST https://api-publica.datajud.cnj.jus.br/api_publica_<tribunal>/_search`, header `Authorization: APIKey <chave pública do CNJ>`, Elasticsearch-style JSON query body. The public key is published on the DataJud Wiki and may be rotated by CNJ — fetch it at runtime/config, never hardcode permanently. Response `_source` fields include `numeroProcesso`, `classe`, `tribunal`, `dataAjuizamento`, `orgaoJulgador`, `sistema`, `movimentos[]`, `assuntos[]`, `nivelSigilo`.
-- **DJEN / Comunica (intimations):** `GET https://comunicaapi.pje.jus.br/api/v1/comunicacao` (Swagger at `https://comunicaapi.pje.jus.br/`). Poll by OAB/court. Confirm exact query parameters against the live Swagger before coding the client.
+- **DataJud:** `POST https://api-publica.datajud.cnj.jus.br/api_publica_<tribunal>/_search`,
+  header `Authorization: APIKey <chave pública do CNJ>`, Elasticsearch-style
+  body. The public key is published on the DataJud Wiki and may rotate — keep
+  it in configuration. `_source` includes `numeroProcesso`, `classe`,
+  `tribunal`, `dataAjuizamento`, `orgaoJulgador`, `sistema`, `movimentos[]`,
+  `assuntos[]`, `nivelSigilo`. Metadata only, not the file contents.
+- **DJEN / Comunica:** `GET https://comunicaapi.pje.jus.br/api/v1/comunicacao`
+  (Swagger at `https://comunicaapi.pje.jus.br/`). Confirm parameters against the
+  live Swagger before changing the client.

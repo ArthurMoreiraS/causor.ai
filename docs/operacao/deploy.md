@@ -1,106 +1,102 @@
-# Deploy - runbook
+# Deploy em produção
 
-Arquitetura de producao: Supabase (Postgres/Auth/Vault), backend FastAPI no
-Render e frontend Next.js na Vercel. A topologia completa, o funil de
-vendas -> conta e o checklist de corte estao em [`go-live.md`](go-live.md);
-este arquivo cobre o passo a passo de subir cada peca.
+O Causor roda numa VPS (Hostinger, Ubuntu 24.04, 1 vCPU / 4 GB) com Docker
+Compose. Banco e Auth ficam num projeto Supabase gerenciado (plano Free). A VPS
+não hospeda Postgres nem Redis; as filas são tabelas no banco.
 
-## 1. Backend
+- Frontend: `https://app.causorai.com`
+- API: `https://api.causorai.com` (`/health` → `{"status":"ok"}`)
 
-Prerequisito: repo conectado ao provedor e root directory `backend`.
+## Serviços
 
-1. Build command: `pip install -e .`
-2. Start command: usar o `Procfile`.
-3. Rodar migrations no release/startup: `alembic upgrade head`.
-4. Variaveis de ambiente:
-   - `CAUSOR_DATABASE_URL` = string do Supabase Postgres.
-   - `CAUSOR_DATAJUD_API_KEY` = chave DataJud/CNJ.
-   - `ANTHROPIC_API_KEY` = chave Claude.
-   - `CAUSOR_CLAUDE_CHAT_MODEL` = `claude-haiku-4-5`.
-   - `CAUSOR_CLAUDE_CLASSIFICATION_MODEL` = `claude-haiku-4-5`.
-   - `CAUSOR_CLAUDE_DRAFT_MODEL` = `claude-sonnet-5`.
-   - `CAUSOR_SUPABASE_JWT_SECRET` = segredo HS256 legado ou chave PEM ES256.
-   - `CAUSOR_CORS_ORIGINS` = URL final do frontend.
-   - `CAUSOR_VAULT_PROVIDER` = `supabase` em producao.
+Definidos em [`infra/docker-compose.prod.yml`](../../infra/docker-compose.prod.yml),
+todos com a mesma imagem do backend, exceto o frontend:
 
-Teste: `GET https://<backend>/health` deve retornar `{"status":"ok"}`.
+| Serviço | Comando | Função |
+|---|---|---|
+| `backend` | `uvicorn app.api.main:app` | API (rede `edge`, atrás do Caddy). |
+| `worker` | `python -m app.cli worker` | Jobs de captura OAB, análise de prazo e trabalhos. |
+| `autos-worker` | `python -m app.autos.worker` | Extração, OCR e resumo dos documentos. |
+| `capture-scheduler` | `python -m app.capture.service` | Enfileira capturas devidas ([operação](captura-periodica.md)). |
+| `frontend` | `next start` | Interface (rede `edge`). |
+| `migrate` | `alembic upgrade head` | Roda uma vez por deploy (perfil `tools`). |
 
-## 2. Frontend
+`backend`, `worker` e `autos-worker` compartilham o volume `causor_artifacts`,
+onde ficam os PDFs enviados.
 
-Root directory `frontend`.
+## Pipeline
 
-Variaveis:
+Push na `main` → workflow **CI** (backend, frontend, PostgreSQL 16/17) → se
+verde, workflow **Deploy**:
 
-- `NEXT_PUBLIC_API_BASE` = URL do backend.
-- `NEXT_PUBLIC_SUPABASE_URL` = URL do projeto Supabase.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` = anon key do projeto Supabase.
+1. Constrói as imagens nos runners do GitHub e publica no `ghcr.io` (privado).
+   O build nunca roda na VPS.
+2. Conecta por SSH (secrets `VPS_HOST`, `VPS_USER`, `VPS_SSH_KEY`) e executa
+   [`infra/deploy.sh`](../../infra/deploy.sh) na versão do commit.
+3. O script baixa o Compose da mesma versão, faz `pull`, confere a configuração
+   de modelos, roda `migrate`, sobe os serviços com `--wait`, **verifica o SHA da
+   imagem em cada um dos cinco serviços** e chama `/health`. API antiga saudável
+   não conta como deploy concluído.
 
-Depois do deploy, ajuste `CAUSOR_CORS_ORIGINS` no backend para a URL final do
-frontend.
+O workflow também aceita disparo manual (`workflow_dispatch`), desde que o mesmo
+SHA tenha CI verde. Commits com `[skip ci]` (atualizações de documentação) não
+implantam.
 
-## 3. Provisionamento de piloto
+## Onde estão as coisas na VPS
 
-A API exige Supabase Auth/JWT. O usuario precisa existir tambem no SOR do
-Causor; caso contrario o backend retorna `403 usuario sem acesso`.
+| O quê | Onde |
+|---|---|
+| Compose e segredos | `/opt/causor/docker-compose.yml`, `/opt/causor/.env` (permissão 600, nunca no git) |
+| Versão implantada | `/opt/causor/.image_tag.env` (a anterior em `.image_tag.previous.env`) |
+| Modelo de `.env` | [`infra/.env.prod.example`](../../infra/.env.prod.example) |
+| Caddy (TLS e proxy) | Container `infolex-evo-caddy-1`, arquivo `/opt/infolex-evo/Caddyfile`, rede Docker `edge` |
 
-1. Crie ou convide o usuario no Supabase Auth.
-2. No backend, rode:
+Variáveis `NEXT_PUBLIC_*` do frontend são públicas e entram como build args no
+CI. A chave `service_role` e segredos do backend ficam só no `.env` da VPS.
 
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m app.cli provision-pilot `
-  --escritorio "Nome do Escritorio" `
-  --nome "Nome do Advogado" `
-  --email "advogado@example.com" `
-  --oab "123456" `
-  --uf "SP"
+## Operação
+
+Logs:
+
+```bash
+cd /opt/causor
+docker compose --env-file .env --env-file .image_tag.env logs -f --tail 100 backend
+# troque por worker, autos-worker, capture-scheduler ou frontend
 ```
 
-3. O advogado faz login no frontend.
-4. Abra `Onboarding` no app e siga o checklist.
+Rollback para uma versão anterior com CI verde:
 
-## 4. Captura agendada
-
-A primeira captura pode ser feita pelo app em `Captura por OAB`; ela registra a
-OAB monitorada e roda a captura imediatamente.
-
-Para rotina agendada, configure um cron externo chamando:
-
-```powershell
-cd backend
-.\.venv\Scripts\python.exe -m app.cli capture-due
+```bash
+cd /opt/causor
+echo "IMAGE_TAG=<sha-anterior>" > .image_tag.env
+docker compose --env-file .env --env-file .image_tag.env pull
+docker compose --env-file .env --env-file .image_tag.env up -d
 ```
 
-O comando tenta novamente falhas transitorias e retorna codigo `1` se alguma
-captura falhar definitivamente. Configure o provedor para alertar nesse caso.
-Na execucao seguinte, jobs que ficaram `running` alem de
-`CAUSOR_JOB_STALE_MINUTES` sao marcados como `failed`.
+Migrações não são revertidas automaticamente; confira antes de voltar uma
+versão que tenha migração nova.
 
-Variaveis opcionais:
+## Caddy compartilhado
 
-- `CAUSOR_CAPTURE_RETRY_ATTEMPTS` (default `3`);
-- `CAUSOR_CAPTURE_RETRY_BACKOFF_SECONDS` (default `2`);
-- `CAUSOR_JOB_STALE_MINUTES` (default `60`).
+O Causor não tem proxy próprio. O Caddy da VPS também serve outros produtos do
+fundador. Para qualquer mudança no `Caddyfile`:
 
-## 5. Acesso aos tribunais
+1. Backup: `sudo cp Caddyfile Caddyfile.bak.$(date +%Y%m%d%H%M%S)`.
+2. Editar.
+3. `docker exec infolex-evo-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`
+   — **nunca** `docker restart` nesse container.
+4. Conferir com `curl` todos os domínios servidos, não só os do Causor.
 
-Duas fontes, escolhidas automaticamente por processo:
+## Lições já aprendidas
 
-- **Credencial oficial MNI** — a captura roda no servidor. Cadastre em
-  Configuracoes → Acesso aos tribunais; a senha vai direto para o vault.
-  Obter a credencial exige credenciamento junto ao tribunal:
-  [`../areas/mni-credenciamento.md`](../areas/mni-credenciamento.md).
-- **Agente local** — o advogado pareia a maquina dele e loga no portal quando
-  o assistente pedir. Cobre tribunal sem MNI e e o unico caminho de protocolo
-  hoje. A sessao vive so no agente; nenhum cookie chega ao backend.
+- Pull de imagem privada exige PAT **clássico** com `repo` + `read:packages`;
+  PAT fine-grained não funciona com o Container Registry.
+- A imagem do frontend precisa de Node 22 (pnpm 11), e o estágio de
+  dependências precisa copiar `pnpm-workspace.yaml`.
+- No Ubuntu da Hostinger, `/etc/ssh/sshd_config.d/50-cloud-init.conf` reativa
+  login por senha; confira com `sudo sshd -T | grep password` após mexer no SSH.
+- Ruff está limitado a `<0.16` no `pyproject.toml`; versões novas quebraram o CI.
 
-No piloto o protocolo para em `ready_to_sign`; assinatura/envio final seguem no
-PJe/PJeOffice e o numero do protocolo e registrado no Causor. Detalhe do fluxo
-em [`../areas/pje-assistido.md`](../areas/pje-assistido.md).
+## Primeiro acesso de um escritório
 
-Nao guardar senha, certificado, `.pfx`, chave privada ou OTP no SOR nem em log.
-
-## 6. CI
-
-O workflow `.github/workflows/ci.yml` valida backend e frontend em pushes para
-`main` e pull requests. Nao publicar uma revisao com CI vermelho.
+Ver [onboarding do piloto](onboarding-piloto.md).

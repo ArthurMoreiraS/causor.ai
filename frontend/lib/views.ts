@@ -54,13 +54,6 @@ export const VIEW_LABEL: Record<ViewKey, string> = {
   auditoria: "Histórico de ações"
 };
 
-export const CONNECTORS_FALLBACK = [
-  { key: "djen", name: "DJEN", detail: "captura oficial", status: "implemented" },
-  { key: "datajud", name: "DataJud", detail: "andamentos e metadados", status: "implemented" },
-  { key: "pje", name: "PJe", detail: "rota específica sem homologação", status: "validation" },
-  { key: "esaj", name: "e-SAJ", detail: "rota não homologada", status: "planned" }
-];
-
 /** Linha da view de Processos: processo + próximo prazo + contagens + tipos
  * representativos. Vem cruzada do servidor (`/processos/resumo`); o fallback
  * client-side produz o mesmo formato quando o endpoint está indisponível. */

@@ -4,8 +4,7 @@ ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
-# Tesseract (OCR pt) para process-autos-due. Sem browsers do Playwright:
-# o backend hospedado nunca abre navegador (ver Global Constraints).
+# Tesseract (OCR pt) para o processamento dos autos. O backend nunca abre navegador.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         tesseract-ocr tesseract-ocr-por \

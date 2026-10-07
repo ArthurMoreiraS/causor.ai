@@ -123,14 +123,9 @@ class Settings(BaseSettings):
     # into the Supabase Vault extension instead of the SOR tables.
     vault_provider: str = "localdev"  # "localdev" | "supabase"
 
-    # Modo de execução do protocolo. "sandbox" roteia todo sistema para o
-    # SandboxDriver determinístico (demo à prova de falhas); "real" usa o
-    # conector real de cada sistema (PJe existe; e-SAJ/EPROC/Projudi incrementais).
-    filing_mode: str = "sandbox"  # "sandbox" | "real"  (env CAUSOR_FILING_MODE)
-
     # Storage privado de documentos dos autos. "localdev" grava em disco local;
     # "s3" usa bucket privado (S3/Supabase Storage compat) com URL pré-assinada.
-    # Chaves de acesso são backend-only; o agente local só recebe a URL assinada.
+    # Chaves de acesso são backend-only.
     object_store_provider: str = "localdev"  # "localdev" | "s3"
     object_store_local_path: str = "./artifacts/objects"
     object_store_endpoint: str = ""
@@ -139,13 +134,8 @@ class Settings(BaseSettings):
     object_store_access_key: str = ""
     object_store_secret_key: str = ""
 
-    # Limite de upload aceito do agente local (rota PUT /agent/uploads/local).
+    # Limite por arquivo no upload manual dos autos.
     agent_max_upload_bytes: int = 100 * 1024 * 1024
-
-    # Cobertura de conectores: validação live vale por N dias; health-check
-    # read-only reexecuta a cada M horas.
-    connector_validation_max_age_days: int = 30
-    connector_health_interval_hours: int = 24
 
     # Extração de texto/OCR dos autos. OCR roda apenas em página sem camada
     # textual útil (menos de ocr_min_text_chars caracteres nativos).

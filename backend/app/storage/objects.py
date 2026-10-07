@@ -1,8 +1,7 @@
 """Storage privado de objetos (documentos dos autos).
 
-Bucket privado, sem URL pública: o agente local sobe arquivos por URL
-pré-assinada de 15 minutos e o backend recomputa o SHA-256 ao ingerir —
-o hash declarado pelo agente não é prova suficiente.
+Bucket privado, sem URL pública. O backend recomputa o SHA-256 ao ingerir —
+o hash declarado pela fonte não é prova suficiente.
 """
 
 from __future__ import annotations

@@ -40,12 +40,13 @@ def instancia_tjmg(db_session, seeded):
     return instancia
 
 
-def test_open_capture_sem_credencial_usa_agente(db_session, seeded, instancia_tjmg):
-    capture = autos_service.open_capture(
-        db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)
-    )
-    assert capture.fonte == "agente"
-    assert capture.agent_command_id is not None
+def test_open_capture_sem_credencial_recusa_captura_automatica(db_session, seeded, instancia_tjmg):
+    with pytest.raises(autos_service.CaptureError) as exc:
+        autos_service.open_capture(
+            db_session, processo_instancia=instancia_tjmg, usuario_id=_usuario_id(db_session)
+        )
+    assert exc.value.code == "sem_canal_automatico"
+    assert db_session.scalars(select(models.CapturaAutos)).first() is None
 
 
 def test_open_capture_com_credencial_enfileira_job_mni(db_session, seeded, instancia_tjmg):

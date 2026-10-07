@@ -1,6 +1,6 @@
-"""Manifestos recebidos do agente local (enumeração dos autos).
+"""Manifestos da enumeração dos autos (upload manual ou leitor MNI).
 
-Pydantic com ``extra="forbid"``: o agente só envia campos conhecidos; nada de
+Pydantic com ``extra="forbid"``: a fonte só envia campos conhecidos; nada de
 payload arbitrário entrando no backend.
 """
 

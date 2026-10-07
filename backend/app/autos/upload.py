@@ -1,7 +1,7 @@
 """Autos entregues pelo próprio advogado.
 
 O caminho que não depende de tribunal nenhum: o advogado baixa os autos onde já
-tem acesso e envia ao Causor. Reusa as mesmas quatro etapas do agente local
+tem acesso e envia ao Causor. Reusa as mesmas quatro etapas da captura MNI
 (``open_capture`` → ``record_initial_manifest`` → ``confirm_document_upload`` →
 ``finalize_capture``), então hash recomputado, PDF validado por magic bytes,
 versão imutável por SHA-256 e extração fora do request continuam valendo.

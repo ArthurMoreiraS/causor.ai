@@ -33,11 +33,7 @@ from app.api.schemas import (
     CaptureResultOut,
     ChatRequest,
     ChatResponse,
-    ConfirmarProtocoloRequest,
     ConfirmarPrazoRequest,
-    CourtRoutingOut,
-    CreateCredencialAssinaturaRequest,
-    CredencialAssinaturaOut,
     DraftRequest,
     DraftResponse,
     EditPeticaoRequest,
@@ -57,7 +53,6 @@ from app.api.schemas import (
     ProcessoResumoLista,
     ProcessoResumoOut,
     ProximoPrazoOut,
-    ProtocolarAsyncRequest,
     RevisarPrazoRequest,
     ReviewQueueItem,
     TemplatePeticaoCreate,
@@ -76,31 +71,14 @@ from app.filing.timbrado import LogoInvalidoError, normalize_logo
 from app.prazo_engine.factory import build_calendar
 from app.prazo_engine.pipeline import KEY, enqueue_analysis, memory, set_memory
 from app.queue.jobs import (
-    AlreadyFiledError,
-    ApprovalRequiredError,
-    CredencialInativaError,
-    CredencialNaoEncontradaError,
     JobNotFoundError,
-    PeticaoNotFoundError,
-    ProcessoSemOrgaoError,
-    UnsupportedFilingSystemError,
     create_job,
     get_job,
-    confirm_manual_protocol,
-    run_pje_protocol_job,
 )
 from app.settings import settings
 from app.sor import models
 from app.sor.db import get_session
-from app.vault.service import (
-    CredencialNotFoundError,
-    UsuarioNotFoundError,
-    deactivate_signature_credential,
-    list_signature_credentials,
-    store_signature_reference,
-)
 from app.autos.context import ContextNotReadyError
-from app.capture.court_routing import resolve_route
 
 
 def _default_calendar_years() -> list[int]:
@@ -436,21 +414,15 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
-    from app.api.agent_routes import router as agent_router
     from app.api.autos_routes import router as autos_router
-    from app.api.connector_routes import router as connector_router
     from app.api.mni_routes import router as mni_router
     from app.api.office_routes import router as office_router
 
-    app.include_router(agent_router)
     app.include_router(autos_router)
-    app.include_router(connector_router)
     app.include_router(mni_router)
     app.include_router(office_router)
     from app.api.work_routes import router as work_router
     app.include_router(work_router)
-    from app.api.package_routes import router as package_router
-    app.include_router(package_router)
     from app.api.document_routes import router as document_router
     app.include_router(document_router)
 
@@ -965,78 +937,6 @@ def create_app() -> FastAPI:
     ) -> list[models.Usuario]:
         stmt = tenant_select(models.Usuario, current).order_by(models.Usuario.id)
         return list(session.scalars(stmt))
-
-    @app.post(
-        "/usuarios/{usuario_id}/credenciais-assinatura",
-        response_model=CredencialAssinaturaOut,
-    )
-    def cadastrar_credencial_assinatura(
-        usuario_id: int,
-        payload: CreateCredencialAssinaturaRequest,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.CredencialAssinatura:
-        get_owned_or_404(session, models.Usuario, usuario_id, current)
-        try:
-            credencial = store_signature_reference(
-                session,
-                usuario_id=usuario_id,
-                provedor=payload.provedor,
-                external_ref=payload.referencia_externa,
-            )
-        except UsuarioNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        session.commit()
-        session.refresh(credencial)
-        return credencial
-
-    @app.get(
-        "/usuarios/{usuario_id}/credenciais-assinatura",
-        response_model=list[CredencialAssinaturaOut],
-    )
-    def listar_credenciais_assinatura(
-        usuario_id: int,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> list[models.CredencialAssinatura]:
-        get_owned_or_404(session, models.Usuario, usuario_id, current)
-        return list_signature_credentials(session, usuario_id=usuario_id)
-
-    @app.patch(
-        "/credenciais-assinatura/{credencial_id}/desativar",
-        response_model=CredencialAssinaturaOut,
-    )
-    def desativar_credencial_assinatura(
-        credencial_id: int,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.CredencialAssinatura:
-        # CredencialAssinatura não tem escritorio_id; valida o tenant pelo usuário dono.
-        existente = session.get(models.CredencialAssinatura, credencial_id)
-        if existente is not None:
-            get_owned_or_404(session, models.Usuario, existente.usuario_id, current)
-        try:
-            credencial = deactivate_signature_credential(
-                session,
-                credencial_id=credencial_id,
-            )
-        except CredencialNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        session.commit()
-        session.refresh(credencial)
-        return credencial
-
-    @app.get("/court-routing", response_model=CourtRoutingOut)
-    def consultar_rota(tribunal: str, grau: str = "1") -> CourtRoutingOut:
-        route = resolve_route(tribunal, grau)
-        if route is None:
-            raise HTTPException(status_code=404, detail="tribunal invalido")
-        return CourtRoutingOut(
-            sistema=route.sistema,
-            url_login=route.url_login,
-            url_peticionamento=route.url_peticionamento,
-            verificado=route.verificado,
-        )
 
     @app.post(
         "/escritorios/{escritorio_id}/templates-peticao",
@@ -1779,73 +1679,6 @@ def create_app() -> FastAPI:
             detalhe={"tipo": peticao.tipo, "pdf_sha256": snapshot["pdf_sha256"],
                      "input_sha256": snapshot["input_sha256"]},
         )
-        session.commit()
-        session.refresh(peticao)
-        return peticao
-
-    @app.post("/peticoes/{peticao_id}/protocolar/async", response_model=JobOut)
-    def protocolar_peticao_async(
-        peticao_id: int,
-        payload: ProtocolarAsyncRequest | None = None,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.JobExecucao:
-        petition = get_owned_or_404(session, models.Peticao, peticao_id, current)
-        if (petition.dossie or {}).get("trabalho_id"):
-            raise HTTPException(409, "Abra o trabalho e aprove o pacote completo para acompanhar o envio externo.")
-        credencial_id = payload.credencial_id if payload is not None else None
-        try:
-            # Roteia qualquer sistema pelo driver (sandbox na demo; PJe real no
-            # piloto). A sessao do tribunal e resolvida no cofre por usuario_id.
-            datajud_client = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
-            job = run_pje_protocol_job(
-                session,
-                peticao_id,
-                credencial_id=credencial_id,
-                usuario_id=current.usuario_id,
-                datajud=datajud_client,
-                submit=True,
-            )
-        except (PeticaoNotFoundError, CredencialNaoEncontradaError) as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except ProcessoSemOrgaoError as exc:
-            raise HTTPException(status_code=422, detail=str(exc)) from exc
-        except (
-            AlreadyFiledError,
-            ApprovalRequiredError,
-            CredencialInativaError,
-            UnsupportedFilingSystemError,
-        ) as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-
-        session.commit()
-        session.refresh(job)
-        return job
-
-    @app.post("/peticoes/{peticao_id}/protocolar/confirmar", response_model=PeticaoOut)
-    def confirmar_protocolo_peticao(
-        peticao_id: int,
-        payload: ConfirmarProtocoloRequest,
-        session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
-    ) -> models.Peticao:
-        petition = get_owned_or_404(session, models.Peticao, peticao_id, current)
-        if (petition.dossie or {}).get("trabalho_id"):
-            raise HTTPException(409, "Registre o envio e confira o comprovante na tentativa do trabalho.")
-        try:
-            peticao = confirm_manual_protocol(
-                session,
-                peticao_id,
-                protocolo=payload.protocolo,
-                comprovante_uri=payload.comprovante_uri,
-                credencial_id=payload.credencial_id,
-                usuario_id=current.usuario_id,
-            )
-        except PeticaoNotFoundError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
-        except (AlreadyFiledError, ApprovalRequiredError) as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
-
         session.commit()
         session.refresh(peticao)
         return peticao
