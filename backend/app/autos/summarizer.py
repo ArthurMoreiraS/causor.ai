@@ -39,10 +39,48 @@ class DocumentDigest(BaseModel):
     citations: list[ChunkCitation]
 
 
+# Símbolos tipográficos equivalentes que o modelo troca ao copiar (n° x nº, aspas, travessões).
+_EQUIVALENTS = str.maketrans({"°": "o", "º": "o", "ª": "a", "“": '"', "”": '"', "‘": "'", "’": "'",
+                              "–": "-", "—": "-", "‐": "-", " ": " "})
+
+
 def _normalize(value: str) -> str:
-    decomposed = unicodedata.normalize("NFKD", value)
+    decomposed = unicodedata.normalize("NFKD", value.translate(_EQUIVALENTS))
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
     return re.sub(r"\s+", " ", stripped).strip().lower()
+
+
+def _words(value: str) -> list[tuple[str, int, int]]:
+    """Palavras normalizadas com a posição de cada uma no texto original."""
+    return [(_normalize(m.group()), m.start(), m.end()) for m in re.finditer(r"\w+", value.translate(_EQUIVALENTS))]
+
+
+def literal_span(quote: str, text: str) -> str | None:
+    """Trecho literal da fonte que sustenta a citação, ou None se não houver.
+
+    Aceita a citação contígua e também a que omite um aposto intermediário: as
+    palavras da citação precisam aparecer na mesma ordem, numa janela curta do
+    texto. O retorno é sempre o trecho original, nunca o texto do modelo.
+    Paráfrase (palavras ausentes ou fora de ordem) é recusada.
+    """
+    if _normalize(quote) in _normalize(text):
+        return quote
+    wanted = [w for w, _, _ in _words(quote)]
+    source = _words(text)
+    if len(wanted) < 4:
+        return None
+    limit = int(len(wanted) * 1.6) + 6
+    for start, (word, _, _) in enumerate(source):
+        if word != wanted[0]:
+            continue
+        position, matched = start, 0
+        while position < len(source) and position - start < limit and matched < len(wanted):
+            if source[position][0] == wanted[matched]:
+                matched += 1
+            position += 1
+        if matched == len(wanted):
+            return text[source[start][1]:source[position - 1][2]]
+    return None
 
 
 def validate_citations(
@@ -162,10 +200,19 @@ def generate_summary(snapshot: SummaryInput, *, provider=None, profile: str = "p
             if any(c.chunk_id not in allowed for c in part.citations):
                 raise InvalidCitationError("citação de trecho não fornecido nesta parte")
             text_by_id = {c.id: c.texto for c in batch}
+            kept = []
             for citation in part.citations:
-                if _normalize(citation.quote) not in _normalize(text_by_id[citation.chunk_id]):
-                    raise InvalidCitationError(f"quote nao encontrado no chunk {citation.chunk_id}")
-            digests.append(part)
+                span = literal_span(citation.quote, text_by_id[citation.chunk_id])
+                if span is not None:
+                    kept.append(ChunkCitation(chunk_id=citation.chunk_id, quote=span[:500]))
+            if not kept:
+                raise InvalidCitationError("nenhuma citação confere com o texto original")
+            dropped = len(part.citations) - len(kept)
+            incertezas = list(part.incertezas)
+            if dropped:
+                incertezas.append(f"{dropped} citação(ões) descartada(s) por não conferir(em) "
+                                  "literalmente com o texto; confira as afirmações correspondentes.")
+            digests.append(part.model_copy(update={"citations": kept, "incertezas": incertezas}))
         digest = DocumentDigest(
             resumo="\n\n".join(d.resumo for d in digests),
             **{field: [item for d in digests for item in getattr(d, field)]

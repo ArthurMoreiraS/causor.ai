@@ -228,7 +228,7 @@ def draft_peticao(
     ensure_budget(measured_input, settings.draft_prompt_max_bytes)
     provider = provider or get_provider(model=settings.claude_draft_model, task="draft")
     redigida = provider.complete_structured(
-        system=_SYSTEM, user=prompt, schema=_MinutaRedigida, max_tokens=8000
+        system=_SYSTEM, user=prompt, schema=_MinutaRedigida, max_tokens=20000
     )
 
     fonte = "\n".join(str(v) for v in contexto.values())

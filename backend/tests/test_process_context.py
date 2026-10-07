@@ -262,3 +262,13 @@ def test_draft_uses_context_bundle_and_never_leaks_vault(
     assert selection["input_bytes"] == len(historico.encode("utf-8"))
     for citation in peticao.dossie["citations"]:
         assert citation["quote"] in historico
+
+
+def test_pendencias_do_contexto_viram_instrucoes_de_acao():
+    from app.autos.context import describe_missing
+
+    message = describe_missing(["instancia:2", "documento:7:resumo_failed", "instancia:1:captura_queued"])
+    assert message.startswith("Antes de continuar, resolva em Documentos:")
+    assert "autos do 2º grau: envie os arquivos ou declare que não existem" in message
+    assert "resumo do documento 7 não concluído: use Retomar processamento" in message
+    assert "autos do 1º grau ainda em recebimento (queued)" in message

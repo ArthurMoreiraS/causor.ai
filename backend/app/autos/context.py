@@ -346,6 +346,36 @@ def _court_update_after(
     return newer_andamento is not None
 
 
+def describe_missing(missing: list[str]) -> str:
+    """Pendências do contexto em linguagem de ação, para mensagens ao advogado."""
+    messages: list[str] = []
+    for item in missing:
+        parts = item.split(":")
+        if parts[0] == "instancia" and len(parts) >= 2:
+            grau = parts[1]
+            if len(parts) == 2 or parts[2] == "sem_captura":
+                messages.append(f"autos do {grau}º grau: envie os arquivos ou declare que não existem")
+            elif parts[2] == "not_applicable_sem_evidencia":
+                messages.append(f"{grau}º grau: registre a justificativa da ausência de autos")
+            else:
+                messages.append(f"autos do {grau}º grau ainda em recebimento ({parts[2].replace('captura_', '')})")
+        elif parts[0] == "documento" and len(parts) >= 3:
+            if parts[2].startswith("resumo_"):
+                messages.append(f"resumo do documento {parts[1]} não concluído: use Retomar processamento")
+            else:
+                messages.append(f"extração do documento {parts[1]} não concluída: use Retomar processamento")
+        elif item == "documentos:nenhum_arquivo":
+            messages.append("nenhum arquivo dos autos foi enviado")
+        elif item == "contexto:inexistente":
+            messages.append("envie os autos do processo em Documentos")
+        elif item == "contexto:fingerprint_obsoleto":
+            messages.append("os documentos mudaram: aguarde o novo processamento")
+        else:
+            messages.append(item)
+    unique = list(dict.fromkeys(messages))
+    return "Antes de continuar, resolva em Documentos: " + "; ".join(unique) + "."
+
+
 def _missing_reasons(session: Session, processo: models.Processo) -> list[str]:
     contexto = latest_context(session, processo=processo)
     if contexto is None:

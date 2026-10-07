@@ -103,7 +103,7 @@ def analyze_sources(*, objective: str, evidence_text: str, citations: list[dict]
         "conclusão jurídica. Se a evidência não estiver disponível, registre uma lacuna. Não calcule prazos."
     )
     ensure_budget(system + prompt, settings.draft_prompt_max_bytes)
-    result = provider.complete_structured(system=system, user=prompt, schema=EvidenceAnalysis, max_tokens=8000)
+    result = provider.complete_structured(system=system, user=prompt, schema=EvidenceAnalysis, max_tokens=16000)
     result = EvidenceAnalysis.model_validate(result)
     allowed = {c["chunk_id"] for c in citations}
     for fact in [*result.fatos, *result.cronologia, *result.contradicoes]:
@@ -122,7 +122,9 @@ def prepare_work_evidence(session, *, work, user_id: int, questions: list[str], 
     require_ready_context(session, processo=process, usuario_id=user_id, action="draft")
     bundle = get_ready_context(session, processo=process)
     if bundle is None:
-        raise ValueError("Complete o processamento documental antes de preparar evidências")
+        from app.autos.context import _missing_reasons, describe_missing
+
+        raise ValueError(describe_missing(_missing_reasons(session, process)))
     context = latest_context(session, processo=process)
     source_snapshot = _source_snapshot(session, work, process)
     notice_text = _notice_text(source_snapshot)

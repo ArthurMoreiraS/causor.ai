@@ -69,15 +69,25 @@ class ClaudeProvider:
     ) -> BaseModel:
         from hashlib import sha256
 
+        from pydantic import ValidationError
+
         started = time.monotonic()
-        response = self._get_client().messages.parse(
-            model=self._model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": user}],
-            output_format=schema,
-            **self._thinking_kwargs(),
-        )
+        client = self._get_client()
+        if max_tokens > 8000:
+            # Peças longas: a geração pode passar do timeout padrão de 120s.
+            client = client.with_options(timeout=max(settings.http_timeout_seconds, 600.0))
+        try:
+            response = client.messages.parse(
+                model=self._model,
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": user}],
+                output_format=schema,
+                **self._thinking_kwargs(),
+            )
+        except ValidationError as exc:
+            # Resposta cortada pelo limite de tokens ou fora do esquema.
+            raise LLMProviderError("A resposta do modelo veio incompleta ou fora do formato esperado") from exc
         usage = getattr(response, "usage", None)
         self.last_call = {
             "provider": "claude", "model": getattr(response, "model", self._model),
@@ -99,7 +109,7 @@ class ClaudeProvider:
 
 
 class LLMProviderError(RuntimeError):
-    """Raised when a non-Claude provider fails to return valid output."""
+    """Raised when a provider fails to return valid output (including truncated output)."""
 
 
 class OpenAICompatProvider:

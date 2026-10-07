@@ -2,10 +2,12 @@
 import json
 from hashlib import sha256
 
+from pydantic import ValidationError
 from sqlalchemy import select
 
 from app.agent.work_service import (_deadline_snapshot, _source_snapshot, draft_work,
                                     prepare_work_evidence, require_current_evidence, work_fingerprint)
+from app.agent.llm import LLMProviderError
 from app.autos.context import get_ready_context
 from app.agent.evidence import original_sources
 from app.queue.work_leases import LeaseHeartbeat, owned_job
@@ -32,10 +34,16 @@ def input_signature(session, work, action: str, *, questions=(), pinned=()):
         raise ValueError("O processo deste trabalho não está disponível")
     bundle = get_ready_context(session, processo=process)
     if bundle is None:
-        raise ValueError("Complete o processamento documental antes de continuar")
+        from app.autos.context import _missing_reasons, describe_missing
+
+        raise ValueError(describe_missing(_missing_reasons(session, process)))
     if action == "analise":
         if not work.escopo:
             raise ValueError("Declare o escopo antes da análise")
+        # Cliente e polo entram na análise; vinculá-los depois invalida as
+        # evidências e obriga a refazê-la. Exigir aqui evita o retrabalho.
+        if not process.cliente_id or not work.polo:
+            raise ValueError("Vincule o cliente ao processo e informe o polo antes de analisar as evidências")
         if pinned:
             original_sources(session, processo=process, bundle=bundle, query="", pinned=tuple(pinned), limit=0)
         evidence = None
@@ -199,9 +207,19 @@ def run_work_job(session, session_factory, job_id: int, token: str):
     except LostLease:
         session.rollback()
         return False
-    except ValueError:
+    except LLMProviderError as exc:
         session.rollback()
-        fail_owned(session_factory, job_id, token, "As fontes ou o trabalho mudaram. Revise e solicite novamente")
+        fail_owned(session_factory, job_id, token, f"{exc}. Tente novamente")
+        return False
+    except ValueError as exc:
+        session.rollback()
+        # Mensagens de domínio já orientam a ação; a de "dados mudaram" vem dos guardas acima.
+        message = str(exc)
+        if isinstance(exc, ValidationError):
+            message = "A resposta do modelo veio fora do formato esperado. Tente novamente"
+        elif not message or message.startswith("Os dados da operação mudaram"):
+            message = "As fontes ou o trabalho mudaram. Revise e solicite novamente"
+        fail_owned(session_factory, job_id, token, message)
         return False
     except Exception:
         session.rollback()

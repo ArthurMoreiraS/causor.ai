@@ -230,4 +230,39 @@ def test_summarize_document_marks_invented_citation_as_failed(
     )
     resumo = summarize_document(db_session, version=version, provider=_FakeProvider(digest))
     assert resumo.status == "failed"
-    assert "quote nao encontrado" in resumo.error
+    assert "nenhuma citação confere" in resumo.error
+
+
+def test_literal_span_aceita_omissao_de_aposto_e_devolve_o_trecho_original():
+    from app.autos.summarizer import literal_span
+
+    fonte = ("A denegação de mandado de segurança por inadequação da via eleita — especificamente pela "
+             "ausência de prova pré-constituída — não faz coisa julgada material em relação a posterior ação.")
+    citacao = "A denegação de mandado de segurança por inadequação da via eleita não faz coisa julgada material"
+    span = literal_span(citacao, fonte)
+    assert span is not None and span in fonte
+    assert span.startswith("A denegação") and span.endswith("material")
+
+
+def test_literal_span_normaliza_simbolos_e_recusa_parafrase():
+    from app.autos.summarizer import literal_span
+
+    fonte = "violariam o art. 169 da Lei nº 8.112/1990 e a Instrução Normativa nº 076/2013"
+    assert literal_span("art. 169 da Lei n° 8.112/1990", fonte) is not None
+    assert literal_span("É lícita a prova consistente em gravação ambiental", "a gravação ambiental realizada por um dos interlocutores") is None
+    assert literal_span("Lei 8.112 viola o art. 169 da norma", fonte) is None
+
+
+def test_citacao_que_nao_confere_e_descartada_sem_derrubar_o_resumo(db_session, document_with_chunks):
+    version, chunks = document_with_chunks
+    good = chunks[0].texto.split()[:6]
+    digest = DocumentDigest(
+        resumo="Resumo com uma citação boa e uma inventada.", fatos=[], pedidos=[], decisoes=[], prazos=[],
+        incertezas=[],
+        citations=[ChunkCitation(chunk_id=chunks[0].id, quote=" ".join(good)),
+                   ChunkCitation(chunk_id=chunks[0].id, quote="TRECHO QUE NAO EXISTE AQUI")],
+    )
+    resumo = summarize_document(db_session, version=version, provider=_FakeProvider(digest))
+    assert resumo.status == "complete"
+    assert [c["quote"] for c in resumo.citations] == [" ".join(good)]
+    assert any("descartada" in item for item in resumo.dados["incertezas"])

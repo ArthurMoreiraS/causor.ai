@@ -309,3 +309,30 @@ def test_http_upload_context_analysis_review_draft_edit_and_resume(
     edited = client.patch(f"/peticoes/{done['resultado']['peticao_id']}", json={
         "conteudo": "Texto revisado pelo advogado"})
     assert edited.status_code == 200 and edited.json()["conteudo"] == "Texto revisado pelo advogado"
+
+
+def test_resposta_truncada_do_modelo_aparece_como_tal_e_nao_como_fontes_alteradas(client, db_session, seeded, monkeypatch):
+    from app.agent.llm import LLMProviderError
+    from app.queue import work_jobs
+    from app.prazo_engine.factory import build_calendar
+
+    work = prepared_work(client, db_session, seeded, monkeypatch, linked=True)
+    queued = _request(client, work)
+
+    def truncated(session, **kwargs):
+        raise LLMProviderError("A resposta do modelo veio incompleta ou fora do formato esperado")
+    monkeypatch.setattr(work_jobs, "prepare_work_evidence", truncated)
+    clients = WorkerClients(djen=_Noop(), datajud=_Noop(), calendar=build_calendar([2026]))
+    assert run_once(_factory(db_session), clients=clients) == 1
+    job = client.get(f"/trabalhos/{work['id']}/operacoes/{queued.json()['id']}").json()
+    assert job["status"] == "failed"
+    assert job["erro"] == "A resposta do modelo veio incompleta ou fora do formato esperado. Tente novamente"
+
+
+def test_analise_exige_cliente_e_polo_antes_de_comecar(client, db_session, seeded, monkeypatch):
+    work = prepared_work(client, db_session, seeded, monkeypatch, linked=False)
+    seeded.cliente_id = None
+    db_session.commit()
+    response = _request(client, work)
+    assert response.status_code == 409
+    assert "Vincule o cliente" in response.json()["detail"]
