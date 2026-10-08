@@ -101,7 +101,8 @@ material, repetir em cinco casos.
 4. Interface: reformulação "Papel e tinta" **implantada** em 07/10
    (`0db2b1b`, [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37585288275)
    e deploy verdes): um sistema visual só, com Satoshi nos títulos e Inter na
-   interface, fundo papel e verde da landing, tabelas com colunas alinhadas e
+   interface, fundo papel e tinta preta (o verde de acento saiu em 08/10: a marca
+   é preta, grafite e cinza), tabelas com colunas alinhadas e
    selos em frase normal. Aprovada pelo fundador no ambiente local; em
    produção, conferidos `/health` 200, `/me` sem sessão 401, app 200 e as
    fontes novas servidas. Plano em

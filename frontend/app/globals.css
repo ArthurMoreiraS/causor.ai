@@ -164,8 +164,8 @@ button:disabled {
 .brandTag {
   padding: 3px 6px;
   border-radius: var(--radius-xs);
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--emphasis-soft);
+  color: var(--emphasis);
   font-size: var(--text-xs);
   font-weight: 500;
   line-height: 1;
@@ -304,7 +304,7 @@ button:disabled {
 
 .sideNav a.active svg,
 .sideNav .navItem.active svg {
-  color: var(--green);
+  color: var(--emphasis);
 }
 
 .sidebarFooter {
@@ -408,7 +408,7 @@ button:disabled {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: var(--green);
+  background: var(--emphasis);
   color: var(--bg);
   font-size: var(--text-xs);
   font-weight: 600;
@@ -597,7 +597,7 @@ button:disabled {
 }
 
 :where(input[type="checkbox"], input[type="radio"]) {
-  accent-color: var(--green);
+  accent-color: var(--emphasis);
 }
 
 .selectControl select {
@@ -996,7 +996,7 @@ h3 {
 .heroNotice .toolbarButton { flex: 0 0 auto; min-height: 36px; }
 .inboxAnalysisBar { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 16px; border-bottom: 1px solid var(--line); border-radius: var(--radius-md) var(--radius-md) 0 0; background: var(--panel-soft); }
 .inboxAnalysisText { display: flex; align-items: baseline; gap: 4px 10px; flex-wrap: wrap; min-width: 0; }
-.inboxAnalysisText svg { align-self: center; color: var(--green); }
+.inboxAnalysisText svg { align-self: center; color: var(--emphasis); }
 .inboxAnalysisText strong { font-size: var(--text-sm); font-weight: 600; }
 .inboxAnalysisBar .segmented { max-width: 100%; overflow-x: auto; }
 .inboxAnalysisText p { margin: 0; color: var(--muted); font-size: var(--text-sm); line-height: 1.5; overflow-wrap: anywhere; }
@@ -1169,7 +1169,7 @@ h3 {
 }
 
 .agentCycleStep.active::after {
-  background: var(--green);
+  background: var(--emphasis);
 }
 
 .agentCycleStep.review::after,
@@ -1189,9 +1189,9 @@ h3 {
 }
 
 .agentCycleStep.active .cycleIcon {
-  border-color: color-mix(in srgb, var(--green) 35%, var(--line));
-  background: var(--green-soft);
-  color: var(--green);
+  border-color: color-mix(in srgb, var(--emphasis) 35%, var(--line));
+  background: var(--emphasis-soft);
+  color: var(--emphasis);
 }
 
 .agentCycleStep.review .cycleIcon,
@@ -1470,8 +1470,8 @@ h3 {
 
 .filePicker .fileDrop:hover,
 .filePicker .fileDrop.dragging {
-  border-color: var(--green);
-  background: var(--green-soft);
+  border-color: var(--emphasis);
+  background: var(--emphasis-soft);
 }
 
 .filePicker .fileDrop:focus-within {
@@ -1486,7 +1486,7 @@ h3 {
 
 .filePicker .fileDrop > svg {
   flex: none;
-  color: var(--green);
+  color: var(--emphasis);
 }
 
 .fileDropText {
@@ -1506,7 +1506,7 @@ h3 {
 }
 
 .fileDropLink {
-  color: var(--green);
+  color: var(--emphasis);
   text-decoration: underline;
   text-underline-offset: 2px;
 }
@@ -2127,8 +2127,8 @@ h3 {
   justify-self: center;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
-  background: var(--green-soft);
-  color: var(--green);
+  background: var(--emphasis-soft);
+  color: var(--emphasis);
   font-size: var(--text-xs);
   font-weight: 500;
 }
@@ -3396,9 +3396,9 @@ h3 {
 }
 
 .toolbarButton.accentOn {
-  border-color: var(--green);
-  background: var(--green-soft);
-  color: var(--green);
+  border-color: var(--emphasis);
+  background: var(--emphasis-soft);
+  color: var(--emphasis);
 }
 
 .filterPanel {

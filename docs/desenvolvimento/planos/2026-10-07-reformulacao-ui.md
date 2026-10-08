@@ -5,8 +5,8 @@
 Unificar a interface em um único sistema visual, meio-termo aprovado pelo
 fundador entre a identidade atual do software e a da landing:
 
-- Da landing: Satoshi nos títulos, fundo papel `#f9f8f5`, tinta `#20231f`,
-  verde `#425b47` como único acento, foco azul.
+- Da landing: Satoshi nos títulos, fundo papel `#f9f8f5`, tinta `#1f1f1e`,
+  grafite `#3a3a38` como único acento (o verde `#425b47` saiu em 08/10), foco azul.
 - Do software: Inter na interface, painéis brancos, bordas finas, cantos
   4/6/8, botão principal sólido, densidade de tabela, mono só no número CNJ.
 

@@ -1,5 +1,6 @@
-/* Causor "Papel e tinta": a identidade da landing (Satoshi, papel, tinta,
-   verde) sobre a densidade do software (Inter, painéis brancos, bordas finas).
+/* Causor "Papel e tinta": a identidade da landing (Satoshi, papel, tinta
+   preta e grafite; a marca não usa verde) sobre a densidade do software
+   (Inter, painéis brancos, bordas finas). Verde só no estado semântico "ok".
    Única fonte de tamanhos, pesos, famílias e cores. O teste
    `lib/design-tokens.guard.test.ts` falha se o CSS sair destes tokens. */
 
@@ -71,26 +72,26 @@
   --chip: #efeee8;
 
   /* Tinta e texto. */
-  --ink: #20231f;
-  --ink-soft: #40443e;
-  --muted: #6e716c;
-  --muted-2: #9a9d95;
+  --ink: #1f1f1e;
+  --ink-soft: #42423f;
+  --muted: #6f6e6a;
+  --muted-2: #9b9a95;
 
   /* Linhas. */
   --line: #e8e7e1;
-  --line-strong: #d6d7ce;
+  --line-strong: #d8d6cf;
 
-  /* Acento: o verde da landing, usado com parcimônia. */
-  --green: #425b47;
-  --green-soft: #e9eee8;
+  /* Ênfase: grafite da marca (preto e branco), usado com parcimônia. */
+  --emphasis: #3a3a38;
+  --emphasis-soft: #edece7;
 
   /* Ação principal e estados interativos. */
-  --solid: #20231f;
-  --solid-hover: #394333;
+  --solid: #1f1f1e;
+  --solid-hover: #3a3a38;
   --on-solid: #f9f8f5;
-  --accent: #20231f;
+  --accent: #1f1f1e;
   --accent-bg: #efeee8;
-  --accent-border: #d6d7ce;
+  --accent-border: #d8d6cf;
   --focus: #4765c4;
 
   /* Semânticos: texto, fundo e ponto do selo. */
@@ -106,18 +107,18 @@
   --info: #3a5788;
   --info-bg: #e8edf6;
   --info-dot: #5c7fbf;
-  --neutral: #585c56;
+  --neutral: #5a5a57;
   --neutral-bg: #efeee8;
-  --neutral-dot: #a2a59c;
+  --neutral-dot: #a3a29c;
   --success: var(--ok);
   --success-bg: var(--ok-bg);
 
   /* Sombras só em sobreposições (modal, menu, toast). */
-  --shadow: rgb(32 35 31 / 8%);
+  --shadow: rgb(31 31 30 / 8%);
   --shadow-sm: none;
-  --shadow-md: 0 10px 28px -18px rgb(32 35 31 / 32%);
-  --shadow-lg: 0 24px 60px -24px rgb(32 35 31 / 28%);
-  --overlay: rgb(32 35 31 / 32%);
+  --shadow-md: 0 10px 28px -18px rgb(31 31 30 / 32%);
+  --shadow-lg: 0 24px 60px -24px rgb(31 31 30 / 28%);
+  --overlay: rgb(31 31 30 / 32%);
 
   /* Cantos: selos 4, controles 6, cartões 8. */
   --radius-xs: 4px;
@@ -161,26 +162,26 @@
 
 [data-theme="dark"] {
   color-scheme: dark;
-  --bg: #121411;
-  --sidebar: #0e100d;
-  --panel: #181a17;
-  --panel-soft: #1c1f1b;
-  --hover: #22251f;
-  --chip: #23261f;
+  --bg: #131313;
+  --sidebar: #0f0f0f;
+  --panel: #191918;
+  --panel-soft: #1d1d1c;
+  --hover: #242423;
+  --chip: #252524;
   --ink: #ecebe4;
   --ink-soft: #c9c9c1;
-  --muted: #9a9d95;
-  --muted-2: #6c7068;
-  --line: #272a25;
-  --line-strong: #363a33;
-  --green: #93b39b;
-  --green-soft: #1f2a21;
+  --muted: #9b9a95;
+  --muted-2: #6e6d69;
+  --line: #292928;
+  --line-strong: #383837;
+  --emphasis: #d4d3cd;
+  --emphasis-soft: #262625;
   --solid: #ecebe4;
   --solid-hover: #ffffff;
-  --on-solid: #181a17;
+  --on-solid: #191918;
   --accent: #ecebe4;
-  --accent-bg: #23261f;
-  --accent-border: #363a33;
+  --accent-bg: #252524;
+  --accent-border: #383837;
   --focus: #8aa2ea;
   --warn: #e5b86a;
   --warn-bg: #2a2214;
@@ -195,8 +196,8 @@
   --info-bg: #1b2230;
   --info-dot: #7d9bd1;
   --neutral: #b5b7af;
-  --neutral-bg: #23261f;
-  --neutral-dot: #7b7f76;
+  --neutral-bg: #252524;
+  --neutral-dot: #7d7c77;
   --shadow: rgb(0 0 0 / 50%);
   --shadow-md: 0 10px 28px -18px rgb(0 0 0 / 70%);
   --shadow-lg: 0 24px 60px -24px rgb(0 0 0 / 70%);
