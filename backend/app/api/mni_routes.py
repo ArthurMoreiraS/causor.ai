@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.auth.papeis import requer
 from app.connectors.errors import ConnectorError
 from app.connectors.mni import credentials as mni_credentials
 from app.connectors.mni.client import MniClient
@@ -67,7 +68,7 @@ def _out(credencial: models.MniCredencial) -> MniCredencialOut:
 def cadastrar_mni(
     payload: MniCredencialIn,
     session: Session = Depends(get_session),
-    current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(requer("configurar_escritorio")),
 ) -> MniCredencialOut:
     try:
         credencial = mni_credentials.store_mni_credencial(
@@ -106,7 +107,7 @@ def listar_mni(
 def revogar_mni(
     credencial_id: int,
     session: Session = Depends(get_session),
-    current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(requer("configurar_escritorio")),
 ) -> MniCredencialOut:
     try:
         credencial = mni_credentials.deactivate_mni_credencial(
@@ -123,7 +124,7 @@ def testar_mni(
     credencial_id: int,
     payload: MniTesteIn,
     session: Session = Depends(get_session),
-    current: CurrentUser = Depends(get_current_user),
+    current: CurrentUser = Depends(requer("configurar_escritorio")),
 ) -> MniTesteOut:
     credencial = session.get(models.MniCredencial, credencial_id)
     if credencial is None or credencial.escritorio_id != current.escritorio_id:

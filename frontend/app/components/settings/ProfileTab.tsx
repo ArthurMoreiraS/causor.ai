@@ -16,11 +16,15 @@ import { LoadingButton, Skeleton } from "../ui";
 // os mesmos dados de identidade, gravados pelo mesmo botão.
 export default function ProfileTab({
   offline,
+  podeConfigurar = true,
   onOabChanged
 }: {
   offline: boolean;
+  /** Dados do escritório e timbrado são do administrador; o resto é pessoal. */
+  podeConfigurar?: boolean;
   onOabChanged: () => Promise<void>;
 }) {
+  const escritorioBloqueado = offline || !podeConfigurar;
   const toast = useToast();
   const [profile, setProfile] = useState<OperationalProfile | null>(null);
   const [form, setForm] = useState({
@@ -86,13 +90,17 @@ export default function ProfileTab({
     try {
       const updated = await atualizarPerfilOperacional({
         nome_usuario: form.nomeUsuario.trim(),
-        nome_escritorio: form.nomeEscritorio.trim(),
-        cnpj: form.cnpj.trim() || null,
         oab: form.oab.trim() || null,
         oab_uf: form.oabUf.trim().toUpperCase() || null,
-        timbrado_cabecalho: timbrado.cabecalho.trim(),
-        timbrado_rodape: timbrado.rodape.trim(),
-        ...(timbrado.logoChanged ? { timbrado_logo: timbrado.logo } : {})
+        ...(podeConfigurar
+          ? {
+              nome_escritorio: form.nomeEscritorio.trim(),
+              cnpj: form.cnpj.trim() || null,
+              timbrado_cabecalho: timbrado.cabecalho.trim(),
+              timbrado_rodape: timbrado.rodape.trim(),
+              ...(timbrado.logoChanged ? { timbrado_logo: timbrado.logo } : {})
+            }
+          : {})
       });
       applyProfile(updated);
       setError(null);
@@ -159,7 +167,7 @@ export default function ProfileTab({
             Nome do escritório
             <input
               value={form.nomeEscritorio}
-              disabled={offline}
+              disabled={escritorioBloqueado}
               onChange={(e) => setForm((f) => ({ ...f, nomeEscritorio: e.target.value }))}
             />
           </label>
@@ -167,7 +175,7 @@ export default function ProfileTab({
             CNPJ
             <input
               value={form.cnpj}
-              disabled={offline}
+              disabled={escritorioBloqueado}
               placeholder="Opcional"
               onChange={(e) => setForm((f) => ({ ...f, cnpj: e.target.value }))}
             />
@@ -199,6 +207,7 @@ export default function ProfileTab({
         <div className="settingsSectionHead">
           <h4>Papel timbrado</h4>
           <p>Dados visuais do escritório usados nos documentos exportados. Uma linha aqui é uma linha no papel.</p>
+          {!podeConfigurar ? <p>Só administradores alteram o escritório e o timbrado.</p> : null}
         </div>
 
         <div className="settingsLogoRow">
@@ -218,7 +227,7 @@ export default function ProfileTab({
               <input
                 type="file"
                 accept="image/png,image/jpeg"
-                disabled={offline}
+                disabled={escritorioBloqueado}
                 onChange={(e) => onLogoSelected(e.target.files?.[0] ?? null)}
               />
             </label>
@@ -226,7 +235,7 @@ export default function ProfileTab({
               <button
                 type="button"
                 className="toolbarButton compact"
-                disabled={offline}
+                disabled={escritorioBloqueado}
                 onClick={() =>
                   setTimbrado((t) => ({ ...t, logo: "", logoPreview: "", logoChanged: true }))
                 }
@@ -244,7 +253,7 @@ export default function ProfileTab({
             <textarea
               rows={4}
               value={timbrado.cabecalho}
-              disabled={offline}
+              disabled={escritorioBloqueado}
               placeholder="Endereço, telefone, contato"
               onChange={(e) => setTimbrado((t) => ({ ...t, cabecalho: e.target.value }))}
             />
@@ -256,7 +265,7 @@ export default function ProfileTab({
             <textarea
               rows={3}
               value={timbrado.rodape}
-              disabled={offline}
+              disabled={escritorioBloqueado}
               placeholder="OABs, site"
               onChange={(e) => setTimbrado((t) => ({ ...t, rodape: e.target.value }))}
             />

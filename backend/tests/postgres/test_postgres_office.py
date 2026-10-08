@@ -28,7 +28,7 @@ def test_concurrent_alert_conversion_is_idempotent(pg_engine, db_session, seeded
     db_session.add(draft)
     db_session.commit()
     user = db_session.scalars(select(models.Usuario)).first()
-    current = CurrentUser(usuario_id=user.id, escritorio_id=seeded.escritorio_id, email=user.email)
+    current = CurrentUser(usuario_id=user.id, escritorio_id=seeded.escritorio_id, email=user.email, papel="administrador")
     payload = TarefaIn(titulo="Solicitar documento", peticao_id=draft.id,
                        alerta_indice=0, alerta_texto_esperado="Documento ausente")
     barrier = Barrier(2)

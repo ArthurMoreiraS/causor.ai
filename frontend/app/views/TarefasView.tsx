@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Check, Plus, RefreshCw, Search } from "lucide-react";
-import { atualizarTarefa, listarTarefas, type Tarefa, type TarefaStatus } from "@/lib/api";
+import { atualizarTarefa, carregarUsuarioAtual, listarTarefas, listarUsuarios, type Tarefa, type TarefaStatus, type Usuario } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import { formatCnj, formatDate } from "@/lib/format";
 import { TASK_STATUSES, TASK_TYPES } from "../components/TarefaDialog";
@@ -17,23 +17,37 @@ export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpen
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<TarefaStatus | "">("");
+  // "" = todos; "eu" = minhas; número = membro específico.
+  const [owner, setOwner] = useState<"" | "eu" | number>("");
+  const [members, setMembers] = useState<Usuario[]>([]);
+  const [meId, setMeId] = useState<number | null>(null);
   const [offset, setOffset] = useState(0);
   const [tick, setTick] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
   useEffect(() => {
+    if (offline) return;
+    let active = true;
+    Promise.all([listarUsuarios(), carregarUsuarioAtual()])
+      .then(([users, me]) => { if (active) { setMembers(users); setMeId(me.usuario_id); } })
+      .catch(() => undefined);
+    return () => { active = false; };
+  }, [offline]);
+  const responsavelId = owner === "eu" ? meId ?? undefined : owner || undefined;
+  useEffect(() => {
     let active = true;
     if (offline) { setLoading(false); return; }
+    if (owner === "eu" && meId === null) return;
     setLoading(true);
     const timer = setTimeout(() => {
-      listarTarefas({ q: query, status: status || undefined, offset, limit: 30 }).then(page => {
+      listarTarefas({ q: query, status: status || undefined, responsavel_id: responsavelId, offset, limit: 30 }).then(page => {
         if (active) { setItems(page.items); setTotal(page.total); setError(null); }
       }).catch(err => { if (active) { setItems([]); setTotal(0); setError(humanError(err, "Falha ao carregar tarefas")); } })
         .finally(() => { if (active) setLoading(false); });
     }, 200);
     return () => { active = false; clearTimeout(timer); };
-  }, [offline, refreshKey, tick, query, status, offset]);
+  }, [offline, refreshKey, tick, query, status, responsavelId, owner, meId, offset]);
   async function finish(task: Tarefa) {
     if (busy !== null || offline) return;
     setBusy(task.id);
@@ -55,6 +69,11 @@ export default function TarefasView({ offline, refreshKey, onNew, onEdit, onOpen
         <label className="search"><Search size={15} /><input value={query} aria-label="Buscar tarefas" onChange={e => { setQuery(e.target.value); setOffset(0); }} placeholder="Buscar tarefas" /></label>
         <label className="selectControl"><span className="sr-only">Situação</span><select aria-label="Situação" value={status} onChange={e => { setStatus(e.target.value as TarefaStatus | ""); setOffset(0); }}>
           <option value="">Todas as situações</option>{Object.entries(TASK_STATUSES).map(([key, value]) => <option key={key} value={key}>{value}</option>)}
+        </select></label>
+        <label className="selectControl"><span className="sr-only">Responsável</span><select aria-label="Responsável" value={String(owner)} onChange={e => { const v = e.target.value; setOwner(v === "" || v === "eu" ? v : Number(v)); setOffset(0); }}>
+          <option value="">Todos os responsáveis</option>
+          <option value="eu" disabled={meId === null}>Minhas tarefas</option>
+          {members.filter(m => m.id !== meId).map(m => <option key={m.id} value={m.id}>{m.nome}{m.ativo === false ? " (desativado)" : ""}</option>)}
         </select></label>
         <button className="toolbarButton" onClick={() => setTick(v => v + 1)} disabled={loading || offline}><RefreshCw size={14} />Atualizar</button>
         <button className="toolbarButton primary" disabled={offline} onClick={onNew}><Plus size={15} />Nova tarefa</button>

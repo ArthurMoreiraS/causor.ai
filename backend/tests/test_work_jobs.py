@@ -128,7 +128,7 @@ def test_job_reads_are_private_to_requesting_user(client, db_session, seeded, mo
     db_session.add(another)
     db_session.commit()
     client.app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        usuario_id=another.id, escritorio_id=seeded.escritorio_id, email=another.email)
+        usuario_id=another.id, escritorio_id=seeded.escritorio_id, email=another.email, papel="administrador")
     assert client.get(f"/trabalhos/{work['id']}/operacoes/atual").json() is None
     assert client.get(f"/trabalhos/{work['id']}/operacoes/{queued.json()['id']}").status_code == 404
 

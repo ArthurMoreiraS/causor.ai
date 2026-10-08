@@ -127,3 +127,16 @@ export function humanError(err: unknown, fallback: string): string {
   }
   return raw;
 }
+
+/** Frase de domínio que o backend escreveu para o usuário (`detail` em texto),
+ *  como as recusas de papel e equipe. `null` quando o corpo não traz uma. */
+export function mensagemDoServidor(err: unknown): string | null {
+  const raw = err instanceof Error ? err.message.trim() : "";
+  if (!raw.startsWith("{")) return null;
+  try {
+    const detail = (JSON.parse(raw) as { detail?: unknown }).detail;
+    return typeof detail === "string" && detail.trim() ? detail.trim() : null;
+  } catch {
+    return null;
+  }
+}

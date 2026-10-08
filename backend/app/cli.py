@@ -302,6 +302,8 @@ def main(argv: list[str] | None = None) -> int:
                     email=args.email,
                     oab=args.oab,
                     oab_uf=args.uf.upper() if args.uf else None,
+                    # Quem abre o escritório administra a equipe.
+                    papel="administrador",
                 )
                 session.add(usuario)
             session.commit()

@@ -82,6 +82,7 @@ import { humanError } from "@/lib/errors";
 import { downloadCsv } from "@/lib/export";
 import { BRASIL_UFS } from "@/lib/brasil-ufs";
 import { computeDashboardMetrics } from "@/lib/metrics";
+import { usePermissoes } from "@/lib/permissoes";
 import { captureEmptyMessage, captureFailureMessage } from "@/lib/capture-outcome";
 import {
   daysUntil,
@@ -132,6 +133,7 @@ function actionSuccessTitle(key: string) {
 export default function Home() {
   const { loading: authLoading, session, signOut } = useRequireAuth();
   const toast = useToast();
+  const { pode } = usePermissoes(Boolean(session));
   const [data, setData] = useState<DashboardData>(emptyData);
   const [loadingData, setLoadingData] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
@@ -873,10 +875,12 @@ export default function Home() {
               refreshKey={refreshTick}
               onGoToPrazos={() => setView("prazos")}
             />
-            <button className="toolbarButton primary appbarCapture" onClick={openOab} disabled={offline} aria-label="Captura por OAB">
-              <Search size={15} />
-              <span className="appbarLabel">Captura por OAB</span>
-            </button>
+            {pode("configurar_escritorio") ? (
+              <button className="toolbarButton primary appbarCapture" onClick={openOab} disabled={offline} aria-label="Captura por OAB">
+                <Search size={15} />
+                <span className="appbarLabel">Captura por OAB</span>
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -1095,8 +1099,8 @@ export default function Home() {
               busy={busy}
               offline={offline}
               onOpen={(sel) => setDetail(sel)}
-              onDonePrazo={(prazo) => runAction(`done-${prazo.id}`, () => cumprirPrazo(prazo.id))}
-              onEditPrazo={editarPrazo}
+              onDonePrazo={pode("decidir_prazo") ? (prazo) => runAction(`done-${prazo.id}`, () => cumprirPrazo(prazo.id)) : undefined}
+              onEditPrazo={pode("decidir_prazo") ? editarPrazo : undefined}
             />
           ) : null}
           {view === "peticoes" ? (
@@ -1111,7 +1115,7 @@ export default function Home() {
               rows={peticaoRows}
               busy={busy}
               offline={offline}
-              onApprove={(peticao) => runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id))}
+              onApprove={pode("aprovar_minuta") ? (peticao) => runAction(`approve-${peticao.id}`, () => aprovarPeticao(peticao.id)) : undefined}
               onOpenEditor={setEditorPeticao}
             />
           ) : null}
@@ -1289,7 +1293,7 @@ export default function Home() {
         ) : null}
 
         {overlay === "profile" ? (
-          <ProfileModal onClose={() => setOverlay(null)} onSignOut={signOut} />
+          <ProfileModal onClose={() => setOverlay(null)} onSignOut={signOut} onOpenSettings={() => setOverlay("settings")} />
         ) : null}
 
         {detail ? (
@@ -1311,11 +1315,11 @@ export default function Home() {
               setDetail(null);
               setEditorPeticao(peticao);
             }}
-            onEditPrazo={(prazo) => {
+            onEditPrazo={pode("decidir_prazo") ? (prazo) => {
               setDetail(null);
               editarPrazo(prazo);
-            }}
-            onPrazoConfirmed={() => { void refresh(); }}
+            } : undefined}
+            onPrazoConfirmed={pode("decidir_prazo") ? () => { void refresh(); } : undefined}
           />
         ) : null}
 

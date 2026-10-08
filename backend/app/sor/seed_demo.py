@@ -283,11 +283,13 @@ def seed_demo(session: Session, *, today: date | None = None) -> SeedDemoResult:
         email="causorai@gmail.com",
         oab="123456",
         oab_uf="SP",
+        papel="administrador",
     )
     apoio = models.Usuario(
         escritorio_id=escritorio.id,
         nome="Rafael Caldas",
         email="rafael.caldas@demo.causor.com.br",
+        papel="assistente",
     )
     session.add_all([advogada, apoio])
     session.flush()

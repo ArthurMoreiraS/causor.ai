@@ -23,7 +23,8 @@ def _client(pg_engine, office_id):
 
     app.dependency_overrides[get_session] = session_dependency
     app.dependency_overrides[get_current_user] = lambda: CurrentUser(
-        usuario_id=1, escritorio_id=office_id, email="test@example.com"
+        usuario_id=1, escritorio_id=office_id, email="test@example.com",
+        papel="administrador",
     )
     return TestClient(app)
 

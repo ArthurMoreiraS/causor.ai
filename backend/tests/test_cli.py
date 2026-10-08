@@ -69,6 +69,7 @@ def test_cli_provision_pilot_is_idempotent(db_session, monkeypatch):
     assert usuario.email == "ana@example.com"
     assert usuario.oab_uf == "SP"
     assert usuario.escritorio_id == escritorio.id
+    assert usuario.papel == "administrador"
 
 
 def test_cli_capture_due_runs(db_session, monkeypatch):

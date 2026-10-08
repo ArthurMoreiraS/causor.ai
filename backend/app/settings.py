@@ -60,6 +60,11 @@ class Settings(BaseSettings):
     # Trusted Auth project for ES256/JWKS; never derive a remote key URL from an
     # unverified token alone. Fixed PEM/legacy HS256 remain supported.
     supabase_url: str = ""
+    # Endereço público do frontend (ex.: "https://app.causorai.com"). O link do
+    # convite de membro volta para `<app_url>/set-password`. A chave
+    # service-role do Supabase NÃO entra aqui: `app.auth.convite` lê
+    # `CAUSOR_SUPABASE_SERVICE_ROLE_KEY` do ambiente na hora do envio.
+    app_url: str = ""
 
     # Agente / LLM. O Causor usa Claude; modelos por tarefa mantem custo baixo:
     # Haiku for routine chat/classification; Sonnet for legal drafting quality.

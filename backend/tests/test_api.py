@@ -159,6 +159,8 @@ def test_me_retorna_usuario_e_tenant_autenticados(client, db_session, seeded):
         "usuario_id": usuario.id,
         "escritorio_id": seeded.escritorio_id,
         "email": "seed@example.com",
+        "papel": "administrador",
+        "permissoes": ["aprovar_minuta", "configurar_escritorio", "decidir_prazo", "gerir_equipe"],
     }
 
 

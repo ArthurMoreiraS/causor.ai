@@ -14,11 +14,14 @@ import { AsyncState, LoadingButton, Modal, Skeleton } from "../ui";
 export default function CaptureTab({
   settings,
   offline,
+  podeConfigurar = true,
   onUpdate,
   onOabChanged
 }: {
   settings: Settings;
   offline: boolean;
+  /** OABs monitoradas são do administrador. */
+  podeConfigurar?: boolean;
   onUpdate: (patch: Partial<Settings>) => void;
   onOabChanged: () => Promise<void>;
 }) {
@@ -132,7 +135,7 @@ export default function CaptureTab({
                 </span>
                 <LoadingButton
                   className="toolbarButton compact danger"
-                  disabled={offline}
+                  disabled={offline || !podeConfigurar}
                   loading={removingId === oab.id}
                   icon={<Trash2 size={14} />}
                   onClick={() => {

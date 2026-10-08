@@ -17,6 +17,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -63,7 +64,15 @@ class Escritorio(TimestampMixin, Base):
 
 
 class Usuario(TimestampMixin, Base):
+    """Membro de um escritório. ``papel`` define o que pode fazer (matriz em
+    ``app.auth.papeis``); ``ativo=False`` corta o acesso sem apagar autoria."""
+
     __tablename__ = "usuario"
+    __table_args__ = (
+        CheckConstraint(
+            "papel IN ('administrador', 'advogado', 'assistente')", name="ck_usuario_papel"
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False)
@@ -72,6 +81,12 @@ class Usuario(TimestampMixin, Base):
     oab: Mapped[str | None] = mapped_column(String(20), index=True)
     oab_uf: Mapped[str | None] = mapped_column(String(2))
     supabase_user_id: Mapped[str | None] = mapped_column(String(36), unique=True)
+    papel: Mapped[str] = mapped_column(
+        String(20), default="advogado", server_default="advogado", nullable=False
+    )
+    ativo: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
 
     escritorio: Mapped[Escritorio] = relationship(back_populates="usuarios")
 

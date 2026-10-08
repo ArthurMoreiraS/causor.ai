@@ -10,6 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.auth.papeis import responsavel_valido
 from app.auth.tenant import get_owned_or_404, tenant_select
 from app.sor import models
 from app.sor.db import get_session
@@ -209,7 +210,9 @@ def list_tasks(q: str = Query("", max_length=200), status: TaskStatus | None = N
 def create_task(payload: TarefaIn, response: Response, session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user)):
     values = payload.model_dump(exclude={"alerta_indice", "alerta_texto_esperado"})
     source_text = None
-    for model, field in ((models.Cliente, "cliente_id"), (models.Usuario, "responsavel_id"),
+    if values["responsavel_id"] is not None:
+        responsavel_valido(session, values["responsavel_id"], current)
+    for model, field in ((models.Cliente, "cliente_id"),
                          (models.Intimacao, "intimacao_id"), (models.Peticao, "peticao_id")):
         if values[field] is None:
             continue
@@ -257,16 +260,19 @@ def update_task(tarefa_id: int, payload: TarefaPatch, session: Session = Depends
     if task.versao != payload.versao:
         raise HTTPException(409, "A tarefa foi alterada. Atualize a lista antes de salvar novamente.")
     changes = payload.model_dump(exclude_unset=True, exclude={"versao"})
-    if changes.get("responsavel_id") is not None:
-        get_owned_or_404(session, models.Usuario, changes["responsavel_id"], current)
     changes = {key: value for key, value in changes.items() if getattr(task, key) != value}
+    if changes.get("responsavel_id") is not None:
+        responsavel_valido(session, changes["responsavel_id"], current)
     if changes:
+        detail = {"campos": sorted(changes)}
+        if "responsavel_id" in changes:
+            detail["responsavel"] = {"de": task.responsavel_id, "para": changes["responsavel_id"]}
         for key, value in changes.items():
             setattr(task, key, value)
         if "status" in changes:
             task.concluida_em = datetime.now(timezone.utc) if task.status == "concluida" else None
         task.versao += 1
-        audit(session, current, "tarefa_atualizada", "tarefa", task.id, {"campos": sorted(changes), "versao": task.versao})
+        audit(session, current, "tarefa_atualizada", "tarefa", task.id, {**detail, "versao": task.versao})
         session.commit()
     return task_out(session.execute(task_query(current).where(models.Tarefa.id == task.id)).one())
 

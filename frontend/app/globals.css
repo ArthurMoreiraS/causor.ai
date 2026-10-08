@@ -2953,6 +2953,29 @@ h3 {
   font-weight: 600;
 }
 
+/* Equipe: nome e e-mail à esquerda; situação, papel e ações à direita. */
+.modalListRow.teamRow {
+  flex-wrap: wrap;
+}
+
+.teamMember {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.teamMember small {
+  overflow-wrap: anywhere;
+}
+
+.teamActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 /* ===== Fase A — Configurações, filtros, ajuda, perfil ===== */
 
 /* Configurações: abas laterais com cabeçalho e rodapé fixos. Só o painel
@@ -3426,41 +3449,169 @@ h3 {
   gap: 8px;
 }
 
+/* Modal informativo (Ajuda, Conta): altura pelo conteúdo, corpo com margem
+   e rolagem própria. O `.settingsCard` é a moldura fixa das Configurações com
+   abas; reaproveitá-lo aqui deixava texto colado na borda e um vão embaixo. */
+.modalCard.infoCard {
+  width: min(560px, calc(100vw - 32px));
+  max-height: min(680px, calc(100vh - 32px));
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+
+.modalCard.infoCard.narrow {
+  width: min(440px, calc(100vw - 32px));
+}
+
+.infoBody {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  gap: 22px;
+  padding: 20px;
+}
+
+.infoSection {
+  display: grid;
+  gap: 10px;
+}
+
+.infoSection h4 {
+  margin: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.infoRowText {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.infoRowText span,
+.infoRowText small {
+  overflow-wrap: anywhere;
+}
+
 .helpSteps,
 .helpShortcuts {
+  display: grid;
   margin: 0;
-  padding-left: 18px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: var(--text-xs);
+  padding: 0;
+  list-style: none;
+}
+
+.helpSteps {
+  gap: 12px;
+}
+
+.helpSteps li {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.helpStepNumber {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--chip);
   color: var(--ink-soft);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.helpSteps strong {
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.helpSteps p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 
 .helpShortcuts {
-  list-style: none;
-  padding-left: 0;
+  gap: 8px;
+}
+
+.helpShortcuts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-soft);
+  font-size: var(--text-sm);
+}
+
+.helpShortcuts strong {
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .helpShortcuts kbd {
   padding: 1px 6px;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   background: var(--chip);
+  color: var(--ink);
   font-size: var(--text-xs);
 }
 
-.profileCard {
+.profileHeader {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
-.profileCard span {
-  display: block;
+.profileHeader strong {
+  color: var(--ink);
+  font-size: var(--text-md);
+  font-weight: 600;
+}
+
+.profileHeader span {
   color: var(--muted);
-  font-size: var(--text-xs);
-  margin-top: 2px;
+  font-size: var(--text-sm);
+}
+
+.profileFacts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 20px;
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--panel-soft);
+}
+
+.profileFacts dt {
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.profileFacts dd {
+  margin: 0;
+  min-width: 0;
+  color: var(--ink);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.settingsFooter.profileFooter {
+  justify-content: space-between;
 }
 
 .avatar.large {

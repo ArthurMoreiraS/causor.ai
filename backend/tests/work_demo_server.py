@@ -41,7 +41,7 @@ with factory() as db:
     user = models.Usuario(escritorio_id=office.id, nome="Advogado de demonstração", email="demo@example.invalid")
     db.add(user)
     db.commit()
-    principal = CurrentUser(usuario_id=user.id, escritorio_id=office.id, email=user.email)
+    principal = CurrentUser(usuario_id=user.id, escritorio_id=office.id, email=user.email, papel="administrador")
 
 
 def sessions():

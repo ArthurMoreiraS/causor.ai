@@ -6,7 +6,7 @@ import base64
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.filing.timbrado import MAX_CABECALHO_LINHAS, MAX_RODAPE_LINHAS
 
@@ -181,6 +181,19 @@ class UsuarioOut(BaseModel):
     email: str | None = None
     oab: str | None = None
     oab_uf: str | None = None
+    papel: str = "advogado"
+    ativo: bool = True
+    # Convidado que ainda não entrou: o primeiro login liga o Supabase Auth.
+    convite_pendente: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _convite_pendente(cls, valor: object) -> object:
+        if hasattr(valor, "supabase_user_id"):
+            dados = {campo: getattr(valor, campo, None) for campo in cls.model_fields}
+            dados["convite_pendente"] = valor.supabase_user_id is None
+            return dados
+        return valor
 
 
 class EscritorioOut(BaseModel):
@@ -206,6 +219,8 @@ class MeOut(BaseModel):
     usuario_id: int
     escritorio_id: int
     email: str
+    papel: str
+    permissoes: list[str]
 
 
 class OperationalProfileOut(BaseModel):

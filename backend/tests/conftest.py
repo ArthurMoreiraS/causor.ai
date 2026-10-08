@@ -80,6 +80,7 @@ def client(db_session) -> TestClient:
             usuario_id=usuario.id if usuario is not None else 0,
             escritorio_id=esc.id if esc is not None else 0,
             email=usuario.email if usuario is not None else "test@x.com",
+            papel=usuario.papel if usuario is not None else "administrador",
         )
 
     app.dependency_overrides[get_current_user] = _current_user
@@ -141,7 +142,7 @@ def seeded(db_session):
     db_session.flush()
     usuario = models.Usuario(
         escritorio_id=esc.id, nome="Adv Seed", email="seed@example.com",
-        supabase_user_id="seed-sub",
+        supabase_user_id="seed-sub", papel="administrador",
     )
     db_session.add(usuario)
     db_session.flush()

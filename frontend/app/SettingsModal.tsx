@@ -1,17 +1,20 @@
 "use client";
 
-import { AlertTriangle, RotateCcw, SlidersHorizontal, Radar, UserCog, X } from "lucide-react";
+import { AlertTriangle, RotateCcw, SlidersHorizontal, Radar, UserCog, Users, X } from "lucide-react";
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { usePermissoes } from "@/lib/permissoes";
 import type { Settings } from "@/lib/settings";
 import CaptureTab from "./components/settings/CaptureTab";
 import ProfileTab from "./components/settings/ProfileTab";
+import TeamTab from "./components/settings/TeamTab";
 import { InfoHint, Modal } from "./components/ui";
 
-type TabId = "perfil" | "captura" | "avancado";
+type TabId = "perfil" | "equipe" | "captura" | "avancado";
 
 const TABS: Array<{ id: TabId; label: string; icon: ReactNode; hint: string }> = [
   { id: "perfil", label: "Perfil", icon: <UserCog size={15} />, hint: "Dados do escritório e papel timbrado" },
+  { id: "equipe", label: "Equipe", icon: <Users size={15} />, hint: "Membros, papéis e convites" },
   { id: "captura", label: "Captura", icon: <Radar size={15} />, hint: "OABs monitoradas e padrões" },
   { id: "avancado", label: "Avançado", icon: <SlidersHorizontal size={15} />, hint: "Ajustes finos e reset" }
 ];
@@ -33,6 +36,8 @@ export default function SettingsModal({
 }) {
   const [tab, setTab] = useState<TabId>("perfil");
   const [confirmReset, setConfirmReset] = useState(false);
+  const { pode } = usePermissoes(!offline);
+  const configurar = pode("configurar_escritorio");
   const active = TABS.find((item) => item.id === tab) ?? TABS[0];
 
   return (
@@ -65,13 +70,16 @@ export default function SettingsModal({
 
         <div className="settingsPane" role="region" aria-label={active.label}>
           {tab === "perfil" ? (
-            <ProfileTab offline={offline} onOabChanged={onOabChanged} />
+            <ProfileTab offline={offline} podeConfigurar={configurar} onOabChanged={onOabChanged} />
           ) : null}
+
+          {tab === "equipe" ? <TeamTab offline={offline} /> : null}
 
           {tab === "captura" ? (
             <CaptureTab
               settings={settings}
               offline={offline}
+              podeConfigurar={configurar}
               onUpdate={onUpdate}
               onOabChanged={onOabChanged}
             />

@@ -25,6 +25,7 @@ from app.agent.service import MissingIntimationTextError, draft_from_intimacao
 from app.agent.context_selection import DraftContextBudgetError
 from app.alertas.radar import prazos_em_alerta
 from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.auth.papeis import exigir, permissoes_de, requer
 from app.auth.tenant import get_owned_or_404, tenant_select
 from app.api.schemas import (
     AlertaPrazo,
@@ -425,6 +426,8 @@ def create_app() -> FastAPI:
     app.include_router(work_router)
     from app.api.document_routes import router as document_router
     app.include_router(document_router)
+    from app.api.equipe_routes import router as equipe_router
+    app.include_router(equipe_router)
 
     @app.exception_handler(ContextNotReadyError)
     def _context_not_ready(_request, exc: ContextNotReadyError):
@@ -453,6 +456,8 @@ def create_app() -> FastAPI:
             usuario_id=current.usuario_id,
             escritorio_id=current.escritorio_id,
             email=current.email,
+            papel=current.papel,
+            permissoes=permissoes_de(current.papel),
         )
 
     @app.get("/settings/profile", response_model=OperationalProfileOut)
@@ -476,6 +481,11 @@ def create_app() -> FastAPI:
         escritorio = session.get(models.Escritorio, current.escritorio_id)
         if usuario is None or escritorio is None or usuario.escritorio_id != escritorio.id:
             raise HTTPException(status_code=404, detail="perfil nao encontrado")
+        campos_do_escritorio = {
+            "nome_escritorio", "cnpj", "timbrado_cabecalho", "timbrado_rodape", "timbrado_logo",
+        }
+        if campos_do_escritorio & payload.model_dump(exclude_none=True).keys():
+            exigir(current, "configurar_escritorio")
 
         changes: dict[str, str | None] = {}
         if payload.nome_usuario is not None:
@@ -659,7 +669,7 @@ def create_app() -> FastAPI:
     def criar_job_captura_oab(
         payload: CaptureOabRequest,
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("configurar_escritorio")),
     ) -> models.JobExecucao:
         # Cadastro e job sao uma transacao; lock no escritorio serializa pedidos
         # concorrentes pela mesma OAB em PostgreSQL.
@@ -831,7 +841,7 @@ def create_app() -> FastAPI:
     def registrar_oab_monitorada(
         payload: OabMonitoradaCreate,
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("configurar_escritorio")),
     ) -> models.OabMonitorada:
         oab_numero, uf = _normalizar_oab(payload.oab, payload.uf)
         existing = session.scalar(
@@ -862,7 +872,7 @@ def create_app() -> FastAPI:
     @app.post("/capturas/oab/remover-dados", response_model=OabRemovalResultOut)
     def remover_dados_oab(
         payload: OabMonitoradaCreate, session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("configurar_escritorio")),
     ) -> OabRemovalResultOut:
         oab_numero, uf = _normalizar_oab(payload.oab, payload.uf)
         session.scalar(select(models.Escritorio.id).where(
@@ -898,7 +908,7 @@ def create_app() -> FastAPI:
         oab_id: int,
         purge: bool = Query(default=True),
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("configurar_escritorio")),
     ) -> OabRemovalResultOut:
         # Same order as enqueue: office first, then jobs/registration. Removal
         # must not race a scheduler creating a new job after the purge snapshot.
@@ -1024,7 +1034,7 @@ def create_app() -> FastAPI:
         payload: CaptureOabRequest,
         background_tasks: BackgroundTasks,
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("configurar_escritorio")),
         response: Response = None,
     ) -> CaptureResultOut:
         datajud = DatajudClient() if settings.datajud_api_key else _NoopDatajudClient()
@@ -1328,7 +1338,7 @@ def create_app() -> FastAPI:
         prazo_id: int,
         payload: RevisarPrazoRequest,
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("decidir_prazo")),
     ) -> models.Prazo:
         prazo = get_owned_or_404(session, models.Prazo, prazo_id, current)
 
@@ -1394,7 +1404,7 @@ def create_app() -> FastAPI:
     def marcar_prazo_cumprido(
         prazo_id: int,
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("decidir_prazo")),
     ) -> models.Prazo:
         # Cumprir é ato humano e não depende de conferência: prazo calculado
         # automaticamente já vale (decisão de 07/10/2026).
@@ -1458,7 +1468,7 @@ def create_app() -> FastAPI:
     @app.post("/intimacoes/{intimacao_id}/prazo", response_model=PrazoOut)
     def confirmar_prazo_intimacao(
         intimacao_id: int, payload: ConfirmarPrazoRequest,
-        session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user),
+        session: Session = Depends(get_session), current: CurrentUser = Depends(requer("decidir_prazo")),
     ):
         from app.prazo_engine.deadline import compute_deadline
         from app.prazo_engine.djen import compute_djen_civil_deadline
@@ -1654,7 +1664,7 @@ def create_app() -> FastAPI:
     def aprovar_peticao(
         peticao_id: int,
         session: Session = Depends(get_session),
-        current: CurrentUser = Depends(get_current_user),
+        current: CurrentUser = Depends(requer("aprovar_minuta")),
     ) -> models.Peticao:
         peticao = get_owned_or_404(session, models.Peticao, peticao_id, current)
         # Same process lock as represented-client changes; approvals and relinking serialize.

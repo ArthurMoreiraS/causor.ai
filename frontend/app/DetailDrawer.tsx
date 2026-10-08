@@ -41,7 +41,8 @@ export default function DetailDrawer({
   onSelect: (sel: DetailSelection) => void;
   onPrepareWork: (intimacaoId: number, processoId: number | null, prazoId: number | null) => void;
   onOpenPeticao: (peticao: Peticao) => void;
-  onEditPrazo: (prazo: Prazo) => void;
+  /** Ausentes para quem não decide prazo (assistente). */
+  onEditPrazo?: (prazo: Prazo) => void;
   onPrazoConfirmed?: (prazo: Prazo) => void;
 }) {
   const processo =
@@ -118,7 +119,7 @@ function ProcessoDetail({
   offline: boolean;
   onSelect: (sel: DetailSelection) => void;
   onOpenPeticao: (peticao: Peticao) => void;
-  onEditPrazo: (prazo: Prazo) => void;
+  onEditPrazo?: (prazo: Prazo) => void;
 }) {
   return (
     <div className="detailBody">
@@ -146,14 +147,16 @@ function ProcessoDetail({
                     {prazo.cumprido ? " · cumprido" : ""}
                   </span>
                 </div>
-                <button
-                  className="iconButton"
-                  title="Revisar prazo"
-                  disabled={offline || busy === `edit-${prazo.id}`}
-                  onClick={() => onEditPrazo(prazo)}
-                >
-                  <CalendarDays size={15} />
-                </button>
+                {onEditPrazo ? (
+                  <button
+                    className="iconButton"
+                    title="Revisar prazo"
+                    disabled={offline || busy === `edit-${prazo.id}`}
+                    onClick={() => onEditPrazo(prazo)}
+                  >
+                    <CalendarDays size={15} />
+                  </button>
+                ) : null}
               </div>
             ))
         ) : (
@@ -258,7 +261,7 @@ function IntimacaoDetail({
       ) : null}
 
       {intimacao.prazo_analise ? <p role="status" className="officeHint deadlineAnalysisNote">{analysisNote(intimacao.prazo_analise)}</p> : null}
-      {!offline && (!prazo || prazo.revisao_status !== "confirmado") && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} analise={intimacao.prazo_analise} onConfirmed={onPrazoConfirmed} />}
+      {!offline && onPrazoConfirmed && (!prazo || prazo.revisao_status !== "confirmado") && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} analise={intimacao.prazo_analise} onConfirmed={onPrazoConfirmed} />}
       <DetailSection title="Teor da intimação">
         <TeorHtml teor={intimacao.teor} />
       </DetailSection>

@@ -17,7 +17,8 @@ export default function GateOabView({
   rows: PeticaoRow[];
   busy: string | null;
   offline: boolean;
-  onApprove: (peticao: Peticao) => void;
+  /** Ausente para quem não aprova (assistente): a fila só abre a minuta. */
+  onApprove?: (peticao: Peticao) => void;
   onOpenEditor: (peticao: Peticao) => void;
 }) {
   const awaiting = rows.filter((row) => ["rascunho", "em_revisao"].includes(row.peticao.status));
@@ -36,9 +37,9 @@ export default function GateOabView({
           rows={awaiting}
           busy={busy}
           offline={offline}
-          primaryLabel="Aprovar"
-          primaryIcon={<CheckCircle2 size={15} />}
-          onPrimary={onApprove}
+          primaryLabel={onApprove ? "Aprovar" : "Abrir minuta"}
+          primaryIcon={onApprove ? <CheckCircle2 size={15} /> : <FilePenLine size={15} />}
+          onPrimary={onApprove ?? onOpenEditor}
         />
         <GateLane
           title="Minutas aprovadas"

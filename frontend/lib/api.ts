@@ -302,6 +302,9 @@ export type JobExecucao = {
   updated_at: string;
 };
 
+export type Papel = "administrador" | "advogado" | "assistente";
+export type Permissao = "gerir_equipe" | "configurar_escritorio" | "aprovar_minuta" | "decidir_prazo";
+
 export type Usuario = {
   id: number;
   escritorio_id: number;
@@ -309,7 +312,13 @@ export type Usuario = {
   email: string | null;
   oab: string | null;
   oab_uf: string | null;
+  papel: Papel;
+  ativo: boolean;
+  /** Convidado que ainda não entrou no Causor. */
+  convite_pendente: boolean;
 };
+
+export type ResultadoConvite = "enviado" | "ja_cadastrado" | "manual";
 
 export type Escritorio = {
   id: number;
@@ -342,6 +351,8 @@ export type CurrentUser = {
   usuario_id: number;
   escritorio_id: number;
   email: string;
+  papel: Papel;
+  permissoes: Permissao[];
 };
 
 export type OabMonitorada = {
@@ -646,6 +657,18 @@ export async function listarUsuarios(escritorioId?: number): Promise<Usuario[]> 
   return request<Usuario[]>(`/usuarios${qs}`);
 }
 
+export function convidarMembro(payload: { nome: string; email: string; papel: Papel }): Promise<{ membro: Usuario; convite: ResultadoConvite }> {
+  return request("/equipe/convites", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function reenviarConvite(usuarioId: number): Promise<{ membro: Usuario; convite: ResultadoConvite }> {
+  return request(`/equipe/${usuarioId}/convite`, { method: "POST" });
+}
+
+export function alterarMembro(usuarioId: number, patch: { papel?: Papel; ativo?: boolean }): Promise<Usuario> {
+  return request(`/equipe/${usuarioId}`, { method: "PATCH", body: JSON.stringify(patch) });
+}
+
 export async function carregarPerfilOperacional(): Promise<OperationalProfile> {
   return request<OperationalProfile>("/settings/profile");
 }
@@ -678,6 +701,11 @@ export async function carregarUsuarioAtual(): Promise<CurrentUser> {
   if (currentUserCache != null) return currentUserCache;
   currentUserCache = await request<CurrentUser>("/me");
   return currentUserCache;
+}
+
+/** Troca de conta na mesma aba não pode herdar o papel da anterior. */
+export function esquecerUsuarioAtual(): void {
+  currentUserCache = null;
 }
 
 export async function resolverUsuarioAtual(): Promise<number> {

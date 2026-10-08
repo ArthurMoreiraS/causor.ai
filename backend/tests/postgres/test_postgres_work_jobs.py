@@ -92,7 +92,7 @@ def test_old_provider_owner_cannot_publish_after_lease_reclaim(client, db_sessio
 def test_concurrent_same_request_creates_one_work_job(client, db_session, seeded, pg_engine, monkeypatch):
     work = prepared_work(client, db_session, seeded, monkeypatch)
     user = db_session.scalar(select(models.Usuario).where(models.Usuario.escritorio_id == seeded.escritorio_id))
-    principal = CurrentUser(usuario_id=user.id, escritorio_id=user.escritorio_id, email=user.email)
+    principal = CurrentUser(usuario_id=user.id, escritorio_id=user.escritorio_id, email=user.email, papel="administrador")
     db_session.commit()
     barrier = Barrier(2)
     request_id = uuid4()

@@ -82,7 +82,7 @@ def test_scoped_tools_never_return_another_offices_process_or_work(db_session, s
     secret_work = models.TrabalhoJuridico(escritorio_id=office.id, processo_id=other.id, providencia="CONTEUDO-RESTRITO")
     db_session.add(secret_work)
     db_session.flush()
-    current = CurrentUser(usuario_id=1, escritorio_id=seeded["processo"].escritorio_id, email="test@example.invalid")
+    current = CurrentUser(usuario_id=1, escritorio_id=seeded["processo"].escritorio_id, email="test@example.invalid", papel="administrador")
     for tool, args in (("buscar_processo", {"processo_id": other.id}),
                        ("buscar_processo", {"numero": other.numero}),
                        ("consultar_trabalho", {"trabalho_id": secret_work.id}),

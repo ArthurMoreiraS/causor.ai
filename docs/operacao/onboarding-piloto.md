@@ -22,7 +22,22 @@ cd backend
 ```
 
 O comando e idempotente por e-mail: se o usuario ja existir, atualiza nome,
-escritorio e OAB; se nao existir, cria o escritorio e o usuario.
+escritorio e OAB; se nao existir, cria o escritorio e o usuario como
+**administrador** do escritorio.
+
+## 2b. Convidar o resto da equipe
+
+O administrador convida os demais em **Configurações → Equipe**, escolhendo o
+papel: administrador (equipe e configuração do escritório), advogado (aprova
+minuta e decide prazo) ou assistente (tarefas, documentos e rascunhos). Todos
+veem todo o escritório; o papel só restringe ações.
+
+O e-mail de convite sai pelo Supabase Auth quando a VPS tem
+`CAUSOR_SUPABASE_SERVICE_ROLE_KEY` e `CAUSOR_APP_URL` (modelo em
+`infra/.env.prod.example`). Sem isso o membro é criado e a tela pede o convite
+pelo painel do Supabase; o primeiro login liga a conta pelo e-mail. O e-mail
+padrão do Supabase só entrega para membros da organização do projeto: para
+convidar pessoas de fora, configure um SMTP próprio no Supabase Auth.
 
 ## 3. Primeiro acesso
 

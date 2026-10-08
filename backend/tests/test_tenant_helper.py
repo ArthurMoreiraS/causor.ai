@@ -22,21 +22,21 @@ def _two_tenants(db_session):
 
 def test_tenant_select_filtra_por_escritorio(db_session):
     a, b, pa, pb = _two_tenants(db_session)
-    cur = CurrentUser(usuario_id=1, escritorio_id=a.id, email="a@b.com")
+    cur = CurrentUser(usuario_id=1, escritorio_id=a.id, email="a@b.com", papel="administrador")
     rows = db_session.scalars(tenant_select(models.Processo, cur)).all()
     assert [p.numero for p in rows] == ["A1"]
 
 
 def test_get_owned_retorna_recurso_do_tenant(db_session):
     a, b, pa, pb = _two_tenants(db_session)
-    cur = CurrentUser(usuario_id=1, escritorio_id=a.id, email="a@b.com")
+    cur = CurrentUser(usuario_id=1, escritorio_id=a.id, email="a@b.com", papel="administrador")
     got = get_owned_or_404(db_session, models.Processo, pa.id, cur)
     assert got.id == pa.id
 
 
 def test_get_owned_de_outro_tenant_404(db_session):
     a, b, pa, pb = _two_tenants(db_session)
-    cur = CurrentUser(usuario_id=1, escritorio_id=a.id, email="a@b.com")
+    cur = CurrentUser(usuario_id=1, escritorio_id=a.id, email="a@b.com", papel="administrador")
     with pytest.raises(HTTPException) as exc:
         get_owned_or_404(db_session, models.Processo, pb.id, cur)
     assert exc.value.status_code == 404

@@ -5,9 +5,15 @@ gravado e a próxima execução do cron tenta de novo. Marcar antes de enviar
 transformaria uma indisponibilidade de e-mail em prazo perdido, que é a única
 coisa que o produto promete evitar.
 
-Um aviso por escritório e por execução, agrupando os prazos pendentes — não um
+Um aviso por pessoa e por execução, agrupando os prazos pendentes — não um
 e-mail por prazo. Quatro e-mails na mesma manhã treinam o advogado a filtrar a
 caixa.
+
+Quem recebe (decisão de 07/10/2026): os responsáveis pelo prazo — de trabalho
+jurídico ligado a ele ou de tarefa aberta da mesma intimação — e os
+administradores. Prazo sem responsável ativo avisa o escritório inteiro. Membro
+desativado não recebe nada. Um prazo só é marcado como avisado quando **todos**
+os seus destinatários receberam: repetir para alguém é melhor que perder.
 
 Além dos níveis de vencimento (``alertas.radar``), todo prazo criado pela
 análise automática gera um aviso ``novo`` assim que nasce, mesmo longe do
@@ -51,14 +57,57 @@ class DeliveryReport:
     failed: int = 0
 
 
-def _destinos(session: Session, escritorio_id: int) -> list[str]:
-    emails = session.scalars(
-        select(models.Usuario.email)
+TAREFA_ENCERRADA = ("concluida", "cancelada")
+
+
+def _membros_ativos(session: Session, escritorio_id: int) -> list[models.Usuario]:
+    membros = session.scalars(
+        select(models.Usuario)
         .where(models.Usuario.escritorio_id == escritorio_id)
-        .where(models.Usuario.email.is_not(None))
+        .where(models.Usuario.ativo.is_(True))
         .order_by(models.Usuario.id)
     ).all()
-    return [e for e in emails if e]
+    return [m for m in membros if m.email]
+
+
+def _responsaveis(session: Session, escritorio_id: int, prazo_ids: set[int]) -> dict[int, set[int]]:
+    """``prazo_id -> ids de usuário`` responsáveis por trabalho ou tarefa aberta."""
+    trabalho, tarefa, prazo = models.TrabalhoJuridico, models.Tarefa, models.Prazo
+    tarefa_aberta = (tarefa.escritorio_id == escritorio_id, tarefa.responsavel_id.is_not(None),
+                     tarefa.status.not_in(TAREFA_ENCERRADA))
+    consultas = (
+        select(trabalho.prazo_id, trabalho.responsavel_id).where(
+            trabalho.escritorio_id == escritorio_id, trabalho.prazo_id.in_(prazo_ids),
+            trabalho.responsavel_id.is_not(None)),
+        select(trabalho.prazo_id, tarefa.responsavel_id)
+        .join(tarefa, tarefa.trabalho_id == trabalho.id)
+        .where(trabalho.escritorio_id == escritorio_id, trabalho.prazo_id.in_(prazo_ids), *tarefa_aberta),
+        select(prazo.id, tarefa.responsavel_id)
+        .join(tarefa, tarefa.intimacao_id == prazo.intimacao_id)
+        .where(prazo.escritorio_id == escritorio_id, prazo.id.in_(prazo_ids), *tarefa_aberta),
+    )
+    por_prazo: dict[int, set[int]] = {}
+    for consulta in consultas:
+        for prazo_id, usuario_id in session.execute(consulta):
+            por_prazo.setdefault(prazo_id, set()).add(usuario_id)
+    return por_prazo
+
+
+def _destinos_por_prazo(
+    session: Session, escritorio_id: int, prazo_ids: set[int]
+) -> dict[int, list[str]]:
+    membros = _membros_ativos(session, escritorio_id)
+    if not membros:
+        return {}
+    por_id = {m.id: m for m in membros}
+    admins = {m.id for m in membros if m.papel == "administrador"}
+    responsaveis = _responsaveis(session, escritorio_id, prazo_ids)
+    destinos: dict[int, list[str]] = {}
+    for prazo_id in prazo_ids:
+        ativos = {uid for uid in responsaveis.get(prazo_id, set()) if uid in por_id}
+        ids = (ativos | admins) if ativos else set(por_id)
+        destinos[prazo_id] = sorted(por_id[uid].email for uid in ids)
+    return destinos
 
 
 def _ja_avisados(session: Session, escritorio_id: int) -> set[tuple[int, str]]:
@@ -170,12 +219,6 @@ def notificar_prazos(
 
     gravadas: list[models.NotificacaoPrazo] = []
     for escritorio in escritorios:
-        destinos = _destinos(session, escritorio.id)
-        if not destinos:
-            # Sem para quem mandar: não grava nada, para o aviso sair assim que
-            # o e-mail do escritório for cadastrado.
-            continue
-
         avisados = _ja_avisados(session, escritorio.id)
         pendentes = [
             a
@@ -187,32 +230,52 @@ def notificar_prazos(
         ]
         if not pendentes:
             continue
-
-        try:
-            delivered = sender.enviar(
-                destinos=destinos,
-                assunto=montar_assunto(pendentes),
-                corpo=montar_corpo(session, pendentes),
-            )
-            if delivered is False:
-                report.simulated += 1
-                session.add(models.AuditLog(
-                    escritorio_id=escritorio.id, ator="system", acao="alerta_prazo_simulado",
-                    entidade="escritorio", entidade_id=escritorio.id,
-                    detalhe={"prazos": len(pendentes)},
-                ))
-                continue
-        except Exception:  # noqa: BLE001 - falha de envio não pode perder o aviso
-            report.failed += 1
-            session.add(models.AuditLog(
-                escritorio_id=escritorio.id, ator="system", acao="alerta_prazo_falhou",
-                entidade="escritorio", entidade_id=escritorio.id,
-                detalhe={"prazos": len(pendentes)},
-            ))
+        destinos_do_prazo = _destinos_por_prazo(
+            session, escritorio.id, {a.prazo.id for a in pendentes}
+        )
+        if not destinos_do_prazo:
+            # Sem para quem mandar: não grava nada, para o aviso sair assim que
+            # houver membro ativo com e-mail.
             continue
 
-        agora = datetime.now(timezone.utc)
+        por_destino: dict[str, list[PrazoEmAlerta]] = {}
         for alerta in pendentes:
+            for email in destinos_do_prazo[alerta.prazo.id]:
+                por_destino.setdefault(email, []).append(alerta)
+
+        entregues: set[str] = set()
+        simulados = falhas = 0
+        for email, alertas in por_destino.items():
+            try:
+                delivered = sender.enviar(
+                    destinos=[email],
+                    assunto=montar_assunto(alertas),
+                    corpo=montar_corpo(session, alertas),
+                )
+            except Exception:  # noqa: BLE001 - falha de envio não pode perder o aviso
+                falhas += 1
+                continue
+            if delivered is False:
+                simulados += 1
+                continue
+            entregues.add(email)
+
+        report.simulated += simulados
+        report.failed += falhas
+        for acao, quantos in (("alerta_prazo_simulado", simulados), ("alerta_prazo_falhou", falhas)):
+            if quantos:
+                session.add(models.AuditLog(
+                    escritorio_id=escritorio.id, ator="system", acao=acao,
+                    entidade="escritorio", entidade_id=escritorio.id,
+                    detalhe={"prazos": len({a.prazo.id for a in pendentes}), "destinos": quantos},
+                ))
+
+        agora = datetime.now(timezone.utc)
+        marcados = []
+        for alerta in pendentes:
+            destinos = destinos_do_prazo[alerta.prazo.id]
+            if not set(destinos) <= entregues:
+                continue
             registro = models.NotificacaoPrazo(
                 escritorio_id=escritorio.id,
                 prazo_id=alerta.prazo.id,
@@ -222,20 +285,22 @@ def notificar_prazos(
             )
             session.add(registro)
             gravadas.append(registro)
-        session.add(
-            models.AuditLog(
-                escritorio_id=escritorio.id,
-                ator="system",
-                acao="alerta_prazo_enviado",
-                entidade="escritorio",
-                entidade_id=escritorio.id,
-                detalhe={
-                    "destinos": len(destinos),
-                    "prazos": sorted({a.prazo.id for a in pendentes}),
-                    "niveis": dict(Counter(a.nivel for a in pendentes)),
-                },
+            marcados.append(alerta)
+        if marcados:
+            session.add(
+                models.AuditLog(
+                    escritorio_id=escritorio.id,
+                    ator="system",
+                    acao="alerta_prazo_enviado",
+                    entidade="escritorio",
+                    entidade_id=escritorio.id,
+                    detalhe={
+                        "destinos": len(entregues),
+                        "prazos": sorted({a.prazo.id for a in marcados}),
+                        "niveis": dict(Counter(a.nivel for a in marcados)),
+                    },
+                )
             )
-        )
         session.flush()
 
     return gravadas

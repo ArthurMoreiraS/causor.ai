@@ -28,8 +28,9 @@ export default function PrazosView({
   busy: string | null;
   offline: boolean;
   onOpen: (sel: DetailSelection) => void;
-  onDonePrazo: (prazo: Prazo) => void;
-  onEditPrazo: (prazo: Prazo) => void;
+  /** Ausentes para quem não decide prazo (assistente). */
+  onDonePrazo?: (prazo: Prazo) => void;
+  onEditPrazo?: (prazo: Prazo) => void;
 }) {
   return (
     <section className="dataTable deadlineTable">
@@ -72,22 +73,26 @@ export default function PrazosView({
             </div>
             <DeadlineBadge prazo={prazo} />
             <div className="dataRowEnd">
-              <button
-                className={review && !vigente ? "toolbarButton compact primary" : "toolbarButton compact"}
-                disabled={busy === `edit-${prazo.id}` || offline}
-                onClick={() => review ? onOpen({ kind: "intimacao", id: intimacao.id }) : onEditPrazo(prazo)}
-              >
-                {busy === `edit-${prazo.id}` ? <Loader2 className="spin" size={14} /> : <CalendarDays size={14} />}
-                {review ? "Conferir" : "Revisar"}
-              </button>
-              <button
-                className="toolbarButton compact"
-                disabled={prazo.cumprido || busy === `done-${prazo.id}` || offline}
-                onClick={() => onDonePrazo(prazo)}
-              >
-                {busy === `done-${prazo.id}` ? <Loader2 className="spin" size={14} /> : <CheckCircle2 size={14} />}
-                Cumprir
-              </button>
+              {review || onEditPrazo ? (
+                <button
+                  className={review && !vigente ? "toolbarButton compact primary" : "toolbarButton compact"}
+                  disabled={busy === `edit-${prazo.id}` || offline}
+                  onClick={() => review ? onOpen({ kind: "intimacao", id: intimacao.id }) : onEditPrazo?.(prazo)}
+                >
+                  {busy === `edit-${prazo.id}` ? <Loader2 className="spin" size={14} /> : <CalendarDays size={14} />}
+                  {review ? "Conferir" : "Revisar"}
+                </button>
+              ) : null}
+              {onDonePrazo ? (
+                <button
+                  className="toolbarButton compact"
+                  disabled={prazo.cumprido || busy === `done-${prazo.id}` || offline}
+                  onClick={() => onDonePrazo(prazo)}
+                >
+                  {busy === `done-${prazo.id}` ? <Loader2 className="spin" size={14} /> : <CheckCircle2 size={14} />}
+                  Cumprir
+                </button>
+              ) : null}
               {target ? (
                 <RowMenu>
                   <button type="button" role="menuitem" onClick={() => onOpen(target)}>

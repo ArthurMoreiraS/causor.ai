@@ -9,7 +9,7 @@ import re
 import httpx
 import jwt
 from fastapi import Depends, Header, HTTPException
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ class CurrentUser:
     usuario_id: int
     escritorio_id: int
     email: str
+    papel: str
 
 
 def _normalize_pem(value: str) -> str:
@@ -138,16 +139,19 @@ def get_current_user(
     ).first()
     if usuario is None and email:
         usuario = session.scalars(
-            select(models.Usuario).where(models.Usuario.email == email)
+            select(models.Usuario).where(func.lower(models.Usuario.email) == email.lower())
         ).first()
         if usuario is not None:
             usuario.supabase_user_id = sub  # claim on first login
             session.commit()  # persist link even for read-only requests
     if usuario is None:
         raise HTTPException(status_code=403, detail="usuário sem acesso")
+    if not usuario.ativo:
+        raise HTTPException(status_code=403, detail="acesso desativado pelo escritório")
 
     return CurrentUser(
         usuario_id=usuario.id,
         escritorio_id=usuario.escritorio_id,
         email=usuario.email,
+        papel=usuario.papel,
     )

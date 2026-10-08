@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.api.office_routes import audit
 from app.api.schemas import ProcessoOut
 from app.auth.jwt_auth import CurrentUser, get_current_user
+from app.auth.papeis import responsavel_valido
 from app.auth.tenant import get_owned_or_404, tenant_select
 from app.capture.normalize import canonical_numero
 from app.autos.context import ContextNotReadyError
@@ -356,11 +357,13 @@ def create_process(payload: ProcessoIn, response: Response, session: Session = D
 @router.post("/trabalhos", response_model=TrabalhoOut, status_code=201)
 def create_work(payload: TrabalhoIn, session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user)):
     get_owned_or_404(session, models.Processo, payload.processo_id, current)
-    for model, field in ((models.Intimacao, "intimacao_id"), (models.Prazo, "prazo_id"), (models.Usuario, "responsavel_id")):
+    if payload.responsavel_id is not None:
+        responsavel_valido(session, payload.responsavel_id, current)
+    for model, field in ((models.Intimacao, "intimacao_id"), (models.Prazo, "prazo_id")):
         value = getattr(payload, field)
         if value is not None:
             entity = get_owned_or_404(session, model, value, current)
-            if field != "responsavel_id" and entity.processo_id != payload.processo_id:
+            if entity.processo_id != payload.processo_id:
                 raise HTTPException(422, "A origem e o trabalho precisam pertencer ao mesmo processo")
     if payload.prazo_id and payload.intimacao_id:
         deadline = session.get(models.Prazo, payload.prazo_id)
@@ -409,14 +412,19 @@ def update_work(work_id: int, payload: TrabalhoPatch, session: Session = Depends
     changes = payload.model_dump(exclude_unset=True, exclude={"versao"})
     if any(changes.get(key, "") is None for key in ("providencia", "instrucoes", "grau")):
         raise HTTPException(422, "Providência, instruções e grau não podem ser nulos")
-    if changes.get("responsavel_id"):
-        get_owned_or_404(session, models.Usuario, changes["responsavel_id"], current)
     changes = {k: v for k, v in changes.items() if getattr(work, k) != v}
+    if changes.get("responsavel_id"):
+        responsavel_valido(session, changes["responsavel_id"], current)
     if changes:
+        detail = {"campos": sorted(changes)}
+        if "responsavel_id" in changes:
+            detail["responsavel"] = {"de": work.responsavel_id, "para": changes["responsavel_id"]}
         for key, value in changes.items():
             setattr(work, key, value)
         work.versao += 1
-        work.evidencias = None
-        audit(session, current, "trabalho_atualizado", "trabalho_juridico", work.id, {"campos": sorted(changes), "versao": work.versao})
+        if changes.keys() - {"responsavel_id"}:
+            # Trocar só o responsável não muda o que foi conferido.
+            work.evidencias = None
+        audit(session, current, "trabalho_atualizado", "trabalho_juridico", work.id, {**detail, "versao": work.versao})
         session.commit()
     return work

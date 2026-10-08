@@ -1,16 +1,22 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { atualizarTarefa, criarCliente, listarClientes, listarTarefas, vincularCliente, type Tarefa } from "@/lib/api";
+import { atualizarTarefa, carregarUsuarioAtual, criarCliente, listarClientes, listarTarefas, listarUsuarios, vincularCliente, type Tarefa, type Usuario } from "@/lib/api";
 import type { PeticaoRow } from "@/lib/views";
 import ClientesView from "./ClientesView";
 import TarefasView from "./TarefasView";
 import GateOabView from "./GateOabView";
 
 vi.mock("@/lib/api", () => ({ atualizarTarefa: vi.fn(), criarCliente: vi.fn(), listarClientes: vi.fn(),
-  listarTarefas: vi.fn(), vincularCliente: vi.fn() }));
+  listarTarefas: vi.fn(), vincularCliente: vi.fn(), listarUsuarios: vi.fn(), carregarUsuarioAtual: vi.fn() }));
 afterEach(cleanup);
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(listarUsuarios).mockResolvedValue([]);
+  vi.mocked(carregarUsuarioAtual).mockResolvedValue({
+    usuario_id: 1, escritorio_id: 1, email: "eu@example.com", papel: "advogado", permissoes: ["aprovar_minuta", "decidir_prazo"]
+  });
+});
 
 it("cadastra cliente, vincula processo e prepara tarefa com o mesmo cliente", async () => {
   const customer = { id: 4, nome: "Cliente teste", documento: null, processos_count: 0 };
@@ -47,6 +53,32 @@ it("abre a minuta de origem e mantém a tarefa pendente se a conclusão falhar",
   await screen.findByRole("alert");
   expect(atualizarTarefa).toHaveBeenCalledWith(1, { versao: 3, status: "concluida" });
   expect((screen.getByRole("combobox", { name: "Situação de Obter comprovante" }) as HTMLSelectElement).value).toBe("aberta");
+});
+
+it("filtra as tarefas do próprio usuário e as de outro membro", async () => {
+  vi.mocked(listarTarefas).mockResolvedValue({ items: [], total: 0 });
+  vi.mocked(listarUsuarios).mockResolvedValue([
+    { id: 1, nome: "Eu", ativo: true } as Usuario,
+    { id: 2, nome: "Bia", ativo: true } as Usuario
+  ]);
+  render(<TarefasView offline={false} refreshKey={0} onNew={vi.fn()} onEdit={vi.fn()}
+    onOpenProcess={vi.fn()} onOpenNotice={vi.fn()} onOpenDraft={vi.fn()} />);
+  const filtro = screen.getByRole("combobox", { name: "Responsável" });
+  await screen.findByRole("option", { name: "Bia" });
+  await waitFor(() => expect((screen.getByRole("option", { name: "Minhas tarefas" }) as HTMLOptionElement).disabled).toBe(false));
+  fireEvent.change(filtro, { target: { value: "eu" } });
+  await waitFor(() => expect(listarTarefas).toHaveBeenLastCalledWith(expect.objectContaining({ responsavel_id: 1 })));
+  fireEvent.change(filtro, { target: { value: "2" } });
+  await waitFor(() => expect(listarTarefas).toHaveBeenLastCalledWith(expect.objectContaining({ responsavel_id: 2 })));
+});
+
+it("assistente vê a fila de aprovação, mas só abre a minuta", () => {
+  const row = { peticao: { id: 8, processo_id: 2, tipo: "Manifestação", status: "em_revisao" } } as PeticaoRow;
+  const open = vi.fn();
+  render(<GateOabView rows={[row]} busy={null} offline={false} onOpenEditor={open} />);
+  expect(screen.queryByRole("button", { name: "Aprovar" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Abrir minuta" }));
+  expect(open).toHaveBeenCalledWith(row.peticao);
 });
 
 it("mantém minutas em revisão na fila de aprovação", () => {

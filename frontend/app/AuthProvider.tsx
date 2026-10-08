@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import type { Session, User } from "@supabase/supabase-js";
+import { esquecerUsuarioAtual } from "@/lib/api";
 import { supabase } from "@/lib/supabase";
 
 type AuthState = {
@@ -37,7 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, next) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, next) => {
+      if (event === "SIGNED_OUT" || event === "SIGNED_IN") esquecerUsuarioAtual();
       setSession(next);
       setLoading(false);
     });

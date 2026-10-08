@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { gateContexto, humanError, mniErrorMessage, UNREACHABLE } from "./errors";
+import { gateContexto, humanError, mensagemDoServidor, mniErrorMessage, UNREACHABLE } from "./errors";
 
 const FALLBACK = "Falha ao carregar credenciais";
 
@@ -106,4 +106,11 @@ test("erro que nao e o gate nao aciona o assistente", () => {
   expect(gateContexto(new Error("Failed to fetch"))).toBeNull();
   expect(gateContexto(new Error('{"detail":{"code":"internal_error"}}'))).toBeNull();
   expect(gateContexto(null)).toBeNull();
+});
+
+test("recusa de dominio do backend chega como frase; corpo tecnico nao", () => {
+  const recusa = new Error(JSON.stringify({ detail: "O escritório precisa de ao menos um administrador ativo." }));
+  expect(mensagemDoServidor(recusa)).toBe("O escritório precisa de ao menos um administrador ativo.");
+  expect(mensagemDoServidor(new Error(JSON.stringify({ detail: { code: "internal_error" } })))).toBeNull();
+  expect(mensagemDoServidor(new Error("Failed to fetch"))).toBeNull();
 });

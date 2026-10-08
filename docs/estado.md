@@ -22,6 +22,7 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 | Contexto e evidências | Trabalho jurídico com escopo declarado, índice de peças, busca nos originais, lacunas viram pendências, gate de contexto. | Implantado. Percurso sintético no navegador. |
 | Minuta e revisão | Análise e redação em fila persistente e retomável; editor com proteção de texto; aprovação humana; PDF com timbrado. | Implantado. Sonnet 5.5 testado nas APIs reais com caso fictício. |
 | Assistente | Consulta processos, intimações, prazos e trabalhos; abre trabalho. Não gera nem aprova minuta. | Implantado. |
+| Equipe e papéis | Vários membros por escritório: administrador, advogado e assistente; convite pela aba Equipe; desativação sem apagar autoria; responsável em tarefa e trabalho, filtro "Minhas tarefas"; aviso de prazo para o responsável e os administradores. | Local (testes backend e frontend). Falta implantar e configurar o convite na VPS ([plano](desenvolvimento/planos/2026-10-07-equipe-e-papeis.md)). |
 
 ## Produção
 

@@ -15,6 +15,8 @@ export default function TarefaDialog({ initial, task, contextLabel, processos, o
 }) {
   const [form, setForm] = useState<TarefaInput>({ tipo: "providencia", prioridade: "normal", ...initial });
   const [users, setUsers] = useState<Usuario[]>([]);
+  // Membro desativado não recebe tarefa nova; quem já era responsável continua visível.
+  const assignable = users.filter(u => u.ativo !== false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [usersError, setUsersError] = useState(false);
@@ -62,8 +64,8 @@ export default function TarefaDialog({ initial, task, contextLabel, processos, o
         <label>Data interna (opcional)<input type="date" value={form.data_prevista ?? ""} onChange={e => change("data_prevista", e.target.value || null)} /></label>
         <label>Responsável<select value={form.responsavel_id ?? ""} disabled={usersError} onChange={e => change("responsavel_id", e.target.value ? Number(e.target.value) : null)}>
           <option value="">Sem responsável</option>
-          {form.responsavel_id && !users.some(u => u.id === form.responsavel_id) ? <option value={form.responsavel_id}>{task?.responsavel_nome || "Responsável atual"}</option> : null}
-          {users.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+          {form.responsavel_id && !assignable.some(u => u.id === form.responsavel_id) ? <option value={form.responsavel_id}>{task?.responsavel_nome || users.find(u => u.id === form.responsavel_id)?.nome || "Responsável atual"}{users.some(u => u.id === form.responsavel_id && u.ativo === false) ? " (desativado)" : ""}</option> : null}
+          {assignable.map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
         </select></label>
       </div>
       <p className="officeHint">A data interna organiza o trabalho. O prazo judicial continua sendo conferido no módulo Prazos.</p>
