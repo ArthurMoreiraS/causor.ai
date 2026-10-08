@@ -26,7 +26,16 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 
 ## Produção
 
-- **Versão implantada:** `63982b4` (07/10): equipe e papéis.
+- **Versão implantada:** `b1a8b05` (08/10): excluir trabalho (minuta em
+  rascunho e pendências junto; recusa minuta aprovada e operação em
+  andamento) e remoção do processo capturado que ficou sem trabalho, minuta,
+  documento, tarefa, prazo confirmado e OAB monitorada. Processo cadastrado à
+  mão fica. [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37733098819)
+  e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37733268868)
+  aprovados; conferidos por fora `/health` 200, app 200, `DELETE /trabalhos/{id}`
+  sem sessão 401 e a rota no OpenAPI. Exclusão real na conta do fundador ainda
+  não observada.
+- **Equipe e papéis** (`63982b4`, 07/10).
   [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714238559) (inclui a suíte Postgres) e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714387087) aprovados; o
   deploy verifica o SHA nos cinco serviços. Convite por e-mail exercido pelo
   fundador.
