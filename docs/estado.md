@@ -17,18 +17,21 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 |---|---|---|
 | Captura de publicações | DJEN por OAB, enriquecimento DataJud, agendador persistente (`capture-scheduler`, ciclo de 300s, intervalo por OAB). | Implantado. Captura real de 601 intimações em 27/09; agendador sem captura real observada após a migração do banco. |
 | Prazos | Análise automática após cada captura: motor determinístico, catálogo CPC e prazo por tipo de ato; prazo calculado vale sem conferência; incerto recebe data de triagem (5 dias úteis; 2 no criminal); falha é repetida sozinha. Calendários locais não homologados. | Implantado em 07/10 (`c72e776`). Reanálise automática do acervo em produção ainda não conferida. Sem validação jurídica em casos reais. |
-| Avisos | E-mail por escritório: prazo novo e D-3/D-1/D-0/vencido, enviado pelo `capture-scheduler` entre 7h e 21h. WhatsApp fica para depois, como outro canal. | Implantado em 07/10 (`c72e776`), **inativo**: falta configurar o SMTP na VPS. Sem SMTP nada é enviado. |
+| Avisos | E-mail por escritório: prazo novo e D-3/D-1/D-0/vencido, enviado pelo `capture-scheduler` entre 7h e 21h. WhatsApp fica para depois, como outro canal. | Implantado em 07/10 (`c72e776`), **inativo**: o envio pelo Resend ainda não funciona (relato do fundador, 07/10). Sem SMTP funcional nada é enviado. |
 | Documentos | Upload manual por grau, SHA-256, validação de PDF, extração/OCR, resumos com citação literal (padrão Haiku ou aprofundado Sonnet). | Implantado. Percurso com PDFs fictícios. |
 | Contexto e evidências | Trabalho jurídico com escopo declarado, índice de peças, busca nos originais, lacunas viram pendências, gate de contexto. | Implantado. Percurso sintético no navegador. |
 | Minuta e revisão | Análise e redação em fila persistente e retomável; editor com proteção de texto; aprovação humana; PDF com timbrado. | Implantado. Sonnet 5.5 testado nas APIs reais com caso fictício. |
 | Assistente | Consulta processos, intimações, prazos e trabalhos; abre trabalho. Não gera nem aprova minuta. | Implantado. |
-| Equipe e papéis | Vários membros por escritório: administrador, advogado e assistente; convite pela aba Equipe; desativação sem apagar autoria; responsável em tarefa e trabalho, filtro "Minhas tarefas"; aviso de prazo para o responsável e os administradores. | Implantado em 07/10 (`63982b4`, [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714238559) com suíte Postgres e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714387087)); rotas `/equipe` conferidas por fora (401 sem sessão). Chave service-role e `CAUSOR_APP_URL` no `.env` da VPS; Site URL e Redirect URLs do Supabase corrigidas (o projeto novo de 06/10 tinha ficado em `localhost`). Convite real por e-mail ainda não testado ([plano](desenvolvimento/planos/2026-10-07-equipe-e-papeis.md)). |
+| Equipe e papéis | Vários membros por escritório: administrador, advogado e assistente; convite pela aba Equipe; desativação sem apagar autoria; responsável em tarefa e trabalho, filtro "Minhas tarefas"; aviso de prazo para o responsável e os administradores. | Validado em produção em 07/10 (`63982b4`, [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714238559) com suíte Postgres e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714387087)); rotas `/equipe` conferidas por fora (401 sem sessão). Chave service-role e `CAUSOR_APP_URL` no `.env` da VPS; Site URL e Redirect URLs do Supabase corrigidas (o projeto novo de 06/10 tinha ficado em `localhost`). Convite real por e-mail testado pelo fundador em 07/10 e funcionando ([plano](desenvolvimento/planos/2026-10-07-equipe-e-papeis.md)). |
 
 ## Produção
 
-- **Versão implantada:** `c72e776` (07/10): prazo automático após a captura.
-  [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37637027333) (inclui a suíte Postgres) e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37637262854) aprovados; o
-  deploy verifica o SHA nos cinco serviços. Conferência externa: `/health` 200.
+- **Versão implantada:** `63982b4` (07/10): equipe e papéis.
+  [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714238559) (inclui a suíte Postgres) e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37714387087) aprovados; o
+  deploy verifica o SHA nos cinco serviços. Convite por e-mail exercido pelo
+  fundador.
+- **Prazo automático** (`c72e776`, 07/10): prazo calculado após a captura.
+  [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37637027333) e [deploy](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37637262854) aprovados. Conferência externa: `/health` 200.
 - **Reestruturação** (`b0fd16c`, 07/10): remoção do agente local e do
   protocolo.
   [CI](https://github.com/ArthurMoreiraS/causor.ai/actions/runs/37576541510) e
@@ -68,9 +71,9 @@ material, repetir em cinco casos.
 2. **Coleta automática dos autos:** comparar um fornecedor (Judit, Escavador ou
    alternativa) com o inventário manual do mesmo caso — cobertura por
    documento, faltas, custo, atraso e intervenção. Só então integrar.
-3. **Prazo automático** (implantado em 07/10, `c72e776`): configurar o SMTP
-   na VPS (`CAUSOR_SMTP_HOST`, `CAUSOR_SMTP_USER`, `CAUSOR_SMTP_FROM`,
-   `CAUSOR_SMTP_PASSWORD`) e conferir na conta de teste que a reanálise
+3. **Prazo automático** (implantado em 07/10, `c72e776`): fazer o envio pelo
+   Resend funcionar no SMTP da VPS (`CAUSOR_SMTP_HOST`, `CAUSOR_SMTP_USER`,
+   `CAUSOR_SMTP_FROM`, `CAUSOR_SMTP_PASSWORD`) e conferir na conta de teste que a reanálise
    automática converteu as intimações da versão anterior
    ([plano](desenvolvimento/planos/2026-10-07-prazo-automatico.md),
    [operação](operacao/captura-periodica.md)). Custo estimado da reanálise:
