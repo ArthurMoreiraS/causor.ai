@@ -62,6 +62,7 @@ import HelpModal from "./components/HelpModal";
 import ProfileModal from "./components/ProfileModal";
 import RadarBell from "./components/RadarBell";
 import { useToast } from "./components/Toast";
+import { useConfirm } from "./components/ConfirmDialog";
 import UfSearchSelect from "./components/UfSearchSelect";
 import { LoadingButton, Modal, NavItem, PageHeader, Skeleton, ThemeToggle } from "./components/ui";
 import AssistantWorkspace from "./views/AssistantWorkspace";
@@ -144,13 +145,24 @@ export default function Home() {
   const [taskDialog, setTaskDialog] = useState<{ input: TarefaInput; task?: Tarefa; context?: string } | null>(null);
   const [documentContext, setDocumentContext] = useState<{ processId?: number; task?: Tarefa } | null>(null);
   const [evidenceSelection, setEvidenceSelection] = useState<{ id: number; version: number; page: number } | null>(null);
+  const confirm = useConfirm();
+  const leavesUnsavedWork = useCallback((next: ViewKey) =>
+    currentView.current === "trabalhos" && next !== "trabalhos" && unsavedWork.current, []);
+  const confirmLeaveWork = useCallback(() => confirm({
+    title: "Sair sem salvar?",
+    description: "Há alterações não salvas no trabalho. Se sair agora, elas serão perdidas.",
+    confirmLabel: "Sair e descartar",
+    cancelLabel: "Continuar editando"
+  }), [confirm]);
   const setView = useCallback((next: ViewKey) => {
-    if (currentView.current === "trabalhos" && next !== "trabalhos" && unsavedWork.current &&
-        !window.confirm("Há alterações não salvas no trabalho. Sair e descartá-las?")) return;
-    currentView.current = next;
-    setCurrentView(next);
-    if (window.location.hash !== `#${next}`) window.location.hash = next;
-  }, []);
+    const show = () => {
+      currentView.current = next;
+      setCurrentView(next);
+      if (window.location.hash !== `#${next}`) window.location.hash = next;
+    };
+    if (!leavesUnsavedWork(next)) { show(); return; }
+    void confirmLeaveWork().then(confirmed => { if (confirmed) show(); });
+  }, [confirmLeaveWork, leavesUnsavedWork]);
   // O Next sincroniza o roteador a cada history.replaceState e reaplica a URL
   // gravada: um hash trocado logo depois é desfeito e a tela volta para trás.
   // Por isso a URL do trabalho já é gravada com o hash de destino.
@@ -162,9 +174,14 @@ export default function Home() {
   useEffect(() => {
     const update = () => {
       const next = viewFromHash(window.location.hash);
-      if (currentView.current === "trabalhos" && next !== "trabalhos" && unsavedWork.current &&
-          !window.confirm("Há alterações não salvas no trabalho. Sair e descartá-las?")) {
+      if (leavesUnsavedWork(next)) {
+        // Keep the work on screen while the lawyer decides.
         window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#trabalhos`);
+        void confirmLeaveWork().then(confirmed => {
+          if (!confirmed) return;
+          currentView.current = next; setCurrentView(next);
+          window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${next}`);
+        });
         return;
       }
       currentView.current = next; setCurrentView(next);
@@ -178,7 +195,7 @@ export default function Home() {
     if (noticeId > 0) setWorkOrigin({ intimacaoId: noticeId, prazoId: deadlineId > 0 ? deadlineId : null });
     window.addEventListener("hashchange", update);
     return () => window.removeEventListener("hashchange", update);
-  }, []);
+  }, [confirmLeaveWork, leavesUnsavedWork]);
   function openTask(input: TarefaInput, context?: string) { setTaskDialog({ input, context }); }
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   // Abaixo de 1080px a sidebar vira gaveta, aberta pelo botão de menu da appbar.

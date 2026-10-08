@@ -25,6 +25,7 @@ vi.mock("@/lib/work-api", async (importOriginal) => ({
 }));
 
 import Home from "./page";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 
 const captureJob = (status: "queued" | "completed") => ({
   id: 17, tipo: "captura_oab", status, entidade: "escritorio", entidade_id: 1,
@@ -51,7 +52,7 @@ it("atualiza badges com estados compactos e recarrega as listas só ao terminar 
     { id: 9, prazo_analise: { status: "analisando", job_id: 9 } },
   ]);
   try {
-    await act(async () => { render(<Home />); });
+    await act(async () => { render(<Home />, { wrapper: ConfirmProvider }); });
     fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
     await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
     expect(screen.getByText("Calculado")).toBeTruthy();
@@ -87,7 +88,7 @@ describe("Home OAB capture modal", () => {
 
   it("does not show historical capture feedback without monitored OABs, including after reopening", async () => {
     api.listarCapturasOab.mockResolvedValue([captureJob("completed")]);
-    render(<Home />);
+    render(<Home />, { wrapper: ConfirmProvider });
     fireEvent.click(screen.getAllByRole("button", { name: "Captura por OAB" })[0]);
     await waitFor(() => expect(api.listarOabsMonitoradas).toHaveBeenCalled());
     await screen.findByText("Nenhuma OAB cadastrada.");
@@ -105,7 +106,7 @@ describe("Home OAB capture modal", () => {
       api.listarOabsMonitoradas.mockResolvedValue([]);
       return { removidos: { intimacoes: 13, processos: 9 } };
     });
-    render(<Home />);
+    render(<Home />, { wrapper: ConfirmProvider });
     fireEvent.click(screen.getAllByRole("button", { name: "Captura por OAB" })[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Remover OAB e dados" }));
     const confirmation = screen.getByRole("dialog");
@@ -118,7 +119,7 @@ describe("Home OAB capture modal", () => {
   });
 
   it("keeps tracking after close and reopen, then finishes before dashboard refresh", async () => {
-    render(<Home />);
+    render(<Home />, { wrapper: ConfirmProvider });
     await waitFor(() => expect(api.loadDashboard).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(api.listarCapturasOab).toHaveBeenCalledTimes(1));
     await act(async () => {});
@@ -160,9 +161,8 @@ it("abre a preparação pela intimação, protege edição e retoma a origem pel
   api.loadDashboard.mockResolvedValue({ ...dashboard, intimacoes: [notice], processos: [process], reviewQueue: [
     { intimacao: notice, processo: process, prazo: null, peticao: null, status: "capturada", risco: "sem_prazo", dias_para_vencer: null }
   ] });
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
   try {
-    render(<Home />);
+    render(<Home />, { wrapper: ConfirmProvider });
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Intimações" }).length).toBeGreaterThan(0));
     fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
     fireEvent.click(await screen.findByRole("button", { name: "Preparar minuta" }));
@@ -170,14 +170,15 @@ it("abre a preparação pela intimação, protege edição e retoma a origem pel
     expect((screen.getByLabelText("Processo") as HTMLSelectElement).value).toBe("4");
     fireEvent.change(screen.getByLabelText("Providência"), { target: { value: "Manifestar sobre o laudo" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Intimações" })[0]);
-    expect(confirm).toHaveBeenCalled();
-    expect(screen.getByLabelText("Providência")).toBeTruthy();
+    const leave = screen.getByRole("dialog", { name: "Sair sem salvar?" });
+    fireEvent.click(within(leave).getByRole("button", { name: "Continuar editando" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("Manifestar sobre o laudo");
     cleanup();
-    confirm.mockRestore();
-    render(<Home />);
+    render(<Home />, { wrapper: ConfirmProvider });
     expect((await screen.findByLabelText("Processo") as HTMLSelectElement).value).toBe("4");
     expect(screen.getByText(/Intimação #8 vinculada/)).toBeTruthy();
-  } finally { confirm.mockRestore(); cleanup(); window.history.replaceState(null, "", "/"); }
+  } finally { cleanup(); window.history.replaceState(null, "", "/"); }
 });
 
 it("abre o menu em gaveta e fecha ao navegar ou com Esc, devolvendo o foco", async () => {
@@ -186,7 +187,7 @@ it("abre o menu em gaveta e fecha ao navegar ou com Esc, devolvendo o foco", asy
   api.listarCapturasOab.mockResolvedValue([]);
   api.listarClientes.mockResolvedValue({ total: 0, items: [] });
   try {
-    const { container } = render(<Home />);
+    const { container } = render(<Home />, { wrapper: ConfirmProvider });
     const shell = container.querySelector(".shell")!;
     const menu = screen.getByRole("button", { name: "Abrir menu" });
     fireEvent.click(menu);

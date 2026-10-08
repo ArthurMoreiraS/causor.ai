@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./styles/tokens.css";
 import "./globals.css";
 import { AuthProvider } from "./AuthProvider";
+import { ConfirmProvider } from "./components/ConfirmDialog";
 import { ToastProvider } from "./components/Toast";
 
 export const metadata: Metadata = {
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ToastProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <ConfirmProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ConfirmProvider>
         </ToastProvider>
       </body>
     </html>

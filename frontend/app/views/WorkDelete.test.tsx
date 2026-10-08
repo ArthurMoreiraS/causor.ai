@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { listarClientes } from "@/lib/api";
 import { excluirTrabalho, listarTrabalhos, obterTrabalho, type Trabalho } from "@/lib/work-api";
 import TrabalhosView from "./TrabalhosView";
+import { ConfirmProvider } from "../components/ConfirmDialog";
 
 vi.mock("@/lib/api", () => ({ listarClientes: vi.fn(), criarCliente: vi.fn(), vincularCliente: vi.fn() }));
 vi.mock("@/lib/work-api", () => ({ criarTrabalho: vi.fn(), listarTrabalhos: vi.fn(), obterTrabalho: vi.fn(),
@@ -29,17 +30,23 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); window.hi
 
 function renderView(canDelete: boolean, onDeleted = vi.fn(), onChanged = vi.fn()) {
   render(<TrabalhosView processos={[processo]} offline={false} onChanged={onChanged} onDocuments={vi.fn()}
-    onOpenDraft={vi.fn()} canDelete={canDelete} onDeleted={onDeleted} />);
+    onOpenDraft={vi.fn()} canDelete={canDelete} onDeleted={onDeleted} />, { wrapper: ConfirmProvider });
+}
+
+function answerDeletion(button: "Excluir definitivamente" | "Cancelar") {
+  const dialog = screen.getByRole("dialog", { name: "Excluir este trabalho?" });
+  expect(within(dialog).getByText("Teste")).toBeTruthy();
+  fireEvent.click(within(dialog).getByRole("button", { name: button }));
 }
 
 it("exclui o trabalho com a versão atual depois da confirmação", async () => {
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   const result = { trabalho_id: 7, minuta_excluida: false, tarefas_excluidas: 0, processo_removido: true };
   vi.mocked(excluirTrabalho).mockResolvedValue(result);
   const onDeleted = vi.fn();
   const onChanged = vi.fn();
   renderView(true, onDeleted, onChanged);
   fireEvent.click(await screen.findByRole("button", { name: "Excluir trabalho" }));
+  answerDeletion("Excluir definitivamente");
   await waitFor(() => expect(onDeleted).toHaveBeenCalledWith(result));
   expect(excluirTrabalho).toHaveBeenCalledWith(expect.objectContaining({ id: 7, versao: 3 }));
   expect(onChanged).toHaveBeenCalled();
@@ -48,17 +55,19 @@ it("exclui o trabalho com a versão atual depois da confirmação", async () => 
 });
 
 it("não exclui quando a confirmação é cancelada", async () => {
-  vi.spyOn(window, "confirm").mockReturnValue(false);
   renderView(true);
   fireEvent.click(await screen.findByRole("button", { name: "Excluir trabalho" }));
+  answerDeletion("Cancelar");
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   expect(excluirTrabalho).not.toHaveBeenCalled();
+  expect(screen.getByRole("button", { name: "Excluir trabalho" })).toBeTruthy();
 });
 
 it("mostra o erro do servidor e mantém o trabalho aberto", async () => {
-  vi.spyOn(window, "confirm").mockReturnValue(true);
   vi.mocked(excluirTrabalho).mockRejectedValue(new Error("A minuta deste trabalho já foi aprovada."));
   renderView(true);
   fireEvent.click(await screen.findByRole("button", { name: "Excluir trabalho" }));
+  answerDeletion("Excluir definitivamente");
   expect(await screen.findByRole("alert")).toBeTruthy();
   expect(screen.getByRole("button", { name: "Excluir trabalho" })).toBeTruthy();
 });

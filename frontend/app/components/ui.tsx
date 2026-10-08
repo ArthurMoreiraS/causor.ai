@@ -14,7 +14,7 @@ import {
   Sun
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { ButtonHTMLAttributes, CSSProperties, ReactNode } from "react";
+import type { ButtonHTMLAttributes, CSSProperties, ReactNode, RefObject } from "react";
 import type { Prazo } from "@/lib/api";
 import { daysUntil, formatDate, isPrazoVigente } from "@/lib/format";
 
@@ -217,11 +217,14 @@ export function Modal({
   onClose,
   labelledBy,
   className,
+  initialFocus,
   children
 }: {
   onClose: () => void;
   labelledBy: string;
   className?: string;
+  /** Elemento que recebe o foco ao abrir; sem ele, o próprio cartão. */
+  initialFocus?: RefObject<HTMLElement | null>;
   children: ReactNode;
 }) {
   const cardRef = useRef<HTMLDivElement>(null);
@@ -229,8 +232,9 @@ export function Modal({
   // Foco entra no diálogo ao abrir e volta ao gatilho ao fechar (apenas no mount).
   useEffect(() => {
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    cardRef.current?.focus();
+    (initialFocus?.current ?? cardRef.current)?.focus();
     return () => previouslyFocused?.focus?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

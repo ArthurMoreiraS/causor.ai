@@ -12,6 +12,7 @@ import WorkScope from "../components/WorkScope";
 import WorkAssistant from "../components/WorkAssistant";
 import { Clock3, Plus, Trash2 } from "lucide-react";
 import { LoadingButton, PageHeader } from "../components/ui";
+import { useConfirm } from "../components/ConfirmDialog";
 
 export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, onUnsavedChange, onRouteChange, refreshKey = 0, focusOnOpen = false, canDelete = false, onDeleted }: {
   processos: Processo[]; offline: boolean; initialProcessId?: number; initialOrigin?: { intimacaoId: number; prazoId: number | null }; onChanged: () => void;
@@ -23,6 +24,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   canDelete?: boolean;
   onDeleted?: (result: TrabalhoExcluido) => void;
 }) {
+  const confirm = useConfirm();
   const [works, setWorks] = useState<Trabalho[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -73,8 +75,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     return () => window.removeEventListener("beforeunload", warn);
   }, [unsaved]);
 
-  const selectWork = useCallback((value: Trabalho | null, force = false) => {
-    if (!force && unsavedRef.current && !window.confirm("Há alterações não salvas. Descartar e continuar?")) return false;
+  const selectWork = useCallback((value: Trabalho | null) => {
     selectionVersion.current += 1;
     setOrigin(undefined);
     setWork(value); setPurpose(value?.providencia || ""); setInstructions(value?.instrucoes || "");
@@ -90,11 +91,21 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     url.searchParams.delete("prazo");
     window.history.replaceState(null, "", url);
     onRouteChange?.();
-    return true;
   }, [onRouteChange]);
 
+  /** Runs `proceed` now, or only after the lawyer agrees to drop unsaved edits. */
+  function unlessUnsaved(proceed: () => void) {
+    if (!unsavedRef.current) { proceed(); return; }
+    void confirm({
+      title: "Descartar alterações?",
+      description: "Há alterações não salvas neste trabalho. Se continuar, elas serão perdidas.",
+      confirmLabel: "Descartar alterações",
+      cancelLabel: "Continuar editando"
+    }).then(confirmed => { if (confirmed) proceed(); });
+  }
+
   function startNewWork() {
-    if (!selectWork(null)) return;
+    selectWork(null);
     setError(null);
     const url = new URL(window.location.href); url.searchParams.set("novo", "1"); window.history.replaceState(null, "", url);
     formRef.current?.scrollIntoView?.({ block: "start" });
@@ -121,7 +132,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     const version = selectionVersion.current;
     const id = Number(new URLSearchParams(window.location.search).get("trabalho"));
     if (id > 0) obterTrabalho(id).then(value => {
-      if (active && version === selectionVersion.current && !unsavedRef.current) selectWork(value, true);
+      if (active && version === selectionVersion.current && !unsavedRef.current) selectWork(value);
     })
       .catch(err => { if (active && version === selectionVersion.current) setError(humanError(err, "Não foi possível retomar o trabalho")); });
     return () => { active = false; };
@@ -136,7 +147,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
       if (unsavedRef.current) {
         if (value.versao !== work.versao) setError("Este trabalho foi alterado em outra sessão. Confira a versão antes de salvar.");
       } else if (value.versao !== work.versao) {
-        selectWork(value, true);
+        selectWork(value);
       } else {
         setWork(old => old?.id === id ? value : old);
       }
@@ -165,7 +176,7 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
       const result = work ? await atualizarTrabalho(work.id, { ...fields, versao: work.versao })
         : await criarTrabalho({ ...fields, processo_id: processId,
             ...(origin ? { intimacao_id: origin.intimacaoId, prazo_id: origin.prazoId ?? undefined } : {}) });
-      selectWork(result, true); setRevision(v => v + 1);
+      selectWork(result); setRevision(v => v + 1);
     } catch (err) { setError(humanError(err, "Não foi possível salvar o trabalho")); }
     finally { setBusy(false); }
   }
@@ -190,11 +201,17 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   async function removeWork() {
     if (!work || busy || offline) return;
     const draftNote = work.peticao_id ? " A minuta em rascunho e as pendências deste trabalho também serão excluídas." : "";
-    if (!window.confirm(`Excluir o trabalho "${work.providencia}"?${draftNote} Os documentos do processo continuam no Causor.`)) return;
+    const confirmed = await confirm({
+      title: "Excluir este trabalho?",
+      description: <>O trabalho <strong>{work.providencia}</strong> será excluído e não poderá ser recuperado.{draftNote} Os documentos do processo continuam no Causor.</>,
+      confirmLabel: "Excluir definitivamente",
+      confirmIcon: <Trash2 size={14} aria-hidden="true" />
+    });
+    if (!confirmed) return;
     setBusy(true); setError(null);
     try {
       const result = await excluirTrabalho(work);
-      selectWork(null, true); setWorks(items => items.filter(item => item.id !== result.trabalho_id));
+      selectWork(null); setWorks(items => items.filter(item => item.id !== result.trabalho_id));
       setTotal(value => Math.max(0, value - 1)); setRevision(v => v + 1);
       onChanged(); onDeleted?.(result);
     } catch (err) { setError(humanError(err, "Não foi possível excluir o trabalho")); }
@@ -210,12 +227,12 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
   const hasList = works.length > 0 || offset > 0;
   return <section className="legalWorkspace" aria-label="Preparar trabalho jurídico">
     <PageHeader title="Trabalhos" description="Defina a providência, confira os documentos e as fontes, depois revise a minuta."
-      actions={<button className="toolbarButton primary" disabled={busy || offline} onClick={startNewWork}><Plus size={15} />Novo trabalho</button>} />
+      actions={<button className="toolbarButton primary" disabled={busy || offline} onClick={() => unlessUnsaved(startNewWork)}><Plus size={15} />Novo trabalho</button>} />
     {error ? <p role="alert" className="officeError">{error}</p> : null}
     <div className={hasList ? "legalWorkLayout" : "legalWorkLayout single"}>{hasList ? <aside className="legalWorkList" aria-label="Trabalhos salvos">
       <p className="legalWorkListTitle">Trabalhos salvos <span>{total}</span></p>
       {works.map(item => <button key={item.id} className={`legalWorkItem ${work?.id === item.id ? "active" : ""}`} disabled={busy}
-        onClick={() => selectWork(item)}><strong>{item.providencia}</strong><span>Processo {formatCnj(processOptions.find(p => p.id === item.processo_id)?.numero) || `#${item.processo_id || "removido"}`}</span></button>)}
+        onClick={() => unlessUnsaved(() => selectWork(item))}><strong>{item.providencia}</strong><span>Processo {formatCnj(processOptions.find(p => p.id === item.processo_id)?.numero) || `#${item.processo_id || "removido"}`}</span></button>)}
       {total > 50 ? <div className="tablePager"><button className="toolbarButton compact" disabled={!offset || busy} onClick={() => setOffset(v => Math.max(0, v - 50))}>Anterior</button>
         <span>{offset + 1}–{Math.min(total, offset + 50)}</span><button className="toolbarButton compact" disabled={offset + 50 >= total || busy} onClick={() => setOffset(v => v + 50)}>Próximos</button></div> : null}
     </aside> : null}<div className="legalWorkBody">

@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render as baseRender, screen, waitFor, within } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { StrictMode } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import type { IntimacaoRow } from "@/lib/views";
@@ -7,6 +8,9 @@ import { listarClientes, vincularCliente } from "@/lib/api";
 import { criarTrabalho, listarTrabalhos, obterTrabalho } from "@/lib/work-api";
 import IntimacoesView from "./IntimacoesView";
 import TrabalhosView from "./TrabalhosView";
+import { ConfirmProvider } from "../components/ConfirmDialog";
+
+const render = (ui: ReactElement) => baseRender(ui, { wrapper: ConfirmProvider });
 
 vi.mock("@/lib/api", () => ({ listarClientes: vi.fn(), criarCliente: vi.fn(), vincularCliente: vi.fn() }));
 vi.mock("@/lib/work-api", () => ({ criarTrabalho: vi.fn(), listarTrabalhos: vi.fn(), obterTrabalho: vi.fn(), atualizarTrabalho: vi.fn(), criarProcesso: vi.fn() }));
@@ -53,7 +57,6 @@ it("cria o trabalho com a origem capturada, sem presumir a providência", async 
 });
 
 it("abre um formulário limpo e ignora a retomada antiga que chega depois", async () => {
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
   const oldUrl = window.location.href;
   window.history.replaceState(null, "", "?trabalho=42");
   let resolveOld!: (value: Awaited<ReturnType<typeof obterTrabalho>>) => void;
@@ -64,13 +67,15 @@ it("abre um formulário limpo e ignora a retomada antiga que chega depois", asyn
     render(<TrabalhosView processos={[notice.processo!]} offline={false} onChanged={vi.fn()} onDocuments={vi.fn()} onOpenDraft={vi.fn()} />);
     fireEvent.change(screen.getByLabelText("Providência"), { target: { value: "Rascunho" } });
     fireEvent.click(screen.getByRole("button", { name: "Novo trabalho" }));
-    expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("");
+    const discard = screen.getByRole("dialog", { name: "Descartar alterações?" });
+    fireEvent.click(within(discard).getByRole("button", { name: "Descartar alterações" }));
+    await waitFor(() => expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe(""));
     expect((screen.getByLabelText("Processo") as HTMLSelectElement).value).toBe("");
     expect(window.location.search).not.toContain("trabalho");
     expect(document.activeElement?.id).toBe("work-objective");
     await act(async () => { resolveOld({ id: 42, processo_id: 4, providencia: "Trabalho antigo" } as Awaited<ReturnType<typeof obterTrabalho>>); });
     expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("");
-  } finally { confirm.mockRestore(); window.history.replaceState(null, "", oldUrl); }
+  } finally { window.history.replaceState(null, "", oldUrl); }
 });
 
 it("mostra a revisão de prazo diretamente na intimação sem prazo", () => {
@@ -86,16 +91,16 @@ it("não descarta objetivo alterado ao trocar de trabalho sem confirmação", as
   vi.mocked(listarClientes).mockResolvedValue({ total: 0, items: [] });
   vi.mocked(listarTrabalhos).mockResolvedValue({ total: 2, items: [first, second] } as Awaited<ReturnType<typeof listarTrabalhos>>);
   vi.mocked(obterTrabalho).mockResolvedValue(first as Awaited<ReturnType<typeof obterTrabalho>>);
-  const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-  try {
-    render(<TrabalhosView processos={[notice.processo!]} offline={false} onChanged={vi.fn()} onDocuments={vi.fn()} onOpenDraft={vi.fn()} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /Original/ })).toBeTruthy());
-    fireEvent.click(screen.getByRole("button", { name: /Original/ }));
-    fireEvent.change(screen.getByLabelText("Providência"), { target: { value: "Edição não salva" } });
-    fireEvent.click(screen.getByRole("button", { name: /Segundo/ }));
-    expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("Edição não salva");
-    expect(confirm).toHaveBeenCalled();
-  } finally { confirm.mockRestore(); }
+  render(<TrabalhosView processos={[notice.processo!]} offline={false} onChanged={vi.fn()} onDocuments={vi.fn()} onOpenDraft={vi.fn()} />);
+  await waitFor(() => expect(screen.getByRole("button", { name: /Original/ })).toBeTruthy());
+  fireEvent.click(screen.getByRole("button", { name: /Original/ }));
+  await waitFor(() => expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("Original"));
+  fireEvent.change(screen.getByLabelText("Providência"), { target: { value: "Edição não salva" } });
+  fireEvent.click(screen.getByRole("button", { name: /Segundo/ }));
+  const discard = screen.getByRole("dialog", { name: "Descartar alterações?" });
+  fireEvent.click(within(discard).getByRole("button", { name: "Continuar editando" }));
+  await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  expect((screen.getByLabelText("Providência") as HTMLInputElement).value).toBe("Edição não salva");
 });
 
 it("carrega e pagina trabalhos em StrictMode", async () => {
