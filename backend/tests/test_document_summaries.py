@@ -266,3 +266,67 @@ def test_citacao_que_nao_confere_e_descartada_sem_derrubar_o_resumo(db_session, 
     assert resumo.status == "complete"
     assert [c["quote"] for c in resumo.citations] == [" ".join(good)]
     assert any("descartada" in item for item in resumo.dados["incertezas"])
+
+
+def _pages(count):
+    from app.autos.summarizer import SummaryChunk, SummaryInput
+
+    chunks = tuple(SummaryChunk(id=i, pagina=i, texto=f"Página {i}: o autor pagou aluguel de R$ 2.300,00.")
+                   for i in range(1, count + 1))
+    return SummaryInput(1, "a" * 64, "complete", "Documento: Autos\n\n", chunks)
+
+
+class _TruncatingProvider:
+    """Corta a resposta sempre que recebe mais de uma página."""
+
+    def __init__(self, error=None):
+        self.calls = []
+        self._error = error
+
+    def complete_structured(self, *, system, user, schema, max_tokens):
+        import re
+
+        from app.agent.llm import LLMOutputInvalidError
+
+        ids = [int(value) for value in re.findall(r"chunk_id=(\d+)", user)]
+        self.calls.append((ids, max_tokens))
+        if self._error is not None:
+            raise self._error
+        if len(ids) > 1:
+            raise LLMOutputInvalidError("A resposta do modelo veio incompleta ou fora do formato esperado")
+        return DocumentDigest(resumo=f"Parte {ids[0]}", fatos=[], pedidos=[], decisoes=[], prazos=[],
+                              incertezas=[], citations=[ChunkCitation(chunk_id=ids[0], quote=f"Página {ids[0]}")])
+
+
+def test_truncated_summary_is_split_until_each_part_fits():
+    provider = _TruncatingProvider()
+
+    result = generate_summary(_pages(4), provider=provider)
+
+    assert result.error is None
+    assert result.parts == 4
+    assert [citation.chunk_id for citation in result.digest.citations] == [1, 2, 3, 4]
+    assert result.digest.resumo == "Parte 1\n\nParte 2\n\nParte 3\n\nParte 4"
+    assert provider.calls[0] == ([1, 2, 3, 4], 6000)
+
+
+def test_single_page_that_does_not_fit_still_fails():
+    from app.agent.llm import LLMOutputInvalidError
+
+    always = _TruncatingProvider(error=LLMOutputInvalidError("cortada"))
+    result = generate_summary(_pages(1), provider=always)
+
+    assert result.digest is None
+    assert result.error == "LLMOutputInvalidError"
+    assert len(always.calls) == 1
+
+
+def test_transport_failure_is_not_split():
+    from app.agent.llm import LLMProviderError
+
+    provider = _TruncatingProvider(error=LLMProviderError("falha HTTP no endpoint LLM"))
+    result = generate_summary(_pages(4), provider=provider)
+
+    assert result.digest is None
+    assert result.error == "LLMProviderError"
+    assert len(provider.calls) == 1

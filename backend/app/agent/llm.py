@@ -87,7 +87,7 @@ class ClaudeProvider:
             )
         except ValidationError as exc:
             # Resposta cortada pelo limite de tokens ou fora do esquema.
-            raise LLMProviderError("A resposta do modelo veio incompleta ou fora do formato esperado") from exc
+            raise LLMOutputInvalidError("A resposta do modelo veio incompleta ou fora do formato esperado") from exc
         usage = getattr(response, "usage", None)
         self.last_call = {
             "provider": "claude", "model": getattr(response, "model", self._model),
@@ -110,6 +110,13 @@ class ClaudeProvider:
 
 class LLMProviderError(RuntimeError):
     """Raised when a provider fails to return valid output (including truncated output)."""
+
+
+class LLMOutputInvalidError(LLMProviderError):
+    """The model answered, but the output was cut by the token limit or broke the schema.
+
+    Callers may retry with a smaller input; transport failures stay LLMProviderError.
+    """
 
 
 class OpenAICompatProvider:
@@ -226,13 +233,13 @@ class OpenAICompatProvider:
         try:
             parsed = json.loads(content)
         except json.JSONDecodeError as exc:
-            raise LLMProviderError(
+            raise LLMOutputInvalidError(
                 f"modelo nao retornou JSON valido: {content[:200]!r}"
             ) from exc
         try:
             return schema.model_validate(parsed)
         except ValidationError as exc:
-            raise LLMProviderError(
+            raise LLMOutputInvalidError(
                 f"JSON retornado nao valida o schema: {exc}"
             ) from exc
 

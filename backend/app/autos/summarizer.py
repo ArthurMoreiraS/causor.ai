@@ -15,7 +15,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agent.llm import get_provider
+from app.agent.llm import LLMOutputInvalidError, get_provider
 from app.settings import settings
 from app.sor import models
 
@@ -163,6 +163,43 @@ def load_summary_input(session: Session, version: models.DocumentoArquivo) -> Su
                         tuple(SummaryChunk(c.id, c.pagina, c.texto) for c in chunks))
 
 
+def _summarize_batch(llm, prefix: str, batch: list, max_tokens: int) -> list[DocumentDigest]:
+    """Resume uma parte; se a resposta vier cortada, resume as duas metades."""
+    numbered = "\n\n".join(
+        f"[chunk_id={chunk.id} | pagina {chunk.pagina}]\n{chunk.texto}" for chunk in batch
+    )
+    try:
+        part = llm.complete_structured(
+            system=_SYSTEM_PROMPT, user=prefix + numbered, schema=DocumentDigest, max_tokens=max_tokens,
+        )
+    except LLMOutputInvalidError:
+        # Autos com muitas peças geram resumo maior que o limite de saída.
+        if len(batch) < 2:
+            raise
+        half = len(batch) // 2
+        return (_summarize_batch(llm, prefix, batch[:half], max_tokens)
+                + _summarize_batch(llm, prefix, batch[half:], max_tokens))
+    allowed = {chunk.id for chunk in batch}
+    if not part.citations:
+        raise InvalidCitationError("resumo sem fonte citada")
+    if any(c.chunk_id not in allowed for c in part.citations):
+        raise InvalidCitationError("citação de trecho não fornecido nesta parte")
+    text_by_id = {c.id: c.texto for c in batch}
+    kept = []
+    for citation in part.citations:
+        span = literal_span(citation.quote, text_by_id[citation.chunk_id])
+        if span is not None:
+            kept.append(ChunkCitation(chunk_id=citation.chunk_id, quote=span[:500]))
+    if not kept:
+        raise InvalidCitationError("nenhuma citação confere com o texto original")
+    dropped = len(part.citations) - len(kept)
+    incertezas = list(part.incertezas)
+    if dropped:
+        incertezas.append(f"{dropped} citação(ões) descartada(s) por não conferir(em) "
+                          "literalmente com o texto; confira as afirmações correspondentes.")
+    return [part.model_copy(update={"citations": kept, "incertezas": incertezas})]
+
+
 def generate_summary(snapshot: SummaryInput, *, provider=None, profile: str = "padrao") -> SummaryResult:
     """Provider work and literal citation validation, with no database access."""
     if profile not in {"padrao", "aprofundada"}:
@@ -185,34 +222,9 @@ def generate_summary(snapshot: SummaryInput, *, provider=None, profile: str = "p
                 chars = 0
             batches[-1].append(chunk)
             chars += len(chunk.texto)
-        digests = []
-        for batch in batches:
-            numbered = "\n\n".join(
-                f"[chunk_id={chunk.id} | pagina {chunk.pagina}]\n{chunk.texto}" for chunk in batch
-            )
-            part = llm.complete_structured(
-                system=_SYSTEM_PROMPT, user=snapshot.prefix + numbered,
-                schema=DocumentDigest, max_tokens=8000 if profile == "aprofundada" else 3000,
-            )
-            allowed = {chunk.id for chunk in batch}
-            if not part.citations:
-                raise InvalidCitationError("resumo sem fonte citada")
-            if any(c.chunk_id not in allowed for c in part.citations):
-                raise InvalidCitationError("citação de trecho não fornecido nesta parte")
-            text_by_id = {c.id: c.texto for c in batch}
-            kept = []
-            for citation in part.citations:
-                span = literal_span(citation.quote, text_by_id[citation.chunk_id])
-                if span is not None:
-                    kept.append(ChunkCitation(chunk_id=citation.chunk_id, quote=span[:500]))
-            if not kept:
-                raise InvalidCitationError("nenhuma citação confere com o texto original")
-            dropped = len(part.citations) - len(kept)
-            incertezas = list(part.incertezas)
-            if dropped:
-                incertezas.append(f"{dropped} citação(ões) descartada(s) por não conferir(em) "
-                                  "literalmente com o texto; confira as afirmações correspondentes.")
-            digests.append(part.model_copy(update={"citations": kept, "incertezas": incertezas}))
+        max_tokens = 8000 if profile == "aprofundada" else 6000
+        digests = [part for batch in batches
+                   for part in _summarize_batch(llm, snapshot.prefix, batch, max_tokens)]
         digest = DocumentDigest(
             resumo="\n\n".join(d.resumo for d in digests),
             **{field: [item for d in digests for item in getattr(d, field)]
@@ -222,7 +234,7 @@ def generate_summary(snapshot: SummaryInput, *, provider=None, profile: str = "p
         return SummaryResult(None, model_name, error=str(exc), profile=profile)
     except Exception as exc:  # noqa: BLE001 - falha de LLM vira estado observável
         return SummaryResult(None, model_name, error=type(exc).__name__, profile=profile)
-    return SummaryResult(digest, model_name, parts=len(batches), profile=profile)
+    return SummaryResult(digest, model_name, parts=len(digests), profile=profile)
 
 
 def persist_summary(session: Session, snapshot: SummaryInput, result: SummaryResult) -> models.DocumentoResumo:
