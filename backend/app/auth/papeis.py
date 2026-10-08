@@ -19,7 +19,7 @@ from app.sor import models
 Papel = Literal["administrador", "advogado", "assistente"]
 PAPEIS: tuple[str, ...] = ("administrador", "advogado", "assistente")
 
-Permissao = Literal["gerir_equipe", "configurar_escritorio", "aprovar_minuta", "decidir_prazo"]
+Permissao = Literal["gerir_equipe", "configurar_escritorio", "aprovar_minuta", "decidir_prazo", "excluir_trabalho"]
 
 PERMISSOES: dict[str, frozenset[str]] = {
     # Convidar, mudar papel, desativar.
@@ -29,6 +29,8 @@ PERMISSOES: dict[str, frozenset[str]] = {
     # O advogado responde profissionalmente pela peça e pelo prazo.
     "aprovar_minuta": frozenset({"administrador", "advogado"}),
     "decidir_prazo": frozenset({"administrador", "advogado"}),
+    # Excluir apaga a minuta em rascunho e as pendências do trabalho.
+    "excluir_trabalho": frozenset({"administrador", "advogado"}),
 }
 
 MENSAGENS = {
@@ -36,6 +38,7 @@ MENSAGENS = {
     "configurar_escritorio": "Só administradores alteram a configuração do escritório.",
     "aprovar_minuta": "Só advogados e administradores aprovam minutas.",
     "decidir_prazo": "Só advogados e administradores alteram prazos.",
+    "excluir_trabalho": "Só advogados e administradores excluem trabalhos.",
 }
 
 

@@ -303,7 +303,7 @@ export type JobExecucao = {
 };
 
 export type Papel = "administrador" | "advogado" | "assistente";
-export type Permissao = "gerir_equipe" | "configurar_escritorio" | "aprovar_minuta" | "decidir_prazo";
+export type Permissao = "gerir_equipe" | "configurar_escritorio" | "aprovar_minuta" | "decidir_prazo" | "excluir_trabalho";
 
 export type Usuario = {
   id: number;

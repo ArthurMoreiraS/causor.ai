@@ -659,6 +659,14 @@
   border-bottom: 1px solid var(--line);
 }
 
+.workContextTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
 .workContextHeader strong {
   font-family: var(--font-display);
   font-size: var(--text-lg);

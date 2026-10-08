@@ -50,6 +50,10 @@ export function obterTrabalho(id: number): Promise<Trabalho> { return request(`/
 export function criarTrabalho(payload: TrabalhoInput): Promise<Trabalho> {
   return request("/trabalhos", { method: "POST", body: JSON.stringify(payload) });
 }
+export type TrabalhoExcluido = { trabalho_id: number; minuta_excluida: boolean; tarefas_excluidas: number; processo_removido: boolean };
+export function excluirTrabalho(work: Pick<Trabalho, "id" | "versao">): Promise<TrabalhoExcluido> {
+  return request(`/trabalhos/${work.id}?versao=${work.versao}`, { method: "DELETE" });
+}
 export function atualizarTrabalho(id: number, payload: Partial<Omit<TrabalhoInput, "processo_id">> & { versao: number }): Promise<Trabalho> {
   return request(`/trabalhos/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 }

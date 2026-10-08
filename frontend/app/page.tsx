@@ -952,7 +952,10 @@ export default function Home() {
         ) : view === "trabalhos" ? (
           <TrabalhosView key={`${workProcessId || "all"}-${workOrigin?.intimacaoId || "manual"}-${newWorkKey}`} processos={data.processos} offline={offline} initialProcessId={workProcessId} initialOrigin={workOrigin} refreshKey={refreshTick} focusOnOpen={newWorkKey > 0} onUnsavedChange={value => { unsavedWork.current = value; }} onRouteChange={syncWorkRoute}
             onChanged={() => void refresh()} onDocuments={id => { setDocumentContext({ processId: id }); setView("documentos"); }}
-            onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }} />
+            onOpenDraft={id => { void obterPeticao(id).then(setEditorPeticao).catch(err => toast({ kind: "error", title: humanError(err, "Falha ao abrir a minuta") })); }}
+            canDelete={pode("excluir_trabalho")}
+            onDeleted={result => toast({ kind: "success", title: "Trabalho excluído",
+              description: result.processo_removido ? "O processo também saiu da lista, porque a OAB dele não é mais acompanhada." : undefined })} />
         ) : view === "clientes" ? (
           <ClientesView offline={offline} processos={data.processos} refreshKey={refreshTick} onChanged={() => void refresh()}
             onOpenProcess={id => setDetail({ kind: "processo", id })} onNewTask={openTask} />

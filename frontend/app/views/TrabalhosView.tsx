@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { criarCliente, listarClientes, vincularCliente, type Cliente, type Processo } from "@/lib/api";
-import { atualizarTrabalho, criarProcesso, criarTrabalho, listarTrabalhos, obterTrabalho, type Trabalho } from "@/lib/work-api";
+import { atualizarTrabalho, criarProcesso, criarTrabalho, excluirTrabalho, listarTrabalhos, obterTrabalho, type Trabalho, type TrabalhoExcluido } from "@/lib/work-api";
 import { humanError } from "@/lib/errors";
 import { formatCnj } from "@/lib/format";
 import ProcessContextStatus from "../components/ProcessContextStatus";
@@ -10,16 +10,18 @@ import DocumentUploadDialog from "../components/DocumentUploadDialog";
 import WorkEvidence from "../components/WorkEvidence";
 import WorkScope from "../components/WorkScope";
 import WorkAssistant from "../components/WorkAssistant";
-import { Clock3, Plus } from "lucide-react";
+import { Clock3, Plus, Trash2 } from "lucide-react";
 import { LoadingButton, PageHeader } from "../components/ui";
 
-export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, onUnsavedChange, onRouteChange, refreshKey = 0, focusOnOpen = false }: {
+export default function TrabalhosView({ processos, offline, initialProcessId, initialOrigin, onChanged, onDocuments, onOpenDraft, onUnsavedChange, onRouteChange, refreshKey = 0, focusOnOpen = false, canDelete = false, onDeleted }: {
   processos: Processo[]; offline: boolean; initialProcessId?: number; initialOrigin?: { intimacaoId: number; prazoId: number | null }; onChanged: () => void;
   onDocuments: (id: number) => void; onOpenDraft: (id: number) => void;
   onUnsavedChange?: (dirty: boolean) => void;
   onRouteChange?: () => void;
   refreshKey?: number;
   focusOnOpen?: boolean;
+  canDelete?: boolean;
+  onDeleted?: (result: TrabalhoExcluido) => void;
 }) {
   const [works, setWorks] = useState<Trabalho[]>([]);
   const [total, setTotal] = useState(0);
@@ -185,6 +187,20 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     finally { setBusy(false); }
   }
 
+  async function removeWork() {
+    if (!work || busy || offline) return;
+    const draftNote = work.peticao_id ? " A minuta em rascunho e as pendências deste trabalho também serão excluídas." : "";
+    if (!window.confirm(`Excluir o trabalho "${work.providencia}"?${draftNote} Os documentos do processo continuam no Causor.`)) return;
+    setBusy(true); setError(null);
+    try {
+      const result = await excluirTrabalho(work);
+      selectWork(null, true); setWorks(items => items.filter(item => item.id !== result.trabalho_id));
+      setTotal(value => Math.max(0, value - 1)); setRevision(v => v + 1);
+      onChanged(); onDeleted?.(result);
+    } catch (err) { setError(humanError(err, "Não foi possível excluir o trabalho")); }
+    finally { setBusy(false); }
+  }
+
   function jumpToStage(id: string) {
     const target = document.getElementById(id);
     target?.scrollIntoView({ block: "start" });
@@ -205,7 +221,8 @@ export default function TrabalhosView({ processos, offline, initialProcessId, in
     </aside> : null}<div className="legalWorkBody">
       {work ? <>
         <header className="workContextHeader">
-          <strong>{work.providencia}</strong>
+          <div className="workContextTitle"><strong>{work.providencia}</strong>
+            {canDelete ? <button type="button" className="toolbarButton compact danger" disabled={busy || offline} onClick={() => void removeWork()}><Trash2 size={14} aria-hidden="true" />Excluir trabalho</button> : null}</div>
           <p>Processo {formatCnj(processOptions.find(item => item.id === work.processo_id)?.numero) || `#${work.processo_id}`} · {work.grau}º grau · {work.prazo_id ? `Prazo vinculado #${work.prazo_id}` : "Prazo não vinculado"}</p>
         </header>
         <nav className="workStageNavigation" aria-label="Etapas deste trabalho">

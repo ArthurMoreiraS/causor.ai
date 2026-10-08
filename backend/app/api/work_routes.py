@@ -7,14 +7,14 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.office_routes import audit
 from app.api.schemas import ProcessoOut
 from app.auth.jwt_auth import CurrentUser, get_current_user
-from app.auth.papeis import responsavel_valido
+from app.auth.papeis import requer, responsavel_valido
 from app.auth.tenant import get_owned_or_404, tenant_select
 from app.capture.normalize import canonical_numero
 from app.autos.context import ContextNotReadyError
@@ -375,6 +375,55 @@ def create_work(payload: TrabalhoIn, session: Session = Depends(get_session), cu
     audit(session, current, "trabalho_criado", "trabalho_juridico", work.id, {"processo_id": work.processo_id})
     session.commit()
     return work
+
+
+class TrabalhoExcluidoOut(BaseModel):
+    trabalho_id: int
+    minuta_excluida: bool
+    tarefas_excluidas: int
+    processo_removido: bool
+
+
+@router.delete("/trabalhos/{work_id}", response_model=TrabalhoExcluidoOut)
+def delete_work(work_id: int, versao: int = Query(ge=1), session: Session = Depends(get_session),
+                current: CurrentUser = Depends(requer("excluir_trabalho"))):
+    from app.api.main import purge_untracked_process
+    from app.capture.cleanup import purge_case_dependencies
+
+    work = locked_work(session, current, work_id, versao)
+    running = session.scalar(select(models.JobExecucao.id).where(
+        models.JobExecucao.entidade == "trabalho_juridico", models.JobExecucao.entidade_id == work.id,
+        models.JobExecucao.status.in_(["queued", "running"])).limit(1))
+    if running is not None:
+        raise HTTPException(409, "Há uma análise ou minuta em andamento neste trabalho. Aguarde terminar para excluir.")
+    draft = get_owned_or_404(session, models.Peticao, work.peticao_id, current) if work.peticao_id else None
+    if draft is not None and draft.status != "rascunho":
+        raise HTTPException(409, "A minuta deste trabalho já foi aprovada. Revise a aprovação antes de excluir o trabalho.")
+
+    processo_id, detail = work.processo_id, {"providencia": work.providencia, "processo_id": work.processo_id}
+    task_ids = list(session.scalars(select(models.Tarefa.id).where(
+        models.Tarefa.escritorio_id == current.escritorio_id, models.Tarefa.trabalho_id == work.id)))
+    if task_ids:
+        session.execute(delete(models.TarefaDocumento).where(models.TarefaDocumento.tarefa_id.in_(task_ids)))
+        session.execute(delete(models.Tarefa).where(models.Tarefa.id.in_(task_ids)))
+    session.execute(delete(models.JobExecucao).where(
+        models.JobExecucao.entidade == "trabalho_juridico", models.JobExecucao.entidade_id == work.id))
+    session.delete(work)
+    session.flush()
+    if draft is not None:
+        purge_case_dependencies(session, process_ids=set(), petition_ids={draft.id}, deadline_ids=set())
+        session.execute(delete(models.Peticao).where(models.Peticao.id == draft.id))
+    audit(session, current, "trabalho_excluido", "trabalho_juridico", work_id,
+          {**detail, "minuta_excluida": draft is not None, "tarefas_excluidas": len(task_ids)})
+
+    removed = purge_untracked_process(session, escritorio_id=current.escritorio_id,
+                                      processo_id=processo_id) if processo_id else None
+    if removed:
+        audit(session, current, "processo_removido_sem_monitoramento", "processo", processo_id,
+              {"origem": "trabalho_excluido", "trabalho_id": work_id, "counts": removed})
+    session.commit()
+    return TrabalhoExcluidoOut(trabalho_id=work_id, minuta_excluida=draft is not None,
+                               tarefas_excluidas=len(task_ids), processo_removido=bool(removed))
 
 
 @router.get("/trabalhos", response_model=TrabalhosOut)
