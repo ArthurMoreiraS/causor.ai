@@ -26,7 +26,18 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 
 ## Produção
 
-- **Versão implantada:** `b1a8b05` (08/10): excluir trabalho (minuta em
+- **Resumo de autos longos** (`d3737bc`, 08/10): o perfil padrão passou de
+  3000 para 6000 tokens de saída e, se a resposta ainda vier cortada, resume
+  as metades. Causa: o PDF único de 22 páginas do caso fictício gerava resumo
+  maior que o limite e falhava com `LLMProviderError`. CI e deploy aprovados;
+  **validado em produção** no mesmo PDF (resumo completo, contexto e análise de
+  evidências concluídos).
+- **Incidente de 08/10:** um envio feito pelo backend local, cujo `.env` aponta
+  para o banco de produção, criou o job com o armazenamento do PC
+  (`local:b2d94ee5…`); o `autos-worker` da VPS nunca o pegou. Job 672 marcado
+  como falho e PDF reenviado pelo app.causorai.com. Trocar o `.env` local para
+  o Postgres local antes de voltar a usar o backend local.
+- **Exclusão de trabalho** (`b1a8b05`, 08/10): excluir trabalho (minuta em
   rascunho e pendências junto; recusa minuta aprovada e operação em
   andamento) e remoção do processo capturado que ficou sem trabalho, minuta,
   documento, tarefa, prazo confirmado e OAB monitorada. Processo cadastrado à
