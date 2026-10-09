@@ -1,16 +1,19 @@
 "use client";
 
 import { useEffect, useState, type FormEvent } from "react";
-import { Plus, RefreshCw, Search, Users } from "lucide-react";
-import { criarCliente, listarClientes, vincularCliente, type Cliente, type Processo, type TarefaInput } from "@/lib/api";
+import { Plus, RefreshCw, Search, Trash2, Users } from "lucide-react";
+import { criarCliente, excluirCliente, listarClientes, vincularCliente, type Cliente, type Processo, type TarefaInput } from "@/lib/api";
 import { humanError } from "@/lib/errors";
 import { formatCnj } from "@/lib/format";
 import { EmptyState, LoadingButton, Modal, PageHeader } from "../components/ui";
+import { useConfirm } from "../components/ConfirmDialog";
 
-export default function ClientesView({ offline, processos, refreshKey, onChanged, onOpenProcess, onNewTask }: {
+export default function ClientesView({ offline, processos, refreshKey, onChanged, onOpenProcess, onNewTask, canDelete = false }: {
   offline: boolean; processos: Processo[]; refreshKey: number; onChanged: () => void;
   onOpenProcess: (id: number) => void; onNewTask: (input: TarefaInput, context?: string) => void;
+  canDelete?: boolean;
 }) {
+  const confirm = useConfirm();
   const [items, setItems] = useState<Cliente[]>([]);
   const [total, setTotal] = useState(0);
   const [query, setQuery] = useState("");
@@ -59,6 +62,26 @@ export default function ClientesView({ offline, processos, refreshKey, onChanged
     } catch (err) { setError(humanError(err, "Não foi possível vincular o processo")); }
     finally { setBusy(false); }
   }
+  async function remove() {
+    if (!selected || busy || offline) return;
+    const linkedNote = selected.processos_count
+      ? ` ${selected.processos_count === 1 ? "O processo vinculado continua" : `Os ${selected.processos_count} processos vinculados continuam`} no Causor, sem parte representada.`
+      : "";
+    const confirmed = await confirm({
+      title: "Excluir este cliente?",
+      description: <>O cliente <strong>{selected.nome}</strong> será excluído e não poderá ser recuperado.{linkedNote} As tarefas dele ficam, sem o cliente.</>,
+      confirmLabel: "Excluir definitivamente",
+      confirmIcon: <Trash2 size={14} aria-hidden="true" />
+    });
+    if (!confirmed) return;
+    setBusy(true); setError(null); setLinkMessage(null);
+    try {
+      await excluirCliente(selected.id);
+      setSelected(null); setTick(v => v + 1); onChanged();
+      setLinkMessage(`Cliente ${selected.nome} excluído.`);
+    } catch (err) { setError(humanError(err, "Não foi possível excluir o cliente")); }
+    finally { setBusy(false); }
+  }
   const linked = selected ? processos.filter(p => p.cliente_id === selected.id) : [];
   return <section className="officeSurface">
     <PageHeader title="Clientes" description="Conecte cada cliente aos processos e às próximas providências."
@@ -97,6 +120,7 @@ export default function ClientesView({ offline, processos, refreshKey, onChanged
             </select></label>
             <LoadingButton type="submit" loading={busy} disabled={offline || !processId}>Vincular cliente representado</LoadingButton>
           </form>
+          {canDelete ? <button type="button" className="toolbarButton compact danger" disabled={busy || offline} onClick={() => void remove()}><Trash2 size={14} aria-hidden="true" />Excluir cliente</button> : null}
         </> : <EmptyState title="Abra a ficha de um cliente" description="Consulte os processos e crie tarefas de atendimento, documentos ou revisão." />}
       </section>
     </div>

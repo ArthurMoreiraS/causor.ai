@@ -20,7 +20,7 @@ Papel = Literal["administrador", "advogado", "assistente"]
 PAPEIS: tuple[str, ...] = ("administrador", "advogado", "assistente")
 
 Permissao = Literal["gerir_equipe", "configurar_escritorio", "aprovar_minuta", "decidir_prazo", "excluir_trabalho",
-                    "excluir_processo"]
+                    "excluir_processo", "excluir_cliente"]
 
 PERMISSOES: dict[str, frozenset[str]] = {
     # Convidar, mudar papel, desativar.
@@ -34,6 +34,8 @@ PERMISSOES: dict[str, frozenset[str]] = {
     "excluir_trabalho": frozenset({"administrador", "advogado"}),
     # Excluir apaga o processo inteiro: trabalhos, minutas em rascunho, prazos e documentos.
     "excluir_processo": frozenset({"administrador", "advogado"}),
+    # Excluir o cliente desfaz a parte representada dos processos dele.
+    "excluir_cliente": frozenset({"administrador", "advogado"}),
 }
 
 MENSAGENS = {
@@ -43,6 +45,7 @@ MENSAGENS = {
     "decidir_prazo": "Só advogados e administradores alteram prazos.",
     "excluir_trabalho": "Só advogados e administradores excluem trabalhos.",
     "excluir_processo": "Só advogados e administradores excluem processos.",
+    "excluir_cliente": "Só advogados e administradores excluem clientes.",
 }
 
 

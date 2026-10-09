@@ -59,6 +59,10 @@ export function listarClientes(params: { q?: string; limit?: number; offset?: nu
 export function criarCliente(payload: { nome: string; documento?: string | null }): Promise<Cliente> {
   return request("/clientes", { method: "POST", body: JSON.stringify(payload) });
 }
+export type ClienteExcluido = { cliente_id: number; processos_desvinculados: number; tarefas_desvinculadas: number };
+export function excluirCliente(clienteId: number): Promise<ClienteExcluido> {
+  return request(`/clientes/${clienteId}`, { method: "DELETE" });
+}
 export function vincularCliente(processoId: number, clienteId: number | null): Promise<{ processo_id: number; cliente_id: number | null }> {
   return request(`/processos/${processoId}/cliente`, { method: "PUT", body: JSON.stringify({ cliente_id: clienteId }) });
 }
@@ -303,7 +307,7 @@ export type JobExecucao = {
 };
 
 export type Papel = "administrador" | "advogado" | "assistente";
-export type Permissao = "gerir_equipe" | "configurar_escritorio" | "aprovar_minuta" | "decidir_prazo" | "excluir_trabalho" | "excluir_processo";
+export type Permissao = "gerir_equipe" | "configurar_escritorio" | "aprovar_minuta" | "decidir_prazo" | "excluir_trabalho" | "excluir_processo" | "excluir_cliente";
 
 export type Usuario = {
   id: number;

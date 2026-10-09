@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { atualizarTarefa, carregarUsuarioAtual, criarCliente, listarClientes, listarTarefas, listarUsuarios, vincularCliente, type Tarefa, type Usuario } from "@/lib/api";
+import { atualizarTarefa, carregarUsuarioAtual, criarCliente, excluirCliente, listarClientes, listarTarefas, listarUsuarios, vincularCliente, type Tarefa, type Usuario } from "@/lib/api";
 import type { PeticaoRow } from "@/lib/views";
 import ClientesView from "./ClientesView";
+import { ConfirmProvider } from "../components/ConfirmDialog";
 import TarefasView from "./TarefasView";
 import GateOabView from "./GateOabView";
 
-vi.mock("@/lib/api", () => ({ atualizarTarefa: vi.fn(), criarCliente: vi.fn(), listarClientes: vi.fn(),
+vi.mock("@/lib/api", () => ({ atualizarTarefa: vi.fn(), criarCliente: vi.fn(), excluirCliente: vi.fn(), listarClientes: vi.fn(),
   listarTarefas: vi.fn(), vincularCliente: vi.fn(), listarUsuarios: vi.fn(), carregarUsuarioAtual: vi.fn() }));
 afterEach(cleanup);
 beforeEach(() => {
@@ -26,7 +27,7 @@ it("cadastra cliente, vincula processo e prepara tarefa com o mesmo cliente", as
   const changed = vi.fn(), newTask = vi.fn();
   render(<ClientesView offline={false} refreshKey={0} processos={[{ id: 9, numero: "123", cliente_id: null,
     classe: null, tribunal: null, orgao_julgador: null, sistema: null }]}
-    onChanged={changed} onOpenProcess={vi.fn()} onNewTask={newTask} />);
+    onChanged={changed} onOpenProcess={vi.fn()} onNewTask={newTask} />, { wrapper: ConfirmProvider });
   fireEvent.click(screen.getByRole("button", { name: "Novo cliente" }));
   fireEvent.change(screen.getByLabelText("Nome ou razão social"), { target: { value: customer.nome } });
   fireEvent.click(screen.getByRole("button", { name: "Cadastrar cliente" }));
@@ -37,6 +38,30 @@ it("cadastra cliente, vincula processo e prepara tarefa com o mesmo cliente", as
   expect(vincularCliente).toHaveBeenCalledWith(9, 4);
   fireEvent.click(screen.getByRole("button", { name: "Nova tarefa para este cliente" }));
   expect(newTask).toHaveBeenCalledWith(expect.objectContaining({ cliente_id: 4, tipo: "atendimento" }), customer.nome);
+});
+
+it("exclui o cliente depois da confirmação e mantém os processos", async () => {
+  const customer = { id: 4, nome: "Cliente teste", documento: null, processos_count: 1 };
+  vi.mocked(listarClientes).mockResolvedValue({ items: [customer], total: 1 });
+  vi.mocked(excluirCliente).mockResolvedValue({ cliente_id: 4, processos_desvinculados: 1, tarefas_desvinculadas: 0 });
+  const changed = vi.fn();
+  render(<ClientesView offline={false} refreshKey={0} processos={[]} onChanged={changed} onOpenProcess={vi.fn()}
+    onNewTask={vi.fn()} canDelete />, { wrapper: ConfirmProvider });
+  fireEvent.click(await screen.findByRole("button", { name: /Cliente teste/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Excluir cliente" }));
+  const dialog = screen.getByRole("dialog", { name: "Excluir este cliente?" });
+  expect(dialog.textContent).toContain("continua no Causor");
+  fireEvent.click(screen.getByRole("button", { name: "Excluir definitivamente" }));
+  await waitFor(() => expect(changed).toHaveBeenCalled());
+  expect(excluirCliente).toHaveBeenCalledWith(4);
+});
+
+it("esconde a exclusão de cliente de quem não pode excluir", async () => {
+  vi.mocked(listarClientes).mockResolvedValue({ items: [{ id: 4, nome: "Cliente teste", documento: null, processos_count: 0 }], total: 1 });
+  render(<ClientesView offline={false} refreshKey={0} processos={[]} onChanged={vi.fn()} onOpenProcess={vi.fn()}
+    onNewTask={vi.fn()} />, { wrapper: ConfirmProvider });
+  fireEvent.click(await screen.findByRole("button", { name: /Cliente teste/ }));
+  expect(screen.queryByRole("button", { name: "Excluir cliente" })).toBeNull();
 });
 
 it("abre a minuta de origem e mantém a tarefa pendente se a conclusão falhar", async () => {

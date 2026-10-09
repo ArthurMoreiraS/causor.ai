@@ -6,11 +6,11 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from app.auth.jwt_auth import CurrentUser, get_current_user
-from app.auth.papeis import responsavel_valido
+from app.auth.papeis import requer, responsavel_valido
 from app.auth.tenant import get_owned_or_404, tenant_select
 from app.sor import models
 from app.sor.db import get_session
@@ -149,6 +149,36 @@ def create_client(payload: ClienteIn, session: Session = Depends(get_session), c
     audit(session, current, "cliente_criado", "cliente", customer.id)
     session.commit()
     return ClienteOut(id=customer.id, nome=customer.nome, documento=customer.documento)
+
+
+class ClienteExcluidoOut(BaseModel):
+    cliente_id: int
+    processos_desvinculados: int
+    tarefas_desvinculadas: int
+
+
+@router.delete("/clientes/{cliente_id}", response_model=ClienteExcluidoOut)
+def delete_client(cliente_id: int, session: Session = Depends(get_session),
+                  current: CurrentUser = Depends(requer("excluir_cliente"))):
+    customer = get_owned_or_404(session, models.Cliente, cliente_id, current)
+    # Processes stay in the office; only the represented-party link goes.
+    process_ids = [process.id for process in session.scalars(tenant_select(models.Processo, current).where(
+        models.Processo.cliente_id == customer.id).with_for_update())]
+    protected = session.scalar(select(models.Peticao.id).where(
+        models.Peticao.processo_id.in_(process_ids),
+        models.Peticao.status.in_(["aprovada", "protocolando", "protocolada"])).limit(1)) if process_ids else None
+    if protected:
+        raise HTTPException(409, "Um processo deste cliente tem minuta aprovada. A parte representada dela não pode ser desfeita.")
+    if process_ids:
+        session.execute(update(models.Processo).where(models.Processo.id.in_(process_ids)).values(cliente_id=None))
+    tasks = session.execute(update(models.Tarefa).where(
+        models.Tarefa.escritorio_id == current.escritorio_id, models.Tarefa.cliente_id == customer.id,
+    ).values(cliente_id=None)).rowcount or 0
+    detail = {"nome": customer.nome, "processos_desvinculados": process_ids, "tarefas_desvinculadas": tasks}
+    session.delete(customer)
+    audit(session, current, "cliente_excluido", "cliente", cliente_id, detail)
+    session.commit()
+    return ClienteExcluidoOut(cliente_id=cliente_id, processos_desvinculados=len(process_ids), tarefas_desvinculadas=tasks)
 
 
 @router.put("/processos/{processo_id}/cliente")

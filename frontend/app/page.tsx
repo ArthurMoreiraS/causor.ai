@@ -999,7 +999,7 @@ export default function Home() {
               description: result.processo_removido ? "O processo também saiu da lista, porque a OAB dele não é mais acompanhada." : undefined })} />
         ) : view === "clientes" ? (
           <ClientesView offline={offline} processos={data.processos} refreshKey={refreshTick} onChanged={() => void refresh()}
-            onOpenProcess={id => setDetail({ kind: "processo", id })} onNewTask={openTask} />
+            onOpenProcess={id => setDetail({ kind: "processo", id })} onNewTask={openTask} canDelete={pode("excluir_cliente")} />
         ) : view === "tarefas" ? (
           <TarefasView offline={offline} refreshKey={refreshTick} onNew={() => openTask({ titulo: "" })}
             onEdit={task => setTaskDialog({ input: task, task })}
