@@ -41,6 +41,20 @@ superioridade jurídica, média de latência ou custo típico do produto.
 [Migração oficial](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide)
 e [preços](https://platform.claude.com/docs/en/about-claude/pricing).
 
+## Jev (em avaliação, fora da produção)
+
+A Jev (TypeSafe AI) responde perguntas fechadas com probabilidades e não gera
+texto. **Nenhuma rota do app a chama.** Existe só a bancada
+`python -m app.agent.jev_bancada`, que compara as respostas dela com a análise
+de prazo gravada ([plano](../desenvolvimento/planos/2026-10-09-jev-bancada.md)).
+Chave em `CAUSOR_JEV_API_KEY`, lida na hora da chamada.
+
+Medido em 09/10 sobre 90 intimações reais: 90/90 respondidas, mediana de
+296 ms, 314.806 tokens de entrada, cerca de US$ 0,013 no total (US$ 0,00015
+por intimação, com o preço publicado de US$ 0,042 por milhão de tokens de
+entrada). Conferir o valor cobrado no console da TypeSafe. A qualidade
+depende dos rótulos da bancada, ainda pendentes.
+
 ## Como a camada de IA funciona
 
 O código vive em `backend/app/agent/`. A IA interpreta, resume e redige sobre o
