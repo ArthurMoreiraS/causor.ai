@@ -37,6 +37,8 @@ verde, workflow **Deploy**:
    de modelos, roda `migrate`, sobe os serviços com `--wait`, **verifica o SHA da
    imagem em cada um dos cinco serviços** e chama `/health`. API antiga saudável
    não conta como deploy concluído.
+4. Depois do `/health`, apaga as imagens do Causor que não sejam a versão nova
+   nem a anterior (a do rollback). Outra versão volta com `pull`.
 
 O workflow também aceita disparo manual (`workflow_dispatch`), desde que o mesmo
 SHA tenha CI verde. Commits com `[skip ci]` (atualizações de documentação) não
@@ -78,17 +80,24 @@ versão que tenha migração nova.
 
 ## Caddy compartilhado
 
-O Causor não tem proxy próprio. O Caddy da VPS também serve outros produtos do
-fundador. Para qualquer mudança no `Caddyfile`:
+O Causor não tem proxy próprio. O Caddy da VPS também serve o Evolution do
+infolex, que fica na mesma VPS e não pode ser removido. Para qualquer mudança
+no `Caddyfile`:
 
 1. Backup: `sudo cp Caddyfile Caddyfile.bak.$(date +%Y%m%d%H%M%S)`.
-2. Editar.
+2. Editar **no mesmo arquivo**: o container monta o arquivo, não a pasta, e
+   `sed -i` ou um editor que grava arquivo novo deixa o Caddy lendo o antigo.
+   Gerar o texto novo à parte, gravar com `cat novo > Caddyfile` e conferir com
+   `docker exec infolex-evo-caddy-1 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`.
 3. `docker exec infolex-evo-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`
    — **nunca** `docker restart` nesse container.
 4. Conferir com `curl` todos os domínios servidos, não só os do Causor.
 
 ## Lições já aprendidas
 
+- Em 09/10/2026 o disco chegou a 93% (44 de 48 GB): 52 versões antigas das
+  imagens do Causor, cerca de 0,7 GB cada. Desde então o deploy apaga as
+  antigas e o Compose limita o log de cada serviço a 30 MB.
 - Pull de imagem privada exige PAT **clássico** com `repo` + `read:packages`;
   PAT fine-grained não funciona com o Container Registry.
 - A imagem do frontend precisa de Node 22 (pnpm 11), e o estágio de

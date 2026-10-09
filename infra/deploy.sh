@@ -50,4 +50,14 @@ mv "$candidate" docker-compose.yml
 printf 'IMAGE_TAG=%s\n' "$IMAGE_TAG" > .image_tag.candidate.env
 mv .image_tag.candidate.env .image_tag.env
 curl -fsS https://api.causorai.com/health
+
+# Every release leaves ~0.7 GB of images behind; 52 of them filled the 48 GB
+# disk to 93% on 09/10/2026. Keep this release and the rollback target only.
+previous_tag=$(sed -n 's/^IMAGE_TAG=//p' .image_tag.previous.env 2>/dev/null || true)
+mapfile -t stale_images < <(docker images --format '{{.Repository}}:{{.Tag}}' \
+  | grep -E '^ghcr\.io/arthurmoreiras/causor-(backend|frontend):' \
+  | grep -vE ":($IMAGE_TAG|${previous_tag:-$IMAGE_TAG})$" || true)
+if (( ${#stale_images[@]} )); then
+  docker rmi "${stale_images[@]}" >/dev/null || true
+fi
 printf '\nRelease %s verified (backend, worker, autos-worker, capture-scheduler, frontend).\n' "$IMAGE_TAG"

@@ -26,6 +26,15 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
 
 ## Produção
 
+- **Limpeza da VPS** (09/10): disco de 44 para 5,8 GB (93% → 13%). Apagadas
+  100 imagens antigas do Causor (ficam a versão atual e a anterior) e removido
+  o Evolution do Operly: containers, volumes, pasta e bloco no Caddy, com cópia
+  do banco em `/root/backups`. O Evolution do infolex não foi tocado; infolex,
+  app e API responderam 200 depois do reload do Caddy. **Pendente:** remover
+  `/etc/cron.d/causor`, cron antigo de `capture-due` e `process-autos-due` que
+  falha antes de rodar porque não consegue gravar o log. Para não encher de
+  novo, o deploy passa a apagar as imagens antigas e o Compose limita o log de
+  cada serviço a 30 MB (**local**, não enviado).
 - **Resumo de autos longos** (`d3737bc`, 08/10): o perfil padrão passou de
   3000 para 6000 tokens de saída e, se a resposta ainda vier cortada, resume
   as metades. Causa: o PDF único de 22 páginas do caso fictício gerava resumo
@@ -37,7 +46,8 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
   (`local:b2d94ee5…`); o `autos-worker` da VPS nunca o pegou. Job 672 marcado
   como falho e PDF reenviado pelo app.causorai.com. Trocar o `.env` local para
   o Postgres local antes de voltar a usar o backend local.
-- **Exclusão de cliente** (09/10, **local**, não enviado): botão "Excluir
+- **Exclusão de cliente** (`f7ea2f2` e `47cbe06`, 09/10, **implantado**: a
+  VPS roda `9750137`, que os inclui; exclusão real ainda não observada): botão "Excluir
   cliente" na ficha do cliente, para advogado e administrador
   (`DELETE /clientes/{id}`). Os processos do cliente ficam, sem parte
   representada, e as tarefas ficam sem o cliente; recusa se um processo dele
@@ -129,7 +139,8 @@ material, repetir em cinco casos.
    Inter), a barra lateral ficou em tinta nos dois temas e o login e a definição
    de senha ganharam o painel pintado da landing ao lado do formulário
    (`components/AuthShell.tsx`). Verificado localmente com a seed
-   de demonstração (`pnpm check` e `pnpm build`); ainda não implantado.
+   de demonstração (`pnpm check` e `pnpm build`); implantado em 09/10
+   (`a120a76`, incluído na versão `9750137` que a VPS roda).
 
 ## Fora do escopo agora
 

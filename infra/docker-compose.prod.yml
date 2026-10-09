@@ -1,10 +1,18 @@
 name: causor
 
+# Docker keeps container logs forever by default; cap each service at 30 MB.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   backend:
     container_name: causor-backend
     image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     env_file: [.env]
     command: python -m uvicorn app.api.main:app --host 0.0.0.0 --port 8000
     volumes:
@@ -20,6 +28,7 @@ services:
     container_name: causor-worker
     image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     env_file: [.env]
     command: python -m app.cli worker
     volumes:
@@ -29,6 +38,7 @@ services:
   autos-worker:
     image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     env_file: [.env]
     command: python -m app.autos.worker
     volumes:
@@ -38,6 +48,7 @@ services:
   capture-scheduler:
     image: ghcr.io/arthurmoreiras/causor-backend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     env_file: [.env]
     command: python -m app.capture.service
     networks: [causor]
@@ -52,6 +63,7 @@ services:
     container_name: causor-frontend
     image: ghcr.io/arthurmoreiras/causor-frontend:${IMAGE_TAG:-latest}
     restart: unless-stopped
+    logging: *logging
     networks: [causor, edge]
 
   # One-shot: roda no deploy via `docker compose run --rm migrate`.

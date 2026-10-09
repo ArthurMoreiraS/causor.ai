@@ -13,6 +13,14 @@ MOCKS = r'''
 docker() {
   printf 'docker %s\n' "$*" >> "$CALL_LOG"
   if [[ "$1" == login ]]; then cat >/dev/null; return 0; fi
+  if [[ "$1" == images ]]; then
+    for tag in "$IMAGE_TAG" previous old latest; do
+      printf 'ghcr.io/arthurmoreiras/causor-backend:%s\n' "$tag"
+      printf 'ghcr.io/arthurmoreiras/causor-frontend:%s\n' "$tag"
+    done
+    printf 'evoapicloud/evolution-api:latest\npostgres:16-alpine\n'
+    return 0
+  fi
   if [[ "$1" == inspect ]]; then
     image=causor-backend
     if [[ "${@: -1}" == frontend ]]; then image=causor-frontend; fi
@@ -56,6 +64,7 @@ def test_deploy_stops_on_failure_and_verifies_release(tmp_path, failure):
         assert result.returncode != 0
         assert "https://api.causorai.com/health" not in calls
         assert (tmp_path / ".image_tag.env").read_text() == "IMAGE_TAG=previous\n"
+        assert "docker rmi" not in calls
         if failure in {"pull", "model_config"}:
             assert "run --rm migrate" not in calls
             assert "up -d" not in calls
@@ -68,3 +77,9 @@ def test_deploy_stops_on_failure_and_verifies_release(tmp_path, failure):
         assert "https://api.causorai.com/health" in calls
         assert (tmp_path / ".image_tag.env").read_text() == "IMAGE_TAG=" + "a" * 40 + "\n"
         assert (tmp_path / "docker-compose.previous.yml").read_text() == "previous compose"
+        # Only this release and the rollback target stay on the VPS disk.
+        [rmi] = [line.split()[2:] for line in calls.splitlines() if line.startswith("docker rmi")]
+        assert sorted(rmi) == sorted(
+            f"ghcr.io/arthurmoreiras/causor-{app}:{tag}"
+            for app in ("backend", "frontend") for tag in ("old", "latest")
+        )
