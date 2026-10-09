@@ -402,28 +402,9 @@ def purge_untracked_process(session: Session, *, escritorio_id: int, processo_id
         if any(_payload_matches_oab(notice.payload, oab=oab.oab, uf=oab.uf) for oab in active):
             return None
 
-    from app.capture.cleanup import purge_case_dependencies
+    from app.capture.cleanup import purge_process
 
-    notice_ids = {notice.id for notice in notices}
-    deadline_ids = set(session.scalars(select(models.Prazo.id).where(
-        models.Prazo.escritorio_id == escritorio_id,
-        or_(models.Prazo.processo_id == processo_id, models.Prazo.intimacao_id.in_(notice_ids)))))
-    counts = {"intimacoes": len(notice_ids), "prazos": len(deadline_ids), "processos": 1}
-    counts["documentos"], document_entities = purge_case_dependencies(
-        session, process_ids={processo_id}, petition_ids=set(), deadline_ids=deadline_ids)
-    session.execute(delete(models.Andamento).where(models.Andamento.processo_id == processo_id))
-    entity_ids = {**document_entities, "intimacao": notice_ids, "prazo": deadline_ids, "processo": {processo_id}}
-    job_ids = [job.id for job in session.scalars(select(models.JobExecucao).where(
-        models.JobExecucao.entidade.in_(list(entity_ids))))
-        if isinstance(job.payload, dict) and str(job.payload.get("escritorio_id")) == str(escritorio_id)
-        and job.entidade_id in entity_ids[job.entidade]]
-    if job_ids:
-        session.execute(delete(models.JobExecucao).where(models.JobExecucao.id.in_(job_ids)))
-    if deadline_ids:
-        session.execute(delete(models.Prazo).where(models.Prazo.id.in_(deadline_ids)))
-    session.execute(delete(models.Intimacao).where(models.Intimacao.id.in_(notice_ids)))
-    session.execute(delete(models.Processo).where(models.Processo.id == processo_id))
-    return counts
+    return purge_process(session, escritorio_id=escritorio_id, processo_id=processo_id)
 
 
 logger = logging.getLogger(__name__)

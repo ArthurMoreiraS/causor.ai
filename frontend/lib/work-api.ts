@@ -43,6 +43,10 @@ export function obterTrabalhoAposOperacao(workId: number): Promise<Trabalho> {
 export function criarProcesso(payload: { numero: string; tribunal?: string; cliente_id?: number }): Promise<Processo> {
   return request("/processos", { method: "POST", body: JSON.stringify(payload) });
 }
+export type ProcessoExcluido = { processo_id: number; removidos: Record<string, number> };
+export function excluirProcesso(processoId: number): Promise<ProcessoExcluido> {
+  return request(`/processos/${processoId}`, { method: "DELETE" });
+}
 export function listarTrabalhos(processoId?: number, offset = 0): Promise<Pagina<Trabalho>> {
   return request(`/trabalhos?limit=50&offset=${offset}${processoId ? `&processo_id=${processoId}` : ""}`);
 }

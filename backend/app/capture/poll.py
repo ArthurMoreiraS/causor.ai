@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 
 import httpx
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.capture.datajud import DatajudClient
@@ -18,6 +19,7 @@ from app.capture.djen import DjenClient
 from app.capture.normalize import enrich_processo, normalize_intimacao
 from app.prazo_engine.calendar import ForensicCalendar
 from app.prazo_engine.pipeline import enqueue_analysis
+from app.sor import models
 
 
 class UnboundedCaptureError(ValueError):
@@ -135,6 +137,12 @@ def poll_oab(
             return result
 
         result.publicacoes_encontradas += 1
+        # The office deleted this publication with its process: do not recreate it.
+        if session.scalar(select(models.IntimacaoDescartada.id).where(
+                models.IntimacaoDescartada.escritorio_id == escritorio_id,
+                models.IntimacaoDescartada.fonte == "DJEN",
+                models.IntimacaoDescartada.fonte_id == comunicacao.id)) is not None:
+            continue
         intimacao = normalize_intimacao(session, comunicacao, escritorio_id=escritorio_id)
         is_new = intimacao in session.new or getattr(intimacao, "_capture_created", False)
         session.flush()

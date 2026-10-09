@@ -392,6 +392,26 @@ class Intimacao(TimestampMixin, Base):
         return value if isinstance(value, dict) else None
 
 
+class IntimacaoDescartada(TimestampMixin, Base):
+    """Publication the office deleted together with its process.
+
+    The capture lookback re-reads recent days; without this record the same
+    publication would recreate the deleted process. A new publication of the
+    same case is not listed here and still comes in.
+    """
+
+    __tablename__ = "intimacao_descartada"
+    __table_args__ = (
+        UniqueConstraint("escritorio_id", "fonte", "fonte_id", name="uq_intimacao_descartada_fonte"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    escritorio_id: Mapped[int] = mapped_column(ForeignKey("escritorio.id"), nullable=False, index=True)
+    fonte: Mapped[str] = mapped_column(String(20), nullable=False)
+    fonte_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    numero_processo: Mapped[str | None] = mapped_column(String(30))
+
+
 class Prazo(TimestampMixin, Base):
     __tablename__ = "prazo"
 

@@ -354,6 +354,35 @@ def create_process(payload: ProcessoIn, response: Response, session: Session = D
     return process
 
 
+class ProcessoExcluidoOut(BaseModel):
+    processo_id: int
+    removidos: dict[str, int]
+
+
+@router.delete("/processos/{processo_id}", response_model=ProcessoExcluidoOut)
+def delete_process(processo_id: int, session: Session = Depends(get_session),
+                   current: CurrentUser = Depends(requer("excluir_processo"))):
+    from app.capture.cleanup import ProcessoEmUso, purge_process
+
+    # Same lock as intake and capture: a capture cannot reattach a notice mid-delete.
+    session.execute(select(models.Escritorio.id).where(models.Escritorio.id == current.escritorio_id).with_for_update())
+    process = get_owned_or_404(session, models.Processo, processo_id, current)
+    approved = session.scalar(select(models.Peticao.id).where(
+        models.Peticao.processo_id == process.id, models.Peticao.status.in_(["aprovada", "protocolada"])).limit(1))
+    if approved is not None:
+        raise HTTPException(409, "Este processo tem minuta aprovada. A aprovação fica registrada; o processo não pode ser excluído.")
+    detail = {"numero": process.numero, "tribunal": process.tribunal}
+    try:
+        removed = purge_process(session, escritorio_id=current.escritorio_id, processo_id=process.id,
+                                descartar_publicacoes=True, recusar_em_execucao=True)
+    except ProcessoEmUso:
+        session.rollback()
+        raise HTTPException(409, "Há uma análise, minuta ou leitura de documento em andamento neste processo. Aguarde terminar para excluir.")
+    audit(session, current, "processo_excluido", "processo", processo_id, {**detail, "removidos": removed})
+    session.commit()
+    return ProcessoExcluidoOut(processo_id=processo_id, removidos=removed)
+
+
 @router.post("/trabalhos", response_model=TrabalhoOut, status_code=201)
 def create_work(payload: TrabalhoIn, session: Session = Depends(get_session), current: CurrentUser = Depends(get_current_user)):
     get_owned_or_404(session, models.Processo, payload.processo_id, current)

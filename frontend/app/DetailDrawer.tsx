@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, FilePenLine, X } from "lucide-react";
+import { CalendarDays, FilePenLine, Trash2, X } from "lucide-react";
 import { useMemo, type ReactNode } from "react";
 import type { Intimacao, Peticao, Prazo, PrazoAnalise, Processo } from "@/lib/api";
 import { formatCnj, formatDate, statusLabel } from "@/lib/format";
@@ -26,7 +26,8 @@ export default function DetailDrawer({
   onPrepareWork,
   onOpenPeticao,
   onEditPrazo,
-  onPrazoConfirmed
+  onPrazoConfirmed,
+  onDeleteProcess
 }: {
   selection: DetailSelection;
   processos: Processo[];
@@ -44,6 +45,8 @@ export default function DetailDrawer({
   /** Ausentes para quem não decide prazo (assistente). */
   onEditPrazo?: (prazo: Prazo) => void;
   onPrazoConfirmed?: (prazo: Prazo) => void;
+  /** Ausente para quem não exclui processo (assistente). */
+  onDeleteProcess?: (processo: Processo) => void;
 }) {
   const processo =
     selection.kind === "processo" ? processos.find((p) => p.id === selection.id) ?? null : null;
@@ -75,6 +78,7 @@ export default function DetailDrawer({
             onSelect={onSelect}
             onOpenPeticao={onOpenPeticao}
             onEditPrazo={onEditPrazo}
+            onDelete={onDeleteProcess}
           />
         ) : null}
 
@@ -109,7 +113,8 @@ function ProcessoDetail({
   offline,
   onSelect,
   onOpenPeticao,
-  onEditPrazo
+  onEditPrazo,
+  onDelete
 }: {
   processo: Processo;
   intimacoes: Intimacao[];
@@ -120,6 +125,7 @@ function ProcessoDetail({
   onSelect: (sel: DetailSelection) => void;
   onOpenPeticao: (peticao: Peticao) => void;
   onEditPrazo?: (prazo: Prazo) => void;
+  onDelete?: (processo: Processo) => void;
 }) {
   return (
     <div className="detailBody">
@@ -198,6 +204,19 @@ function ProcessoDetail({
           <p className="detailEmpty">Nenhuma minuta gerada.</p>
         )}
       </DetailSection>
+
+      {onDelete ? (
+        <div className="detailActions">
+          <button
+            className="toolbarButton compact danger"
+            disabled={offline || busy === `delete-processo-${processo.id}`}
+            onClick={() => onDelete(processo)}
+          >
+            <Trash2 size={14} aria-hidden="true" />
+            Excluir processo
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }

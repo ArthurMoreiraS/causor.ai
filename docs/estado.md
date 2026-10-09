@@ -37,6 +37,14 @@ minuta → revisão humana. Protocolo judicial está fora do MVP.
   (`local:b2d94ee5…`); o `autos-worker` da VPS nunca o pegou. Job 672 marcado
   como falho e PDF reenviado pelo app.causorai.com. Trocar o `.env` local para
   o Postgres local antes de voltar a usar o backend local.
+- **Exclusão de processo** (09/10, **local**, não enviado): botão "Excluir
+  processo" na ficha do processo, para advogado e administrador
+  (`DELETE /processos/{id}`). Apaga intimações, prazos, trabalhos, minutas em
+  rascunho, tarefas, andamentos e documentos; recusa minuta aprovada e
+  operação em andamento; arquivos no armazenamento e auditoria ficam. As
+  publicações apagadas vão para `intimacao_descartada` (migração
+  `d4b9e2f7a1c6`) e a captura não as recria; publicação nova do mesmo
+  processo o traz de volta.
 - **Exclusão de trabalho** (`b1a8b05`, 08/10): excluir trabalho (minuta em
   rascunho e pendências junto; recusa minuta aprovada e operação em
   andamento) e remoção do processo capturado que ficou sem trabalho, minuta,

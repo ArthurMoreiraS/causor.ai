@@ -20,6 +20,7 @@ import {
   Settings,
   SlidersHorizontal,
   Sparkles,
+  Trash2,
   X
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -34,6 +35,7 @@ import {
   OabMonitorada,
   Peticao,
   Prazo,
+  Processo,
   ProposedAction,
   removerDadosOab,
   revisarPrazo,
@@ -76,7 +78,7 @@ import PeticoesView from "./views/PeticoesView";
 import PrazosView from "./views/PrazosView";
 import ProcessosView from "./views/ProcessosView";
 import TrabalhosView from "./views/TrabalhosView";
-import { obterTrabalho } from "@/lib/work-api";
+import { excluirProcesso, obterTrabalho } from "@/lib/work-api";
 import { useRequireAuth } from "./AuthProvider";
 import { useSettings } from "@/lib/settings";
 import { humanError } from "@/lib/errors";
@@ -87,6 +89,7 @@ import { usePermissoes } from "@/lib/permissoes";
 import { captureEmptyMessage, captureFailureMessage } from "@/lib/capture-outcome";
 import {
   daysUntil,
+  formatCnj,
   matchesQuery,
   passesFilters,
   reviewStatusLabel,
@@ -357,6 +360,27 @@ export default function Home() {
     setError(null);
     setCaptureResult(null);
     await capture.submit(oabForm.oab.trim(), oabForm.uf.trim().toUpperCase());
+  }
+
+  async function removeProcess(processo: Processo) {
+    const confirmed = await confirm({
+      title: "Excluir este processo?",
+      description: <>O processo <strong>{formatCnj(processo.numero)}</strong> sai do Causor com as intimações, prazos, trabalhos, minutas em rascunho, tarefas e documentos dele. Não dá para desfazer. As publicações já capturadas não voltam na próxima captura; uma publicação nova deste processo traz ele de volta.</>,
+      confirmLabel: "Excluir definitivamente",
+      confirmIcon: <Trash2 size={14} aria-hidden="true" />
+    });
+    if (!confirmed) return;
+    setBusy(`delete-processo-${processo.id}`);
+    try {
+      await excluirProcesso(processo.id);
+      setDetail(null);
+      await refresh();
+      toast({ kind: "success", title: "Processo excluído", description: formatCnj(processo.numero) });
+    } catch (err) {
+      toast({ kind: "error", title: "Processo não excluído", description: humanError(err, "Não foi possível excluir o processo") });
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function removeCapturedOab(oab: { id?: number; oab: string; uf: string }) {
@@ -1340,6 +1364,7 @@ export default function Home() {
               editarPrazo(prazo);
             } : undefined}
             onPrazoConfirmed={pode("decidir_prazo") ? () => { void refresh(); } : undefined}
+            onDeleteProcess={pode("excluir_processo") ? (processo) => { void removeProcess(processo); } : undefined}
           />
         ) : null}
 
