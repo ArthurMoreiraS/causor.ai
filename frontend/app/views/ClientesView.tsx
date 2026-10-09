@@ -109,7 +109,10 @@ export default function ClientesView({ offline, processos, refreshKey, onChanged
       <section className="officePanel">
         {selected ? <><span className="sectionKicker">Cliente selecionado</span><h2>{selected.nome}</h2>
           <p className="officeHint">Documento: {selected.documento || "não informado"}</p>
-          <button className="toolbarButton" disabled={offline} onClick={() => onNewTask({ titulo: "", cliente_id: selected.id, tipo: "atendimento" }, selected.nome)}><Plus size={14} />Nova tarefa para este cliente</button>
+          <div className="officeActions">
+            <button className="toolbarButton" disabled={offline} onClick={() => onNewTask({ titulo: "", cliente_id: selected.id, tipo: "atendimento" }, selected.nome)}><Plus size={14} />Nova tarefa para este cliente</button>
+            {canDelete ? <button type="button" className="toolbarButton danger" disabled={busy || offline} onClick={() => void remove()}><Trash2 size={14} aria-hidden="true" />Excluir cliente</button> : null}
+          </div>
           <h3>Processos vinculados</h3>
           {linked.map(process => <button key={process.id} className="officeProcessLink" onClick={() => onOpenProcess(process.id)}><span className="mono">{formatCnj(process.numero)}</span><small>{process.tribunal || "Tribunal não informado"}</small></button>)}
           {!linked.length ? <p className="officeHint">Nenhum processo vinculado na carteira carregada.</p> : null}
@@ -120,7 +123,6 @@ export default function ClientesView({ offline, processos, refreshKey, onChanged
             </select></label>
             <LoadingButton type="submit" loading={busy} disabled={offline || !processId}>Vincular cliente representado</LoadingButton>
           </form>
-          {canDelete ? <button type="button" className="toolbarButton compact danger" disabled={busy || offline} onClick={() => void remove()}><Trash2 size={14} aria-hidden="true" />Excluir cliente</button> : null}
         </> : <EmptyState title="Abra a ficha de um cliente" description="Consulte os processos e crie tarefas de atendimento, documentos ou revisão." />}
       </section>
     </div>
