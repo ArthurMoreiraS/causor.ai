@@ -59,7 +59,8 @@ Frontend (run from `frontend/`): `pnpm check` (lint + types + tests) and
 `pnpm build`. On Windows PowerShell use `pnpm.cmd`.
 
 Frontend styling: every font size, weight, family and color comes from the
-tokens in `frontend/app/styles/tokens.css` (Satoshi for titles, Inter for the
+tokens in `frontend/app/styles/tokens.css` (Newsreader for titles of 20px and up, as on
+the landing; Inter for the
 interface, JetBrains Mono only for CNJ numbers). Use `PageHeader`, the
 `.dataTable` subgrid table and the badge classes in `components/ui.tsx` and
 `globals.css` instead of new one-off styles. `lib/design-tokens.guard.test.ts`

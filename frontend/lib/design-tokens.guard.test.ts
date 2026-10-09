@@ -40,7 +40,7 @@ const show = (items: Declaration[]) => items.map((d) => `${d.file}: ${d.prop}: $
 
 describe("design tokens", () => {
   it("uses only the type scale for font sizes", () => {
-    const bad = all.filter((d) => d.prop === "font-size" && !/^(var\(--text-(xs|sm|base|md|lg|xl)\)|inherit)$/.test(d.value));
+    const bad = all.filter((d) => d.prop === "font-size" && !/^(var\(--text-(xs|sm|base|md|lg|xl|display)\)|inherit)$/.test(d.value));
     expect(show(bad)).toEqual([]);
   });
 

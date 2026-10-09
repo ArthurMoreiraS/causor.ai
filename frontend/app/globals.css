@@ -205,6 +205,14 @@ button:disabled {
   display: none;
 }
 
+/* A barra lateral é sempre escura: usa o logotipo claro nos dois temas. */
+.sidebar .brandAssetDark {
+  display: none;
+}
+.sidebar .brandAssetLight {
+  display: block;
+}
+
 .sideNav {
   flex: 1;
   display: grid;
@@ -615,7 +623,7 @@ h3 {
 h1,
 h2 {
   font-family: var(--font-display);
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: var(--tracking-display);
   text-wrap: balance;
 }
@@ -640,7 +648,7 @@ h3 {
 .modalCard > h3 {
   font-family: var(--font-display);
   font-size: var(--text-lg);
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: var(--tracking-display);
 }
 
@@ -1045,7 +1053,7 @@ h3 {
 .commandStat strong {
   display: block;
   margin-top: 8px;
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: var(--text-xl);
   font-weight: 500;
   line-height: 1;
@@ -1090,9 +1098,9 @@ h3 {
 .agentCyclePanel > header strong {
   display: block;
   margin-top: 2px;
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .cycleHealth {
@@ -2139,7 +2147,7 @@ h3 {
   color: var(--ink);
   font-family: var(--font-display);
   font-size: var(--text-xl);
-  font-weight: 500;
+  font-weight: 400;
   letter-spacing: var(--tracking-display);
   line-height: 1.2;
   text-wrap: balance;
@@ -4697,44 +4705,64 @@ h3 {
 /* ---- Etapa 5: modal de protocolo com credencial ---- */
 
 /* --- Auth (login / set-password) --- */
-/* Login / set-password — espelha a identidade visual da landing. */
+/* Login / set-password: o painel pintado da landing (textura ardósia e frase em
+   Newsreader) à esquerda e o formulário sobre o papel à direita. */
 .authShell {
   min-height: 100vh;
   min-height: 100dvh;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  background: var(--bg);
+}
+.authArt {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  padding: 56px;
+  background: var(--art-bg) url("/brand/textura-ardosia.webp") center / cover no-repeat;
+  color: var(--art-text);
+}
+.authArt::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(180deg, transparent 35%, var(--art-shade));
+}
+.authArtLine {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: var(--tracking-display);
+}
+.authMain {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--bg);
-  background-image:
-    radial-gradient(120% 80% at 50% -10%, color-mix(in srgb, var(--accent-bg) 70%, transparent) 0%, transparent 55%);
-  padding: 24px;
+  padding: 48px 24px;
 }
 .authCard {
   width: 100%;
-  max-width: 380px;
+  max-width: 360px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-xl);
-  padding: 38px 34px 34px;
-  box-shadow: var(--shadow-lg);
+  gap: 16px;
 }
 .authBrand {
   display: flex;
-  justify-content: center;
-  margin-bottom: 4px;
+  margin-bottom: 28px;
 }
 .authBrand img {
   height: 26px;
   width: auto;
 }
-.authSub {
-  margin: 0 0 10px;
-  text-align: center;
-  font-size: var(--text-base);
-  color: var(--muted);
+.authTitle {
+  margin-bottom: 8px;
+  font-size: var(--text-xl);
+  line-height: 1.15;
 }
 .authLabel {
   display: flex;
@@ -4788,6 +4816,22 @@ h3 {
   margin: 0;
   font-size: var(--text-sm);
   color: var(--risk);
+}
+@media (max-width: 860px) {
+  .authShell {
+    grid-template-columns: 1fr;
+    grid-template-rows: 180px 1fr;
+  }
+  .authArt {
+    padding: 24px var(--gutter);
+  }
+  .authArtLine {
+    font-size: var(--text-xl);
+  }
+  .authMain {
+    align-items: flex-start;
+    padding: 40px var(--gutter);
+  }
 }
 
 /* Acessibilidade: respeita usuários que pedem menos movimento. Neutraliza o
@@ -5327,9 +5371,9 @@ textarea:focus {
 }
 
 .contextTitle h3 {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: var(--text-md);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .contextHeadActions {
@@ -5439,7 +5483,7 @@ textarea:focus {
 .contextStats dd {
   order: 1;
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: var(--text-lg);
   font-weight: 500;
   font-variant-numeric: tabular-nums;

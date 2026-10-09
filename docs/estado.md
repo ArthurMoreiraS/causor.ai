@@ -107,6 +107,12 @@ material, repetir em cinco casos.
    produção, conferidos `/health` 200, `/me` sem sessão 401, app 200 e as
    fontes novas servidas. Plano em
    [`desenvolvimento/planos/2026-10-07-reformulacao-ui.md`](desenvolvimento/planos/2026-10-07-reformulacao-ui.md).
+   Em 09/10, para acompanhar a landing nova (referência harvey.ai), os títulos
+   de 20px para cima passaram de Satoshi para Newsreader (números seguem em
+   Inter), a barra lateral ficou em tinta nos dois temas e o login e a definição
+   de senha ganharam o painel pintado da landing ao lado do formulário
+   (`components/AuthShell.tsx`). Verificado localmente com a seed
+   de demonstração (`pnpm check` e `pnpm build`); ainda não implantado.
 
 ## Fora do escopo agora
 

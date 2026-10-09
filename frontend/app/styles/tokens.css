@@ -1,5 +1,5 @@
-/* Causor "Papel e tinta": a identidade da landing (Satoshi, papel, tinta
-   preta e grafite; a marca não usa verde) sobre a densidade do software
+/* Causor "Papel e tinta": a identidade da landing (Newsreader nos títulos,
+   papel, tinta preta e grafite; a marca não usa verde) sobre a densidade do software
    (Inter, painéis brancos, bordas finas). Verde só no estado semântico "ok".
    Única fonte de tamanhos, pesos, famílias e cores. O teste
    `lib/design-tokens.guard.test.ts` falha se o CSS sair destes tokens. */
@@ -45,19 +45,23 @@
 }
 
 @font-face {
-  font-family: "Satoshi";
-  src: url("/fonts/Satoshi-500.woff2") format("woff2");
-  font-weight: 500;
+  font-family: "Newsreader";
+  src: url("/fonts/Newsreader-latin.woff2") format("woff2");
+  font-weight: 300 600;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 @font-face {
-  font-family: "Satoshi";
-  src: url("/fonts/Satoshi-700.woff2") format("woff2");
-  font-weight: 700;
+  font-family: "Newsreader";
+  src: url("/fonts/Newsreader-latin-ext.woff2") format("woff2");
+  font-weight: 300 600;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
 }
 
 :root {
@@ -129,7 +133,8 @@
   --radius-pill: 999px;
 
   /* Tipografia: três famílias, seis tamanhos, três pesos. */
-  --font-display: "Satoshi", "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Serifada só em títulos de 20px para cima; números e o resto da interface em Inter. */
+  --font-display: "Newsreader", Georgia, "Times New Roman", serif;
   --font-ui: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
   --font-title: var(--font-ui);
@@ -140,12 +145,38 @@
   --text-md: 16px;   /* título de cartão */
   --text-lg: 20px;   /* título de seção e de diálogo */
   --text-xl: 28px;   /* título de página */
+  --text-display: clamp(34px, 3.4vw, 52px); /* frase da tela de entrada */
 
-  --tracking-display: -0.02em;
+  --tracking-display: -0.01em;
+
+  /* Painel pintado da tela de entrada (o mesmo da landing), igual nos dois temas. */
+  --art-text: #f4f3ef;
+  --art-shade: rgb(15 14 13 / 50%);
+  --art-bg: #121214;
 
   /* Margem lateral única: barra do topo, avisos e telas alinham pela mesma
      linha. Encolhe nos dois únicos pontos de quebra (1080 e 680). */
   --gutter: 32px;
+}
+
+/* Barra lateral em tinta, como no produto da Harvey e nas seções escuras da landing.
+   Vale nos dois temas: os componentes da barra leem os mesmos tokens. */
+.sidebar {
+  color-scheme: dark;
+  --sidebar: #0f0e0d;
+  --bg: #0f0e0d;
+  --panel: #23221f;
+  --hover: #1b1a18;
+  --chip: #23221f;
+  --ink: #f4f3ef;
+  --ink-soft: #d2d0ca;
+  --muted: #8f8d88;
+  --muted-2: #6e6d69;
+  --line: #262522;
+  --line-strong: #34332f;
+  --emphasis: #f4f3ef;
+  --emphasis-soft: #2a2926;
+  --focus: #8aa2ea;
 }
 
 @media (max-width: 1080px) {

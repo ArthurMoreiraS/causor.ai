@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "../AuthProvider";
+import { AuthShell } from "../components/AuthShell";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -44,56 +44,33 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="authShell">
-      <form className="authCard" onSubmit={handleSubmit}>
-        <div className="authBrand">
-          <Image
-            className="brandAssetDark"
-            src="/brand/causor-lockup-dark.png"
-            alt="Causor"
-            width={137}
-            height={26}
-            unoptimized
-            priority
-          />
-          <Image
-            className="brandAssetLight"
-            src="/brand/causor-lockup-light.png"
-            alt="Causor"
-            width={137}
-            height={26}
-            unoptimized
-            priority
-          />
-        </div>
-        <p className="authSub">Entre na sua conta</p>
-        <label className="authLabel">
-          E-mail
-          <input
-            className="authInput"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-            required
-          />
-        </label>
-        <label className="authLabel">
-          Senha
-          <input
-            className="authInput"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="current-password"
-            required
-          />
-        </label>
-        {error && <p className="authError">{error}</p>}
-        <button className="authButton" type="submit" disabled={busy}>
-          {busy ? "Entrando…" : "Entrar"}
-        </button>
-      </form>
-    </div>
+    <AuthShell title="Entre na sua conta" onSubmit={handleSubmit}>
+      <label className="authLabel">
+        E-mail
+        <input
+          className="authInput"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          autoComplete="email"
+          required
+        />
+      </label>
+      <label className="authLabel">
+        Senha
+        <input
+          className="authInput"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          autoComplete="current-password"
+          required
+        />
+      </label>
+      {error && <p className="authError">{error}</p>}
+      <button className="authButton" type="submit" disabled={busy}>
+        {busy ? "Entrando…" : "Entrar"}
+      </button>
+    </AuthShell>
   );
 }
