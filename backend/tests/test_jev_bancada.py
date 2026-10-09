@@ -59,6 +59,27 @@ def test_client_retries_transient_errors(httpx_mock):
     assert client.ask("estado", {})["model"] == "jev-1.13.0"
 
 
+def test_assess_notice_warns_only_above_threshold(httpx_mock, monkeypatch):
+    from app.agent.jev import AVISO_MULTIPLOS, assess_notice
+
+    monkeypatch.setenv("CAUSOR_JEV_API_KEY", "k")
+    httpx_mock.add_response(json=_answers(multiplos=0.95))
+    httpx_mock.add_response(json=_answers(multiplos=0.6))
+    httpx_mock.add_response(status_code=503)
+
+    first = assess_notice("<b>Intime-se</b>", {"tribunal": "TJTO", "tipo_comunicacao": "Intimação"})
+    assert first["avisos"] == [AVISO_MULTIPLOS] and first["multiplos_atos"] == 0.95
+    assert "Tribunal: TJTO" in json.loads(httpx_mock.get_requests()[0].content)["state"]
+    assert assess_notice("texto", {})["avisos"] == []
+    assert assess_notice("texto", {}) == {"status": "falha"}  # uma tentativa só
+
+
+def test_assess_notice_without_key_is_skipped():
+    from app.agent.jev import assess_notice
+
+    assert assess_notice("texto", {}) is None
+
+
 def test_client_requires_key(monkeypatch):
     monkeypatch.delenv("CAUSOR_JEV_API_KEY", raising=False)
     with pytest.raises(JevError):

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.agent.deadline_interpretation import (
     DeadlineInterpretation, interpret_deadline, supported, written_durations,
 )
+from app.agent.jev import assess_notice
 from app.capture.text import html_to_text
 from app.prazo_engine.atos import CATALOG_VERSION as ATOS_VERSION, candidatos, sem_prazo
 from app.prazo_engine.djen import compute_djen_civil_deadline
@@ -236,6 +237,7 @@ def _record_triage(session: Session, notice: models.Intimacao, tenant: int, reco
 def run_analysis(
     session: Session, job: models.JobExecucao,
     *, interpreter: Callable[[str], DeadlineInterpretation] = interpret_deadline,
+    assessor: Callable[[str, dict], dict | None] = assess_notice,
 ) -> None:
     """Call the model outside the DB transaction; a stale claim cannot publish."""
     from app.queue.jobs import mark_completed, mark_failed
@@ -267,6 +269,13 @@ def run_analysis(
             interpretation = interpreter(text)
     except Exception:
         interpretation = None
+    # Avisos da Jev: só acrescentam informação; data, status e triagem não mudam.
+    assessment = None
+    if interpretation is not None and text.strip():
+        try:
+            assessment = assessor(text, context)
+        except Exception:
+            assessment = {"status": "falha"}
     job = session.scalar(select(models.JobExecucao).where(models.JobExecucao.id == job.id)
                          .execution_options(populate_existing=True).with_for_update())
     if job is None or job.status != "running":
@@ -332,6 +341,9 @@ def run_analysis(
     conflicting = sorted(written_durations(text) - {act_options[0].dias}) if act_options else []
     record.update({"ato": interpretation.ato, "rito": rito, "confianca_ato": interpretation.confianca_ato,
                    "analise_versao": ANALYSIS_VERSION})
+    if assessment is not None:
+        record["avisos"] = assessment.get("avisos", [])
+        record["jev"] = {key: value for key, value in assessment.items() if key != "avisos"}
     if (interpretation.status == "sem_prazo" and interpretation.evidencia
             and interpretation.evidencia in text
             and re.search(r"\b(?:sem prazo|n[aã]o h[aá] prazo|prazo inexistente)\b",

@@ -21,6 +21,8 @@ export type PrazoAnalise = {
   status: string; job_id?: number; motivo?: string | null; prazo_id?: number; dias?: number | null; unidade?: string;
   publicacao?: string; primeiro_dia?: string; data_fatal?: string; evidencia?: string | null; fundamento?: string | null;
   calendario?: string; ato?: string; rito?: string; origem_duracao?: string | null; alternativas?: PrazoAlternativa[];
+  /** Avisos de leitura (Jev); nunca mudam data, status ou triagem. */
+  avisos?: string[];
 };
 
 export type Processo = {

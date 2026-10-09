@@ -41,13 +41,22 @@ superioridade jurídica, média de latência ou custo típico do produto.
 [Migração oficial](https://platform.claude.com/docs/en/models/sonnet-5-5/migration-guide)
 e [preços](https://platform.claude.com/docs/en/about-claude/pricing).
 
-## Jev (em avaliação, fora da produção)
+## Jev: avisos de leitura na análise de prazo
 
 A Jev (TypeSafe AI) responde perguntas fechadas com probabilidades e não gera
-texto. **Nenhuma rota do app a chama.** Existe só a bancada
-`python -m app.agent.jev_bancada`, que compara as respostas dela com a análise
-de prazo gravada ([plano](../desenvolvimento/planos/2026-10-09-jev-bancada.md)).
-Chave em `CAUSOR_JEV_API_KEY`, lida na hora da chamada.
+texto. Um uso no app ([plano](../desenvolvimento/planos/2026-10-09-jev-no-produto.md)):
+depois da interpretação do Haiku, `app.agent.jev.assess_notice` pergunta se o
+teor tem mais de um ato ou parte. Com probabilidade ≥ 0,9 a análise ganha um
+aviso, que aparece no painel da intimação e como selo "Conferir ato" na lista.
+**O aviso nunca muda data, status ou triagem.** Sem a chave
+`CAUSOR_JEV_API_KEY` (lida na hora da chamada) não há avisos; uma falha da Jev
+fica registrada em `jev.status` e a análise segue igual. Uma tentativa, 10 s.
+
+Só o teor do DJEN, que é público, vai para a Jev. Trechos dos autos não vão
+sem confirmar antes o tratamento de dados da TypeSafe.
+
+A bancada `python -m app.agent.jev_bancada` compara as respostas da Jev com a
+análise gravada ([plano](../desenvolvimento/planos/2026-10-09-jev-bancada.md)).
 
 Medido em 09/10 sobre 90 intimações reais: 90/90 respondidas, mediana de
 296 ms, 314.806 tokens de entrada, cerca de US$ 0,013 no total (US$ 0,00015

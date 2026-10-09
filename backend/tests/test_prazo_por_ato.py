@@ -174,6 +174,50 @@ def test_teor_html_do_djen_e_conferido_como_texto(db_session):
     assert [p.dias for p in _deadlines(db_session, notice)] == [10]
 
 
+def _jev(multiplos):
+    def assess(text, context):
+        avisos = ["O texto parece trazer mais de um ato ou parte; confira a qual o prazo se refere."] \
+            if multiplos >= 0.9 else []
+        return {"status": "ok", "modelo": "jev-1.13.0", "multiplos_atos": multiplos, "avisos": avisos}
+    return assess
+
+
+@pytest.mark.parametrize("assessor, avisos", [
+    (_jev(0.97), 1), (_jev(0.4), 0), (lambda text, context: {"status": "falha"}, 0),
+])
+def test_aviso_da_jev_nao_muda_o_prazo(db_session, assessor, avisos):
+    notice, job = _notice(db_session)
+
+    run_analysis(db_session, job, interpreter=_reading("sentenca"), assessor=assessor)
+
+    record = memory(db_session.get(models.Intimacao, notice.id))
+    [prazo] = _deadlines(db_session, notice)
+    assert record["status"] == "calculado_a_revisar" and (prazo.descricao, prazo.dias) == ("Apelação", 15)
+    assert len(record["avisos"]) == avisos
+    assert record["jev"]["status"] in {"ok", "falha"} and "avisos" not in record["jev"]
+
+
+def test_jev_quebrada_nao_derruba_a_analise(db_session):
+    notice, job = _notice(db_session)
+
+    def broken(text, context):
+        raise RuntimeError("fora do ar")
+
+    run_analysis(db_session, job, interpreter=_reading("sentenca"), assessor=broken)
+
+    record = memory(db_session.get(models.Intimacao, notice.id))
+    assert record["status"] == "calculado_a_revisar" and record["jev"] == {"status": "falha"}
+
+
+def test_sem_chave_da_jev_a_analise_fica_como_antes(db_session):
+    notice, job = _notice(db_session)
+
+    run_analysis(db_session, job, interpreter=_reading("sentenca"))
+
+    record = memory(db_session.get(models.Intimacao, notice.id))
+    assert "jev" not in record and "avisos" not in record
+
+
 def test_teor_longo_e_analisado_pelo_inicio_e_pelo_dispositivo():
     texto = "INICIO " + "x" * (MAX_TEXT * 2) + " DISPOSITIVO: JULGO PROCEDENTE"
     reduzido = text_for_model(texto)

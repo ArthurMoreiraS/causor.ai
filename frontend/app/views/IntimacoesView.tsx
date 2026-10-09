@@ -106,7 +106,8 @@ export default function IntimacoesView({
               {sistema.label}
             </span>
             <button type="button" className="deadlineOpen" aria-label={`Abrir prazo da intimação ${intimacao.id}`}
-              onClick={e => { e.stopPropagation(); onOpen(intimacao.id); }}><DeadlineBadge prazo={prazo} analise={intimacao.prazo_analise} /></button>
+              onClick={e => { e.stopPropagation(); onOpen(intimacao.id); }}><DeadlineBadge prazo={prazo} analise={intimacao.prazo_analise} />
+              {intimacao.prazo_analise?.avisos?.length ? <span className="dayBadge neutral" title={intimacao.prazo_analise.avisos.join(" ")}>Conferir ato</span> : null}</button>
             <span className={`queueStatus ${peticao?.status ?? "capturada"}`}>
               {peticao ? statusLabel(peticao.status) : "Sem minuta"}
             </span>

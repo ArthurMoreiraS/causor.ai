@@ -23,6 +23,12 @@ from app.sor.db import Base, get_session
 import app.sor.models as models  # noqa: F401,E402
 
 
+@pytest.fixture(autouse=True)
+def _sem_jev(monkeypatch):
+    """O `.env` local pode ter a chave da Jev; a suíte nunca chama a API real."""
+    monkeypatch.delenv("CAUSOR_JEV_API_KEY", raising=False)
+
+
 @pytest.fixture
 def registered_test_routes(monkeypatch):
     """Matriz de sessão usa drivers fictícios explícitos; não é homologação."""

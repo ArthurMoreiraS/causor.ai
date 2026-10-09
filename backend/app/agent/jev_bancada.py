@@ -27,8 +27,7 @@ import random
 import sys
 import time
 
-from app.agent.deadline_interpretation import text_for_model
-from app.agent.jev import DEFAULT_MODEL, JevClient, JevError, choice, noul
+from app.agent.jev import DEFAULT_MODEL, PERGUNTAS_INTIMACAO, JevClient, JevError, choice, notice_state
 from app.capture.text import html_to_text
 from app.prazo_engine.atos import ATOS
 
@@ -60,21 +59,7 @@ RITO_DESCRICOES = {
 }
 
 PERGUNTAS = {
-    "prazo_expresso": noul(
-        "A comunicação fixa, por escrito, um prazo em dias para alguma parte praticar um ato.",
-        sim="O texto diz o número de dias (ex.: 'no prazo de 15 dias', 'em cinco dias').",
-        nao="Não há número de dias escrito; o prazo, se houver, decorre da lei ou do tipo de ato.",
-    ),
-    "multiplos_atos": noul(
-        "A comunicação determina mais de um ato, ou intima mais de uma parte com providências ou prazos distintos.",
-        sim="Há duas ou mais ordens distintas, ou partes diferentes com prazos diferentes.",
-        nao="Há uma única ordem dirigida a uma parte, ou nenhuma ordem.",
-    ),
-    "exige_providencia": noul(
-        "A comunicação exige que o advogado intimado pratique algum ato processual.",
-        sim="Há algo a fazer: manifestar, recorrer, juntar, pagar, comparecer.",
-        nao="É mera ciência, pauta, distribuição ou expediente sem ordem à parte.",
-    ),
+    **PERGUNTAS_INTIMACAO,
     "ato": choice("Natureza do ato comunicado", ATO_DESCRICOES),
     "rito": choice("Regime processual do caso", RITO_DESCRICOES),
 }
@@ -83,8 +68,7 @@ ROTULOS = ("r_prazo_causor_correto", "r_prazo_expresso", "r_multiplos_atos", "r_
 
 
 def _estado(case: dict) -> str:
-    meta = f"Tribunal: {case.get('tribunal') or '-'}. Tipo: {case.get('tipo_comunicacao') or '-'}."
-    return f"{meta}\nComunicação DJEN:\n{text_for_model(case['teor'])}"
+    return notice_state(case["teor"], case)
 
 
 def causor_view(analise: dict | None) -> dict:

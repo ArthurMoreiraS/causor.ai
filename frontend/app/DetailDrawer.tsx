@@ -280,6 +280,7 @@ function IntimacaoDetail({
       ) : null}
 
       {intimacao.prazo_analise ? <p role="status" className="officeHint deadlineAnalysisNote">{analysisNote(intimacao.prazo_analise)}</p> : null}
+      {intimacao.prazo_analise?.avisos?.map(aviso => <p key={aviso} role="note" className="officeHint deadlineAnalysisNote">Atenção: {aviso}</p>)}
       {!offline && onPrazoConfirmed && (!prazo || prazo.revisao_status !== "confirmado") && <ConfirmarPrazo key={intimacao.id} intimacaoId={intimacao.id} analise={intimacao.prazo_analise} onConfirmed={onPrazoConfirmed} />}
       <DetailSection title="Teor da intimação">
         <TeorHtml teor={intimacao.teor} />
