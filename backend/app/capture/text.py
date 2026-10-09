@@ -23,6 +23,9 @@ renderiza como caixa/losango e isso lê como bug do Causor.
 
 from __future__ import annotations
 
+import html
+import re
+
 REPLACEMENT_CHAR = chr(0xFFFD)
 
 # Faixa de byte de continuação de UTF-8 (10xxxxxx) preservada pelo decode.
@@ -70,3 +73,16 @@ def sanitize_upstream_text(value: str | None) -> str | None:
             pass  # não era mojibake; mantém como está
 
     return texto
+
+
+def html_to_text(value: str) -> str:
+    """Teor do DJEN como texto: muitos tribunais publicam HTML com entidades.
+
+    O modelo cita o trecho já decodificado ("contrarrazões"); conferido contra o
+    HTML cru ("contrarraz&otilde;es"), o trecho nunca era encontrado. Texto sem
+    marcação passa sem mudança além de espaços.
+    """
+    text = re.sub(r"(?is)<(style|script)[^>]*>.*?</\1>", " ", value)
+    text = re.sub(r"(?i)<br\s*/?>|</(?:p|tr|section|div|li|h\d)>", "\n", text)
+    text = html.unescape(re.sub(r"<[^>]+>", " ", text))
+    return "\n".join(" ".join(line.split()) for line in text.splitlines() if line.strip())

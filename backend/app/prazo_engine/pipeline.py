@@ -11,7 +11,10 @@ import re
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.agent.deadline_interpretation import DeadlineInterpretation, interpret_deadline, supported
+from app.agent.deadline_interpretation import (
+    DeadlineInterpretation, interpret_deadline, supported, written_durations,
+)
+from app.capture.text import html_to_text
 from app.prazo_engine.atos import CATALOG_VERSION as ATOS_VERSION, candidatos, sem_prazo
 from app.prazo_engine.djen import compute_djen_civil_deadline
 from app.prazo_engine.factory import build_calendar
@@ -24,7 +27,8 @@ RULE = "djen_civel_cpc219_220_224_v1"
 TERMINAL = {"calculado_a_revisar", "triagem", "pendente", "sem_prazo_identificado", "confirmado"}
 # 2: classificação do ato e sugestão pelo catálogo de prazos por ato.
 # 3: incerto e falha persistente recebem data de triagem.
-ANALYSIS_VERSION = 3
+# 4: teor HTML convertido em texto; dias escritos diferentes do ato vão à triagem.
+ANALYSIS_VERSION = 4
 # Falhas do provedor são repetidas pelo agendador; esgotadas, vira triagem.
 MAX_ATTEMPTS = 3
 # Data de triagem: o menor prazo supletivo, para nenhuma intimação ficar sem
@@ -243,7 +247,7 @@ def run_analysis(
         mark_failed(session, job, "Intimação ou tenant inválido")
         session.commit()
         return
-    text = notice.teor or ""
+    text = html_to_text(notice.teor or "")
     snapshot_hash = source_hash(notice)
     raw = notice.payload or {}
     context = {
@@ -316,11 +320,16 @@ def run_analysis(
         "fundamento": (f"CPC art. {legal_rule.article}, § {legal_rule.paragraph}; "
                        f"{legal_rule.days} dias úteis" if legal_rule else interpretation.fundamento),
         "confianca": interpretation.confianca,
-        "motivo": reason, "calendario": "nacional+recesso_CPC; feriados_e_suspensoes_locais_nao_homologados",
+        # O motivo pode ser trocado abaixo (sugestão por ato, triagem); a recusa fica.
+        "motivo": reason, "motivo_verificacao": reason,
+        "calendario": "nacional+recesso_CPC; feriados_e_suspensoes_locais_nao_homologados",
         "fonte_sha256": snapshot_hash,
     }
     rito = effective_rite(interpretation.rito, context["classe"], context["orgao"])
     act_options = candidatos(interpretation.ato, rito) if interpretation.confianca_ato >= MIN_ACT_CONFIDENCE else ()
+    # Um número de dias escrito que não pôde ser confirmado não é trocado pelo
+    # prazo do tipo de ato: o do ato pode ser maior que o real.
+    conflicting = sorted(written_durations(text) - {act_options[0].dias}) if act_options else []
     record.update({"ato": interpretation.ato, "rito": rito, "confianca_ato": interpretation.confianca_ato,
                    "analise_versao": ANALYSIS_VERSION})
     if (interpretation.status == "sem_prazo" and interpretation.evidencia
@@ -333,6 +342,11 @@ def run_analysis(
                          "Revise calendário e suspensões locais antes de confirmar")
     elif sem_prazo(interpretation.ato) and interpretation.confianca_ato >= MIN_ACT_CONFIDENCE:
         record.update({"status": "sem_prazo_identificado", "motivo": sem_prazo(interpretation.ato)})
+    elif conflicting:
+        written = " e ".join(f"{days} dias" for days in conflicting)
+        record["motivo"] = (f"O teor fala em {written}, diferente dos {act_options[0].dias} dias de "
+                            f"{act_options[0].ato_cabivel.lower()} pelo tipo de ato; confira qual prazo "
+                            "vale para a parte.")
     elif act_options:
         principal = act_options[0]
         record.update({

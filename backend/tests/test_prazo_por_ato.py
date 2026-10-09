@@ -125,6 +125,55 @@ def test_prazo_expresso_continua_tendo_prioridade_sobre_o_ato(db_session):
     assert memory(db_session.get(models.Intimacao, notice.id)).get("origem_duracao") == "judicial_expressa"
 
 
+def test_dias_escritos_diferentes_do_ato_vao_para_triagem(db_session):
+    """Caso real (09/10): contrarrazões em 5 dias viraram 15 dias de agravo interno."""
+    teor = ("Intime-se o embargado para, querendo, apresentar contrarrazões aos Embargos de "
+            "Declaração, no prazo de 5 (cinco) dias, conforme o artigo 1.023, § 2º, do CPC.")
+    notice, job = _notice(db_session, teor=teor)
+
+    run_analysis(db_session, job, interpreter=_reading("decisao_monocratica_tribunal"))
+
+    record = memory(db_session.get(models.Intimacao, notice.id))
+    [prazo] = _deadlines(db_session, notice)
+    assert record["status"] == "triagem"
+    assert prazo.descricao == pipeline.TRIAGE_DESCRIPTION
+    assert "5 dias" in record["motivo"] and "15 dias" in record["motivo"]
+    assert record["motivo_verificacao"]  # por que o prazo escrito não foi aceito
+
+
+def test_dias_escritos_iguais_ao_ato_mantem_a_sugestao(db_session):
+    teor = "Intime-se o agravado para oferecer resposta ao recurso no prazo de 15 (quinze) dias."
+    notice, job = _notice(db_session, teor=teor)
+
+    run_analysis(db_session, job, interpreter=_reading("decisao_monocratica_tribunal"))
+
+    [prazo] = _deadlines(db_session, notice)
+    assert (prazo.descricao, prazo.dias) == ("Agravo interno", 15)
+
+
+def test_teor_html_do_djen_e_conferido_como_texto(db_session):
+    teor = ("<html><body><section><b>Procedimento Comum C&iacute;vel</b></section><p>Intime-se a "
+            "parte r&eacute; para se manifestar sobre o laudo pericial no prazo de 10 (dez) dias "
+            "&uacute;teis.</p></body></html>")
+    notice, job = _notice(db_session, teor=teor)
+    seen = []
+
+    def interpret(text):
+        seen.append(text)
+        return DeadlineInterpretation(
+            status="prazo", regime="cpc_civel_djen", dias=10, unidade="dias_uteis", termo="publicacao_djen",
+            confianca=0.95, origem_duracao="judicial_expressa", ato="intimacao_manifestacao", rito="comum",
+            confianca_ato=0.9, evidencia="Intime-se a parte ré para se manifestar sobre o laudo pericial "
+                                         "no prazo de 10 (dez) dias úteis")
+
+    run_analysis(db_session, job, interpreter=interpret)
+
+    assert "<" not in seen[0] and "&eacute;" not in seen[0] and "parte ré" in seen[0]
+    record = memory(db_session.get(models.Intimacao, notice.id))
+    assert record["origem_duracao"] == "judicial_expressa" and record["status"] == "calculado_a_revisar"
+    assert [p.dias for p in _deadlines(db_session, notice)] == [10]
+
+
 def test_teor_longo_e_analisado_pelo_inicio_e_pelo_dispositivo():
     texto = "INICIO " + "x" * (MAX_TEXT * 2) + " DISPOSITIVO: JULGO PROCEDENTE"
     reduzido = text_for_model(texto)

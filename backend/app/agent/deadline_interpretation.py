@@ -130,6 +130,20 @@ def duration_in_evidence(days: int, evidence: str) -> bool:
     return bool(word and re.search(rf"\b{re.escape(word)}\s+dias?\b", evidence, re.IGNORECASE))
 
 
+_WORD_NUMBERS = {word: days for days, word in _NUMBER_WORDS.items()}
+_WRITTEN_DAYS = re.compile(
+    r"(?<![\d.,/])(\d{1,3})\s*(?:\([^)]{1,30}\)\s*)?dias?\b|\b("
+    + "|".join(sorted(map(re.escape, _WORD_NUMBERS), key=len, reverse=True)) + r")\s+dias?\b",
+    re.IGNORECASE,
+)
+
+
+def written_durations(text: str) -> set[int]:
+    """Todas as durações em dias escritas no teor ("5 (cinco) dias", "quinze dias")."""
+    return {int(match[1]) if match[1] else _WORD_NUMBERS[match[2].lower()]
+            for match in _WRITTEN_DAYS.finditer(text)}
+
+
 MAX_TEXT = 30000
 
 
